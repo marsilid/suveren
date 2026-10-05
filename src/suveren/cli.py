@@ -213,21 +213,24 @@ def scan(
     export_svg: Annotated[
         Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
     ] = None,
-    pd_check: Annotated[
+    no_152fz: Annotated[
+        bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
+    ] = False,
+    no_blocklist: Annotated[
+        bool,
+        typer.Option("--no-blocklist", help="Пропустить проверку по реестру блокировок РКН."),
+    ] = False,
+    quick: Annotated[
         bool,
         typer.Option(
-            "--152fz", help="Проверить соответствие 152-ФЗ: политика, согласия, cookies, реестр."
+            "--quick", help="Только иностранные сервисы: без 152-ФЗ и блокировок (для CI)."
         ),
     ] = False,
-    blocklist: Annotated[
-        bool, typer.Option("--blocklist", help="Проверить по реестру блокировок Роскомнадзора.")
-    ] = False,
-    full: Annotated[bool, typer.Option("--full", help="Все проверки сразу.")] = False,
     refresh: Annotated[
         bool, typer.Option("--refresh", help="Обновить скачанные списки, не дожидаясь суток.")
     ] = False,
 ) -> None:
-    """Проверить сайт: DNS, почта, хостинг, CDN, регистратор, сертификат, скрипты."""
+    """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
     try:
         host = normalize_domain(target)
         threshold = _validate_grade(fail_under)
@@ -242,8 +245,8 @@ def scan(
                     host,
                     timeout=timeout,
                     dns_mode=dns_mode.value,
-                    compliance=pd_check or full,
-                    blocklist=blocklist or full,
+                    compliance=not (no_152fz or quick),
+                    blocklist=not (no_blocklist or quick),
                     refresh=refresh,
                 )
             )

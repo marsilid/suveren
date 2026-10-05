@@ -3,6 +3,7 @@ import json
 from typer.testing import CliRunner
 
 from suveren.cli import app
+from suveren.errors import SuverenError
 
 runner = CliRunner()
 
@@ -28,6 +29,22 @@ def test_scan_rejects_invalid_domain():
 def test_scan_rejects_bad_grade():
     result = runner.invoke(app, ["scan", "example.ru", "--fail-under", "Z"])
     assert result.exit_code == 2
+
+
+def test_scan_runs_everything_by_default(monkeypatch):
+    calls = {}
+
+    async def fake_run_scan(host, **kwargs):
+        calls.update(kwargs, host=host)
+        raise SuverenError("stop")
+
+    monkeypatch.setattr("suveren.cli.run_scan", fake_run_scan)
+    runner.invoke(app, ["scan", "example.ru", "--no-open"])
+    assert calls["compliance"] and calls["blocklist"]
+    runner.invoke(app, ["scan", "example.ru", "--quick"])
+    assert not calls["compliance"] and not calls["blocklist"]
+    runner.invoke(app, ["scan", "example.ru", "--no-blocklist"])
+    assert calls["compliance"] and not calls["blocklist"]
 
 
 def _report(deps, grade, score):

@@ -67,7 +67,7 @@ for /f "tokens=1-3 delims=/.- " %%a in ("%date%") do set "stamp=%%c%%b%%a"
 set "stamp=!stamp!-%time:~0,2%%time:~3,2%%time:~6,2%"
 set "stamp=!stamp: =0!"
 echo.
-".venv\Scripts\suveren.exe" scan "!target!" --full --json "reports\scan-!stamp!.json"
+".venv\Scripts\suveren.exe" scan "!target!" --json "reports\scan-!stamp!.json"
 echo.
 echo   Отчёт открыт в браузере. HTML и JSON сохранены в папке reports.
 pause

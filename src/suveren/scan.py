@@ -18,8 +18,8 @@ async def run_scan(
     *,
     timeout: float = 10.0,
     dns_mode: ResolverMode = "auto",
-    compliance: bool = False,
-    blocklist: bool = False,
+    compliance: bool = True,
+    blocklist: bool = True,
     refresh: bool = False,
 ) -> Report:
     started = datetime.now(timezone.utc)

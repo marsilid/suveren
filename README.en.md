@@ -33,8 +33,8 @@ The tool targets Russian businesses, so its interface and reports are in Russian
 ```bash
 pip install git+https://github.com/marsilid/suveren.git
 
-suveren scan example.ru            # foreign dependencies, A–F grade
-suveren scan example.ru --full     # + 152-FZ and block-list checks
+suveren scan example.ru            # full check: foreign deps + A–F grade, 152-FZ, block list
+suveren scan example.ru --quick    # foreign dependencies only (handy in CI)
 suveren company 7707083893         # company by tax ID (INN), OGRN or domain
 suveren diff before.json after.json
 suveren update                     # refresh sanctions and block lists
