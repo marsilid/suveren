@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Suveren — example.com</title>
+<title>Suveren — selectel.ru</title>
 <style>
   :root {
     --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5d6673;
@@ -97,63 +97,76 @@
   <header class="top">
     <span class="brand">Suveren</span>
     <span class="meta">
-      05.10.2026 21:33 UTC · 2.6 с
+      05.10.2026 21:33 UTC · 6.7 с
     </span>
   </header>
-  <h1>example.com</h1>
+  <h1>selectel.ru</h1>
 
   <section class="card summary">
-    <div class="grade grade-D">D</div>
+    <div class="grade grade-A">A</div>
     <div>
-      <div class="score"><strong>56</strong> / 100 — независимость от иностранных сервисов</div>
+      <div class="score"><strong>96</strong> / 100 — независимость от иностранных сервисов</div>
       <div class="counts">
-        Иностранных сервисов: <b>4</b> · российских: <b>0</b>
+        Иностранных сервисов: <b>1</b> · российских: <b>5</b>
       </div>
       <div class="bar">
-<span style="width: 100%; background: #3b5bdb" title="США 100%"></span>      </div>
+<span style="width: 83%; background: var(--grade-a)" title="Россия 83%"></span><span style="width: 17%; background: #3b5bdb" title="США 17%"></span>      </div>
       <div class="legend">
-<span><i style="background: #3b5bdb"></i>США 100%</span>      </div>
+<span><i style="background: var(--grade-a)"></i>Россия 83%</span><span><i style="background: #3b5bdb"></i>США 17%</span>      </div>
     </div>
   </section>
 
   <h2>Замечания</h2>
-  <p class="card note">Сайт работает через CDN, поэтому настоящий хостинг скрыт и не проверялся. Проверьте вручную, где находится сервер.</p>
   <p class="card note">Скрипты и виджеты искались только на главной странице. Сервисы, которые подключаются на других страницах или изнутри JS-бандлов, могут не попасть в отчёт.</p>
 
   <h2>Риски</h2>
-  <article class="card finding sev-high">
+  <article class="card finding sev-low">
     <div class="head">
-      <span class="badge"><span>высокий</span></span>
-      <h3>DNS-серверы: Cloudflare (США)</h3>
-    </div>
-    <p>Если провайдер DNS заблокирует аккаунт, перестанут работать сразу сайт, почта и все остальные сервисы домена.</p>
-    <p class="fix">Перенести DNS в Yandex Cloud DNS, Selectel DNS или к российскому регистратору (RU-CENTER, REG.RU).</p>
-  </article>
-  <article class="card finding sev-medium">
-    <div class="head">
-      <span class="badge"><span>средний</span></span>
-      <h3>CDN и защита от DDoS: Cloudflare (США)</h3>
-    </div>
-    <p>Весь трафик сайта идёт через иностранную сеть доставки. При отключении сайт будет недоступен, пока не поменяются DNS-записи. Также фиксировались замедления сайтов за иностранными CDN для пользователей из России.</p>
-    <p class="fix">DDoS-Guard, Qrator, Servicepipe, NGENIX или CDN в Yandex Cloud, Selectel, VK Cloud.</p>
-  </article>
-  <article class="card finding sev-medium">
-    <div class="head">
-      <span class="badge"><span>средний</span></span>
-      <h3>SSL-сертификат: SSL.com (США)</h3>
+      <span class="badge"><span>низкий</span></span>
+      <h3>SSL-сертификат: Let&#39;s Encrypt (США)</h3>
     </div>
     <p>Сертификат выпустил иностранный удостоверяющий центр. Он может отозвать сертификат или отказать в продлении: в 2022 году так поступали с рядом российских организаций.</p>
     <p class="fix">Настроить автоматический выпуск по ACME, чтобы быстро сменить УЦ. Для аудитории в России можно дополнительно выпустить сертификат НУЦ Минцифры.</p>
   </article>
-  <article class="card finding sev-low">
-    <div class="head">
-      <span class="badge"><span>низкий</span></span>
-      <h3>Доменная зона: .com — Verisign (США)</h3>
-    </div>
-    <p>Зоной управляет иностранный реестр. Реестр и регистраторы обязаны выполнять санкционные требования своей страны и могут заблокировать домен.</p>
-    <p class="fix">Держать основной или резервный домен в зоне .ru или .рф.</p>
-  </article>
 
+  <h2 id="checks-1">Персональные данные (152-ФЗ)</h2>
+  <div class="card checks">
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Политика обработки персональных данных</h3>
+<p>Политика опубликована (PDF). <a href="https://files.selectel.ru/docs/ru/personal-data-processing-and-protection-policy.pdf" target="_blank" rel="noopener">открыть</a></p>    </div>
+    <div class="check">
+      <span class="icon st-unknown" title="не ясно"><span>?</span></span>
+      <h3>Согласие на обработку в формах</h3>
+<p>На главной странице нет форм с персональными данными. Проверьте формы на других страницах вручную.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Трансграничная передача данных</h3>
+<p>Скрипты иностранных сервисов, получающие данные посетителей, не найдены.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Хранение данных в России</h3>
+<p>Сервер сайта в России.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Защищённое соединение</h3>
+<p>Сайт работает по HTTPS.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Реестр операторов персональных данных</h3>
+<p>АКЦИОНЕРНОЕ ОБЩЕСТВО &#34;СЕЛЕКТЕЛ&#34; (ИНН 7810962785) в реестре: № 78-24-066032 от 23.08.2024. <a href="https://pd.rkn.gov.ru/operators-registry/operators-list/?id=78-24-066032" target="_blank" rel="noopener">открыть</a></p>    </div>
+  </div>
+  <h2 id="checks-2">Блокировки в России</h2>
+  <div class="card checks">
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Домен в реестре блокировок</h3>
+<p>Домен не заблокирован.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>IP-адреса сайта</h3>
+<p>IP сайта не заблокированы.</p>    </div>
+  </div>
 
   <h2>Все найденные сервисы</h2>
   <div class="card table-wrap">
@@ -162,46 +175,56 @@
       <tbody>
         <tr class="group"><td colspan="4">Доменная зона</td></tr>
         <tr>
-          <td>.com — Verisign</td>
-          <td>США</td>
-          <td class="evidence">example.com</td>
+          <td>.ru — Координационный центр доменов .RU/.РФ</td>
+          <td>Россия</td>
+          <td class="evidence">selectel.ru</td>
           <td>
-<span class="badge sev-low"><span>низкий</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
         <tr class="group"><td colspan="4">Регистратор домена</td></tr>
         <tr>
-          <td>RESERVED-Internet Assigned Numbers Authority</td>
-          <td>неизвестно</td>
-          <td class="evidence">WHOIS</td>
+          <td>REG.RU</td>
+          <td>Россия</td>
+          <td class="evidence">REGRU-RU</td>
           <td>
-<span class="empty">—</span>          </td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
         </tr>
         <tr class="group"><td colspan="4">DNS-серверы</td></tr>
         <tr>
-          <td>Cloudflare</td>
-          <td>США</td>
-          <td class="evidence">NS elliott.ns.cloudflare.com, NS hera.ns.cloudflare.com</td>
+          <td>Selectel</td>
+          <td>Россия</td>
+          <td class="evidence">NS a.ns.selectel.ru, NS b.ns.selectel.ru, NS c.ns.selectel.ru, NS d.ns.selectel.ru</td>
           <td>
-<span class="badge sev-high"><span>высокий</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
-        <tr class="group"><td colspan="4">CDN и защита от DDoS</td></tr>
+        <tr class="group"><td colspan="4">Почта</td></tr>
         <tr>
-          <td>Cloudflare</td>
-          <td>США</td>
-          <td class="evidence">IP 104.20.23.154 (AS13335), IP 172.66.147.243 (AS13335)</td>
+          <td>Selectel</td>
+          <td>Россия</td>
+          <td class="evidence">MX smtp-01.selectel.org</td>
           <td>
-<span class="badge sev-medium"><span>средний</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Хостинг сайта</td></tr>
+        <tr>
+          <td>Selectel</td>
+          <td>Россия</td>
+          <td class="evidence">IP 85.119.149.3 (AS50340)</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
         <tr class="group"><td colspan="4">SSL-сертификат</td></tr>
         <tr>
-          <td>SSL.com</td>
+          <td>Let&#39;s Encrypt</td>
           <td>США</td>
-          <td class="evidence">SSL Corporation</td>
+          <td class="evidence">Let&#39;s Encrypt</td>
           <td>
-<span class="badge sev-medium"><span>средний</span></span>
+<span class="badge sev-low"><span>низкий</span></span>
           </td>
         </tr>
       </tbody>

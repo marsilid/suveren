@@ -28,11 +28,14 @@ echo               S u v e r e n
 echo     независимость от иностранных сервисов
 echo   ======================================
 echo.
-echo   1  Проверить сайт
-echo   2  Сравнить два отчёта (JSON)
-echo   3  Показать базу сервисов
-echo   4  Открыть папку с отчётами
-echo   5  Запустить автотесты
+echo   1  Проверить сайт (иностранные сервисы)
+echo   2  Полная проверка сайта (+ 152-ФЗ и блокировки)
+echo   3  Проверить компанию (ИНН, ОГРН или сайт)
+echo   4  Сравнить два отчёта (JSON)
+echo   5  Показать базу сервисов
+echo   6  Обновить санкционные списки и реестр блокировок
+echo   7  Открыть папку с отчётами
+echo   8  Запустить автотесты
 echo   0  Выход
 echo.
 set "choice="
@@ -45,11 +48,14 @@ goto :menu
 
 :dispatch
 set empty=0
-if "!choice!"=="1" goto :scan
-if "!choice!"=="2" goto :diff
-if "!choice!"=="3" goto :services
-if "!choice!"=="4" goto :reports
-if "!choice!"=="5" goto :tests
+if "!choice!"=="1" (set "extra=" & goto :scan)
+if "!choice!"=="2" (set "extra=--full" & goto :scan)
+if "!choice!"=="3" goto :company
+if "!choice!"=="4" goto :diff
+if "!choice!"=="5" goto :services
+if "!choice!"=="6" goto :update
+if "!choice!"=="7" goto :reports
+if "!choice!"=="8" goto :tests
 if "!choice!"=="0" exit /b 0
 goto :menu
 
@@ -63,9 +69,30 @@ for /f "tokens=1-3 delims=/.- " %%a in ("%date%") do set "stamp=%%c%%b%%a"
 set "stamp=!stamp!-%time:~0,2%%time:~3,2%%time:~6,2%"
 set "stamp=!stamp: =0!"
 echo.
-".venv\Scripts\suveren.exe" scan "!target!" --json "reports\scan-!stamp!.json"
+".venv\Scripts\suveren.exe" scan "!target!" !extra! --json "reports\scan-!stamp!.json"
 echo.
 echo   Отчёт открыт в браузере. HTML и JSON сохранены в папке reports.
+pause
+goto :menu
+
+:company
+echo.
+echo   Первая проверка скачивает санкционные списки (около 100 МБ), это займёт минуту.
+echo.
+set "target="
+set /p "target=  ИНН, ОГРН или сайт компании: "
+if not defined target goto :menu
+echo.
+".venv\Scripts\suveren.exe" company "!target!"
+echo.
+echo   Отчёт открыт в браузере и сохранён в папке reports.
+pause
+goto :menu
+
+:update
+echo.
+".venv\Scripts\suveren.exe" update
+echo.
 pause
 goto :menu
 

@@ -49,7 +49,7 @@
   {% endfor %}
 
   {% for group, items in report.check_groups %}
-  <h2>{{ group }}</h2>
+  <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
   <div class="card checks">
     {% for c in items %}
     <div class="check">

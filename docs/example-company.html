@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suveren — ПАО СБЕРБАНК</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5d6673;
+    --accent: #1971c2; --code-bg: #f0f2f5;
+    --high: #d9480f; --medium: #b7791f; --low: #1c7ed6; --info: #6b7280;
+    --grade-a: #2f9e44; --grade-b: #66a80f; --grade-c: #e8a100; --grade-d: #e8590c; --grade-f: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --surface: #171b21; --border: #2a3039; --text: #e6e9ee; --muted: #9aa4b2;
+      --accent: #74c0fc; --code-bg: #20262e;
+      --high: #ff922b; --medium: #fcc419; --low: #4dabf7; --info: #9aa4b2;
+      --grade-a: #51cf66;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  .brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+  .meta { color: var(--muted); font-size: 13px; }
+  h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }
+  h2 { font-size: 20px; margin: 40px 0 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .summary { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+  .grade {
+    width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+    border: 8px solid currentColor; font-size: 48px; font-weight: 800;
+  }
+  .grade-A { color: var(--grade-a); } .grade-B { color: var(--grade-b); } .grade-C { color: var(--grade-c); }
+  .grade-D { color: var(--grade-d); } .grade-F { color: var(--grade-f); }
+  .score { font-size: 15px; color: var(--muted); margin-bottom: 6px; }
+  .score strong { color: var(--text); font-size: 22px; }
+  .counts { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .counts b { color: var(--text); }
+  .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--code-bg); }
+  .bar span { display: block; height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .sev-high { color: var(--high); } .sev-medium { color: var(--medium); }
+  .sev-low { color: var(--low); } .sev-info { color: var(--info); } .sev-ok { color: var(--grade-a); }
+  .badge {
+    display: inline-block; min-width: 76px; text-align: center; padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    background: currentColor; white-space: nowrap;
+  }
+  .badge span { color: var(--bg); }
+  .finding { border-left: 4px solid currentColor; padding: 14px 16px; margin-bottom: 10px; }
+  .finding .head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .finding h3 { margin: 0; font-size: 15px; color: var(--text); }
+  .finding p { margin: 8px 0 0; color: var(--text); }
+  .finding .fix { color: var(--muted); }
+  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .note { border-left: 4px solid var(--medium); padding: 12px 16px; margin: 0 0 12px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  td { word-break: break-word; }
+  span.evidence { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  section.card th { width: 210px; }
+  td.evidence { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  tr.group td { background: var(--code-bg); font-weight: 600; }
+  .table-wrap { overflow-x: auto; padding: 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  .check { display: grid; grid-template-columns: 28px 1fr; gap: 4px 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .check:last-child { border-bottom: 0; }
+  .check .icon { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 800; font-size: 13px; background: currentColor; }
+  .check .icon span { color: var(--bg); }
+  .check h3 { margin: 1px 0 0; font-size: 15px; }
+  .check p { margin: 4px 0 0; grid-column: 2; }
+  .check .fix { color: var(--muted); }
+  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .check .st-ok { color: var(--grade-a); } .check .st-warn { color: var(--medium); }
+  .check .st-fail { color: var(--grade-f); } .check .st-unknown { color: var(--info); }
+  .checks { padding: 0; }
+  a { color: var(--accent); }
+  footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
+  @media (max-width: 560px) {
+    .summary { grid-template-columns: 1fr; justify-items: start; }
+    td.evidence { display: none; }
+  }
+  @media print { body { background: #fff; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand">Suveren · проверка компании</span>
+    <span class="meta">
+      05.10.2026 21:33 UTC · 2.5 с
+    </span>
+  </header>
+  <h1>ПАО СБЕРБАНК</h1>
+
+  <section class="card">
+    <table>
+      <tbody>
+        <tr><th>Полное наименование</th><td>ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО &#34;СБЕРБАНК РОССИИ&#34;</td></tr>
+        <tr><th>ИНН / ОГРН</th><td>7707083893 / 1027700132195 · КПП 773601001</td></tr>
+        <tr><th>Дата регистрации</th><td>16.08.2002</td></tr>
+        <tr><th>Статус</th><td>действующая</td></tr>
+<tr><th>Руководитель</th><td>ПРЕЗИДЕНТ, ПРЕДСЕДАТЕЛЬ ПРАВЛЕНИЯ: Греф Герман Оскарович</td></tr><tr><th>Регион</th><td>Г.Москва</td></tr>      </tbody>
+    </table>
+  </section>
+
+
+  <h2>Результаты</h2>
+  <div class="card checks">
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>ЕГРЮЛ / ЕГРИП</h3>
+<p>Действующая организация.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Возраст компании</h3>
+<p>Зарегистрирована 16.08.2002 (24 года).</p>    </div>
+    <div class="check">
+      <span class="icon st-fail" title="проблема"><span>✗</span></span>
+      <h3>Санкционные списки</h3>
+<p>Организация в санкционных списках: США (OFAC SDN), ЕС (сводный санкционный список), Великобритания (UK Sanctions List).</p><p class="fix">Сделки с ней несут риск вторичных санкций для банков и партнёров. Подробности в таблице ниже.</p>    </div>
+    <div class="check">
+      <span class="icon st-warn" title="внимание"><span>!</span></span>
+      <h3>Руководитель в санкционных списках</h3>
+<p>Греф Герман Оскарович: найдены совпадения по фамилии и имени (3).</p><p class="fix">Это может быть однофамилец: сверьте дату рождения и должность в списке.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Реестр операторов персональных данных</h3>
+<p>№ 11-0187199 от 24.03.2011. <a href="https://pd.rkn.gov.ru/operators-registry/operators-list/?id=11-0187199" target="_blank" rel="noopener">открыть</a></p>    </div>
+  </div>
+
+  <h2>Совпадения в санкционных списках</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Список</th><th>Запись</th><th>Как найдено</th><th>Программы</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>США (OFAC SDN)<br><span class="evidence">17018</span></td>
+          <td>PUBLIC JOINT STOCK COMPANY SBERBANK OF RUSSIA</td>
+          <td>совпадение по ИНН/ОГРН<br><span class="evidence">7707083893</span></td>
+          <td class="evidence">UKRAINE-EO13662, RUSSIA-EO14024</td>
+        </tr>
+        <tr>
+          <td>ЕС (сводный санкционный список)<br><span class="evidence">EU.8537.32</span></td>
+          <td>Сбербанк</td>
+          <td>совпадение по ИНН/ОГРН<br><span class="evidence">1027700132195</span></td>
+          <td class="evidence">UKR</td>
+        </tr>
+        <tr>
+          <td>Великобритания (UK Sanctions List)<br><span class="evidence">RUS0256</span></td>
+          <td>PJSC Sberbank (Public Joint-Stock Company Sberbank)</td>
+          <td>совпадение по ИНН/ОГРН<br><span class="evidence">1027700132195</span></td>
+          <td class="evidence">The Russia (Sanctions) (EU Exit) Regulations 2019</td>
+        </tr>
+        <tr>
+          <td>США (OFAC SDN)<br><span class="evidence">34796</span></td>
+          <td>Herman Oskarovich GREF</td>
+          <td>возможное совпадение по ФИО<br><span class="evidence">Греф Герман Оскарович</span></td>
+          <td class="evidence">RUSSIA-EO14024</td>
+        </tr>
+        <tr>
+          <td>ЕС (сводный санкционный список)<br><span class="evidence">EU.7889.11</span></td>
+          <td>Герман Оскарович ГРЕФ</td>
+          <td>возможное совпадение по ФИО<br><span class="evidence">Греф Герман Оскарович</span></td>
+          <td class="evidence">UKR</td>
+        </tr>
+        <tr>
+          <td>Великобритания (UK Sanctions List)<br><span class="evidence">RUS1057</span></td>
+          <td>Herman Oskarovich GREF</td>
+          <td>возможное совпадение по ФИО<br><span class="evidence">Греф Герман Оскарович</span></td>
+          <td class="evidence">The Russia (Sanctions) (EU Exit) Regulations 2019</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Отчёт создан Suveren v1.0.0 по открытым данным: ЕГРЮЛ (ФНС России), реестр операторов
+    персональных данных (Роскомнадзор), санкционные списки США (OFAC), ЕС и Великобритании.
+    Совпадения по названию и ФИО требуют ручной проверки. Отчёт не является юридическим заключением.
+  </footer>
+</div>
+</body>
+</html>

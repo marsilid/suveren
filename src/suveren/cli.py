@@ -45,7 +45,8 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     rich_markup_mode="rich",
-    help="[bold]Suveren[/] — насколько сайт зависит от иностранных сервисов.",
+    help="[bold]Suveren[/] — аудит сайта и компании: иностранные сервисы, 152-ФЗ, "
+    "блокировки, ЕГРЮЛ, санкции.",
 )
 console = Console(record=True)
 
