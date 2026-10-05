@@ -20,10 +20,17 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__
+from suveren.blocklist import DOMAINS, IP_LISTS
+from suveren.blocklist import SOURCE as BLOCK_SOURCE
+from suveren.cache import cache_dir, fetch_cached
 from suveren.checks import Check, Status
+from suveren.collect import make_client
+from suveren.company import run_company
 from suveren.errors import SuverenError
 from suveren.models import Report, Severity
-from suveren.report import write_html, write_json
+from suveren.report import write_company, write_html, write_json
+from suveren.sanctions import SOURCE_TITLES, load_index
+from suveren.sanctions import SOURCES as SANCTION_SOURCES
 from suveren.scan import run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
@@ -332,3 +339,114 @@ def services() -> None:
         f"\nВсего: [bold]{len(ALL_SERVICES)}[/] · иностранных {sum(foreign.values())} · "
         f"российских {domestic}"
     )
+
+
+@app.command()
+def company(
+    target: Annotated[
+        str, typer.Argument(help="ИНН, ОГРН или домен сайта (ИНН будет найден на сайте).")
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Путь к HTML-отчёту (по умолчанию reports/...)."),
+    ] = None,
+    json_path: Annotated[Path | None, typer.Option("--json", help="Сохранить в JSON.")] = None,
+    no_report: Annotated[
+        bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.")
+    ] = False,
+    open_report: Annotated[
+        bool, typer.Option("--open/--no-open", help="Открыть отчёт в браузере.")
+    ] = True,
+    no_sanctions: Annotated[
+        bool, typer.Option("--no-sanctions", help="Не проверять санкционные списки.")
+    ] = False,
+    refresh: Annotated[
+        bool, typer.Option("--refresh", help="Обновить санкционные списки сейчас.")
+    ] = False,
+    timeout: Annotated[
+        float, typer.Option("--timeout", "-t", min=1.0, help="Сетевой таймаут, секунды.")
+    ] = 15.0,
+) -> None:
+    """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
+    console.print(BANNER.format(version=__version__))
+    try:
+        with console.status("Проверяю компанию… (первый раз скачиваются санкционные списки)"):
+            report = asyncio.run(
+                run_company(target, timeout=timeout, sanctions=not no_sanctions, refresh=refresh)
+            )
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+
+    for note in report.notes:
+        console.print(f"[yellow]![/] [dim]{note}[/]")
+    rec = report.egrul
+    lines = []
+    if rec:
+        lines.append(rec.name_full)
+        lines.append(f"ИНН {rec.inn or '—'} · ОГРН {rec.ogrn or '—'}")
+        if rec.head:
+            lines.append(f"[dim]{rec.head}[/]")
+    elif report.domain:
+        lines.append(f"Сайт {report.domain}, ИНН {report.inn or 'не найден'}")
+    console.print()
+    console.print(
+        Panel("\n".join(lines) or report.query, title=f"[bold]{report.title}[/]", expand=False)
+    )
+    _print_checks(report.checks)
+
+    if report.hits:
+        table = Table(
+            title="\nСовпадения в санкционных списках",
+            title_justify="left",
+            box=None,
+            header_style="bold",
+            padding=(0, 2),
+        )
+        table.add_column("Список")
+        table.add_column("Запись")
+        table.add_column("Как найдено", style="dim")
+        for h in report.hits:
+            table.add_row(SOURCE_TITLES[h.entry.source], h.entry.names[0], h.how_ru)
+        console.print(table)
+
+    html_path = None
+    if not no_report:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        slug = report.inn or report.ogrn or report.domain or "company"
+        html_path = output or Path("reports") / f"company-{slug}-{stamp}.html"
+    write_company(report, html_path, json_path)
+    if html_path is not None:
+        console.print(f"\n[bold]HTML-отчёт:[/] {html_path}")
+        if open_report:
+            webbrowser.open(html_path.resolve().as_uri())
+    if json_path is not None:
+        console.print(f"[bold]JSON:[/] {json_path}")
+
+
+@app.command()
+def update() -> None:
+    """Скачать свежие санкционные списки и реестр блокировок (обычно раз в сутки сам)."""
+
+    async def run() -> None:
+        async with make_client(30.0) as client:
+            with console.status("Санкционные списки…"):
+                index = await load_index(client, refresh=True)
+            for note in index.notes:
+                console.print(f"[yellow]![/] {note}")
+            for source in SANCTION_SOURCES:
+                count = sum(1 for e in index.entries if e.source == source.key)
+                console.print(f"[green]✓[/] {source.title}: {count} записей")
+            for name in (DOMAINS, *IP_LISTS):
+                with console.status(f"Реестр блокировок: {name}…"):
+                    path, note = await fetch_cached(
+                        client, BLOCK_SOURCE + name, f"blocklist-{name}", refresh=True
+                    )
+                mark = "[yellow]![/]" if note else "[green]✓[/]"
+                size = path.stat().st_size / 1_048_576
+                console.print(f"{mark} Реестр блокировок {name}: {size:.1f} МБ")
+        console.print(f"\n[dim]Кэш: {cache_dir()}[/]")
+
+    try:
+        asyncio.run(run())
+    except SuverenError as exc:
+        raise _fail(str(exc), code=1) from exc

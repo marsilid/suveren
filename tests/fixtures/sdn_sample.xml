@@ -1,0 +1,43 @@
+<?xml version="1.0" standalone="yes"?>
+<sdnList xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XSD">
+  <publshInformation><Publish_Date>10/01/2026</Publish_Date></publshInformation>
+  <sdnEntry>
+    <uid>17018</uid>
+    <lastName>PUBLIC JOINT STOCK COMPANY SBERBANK OF RUSSIA</lastName>
+    <sdnType>Entity</sdnType>
+    <programList><program>UKRAINE-EO13662</program><program>RUSSIA-EO14024</program></programList>
+    <idList>
+      <id><uid>24639</uid><idType>Registration Number</idType><idNumber>1027700132195</idNumber></id>
+      <id><uid>24640</uid><idType>Tax ID No.</idType><idNumber>7707083893</idNumber></id>
+    </idList>
+    <akaList>
+      <aka><uid>1</uid><type>a.k.a.</type><category>strong</category><lastName>SBERBANK ROSSII</lastName></aka>
+    </akaList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>34796</uid>
+    <lastName>GREF</lastName>
+    <firstName>Herman Oskarovich</firstName>
+    <sdnType>Individual</sdnType>
+    <programList><program>RUSSIA-EO14024</program></programList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>40001</uid>
+    <lastName>LYUBIMOVA</lastName>
+    <firstName>Olga Borisovna</firstName>
+    <sdnType>Individual</sdnType>
+    <programList><program>RUSSIA-EO14024</program></programList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>50001</uid>
+    <lastName>ROMASHKA TRADING</lastName>
+    <sdnType>Entity</sdnType>
+    <programList><program>RUSSIA-EO14024</program></programList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>60001</uid>
+    <lastName>SEA BREEZE</lastName>
+    <sdnType>Vessel</sdnType>
+    <programList><program>IRAN</program></programList>
+  </sdnEntry>
+</sdnList>

@@ -1,0 +1,75 @@
+{% extends "base.html.j2" %}
+{% block title %}Suveren — {{ report.title }}{% endblock %}
+{% block content %}
+  <header class="top">
+    <span class="brand">Suveren · проверка компании</span>
+    <span class="meta">
+      {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
+    </span>
+  </header>
+  <h1>{{ report.title }}</h1>
+
+  {% set rec = report.egrul %}
+  <section class="card">
+    <table>
+      <tbody>
+        {% if rec %}
+        <tr><th>Полное наименование</th><td>{{ rec.name_full }}</td></tr>
+        <tr><th>ИНН / ОГРН</th><td>{{ rec.inn or "—" }} / {{ rec.ogrn or "—" }}{% if rec.kpp %} · КПП {{ rec.kpp }}{% endif %}</td></tr>
+        <tr><th>Дата регистрации</th><td>{{ rec.registered.strftime("%d.%m.%Y") if rec.registered else "—" }}</td></tr>
+        <tr><th>Статус</th><td>{% if rec.active %}действующая{% else %}прекратила деятельность {{ rec.terminated.strftime("%d.%m.%Y") }}{% endif %}</td></tr>
+        {% if rec.head %}<tr><th>Руководитель</th><td>{{ rec.head }}</td></tr>{% endif %}
+        {% if rec.region %}<tr><th>Регион</th><td>{{ rec.region }}</td></tr>{% endif %}
+        {% else %}
+        <tr><th>Запрос</th><td>{{ report.query }}</td></tr>
+        <tr><th>ИНН</th><td>{{ report.inn or "не найден" }}</td></tr>
+        {% endif %}
+        {% if report.domain %}<tr><th>Сайт</th><td>{{ report.domain }}{% if report.whois_org %} · в WHOIS: {{ report.whois_org }}{% endif %}</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if report.notes %}
+  <h2>Замечания</h2>
+  {% for note in report.notes %}
+  <p class="card note">{{ note }}</p>
+  {% endfor %}
+  {% endif %}
+
+  <h2>Результаты</h2>
+  <div class="card checks">
+    {% for c in report.checks %}
+    <div class="check">
+      <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
+      <h3>{{ c.title }}</h3>
+      {% if c.details %}<p>{{ c.details }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if report.hits %}
+  <h2>Совпадения в санкционных списках</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Список</th><th>Запись</th><th>Как найдено</th><th>Программы</th></tr></thead>
+      <tbody>
+      {% for h in report.hits %}
+        <tr>
+          <td>{{ sources[h.entry.source] }}<br><span class="evidence">{{ h.entry.ref }}</span></td>
+          <td>{{ h.entry.names[0] }}</td>
+          <td>{{ h.how_ru }}<br><span class="evidence">{{ h.matched }}</span></td>
+          <td class="evidence">{{ h.entry.programs }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <footer>
+    Отчёт создан Suveren v{{ version }} по открытым данным: ЕГРЮЛ (ФНС России), реестр операторов
+    персональных данных (Роскомнадзор), санкционные списки США (OFAC), ЕС и Великобритании.
+    Совпадения по названию и ФИО требуют ручной проверки. Отчёт не является юридическим заключением.
+  </footer>
+{% endblock %}

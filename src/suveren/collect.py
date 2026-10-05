@@ -288,6 +288,33 @@ async def whois_query(server: str, query: str, timeout: float) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def parse_whois_org(text: str) -> str | None:
+    keys = ("org", "registrant organization", "registrant organisation", "organization")
+    for line in text.splitlines():
+        key, sep, value = line.strip().partition(":")
+        if sep and key.strip().lower() in keys and value.strip():
+            return value.strip()
+    return None
+
+
+async def whois_raw(domain: str, timeout: float) -> str | None:
+    """Raw WHOIS text from the registry's server (found via IANA)."""
+    tld = domain.rsplit(".", 1)[-1]
+    try:
+        iana = await whois_query(IANA_WHOIS, tld, timeout)
+        server = next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in iana.splitlines()
+                if line.lower().startswith(("refer:", "whois:"))
+            ),
+            None,
+        )
+        return await whois_query(server, domain, timeout) if server else None
+    except (OSError, TimeoutError):
+        return None
+
+
 def make_client(timeout: float) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,

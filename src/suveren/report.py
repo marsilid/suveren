@@ -8,7 +8,9 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from suveren import __version__
+from suveren.company import CompanyReport
 from suveren.models import Category, Report
+from suveren.sanctions import SOURCE_TITLES
 from suveren.utils import country_name
 
 # Bar colours for the country breakdown; Russia is always green.
@@ -59,3 +61,20 @@ def write_json(report: Report, path: Path) -> Path:
         json.dumps(report.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8"
     )
     return path
+
+
+def render_company_html(report: CompanyReport) -> str:
+    template = _environment().get_template("company.html.j2")
+    return template.render(report=report, version=__version__, sources=SOURCE_TITLES)
+
+
+def write_company(report: CompanyReport, html_path: Path | None, json_path: Path | None) -> None:
+    if html_path is not None:
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        html_path.write_text(render_company_html(report), encoding="utf-8")
+    if json_path is not None:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(
+            json.dumps(report.to_dict(), indent=2, ensure_ascii=False, default=str),
+            encoding="utf-8",
+        )
