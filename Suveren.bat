@@ -5,10 +5,12 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 title Suveren
 set empty=0
+rem Bump the marker name whenever dependencies change, so old installs get updated.
+set "deps_marker=.venv\.deps-2"
 
 rem --- First run: create the virtual environment and install the tool ---
-if not exist ".venv\Scripts\suveren.exe" (
-    echo Первый запуск: устанавливаю Suveren, это займёт около минуты...
+if not exist "%deps_marker%" (
+    echo Устанавливаю Suveren и зависимости, это займёт около минуты...
     where python >nul 2>nul || (
         echo.
         echo Python не найден. Установи Python 3.10+ с https://www.python.org/downloads/
@@ -16,8 +18,9 @@ if not exist ".venv\Scripts\suveren.exe" (
         pause
         exit /b 1
     )
-    python -m venv .venv || goto :install_failed
-    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -e . || goto :install_failed
+    if not exist ".venv\Scripts\python.exe" python -m venv .venv || goto :install_failed
+    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -e ".[browser]" || goto :install_failed
+    type nul > "%deps_marker%"
 )
 
 :menu
@@ -29,12 +32,13 @@ echo       аудит сайта и компании для РФ
 echo   ======================================
 echo.
 echo   1  Проверить сайт (сервисы, 152-ФЗ, блокировки)
-echo   2  Проверить компанию (ИНН, ОГРН или сайт)
-echo   3  Сравнить два отчёта (JSON)
-echo   4  Показать базу сервисов
-echo   5  Обновить санкционные списки и реестр блокировок
-echo   6  Открыть папку с отчётами
-echo   7  Запустить автотесты
+echo   2  Проверить список сайтов
+echo   3  Проверить компанию (ИНН, ОГРН или сайт)
+echo   4  Сравнить два отчёта (JSON)
+echo   5  Показать базу сервисов
+echo   6  Обновить санкционные списки и реестр блокировок
+echo   7  Открыть папку с отчётами
+echo   8  Запустить автотесты
 echo   0  Выход
 echo.
 set "choice="
@@ -48,12 +52,13 @@ goto :menu
 :dispatch
 set empty=0
 if "!choice!"=="1" goto :scan
-if "!choice!"=="2" goto :company
-if "!choice!"=="3" goto :diff
-if "!choice!"=="4" goto :services
-if "!choice!"=="5" goto :update
-if "!choice!"=="6" goto :reports
-if "!choice!"=="7" goto :tests
+if "!choice!"=="2" goto :batch
+if "!choice!"=="3" goto :company
+if "!choice!"=="4" goto :diff
+if "!choice!"=="5" goto :services
+if "!choice!"=="6" goto :update
+if "!choice!"=="7" goto :reports
+if "!choice!"=="8" goto :tests
 if "!choice!"=="0" exit /b 0
 goto :menu
 
@@ -67,9 +72,36 @@ for /f "tokens=1-3 delims=/.- " %%a in ("%date%") do set "stamp=%%c%%b%%a"
 set "stamp=!stamp!-%time:~0,2%%time:~3,2%%time:~6,2%"
 set "stamp=!stamp: =0!"
 echo.
-".venv\Scripts\suveren.exe" scan "!target!" --json "reports\scan-!stamp!.json"
+".venv\Scripts\suveren.exe" scan "!target!" --browser --json "reports\scan-!stamp!.json"
 echo.
 echo   Отчёт открыт в браузере. HTML и JSON сохранены в папке reports.
+pause
+goto :menu
+
+:batch
+echo.
+echo   Нужен текстовый файл: по одному сайту в строке.
+echo   Перетащи его в это окно или просто нажми Enter, чтобы создать шаблон.
+echo.
+set "list="
+set /p "list=  Файл со списком: "
+if not defined list (
+    if not exist reports mkdir reports
+    if not exist "reports\sites.txt" (
+        > "reports\sites.txt" echo # Впиши сайты, по одному в строке, сохрани файл и запусти пункт 2 снова.
+        >> "reports\sites.txt" echo example.ru
+    )
+    start "" notepad "reports\sites.txt"
+    echo.
+    echo   Открыл reports\sites.txt. Заполни, сохрани и выбери пункт 2 ещё раз,
+    echo   указав этот файл.
+    pause
+    goto :menu
+)
+echo.
+".venv\Scripts\suveren.exe" batch !list! --browser
+echo.
+echo   Сводка открыта в браузере. Отчёты по каждому сайту лежат в папке reports.
 pause
 goto :menu
 

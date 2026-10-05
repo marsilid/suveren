@@ -27,6 +27,15 @@
     </div>
   </section>
 
+  {% if actions %}
+  <h2>Что сделать в первую очередь</h2>
+  <ol class="card actions">
+    {% for a in actions %}
+    <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
   {% if report.notes %}
   <h2>Замечания</h2>
   {% for note in report.notes %}

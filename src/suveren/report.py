@@ -9,6 +9,7 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from suveren import __version__
+from suveren.advice import priorities
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
 from suveren.models import Category, Report
@@ -47,6 +48,7 @@ def render_html(report: Report) -> str:
         report=report,
         version=__version__,
         bars=country_bars(report),
+        actions=priorities(report)[:5],
         groups=[(c, deps) for c, deps in groups if deps],
     )
 

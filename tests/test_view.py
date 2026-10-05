@@ -2,6 +2,7 @@ from io import StringIO
 
 from rich.console import Console
 
+from suveren.advice import first_sentence, priorities
 from suveren.analyze import analyze
 from suveren.checks import GROUP_152, Check, Status
 from suveren.cli import batch_row, read_targets
@@ -10,7 +11,7 @@ from suveren.compliance import ComplianceInput, PolicyInfo, evaluate, find_legal
 from suveren.models import Category, Severity
 from suveren.page import parse_page
 from suveren.report import write_batch_html
-from suveren.view import first_sentence, print_scan, priorities
+from suveren.view import print_scan
 
 RICH_PAGE = (
     "<html><body>"
@@ -61,7 +62,7 @@ def test_print_scan_renders():
     assert "Независимость" in text
     assert "ЧТО СДЕЛАТЬ В ПЕРВУЮ ОЧЕРЕДЬ" in text
     assert "Google Workspace" in text
-    assert "Защищённое соединение — сайт работает по HTTPS." in text
+    assert "Защищённое соединение — Сайт работает по HTTPS." in text
 
 
 def test_page_problem_detection():

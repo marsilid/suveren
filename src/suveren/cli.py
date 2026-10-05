@@ -279,6 +279,10 @@ def batch(
     open_report: Annotated[
         bool, typer.Option("--open/--no-open", help="Открыть сводный отчёт в браузере.")
     ] = True,
+    browser: Annotated[
+        bool,
+        typer.Option("--browser", "-b", help="Открывать сайты в браузере (точнее, но дольше)."),
+    ] = False,
     timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
 ) -> None:
@@ -305,7 +309,11 @@ def batch(
         async def one(host: str) -> tuple[str, Report | None, str | None]:
             try:
                 report = await run_scan(
-                    host, timeout=timeout, compliance=not quick, blocklist=not quick
+                    host,
+                    timeout=timeout,
+                    compliance=not quick,
+                    blocklist=not quick,
+                    browser=browser,
                 )
             except SuverenError as exc:
                 console.print(f"  [red]✗[/] {host:<32} [dim]{exc}[/]")

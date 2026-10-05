@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
-
 from rich.console import Console, Group
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from suveren.advice import priorities
 from suveren.checks import Check, Status
 from suveren.models import Report, Severity
 from suveren.utils import country_name
@@ -45,36 +43,6 @@ BAR_STYLE = {"A": "green", "B": "bright_green", "C": "yellow", "D": "dark_orange
 COUNTRY_COLORS = ("blue", "magenta", "dark_orange3", "cyan", "yellow", "bright_magenta")
 BAR_WIDTH = 30
 TOP_ACTIONS = 3
-
-
-def first_sentence(text: str) -> str:
-    """Up to the first full stop that is followed by a capital letter (or the end), so
-    abbreviations like «ст. 18.1 ч. 2» don't cut the sentence short."""
-    match = re.match(r"(.+?[.!?])(?=\s+[А-ЯЁA-Z]|\s*$)", text, re.S)
-    return match.group(1) if match else text
-
-
-@dataclass(slots=True)
-class Action:
-    weight: int
-    severity: Severity
-    action: str
-    reason: str
-
-
-def priorities(report: Report) -> list[Action]:
-    """Findings and failed checks merged into one to-do list, most urgent first."""
-    actions = [
-        Action(f.severity * 10 + 1, f.severity, first_sentence(f.recommendation), f.title)
-        for f in report.findings
-    ]
-    for c in report.checks:
-        if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
-            severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
-            actions.append(
-                Action(severity * 10, severity, first_sentence(c.recommendation), c.title)
-            )
-    return sorted(actions, key=lambda a: -a.weight)
 
 
 def score_bar(score: int, grade: str) -> Text:
@@ -237,10 +205,7 @@ def print_checks(console: Console, checks: list[Check], *, verbose: bool = False
             # Passed checks take one quiet line.
             text.append(c.title)
             if c.details:
-                details = c.details
-                if len(details) > 1 and details[1].islower():  # keep acronyms and names intact
-                    details = details[0].lower() + details[1:]
-                text.append(f" — {details}", style="dim")
+                text.append(f" — {c.details}", style="dim")
         else:
             text.append(c.title, style="bold" if c.status is not Status.UNKNOWN else "")
             if c.details:
