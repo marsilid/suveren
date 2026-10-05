@@ -32,12 +32,13 @@ STATUS_STYLE = {
     Status.FAIL: "bold red",
     Status.UNKNOWN: "dim",
 }
+# Explicit colours: named ones like "black" follow the terminal theme and can vanish.
 GRADE_STYLE = {
-    "A": "bold black on green",
-    "B": "bold black on bright_green",
-    "C": "bold black on yellow",
-    "D": "bold white on dark_orange3",
-    "F": "bold white on red",
+    "A": "bold #102a12 on #40c057",
+    "B": "bold #1f2d05 on #94d82d",
+    "C": "bold #2b2100 on #fab005",
+    "D": "bold #ffffff on #e8590c",
+    "F": "bold #ffffff on #e03131",
 }
 BAR_STYLE = {"A": "green", "B": "bright_green", "C": "yellow", "D": "dark_orange3", "F": "red"}
 COUNTRY_COLORS = ("blue", "magenta", "dark_orange3", "cyan", "yellow", "bright_magenta")

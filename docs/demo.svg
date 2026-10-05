@@ -1,4 +1,4 @@
-<svg class="rich-terminal" viewBox="0 0 1275 1001.5999999999999" xmlns="http://www.w3.org/2000/svg">
+<svg class="rich-terminal" viewBox="0 0 1226 1709.1999999999998" xmlns="http://www.w3.org/2000/svg">
     <!-- Generated with Rich https://www.textualize.io -->
     <style>
 
@@ -19,201 +19,321 @@
         font-weight: 700;
     }
 
-    .terminal-298387464-matrix {
+    .terminal-733934239-matrix {
         font-family: Fira Code, monospace;
         font-size: 20px;
         line-height: 24.4px;
         font-variant-east-asian: full-width;
     }
 
-    .terminal-298387464-title {
+    .terminal-733934239-title {
         font-size: 18px;
         font-weight: bold;
         font-family: arial;
     }
 
-    .terminal-298387464-r1 { fill: #c5c8c6 }
-.terminal-298387464-r2 { fill: #98a84b;font-weight: bold }
-.terminal-298387464-r3 { fill: #868887 }
-.terminal-298387464-r4 { fill: #4e707b;font-weight: bold }
-.terminal-298387464-r5 { fill: #98a84b }
-.terminal-298387464-r6 { fill: #d0b344 }
-.terminal-298387464-r7 { fill: #c5c8c6;font-weight: bold }
-.terminal-298387464-r8 { fill: #cc555a }
-.terminal-298387464-r9 { fill: #c5c8c6;font-style: italic; }
-.terminal-298387464-r10 { fill: #cc555a;font-weight: bold }
-.terminal-298387464-r11 { fill: #68a0b3 }
+    .terminal-733934239-r1 { fill: #c5c8c6 }
+.terminal-733934239-r2 { fill: #98a84b;font-weight: bold }
+.terminal-733934239-r3 { fill: #868887 }
+.terminal-733934239-r4 { fill: #4e707b;font-weight: bold }
+.terminal-733934239-r5 { fill: #c5c8c6;font-weight: bold }
+.terminal-733934239-r6 { fill: #98a84b }
+.terminal-733934239-r7 { fill: #68a0b3;font-weight: bold }
+.terminal-733934239-r8 { fill: #1f2d05;font-weight: bold }
+.terminal-733934239-r9 { fill: #00823d }
+.terminal-733934239-r10 { fill: #4e4e4e }
+.terminal-733934239-r11 { fill: #608ab1 }
+.terminal-733934239-r12 { fill: #98729f }
+.terminal-733934239-r13 { fill: #d0b344 }
+.terminal-733934239-r14 { fill: #868887;font-style: italic; }
+.terminal-733934239-r15 { fill: #68a0b3 }
     </style>
 
     <defs>
-    <clipPath id="terminal-298387464-clip-terminal">
-      <rect x="0" y="0" width="1255.6" height="950.5999999999999" />
+    <clipPath id="terminal-733934239-clip-terminal">
+      <rect x="0" y="0" width="1206.8" height="1658.1999999999998" />
     </clipPath>
-    <clipPath id="terminal-298387464-line-0">
-    <rect x="0" y="1.5" width="1256.6" height="24.65"/>
+    <clipPath id="terminal-733934239-line-0">
+    <rect x="0" y="1.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-1">
-    <rect x="0" y="25.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-1">
+    <rect x="0" y="25.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-2">
-    <rect x="0" y="50.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-2">
+    <rect x="0" y="50.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-3">
-    <rect x="0" y="74.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-3">
+    <rect x="0" y="74.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-4">
-    <rect x="0" y="99.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-4">
+    <rect x="0" y="99.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-5">
-    <rect x="0" y="123.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-5">
+    <rect x="0" y="123.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-6">
-    <rect x="0" y="147.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-6">
+    <rect x="0" y="147.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-7">
-    <rect x="0" y="172.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-7">
+    <rect x="0" y="172.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-8">
-    <rect x="0" y="196.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-8">
+    <rect x="0" y="196.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-9">
-    <rect x="0" y="221.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-9">
+    <rect x="0" y="221.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-10">
-    <rect x="0" y="245.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-10">
+    <rect x="0" y="245.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-11">
-    <rect x="0" y="269.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-11">
+    <rect x="0" y="269.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-12">
-    <rect x="0" y="294.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-12">
+    <rect x="0" y="294.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-13">
-    <rect x="0" y="318.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-13">
+    <rect x="0" y="318.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-14">
-    <rect x="0" y="343.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-14">
+    <rect x="0" y="343.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-15">
-    <rect x="0" y="367.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-15">
+    <rect x="0" y="367.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-16">
-    <rect x="0" y="391.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-16">
+    <rect x="0" y="391.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-17">
-    <rect x="0" y="416.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-17">
+    <rect x="0" y="416.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-18">
-    <rect x="0" y="440.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-18">
+    <rect x="0" y="440.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-19">
-    <rect x="0" y="465.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-19">
+    <rect x="0" y="465.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-20">
-    <rect x="0" y="489.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-20">
+    <rect x="0" y="489.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-21">
-    <rect x="0" y="513.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-21">
+    <rect x="0" y="513.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-22">
-    <rect x="0" y="538.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-22">
+    <rect x="0" y="538.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-23">
-    <rect x="0" y="562.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-23">
+    <rect x="0" y="562.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-24">
-    <rect x="0" y="587.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-24">
+    <rect x="0" y="587.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-25">
-    <rect x="0" y="611.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-25">
+    <rect x="0" y="611.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-26">
-    <rect x="0" y="635.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-26">
+    <rect x="0" y="635.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-27">
-    <rect x="0" y="660.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-27">
+    <rect x="0" y="660.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-28">
-    <rect x="0" y="684.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-28">
+    <rect x="0" y="684.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-29">
-    <rect x="0" y="709.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-29">
+    <rect x="0" y="709.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-30">
-    <rect x="0" y="733.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-30">
+    <rect x="0" y="733.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-31">
-    <rect x="0" y="757.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-31">
+    <rect x="0" y="757.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-32">
-    <rect x="0" y="782.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-32">
+    <rect x="0" y="782.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-33">
-    <rect x="0" y="806.7" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-33">
+    <rect x="0" y="806.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-34">
-    <rect x="0" y="831.1" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-34">
+    <rect x="0" y="831.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-35">
-    <rect x="0" y="855.5" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-35">
+    <rect x="0" y="855.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-36">
-    <rect x="0" y="879.9" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-36">
+    <rect x="0" y="879.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-298387464-line-37">
-    <rect x="0" y="904.3" width="1256.6" height="24.65"/>
+<clipPath id="terminal-733934239-line-37">
+    <rect x="0" y="904.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-38">
+    <rect x="0" y="928.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-39">
+    <rect x="0" y="953.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-40">
+    <rect x="0" y="977.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-41">
+    <rect x="0" y="1001.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-42">
+    <rect x="0" y="1026.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-43">
+    <rect x="0" y="1050.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-44">
+    <rect x="0" y="1075.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-45">
+    <rect x="0" y="1099.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-46">
+    <rect x="0" y="1123.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-47">
+    <rect x="0" y="1148.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-48">
+    <rect x="0" y="1172.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-49">
+    <rect x="0" y="1197.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-50">
+    <rect x="0" y="1221.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-51">
+    <rect x="0" y="1245.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-52">
+    <rect x="0" y="1270.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-53">
+    <rect x="0" y="1294.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-54">
+    <rect x="0" y="1319.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-55">
+    <rect x="0" y="1343.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-56">
+    <rect x="0" y="1367.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-57">
+    <rect x="0" y="1392.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-58">
+    <rect x="0" y="1416.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-59">
+    <rect x="0" y="1441.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-60">
+    <rect x="0" y="1465.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-61">
+    <rect x="0" y="1489.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-62">
+    <rect x="0" y="1514.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-63">
+    <rect x="0" y="1538.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-64">
+    <rect x="0" y="1563.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-65">
+    <rect x="0" y="1587.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-733934239-line-66">
+    <rect x="0" y="1611.9" width="1207.8" height="24.65"/>
             </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1273" height="999.6" rx="8"/><text class="terminal-298387464-title" fill="#c5c8c6" text-anchor="middle" x="636" y="27">suveren&#160;scan&#160;example.com</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1224" height="1707.2" rx="8"/><text class="terminal-733934239-title" fill="#c5c8c6" text-anchor="middle" x="612" y="27">suveren&#160;scan&#160;kinopoisk.ru</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
             <circle cx="44" cy="0" r="7" fill="#28c840"/>
             </g>
         
-    <g transform="translate(9, 41)" clip-path="url(#terminal-298387464-clip-terminal)">
-    
-    <g class="terminal-298387464-matrix">
-    <text class="terminal-298387464-r1" x="1256.6" y="20" textLength="12.2" clip-path="url(#terminal-298387464-line-0)">
-</text><text class="terminal-298387464-r2" x="0" y="44.4" textLength="61" clip-path="url(#terminal-298387464-line-1)">&#160;&#160;___</text><text class="terminal-298387464-r1" x="1256.6" y="44.4" textLength="12.2" clip-path="url(#terminal-298387464-line-1)">
-</text><text class="terminal-298387464-r2" x="12.2" y="68.8" textLength="12.2" clip-path="url(#terminal-298387464-line-2)">/</text><text class="terminal-298387464-r2" x="24.4" y="68.8" textLength="341.6" clip-path="url(#terminal-298387464-line-2)">&#160;__|_&#160;&#160;___&#160;_____&#160;_&#160;_&#160;___&#160;_&#160;_</text><text class="terminal-298387464-r1" x="1256.6" y="68.8" textLength="12.2" clip-path="url(#terminal-298387464-line-2)">
-</text><text class="terminal-298387464-r2" x="0" y="93.2" textLength="170.8" clip-path="url(#terminal-298387464-line-3)">&#160;\__&#160;\&#160;||&#160;\&#160;V&#160;</text><text class="terminal-298387464-r2" x="170.8" y="93.2" textLength="12.2" clip-path="url(#terminal-298387464-line-3)">/</text><text class="terminal-298387464-r2" x="183" y="93.2" textLength="36.6" clip-path="url(#terminal-298387464-line-3)">&#160;-_</text><text class="terminal-298387464-r2" x="219.6" y="93.2" textLength="12.2" clip-path="url(#terminal-298387464-line-3)">)</text><text class="terminal-298387464-r2" x="244" y="93.2" textLength="73.2" clip-path="url(#terminal-298387464-line-3)">&#x27;_/&#160;-_</text><text class="terminal-298387464-r2" x="317.2" y="93.2" textLength="12.2" clip-path="url(#terminal-298387464-line-3)">)</text><text class="terminal-298387464-r2" x="329.4" y="93.2" textLength="24.4" clip-path="url(#terminal-298387464-line-3)">&#160;&#x27;</text><text class="terminal-298387464-r2" x="353.8" y="93.2" textLength="24.4" clip-path="url(#terminal-298387464-line-3)">&#160;\</text><text class="terminal-298387464-r1" x="1256.6" y="93.2" textLength="12.2" clip-path="url(#terminal-298387464-line-3)">
-</text><text class="terminal-298387464-r2" x="0" y="117.6" textLength="390.4" clip-path="url(#terminal-298387464-line-4)">&#160;|___/\_,_|\_/\___|_|&#160;\___|_||_|</text><text class="terminal-298387464-r3" x="414.8" y="117.6" textLength="36.6" clip-path="url(#terminal-298387464-line-4)">v1.</text><text class="terminal-298387464-r4" x="451.4" y="117.6" textLength="36.6" clip-path="url(#terminal-298387464-line-4)">0.0</text><text class="terminal-298387464-r3" x="488" y="117.6" textLength="378.2" clip-path="url(#terminal-298387464-line-4)">&#160;·&#160;независимость&#160;инфраструктуры</text><text class="terminal-298387464-r1" x="1256.6" y="117.6" textLength="12.2" clip-path="url(#terminal-298387464-line-4)">
-</text><text class="terminal-298387464-r1" x="1256.6" y="142" textLength="12.2" clip-path="url(#terminal-298387464-line-5)">
-</text><text class="terminal-298387464-r5" x="0" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">⠋</text><text class="terminal-298387464-r1" x="12.2" y="166.4" textLength="268.4" clip-path="url(#terminal-298387464-line-6)">&#160;Проверяю&#160;example.com…</text><text class="terminal-298387464-r5" x="280.6" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">⠙</text><text class="terminal-298387464-r1" x="292.8" y="166.4" textLength="268.4" clip-path="url(#terminal-298387464-line-6)">&#160;Проверяю&#160;example.com…</text><text class="terminal-298387464-r5" x="561.2" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">⠹</text><text class="terminal-298387464-r1" x="573.4" y="166.4" textLength="268.4" clip-path="url(#terminal-298387464-line-6)">&#160;Проверяю&#160;example.com…</text><text class="terminal-298387464-r5" x="841.8" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">⠸</text><text class="terminal-298387464-r1" x="854" y="166.4" textLength="268.4" clip-path="url(#terminal-298387464-line-6)">&#160;Проверяю&#160;example.com…</text><text class="terminal-298387464-r5" x="1122.4" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">⠼</text><text class="terminal-298387464-r1" x="1134.6" y="166.4" textLength="122" clip-path="url(#terminal-298387464-line-6)">&#160;Проверяю&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="166.4" textLength="12.2" clip-path="url(#terminal-298387464-line-6)">
-</text><text class="terminal-298387464-r6" x="0" y="190.8" textLength="12.2" clip-path="url(#terminal-298387464-line-7)">!</text><text class="terminal-298387464-r3" x="24.4" y="190.8" textLength="1183.4" clip-path="url(#terminal-298387464-line-7)">Сайт&#160;работает&#160;через&#160;CDN,&#160;поэтому&#160;настоящий&#160;хостинг&#160;скрыт&#160;и&#160;не&#160;проверялся.&#160;Проверьте&#160;вручную,&#160;где&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="190.8" textLength="12.2" clip-path="url(#terminal-298387464-line-7)">
-</text><text class="terminal-298387464-r3" x="0" y="215.2" textLength="207.4" clip-path="url(#terminal-298387464-line-8)">находится&#160;сервер.</text><text class="terminal-298387464-r1" x="1256.6" y="215.2" textLength="12.2" clip-path="url(#terminal-298387464-line-8)">
-</text><text class="terminal-298387464-r6" x="0" y="239.6" textLength="12.2" clip-path="url(#terminal-298387464-line-9)">!</text><text class="terminal-298387464-r3" x="24.4" y="239.6" textLength="1159" clip-path="url(#terminal-298387464-line-9)">Скрипты&#160;и&#160;виджеты&#160;искались&#160;только&#160;на&#160;главной&#160;странице.&#160;Сервисы,&#160;которые&#160;подключаются&#160;на&#160;других&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="239.6" textLength="12.2" clip-path="url(#terminal-298387464-line-9)">
-</text><text class="terminal-298387464-r3" x="0" y="264" textLength="719.8" clip-path="url(#terminal-298387464-line-10)">страницах&#160;или&#160;изнутри&#160;JS-бандлов,&#160;могут&#160;не&#160;попасть&#160;в&#160;отчёт.</text><text class="terminal-298387464-r1" x="1256.6" y="264" textLength="12.2" clip-path="url(#terminal-298387464-line-10)">
-</text><text class="terminal-298387464-r1" x="1256.6" y="288.4" textLength="12.2" clip-path="url(#terminal-298387464-line-11)">
-</text><text class="terminal-298387464-r1" x="0" y="312.8" textLength="24.4" clip-path="url(#terminal-298387464-line-12)">┌─</text><text class="terminal-298387464-r1" x="24.4" y="312.8" textLength="183" clip-path="url(#terminal-298387464-line-12)">──────────────&#160;</text><text class="terminal-298387464-r7" x="207.4" y="312.8" textLength="134.2" clip-path="url(#terminal-298387464-line-12)">example.com</text><text class="terminal-298387464-r1" x="341.6" y="312.8" textLength="183" clip-path="url(#terminal-298387464-line-12)">&#160;──────────────</text><text class="terminal-298387464-r1" x="524.6" y="312.8" textLength="24.4" clip-path="url(#terminal-298387464-line-12)">─┐</text><text class="terminal-298387464-r1" x="1256.6" y="312.8" textLength="12.2" clip-path="url(#terminal-298387464-line-12)">
-</text><text class="terminal-298387464-r1" x="0" y="337.2" textLength="12.2" clip-path="url(#terminal-298387464-line-13)">│</text><text class="terminal-298387464-r1" x="36.6" y="337.2" textLength="170.8" clip-path="url(#terminal-298387464-line-13)">Независимость&#160;</text><text class="terminal-298387464-r8" x="207.4" y="337.2" textLength="12.2" clip-path="url(#terminal-298387464-line-13)">D</text><text class="terminal-298387464-r7" x="256.2" y="337.2" textLength="24.4" clip-path="url(#terminal-298387464-line-13)">56</text><text class="terminal-298387464-r1" x="280.6" y="337.2" textLength="48.8" clip-path="url(#terminal-298387464-line-13)">/100</text><text class="terminal-298387464-r1" x="536.8" y="337.2" textLength="12.2" clip-path="url(#terminal-298387464-line-13)">│</text><text class="terminal-298387464-r1" x="1256.6" y="337.2" textLength="12.2" clip-path="url(#terminal-298387464-line-13)">
-</text><text class="terminal-298387464-r1" x="0" y="361.6" textLength="12.2" clip-path="url(#terminal-298387464-line-14)">│</text><text class="terminal-298387464-r1" x="36.6" y="361.6" textLength="268.4" clip-path="url(#terminal-298387464-line-14)">Иностранных&#160;сервисов:&#160;</text><text class="terminal-298387464-r7" x="305" y="361.6" textLength="12.2" clip-path="url(#terminal-298387464-line-14)">4</text><text class="terminal-298387464-r1" x="317.2" y="361.6" textLength="183" clip-path="url(#terminal-298387464-line-14)">&#160;·&#160;российских:&#160;</text><text class="terminal-298387464-r7" x="500.2" y="361.6" textLength="12.2" clip-path="url(#terminal-298387464-line-14)">0</text><text class="terminal-298387464-r1" x="536.8" y="361.6" textLength="12.2" clip-path="url(#terminal-298387464-line-14)">│</text><text class="terminal-298387464-r1" x="1256.6" y="361.6" textLength="12.2" clip-path="url(#terminal-298387464-line-14)">
-</text><text class="terminal-298387464-r1" x="0" y="386" textLength="12.2" clip-path="url(#terminal-298387464-line-15)">│</text><text class="terminal-298387464-r3" x="36.6" y="386" textLength="97.6" clip-path="url(#terminal-298387464-line-15)">США&#160;100%</text><text class="terminal-298387464-r1" x="536.8" y="386" textLength="12.2" clip-path="url(#terminal-298387464-line-15)">│</text><text class="terminal-298387464-r1" x="1256.6" y="386" textLength="12.2" clip-path="url(#terminal-298387464-line-15)">
-</text><text class="terminal-298387464-r1" x="0" y="410.4" textLength="549" clip-path="url(#terminal-298387464-line-16)">└───────────────────────────────────────────┘</text><text class="terminal-298387464-r1" x="1256.6" y="410.4" textLength="12.2" clip-path="url(#terminal-298387464-line-16)">
-</text><text class="terminal-298387464-r1" x="1256.6" y="434.8" textLength="12.2" clip-path="url(#terminal-298387464-line-17)">
-</text><text class="terminal-298387464-r9" x="0" y="459.2" textLength="1256.6" clip-path="url(#terminal-298387464-line-18)">Риски&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="459.2" textLength="12.2" clip-path="url(#terminal-298387464-line-18)">
-</text><text class="terminal-298387464-r10" x="12.2" y="483.6" textLength="85.4" clip-path="url(#terminal-298387464-line-19)">ВЫСОКИЙ</text><text class="terminal-298387464-r1" x="122" y="483.6" textLength="1122.4" clip-path="url(#terminal-298387464-line-19)">DNS-серверы:&#160;Cloudflare&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="483.6" textLength="12.2" clip-path="url(#terminal-298387464-line-19)">
-</text><text class="terminal-298387464-r3" x="122" y="508" textLength="1122.4" clip-path="url(#terminal-298387464-line-20)">→&#160;Перенести&#160;DNS&#160;в&#160;Yandex&#160;Cloud&#160;DNS,&#160;Selectel&#160;DNS&#160;или&#160;к&#160;российскому&#160;регистратору&#160;(RU-CENTER,&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="508" textLength="12.2" clip-path="url(#terminal-298387464-line-20)">
-</text><text class="terminal-298387464-r3" x="122" y="532.4" textLength="97.6" clip-path="url(#terminal-298387464-line-21)">REG.RU).</text><text class="terminal-298387464-r1" x="1256.6" y="532.4" textLength="12.2" clip-path="url(#terminal-298387464-line-21)">
-</text><text class="terminal-298387464-r6" x="12.2" y="556.8" textLength="85.4" clip-path="url(#terminal-298387464-line-22)">СРЕДНИЙ</text><text class="terminal-298387464-r1" x="122" y="556.8" textLength="1122.4" clip-path="url(#terminal-298387464-line-22)">CDN&#160;и&#160;защита&#160;от&#160;DDoS:&#160;Cloudflare&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="556.8" textLength="12.2" clip-path="url(#terminal-298387464-line-22)">
-</text><text class="terminal-298387464-r3" x="122" y="581.2" textLength="1037" clip-path="url(#terminal-298387464-line-23)">→&#160;DDoS-Guard,&#160;Qrator,&#160;Servicepipe,&#160;NGENIX&#160;или&#160;CDN&#160;в&#160;Yandex&#160;Cloud,&#160;Selectel,&#160;VK&#160;Cloud.</text><text class="terminal-298387464-r1" x="1256.6" y="581.2" textLength="12.2" clip-path="url(#terminal-298387464-line-23)">
-</text><text class="terminal-298387464-r6" x="12.2" y="605.6" textLength="85.4" clip-path="url(#terminal-298387464-line-24)">СРЕДНИЙ</text><text class="terminal-298387464-r1" x="122" y="605.6" textLength="1122.4" clip-path="url(#terminal-298387464-line-24)">SSL-сертификат:&#160;SSL.com&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="605.6" textLength="12.2" clip-path="url(#terminal-298387464-line-24)">
-</text><text class="terminal-298387464-r3" x="122" y="630" textLength="1110.2" clip-path="url(#terminal-298387464-line-25)">→&#160;Настроить&#160;автоматический&#160;выпуск&#160;по&#160;ACME,&#160;чтобы&#160;быстро&#160;сменить&#160;УЦ.&#160;Для&#160;аудитории&#160;в&#160;России&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="630" textLength="12.2" clip-path="url(#terminal-298387464-line-25)">
-</text><text class="terminal-298387464-r3" x="122" y="654.4" textLength="658.8" clip-path="url(#terminal-298387464-line-26)">можно&#160;дополнительно&#160;выпустить&#160;сертификат&#160;НУЦ&#160;Минцифры.</text><text class="terminal-298387464-r1" x="1256.6" y="654.4" textLength="12.2" clip-path="url(#terminal-298387464-line-26)">
-</text><text class="terminal-298387464-r11" x="12.2" y="678.8" textLength="85.4" clip-path="url(#terminal-298387464-line-27)">НИЗКИЙ&#160;</text><text class="terminal-298387464-r1" x="122" y="678.8" textLength="1122.4" clip-path="url(#terminal-298387464-line-27)">Доменная&#160;зона:&#160;.com&#160;—&#160;Verisign&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="678.8" textLength="12.2" clip-path="url(#terminal-298387464-line-27)">
-</text><text class="terminal-298387464-r3" x="122" y="703.2" textLength="707.6" clip-path="url(#terminal-298387464-line-28)">→&#160;Держать&#160;основной&#160;или&#160;резервный&#160;домен&#160;в&#160;зоне&#160;.ru&#160;или&#160;.рф.</text><text class="terminal-298387464-r1" x="1256.6" y="703.2" textLength="12.2" clip-path="url(#terminal-298387464-line-28)">
-</text><text class="terminal-298387464-r1" x="1256.6" y="727.6" textLength="12.2" clip-path="url(#terminal-298387464-line-29)">
-</text><text class="terminal-298387464-r9" x="0" y="752" textLength="1110.2" clip-path="url(#terminal-298387464-line-30)">Все&#160;найденные&#160;сервисы&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="752" textLength="12.2" clip-path="url(#terminal-298387464-line-30)">
-</text><text class="terminal-298387464-r7" x="24.4" y="776.4" textLength="244" clip-path="url(#terminal-298387464-line-31)">Категория&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r7" x="317.2" y="776.4" textLength="536.8" clip-path="url(#terminal-298387464-line-31)">Сервис&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r7" x="902.8" y="776.4" textLength="122" clip-path="url(#terminal-298387464-line-31)">Страна&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="1256.6" y="776.4" textLength="12.2" clip-path="url(#terminal-298387464-line-31)">
-</text><text class="terminal-298387464-r3" x="24.4" y="800.8" textLength="244" clip-path="url(#terminal-298387464-line-32)">Доменная&#160;зона&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="317.2" y="800.8" textLength="536.8" clip-path="url(#terminal-298387464-line-32)">.com&#160;—&#160;Verisign&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="902.8" y="800.8" textLength="122" clip-path="url(#terminal-298387464-line-32)">США&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r11" x="1073.6" y="800.8" textLength="12.2" clip-path="url(#terminal-298387464-line-32)">!</text><text class="terminal-298387464-r1" x="1256.6" y="800.8" textLength="12.2" clip-path="url(#terminal-298387464-line-32)">
-</text><text class="terminal-298387464-r3" x="24.4" y="825.2" textLength="244" clip-path="url(#terminal-298387464-line-33)">Регистратор&#160;домена&#160;&#160;</text><text class="terminal-298387464-r1" x="317.2" y="825.2" textLength="536.8" clip-path="url(#terminal-298387464-line-33)">RESERVED-Internet&#160;Assigned&#160;Numbers&#160;Authority</text><text class="terminal-298387464-r1" x="902.8" y="825.2" textLength="122" clip-path="url(#terminal-298387464-line-33)">неизвестно</text><text class="terminal-298387464-r3" x="1073.6" y="825.2" textLength="12.2" clip-path="url(#terminal-298387464-line-33)">?</text><text class="terminal-298387464-r1" x="1256.6" y="825.2" textLength="12.2" clip-path="url(#terminal-298387464-line-33)">
-</text><text class="terminal-298387464-r3" x="24.4" y="849.6" textLength="244" clip-path="url(#terminal-298387464-line-34)">DNS-серверы&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="317.2" y="849.6" textLength="536.8" clip-path="url(#terminal-298387464-line-34)">Cloudflare&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="902.8" y="849.6" textLength="122" clip-path="url(#terminal-298387464-line-34)">США&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r10" x="1073.6" y="849.6" textLength="12.2" clip-path="url(#terminal-298387464-line-34)">!</text><text class="terminal-298387464-r1" x="1256.6" y="849.6" textLength="12.2" clip-path="url(#terminal-298387464-line-34)">
-</text><text class="terminal-298387464-r3" x="24.4" y="874" textLength="244" clip-path="url(#terminal-298387464-line-35)">CDN&#160;и&#160;защита&#160;от&#160;DDoS</text><text class="terminal-298387464-r1" x="317.2" y="874" textLength="536.8" clip-path="url(#terminal-298387464-line-35)">Cloudflare&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="902.8" y="874" textLength="122" clip-path="url(#terminal-298387464-line-35)">США&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r6" x="1073.6" y="874" textLength="12.2" clip-path="url(#terminal-298387464-line-35)">!</text><text class="terminal-298387464-r1" x="1256.6" y="874" textLength="12.2" clip-path="url(#terminal-298387464-line-35)">
-</text><text class="terminal-298387464-r3" x="24.4" y="898.4" textLength="244" clip-path="url(#terminal-298387464-line-36)">SSL-сертификат&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="317.2" y="898.4" textLength="536.8" clip-path="url(#terminal-298387464-line-36)">SSL.com&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r1" x="902.8" y="898.4" textLength="122" clip-path="url(#terminal-298387464-line-36)">США&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-298387464-r6" x="1073.6" y="898.4" textLength="12.2" clip-path="url(#terminal-298387464-line-36)">!</text><text class="terminal-298387464-r1" x="1256.6" y="898.4" textLength="12.2" clip-path="url(#terminal-298387464-line-36)">
-</text><text class="terminal-298387464-r1" x="1256.6" y="922.8" textLength="12.2" clip-path="url(#terminal-298387464-line-37)">
-</text><text class="terminal-298387464-r7" x="0" y="947.2" textLength="134.2" clip-path="url(#terminal-298387464-line-38)">HTML-отчёт:</text><text class="terminal-298387464-r1" x="134.2" y="947.2" textLength="305" clip-path="url(#terminal-298387464-line-38)">&#160;docs\example-report.html</text><text class="terminal-298387464-r1" x="1256.6" y="947.2" textLength="12.2" clip-path="url(#terminal-298387464-line-38)">
+    <g transform="translate(9, 41)" clip-path="url(#terminal-733934239-clip-terminal)">
+    <rect fill="#94d82d" x="36.6" y="367.5" width="61" height="24.65" shape-rendering="crispEdges"/>
+    <g class="terminal-733934239-matrix">
+    <text class="terminal-733934239-r1" x="1207.8" y="20" textLength="12.2" clip-path="url(#terminal-733934239-line-0)">
+</text><text class="terminal-733934239-r2" x="0" y="44.4" textLength="61" clip-path="url(#terminal-733934239-line-1)">&#160;&#160;___</text><text class="terminal-733934239-r1" x="1207.8" y="44.4" textLength="12.2" clip-path="url(#terminal-733934239-line-1)">
+</text><text class="terminal-733934239-r2" x="12.2" y="68.8" textLength="12.2" clip-path="url(#terminal-733934239-line-2)">/</text><text class="terminal-733934239-r2" x="24.4" y="68.8" textLength="341.6" clip-path="url(#terminal-733934239-line-2)">&#160;__|_&#160;&#160;___&#160;_____&#160;_&#160;_&#160;___&#160;_&#160;_</text><text class="terminal-733934239-r1" x="1207.8" y="68.8" textLength="12.2" clip-path="url(#terminal-733934239-line-2)">
+</text><text class="terminal-733934239-r2" x="0" y="93.2" textLength="170.8" clip-path="url(#terminal-733934239-line-3)">&#160;\__&#160;\&#160;||&#160;\&#160;V&#160;</text><text class="terminal-733934239-r2" x="170.8" y="93.2" textLength="12.2" clip-path="url(#terminal-733934239-line-3)">/</text><text class="terminal-733934239-r2" x="183" y="93.2" textLength="36.6" clip-path="url(#terminal-733934239-line-3)">&#160;-_</text><text class="terminal-733934239-r2" x="219.6" y="93.2" textLength="12.2" clip-path="url(#terminal-733934239-line-3)">)</text><text class="terminal-733934239-r2" x="244" y="93.2" textLength="73.2" clip-path="url(#terminal-733934239-line-3)">&#x27;_/&#160;-_</text><text class="terminal-733934239-r2" x="317.2" y="93.2" textLength="12.2" clip-path="url(#terminal-733934239-line-3)">)</text><text class="terminal-733934239-r2" x="329.4" y="93.2" textLength="24.4" clip-path="url(#terminal-733934239-line-3)">&#160;&#x27;</text><text class="terminal-733934239-r2" x="353.8" y="93.2" textLength="24.4" clip-path="url(#terminal-733934239-line-3)">&#160;\</text><text class="terminal-733934239-r1" x="1207.8" y="93.2" textLength="12.2" clip-path="url(#terminal-733934239-line-3)">
+</text><text class="terminal-733934239-r2" x="0" y="117.6" textLength="390.4" clip-path="url(#terminal-733934239-line-4)">&#160;|___/\_,_|\_/\___|_|&#160;\___|_||_|</text><text class="terminal-733934239-r3" x="414.8" y="117.6" textLength="36.6" clip-path="url(#terminal-733934239-line-4)">v1.</text><text class="terminal-733934239-r4" x="451.4" y="117.6" textLength="36.6" clip-path="url(#terminal-733934239-line-4)">0.0</text><text class="terminal-733934239-r3" x="488" y="117.6" textLength="390.4" clip-path="url(#terminal-733934239-line-4)">&#160;·&#160;аудит&#160;сайта&#160;и&#160;компании&#160;для&#160;РФ</text><text class="terminal-733934239-r1" x="1207.8" y="117.6" textLength="12.2" clip-path="url(#terminal-733934239-line-4)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="142" textLength="12.2" clip-path="url(#terminal-733934239-line-5)">
+</text><text class="terminal-733934239-r1" x="0" y="166.4" textLength="134.2" clip-path="url(#terminal-733934239-line-6)">&#160;&#160;Проверяю&#160;</text><text class="terminal-733934239-r5" x="134.2" y="166.4" textLength="146.4" clip-path="url(#terminal-733934239-line-6)">kinopoisk.ru</text><text class="terminal-733934239-r1" x="1207.8" y="166.4" textLength="12.2" clip-path="url(#terminal-733934239-line-6)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="190.8" textLength="12.2" clip-path="url(#terminal-733934239-line-7)">
+</text><text class="terminal-733934239-r6" x="24.4" y="215.2" textLength="12.2" clip-path="url(#terminal-733934239-line-8)">✓</text><text class="terminal-733934239-r1" x="36.6" y="215.2" textLength="561.2" clip-path="url(#terminal-733934239-line-8)">&#160;DNS,&#160;почта,&#160;хостинг,&#160;сертификат,&#160;страница&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r4" x="622.2" y="215.2" textLength="36.6" clip-path="url(#terminal-733934239-line-8)">4.9</text><text class="terminal-733934239-r3" x="658.8" y="215.2" textLength="24.4" clip-path="url(#terminal-733934239-line-8)">&#160;с</text><text class="terminal-733934239-r1" x="1207.8" y="215.2" textLength="12.2" clip-path="url(#terminal-733934239-line-8)">
+</text><text class="terminal-733934239-r6" x="24.4" y="239.6" textLength="12.2" clip-path="url(#terminal-733934239-line-9)">✓</text><text class="terminal-733934239-r1" x="36.6" y="239.6" textLength="561.2" clip-path="url(#terminal-733934239-line-9)">&#160;Загрузка&#160;сайта&#160;в&#160;браузере&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r4" x="610" y="239.6" textLength="48.8" clip-path="url(#terminal-733934239-line-9)">10.7</text><text class="terminal-733934239-r3" x="658.8" y="239.6" textLength="24.4" clip-path="url(#terminal-733934239-line-9)">&#160;с</text><text class="terminal-733934239-r1" x="1207.8" y="239.6" textLength="12.2" clip-path="url(#terminal-733934239-line-9)">
+</text><text class="terminal-733934239-r6" x="24.4" y="264" textLength="12.2" clip-path="url(#terminal-733934239-line-10)">✓</text><text class="terminal-733934239-r1" x="36.6" y="264" textLength="256.2" clip-path="url(#terminal-733934239-line-10)">&#160;Персональные&#160;данные&#160;</text><text class="terminal-733934239-r5" x="292.8" y="264" textLength="12.2" clip-path="url(#terminal-733934239-line-10)">(</text><text class="terminal-733934239-r7" x="305" y="264" textLength="36.6" clip-path="url(#terminal-733934239-line-10)">152</text><text class="terminal-733934239-r1" x="341.6" y="264" textLength="36.6" clip-path="url(#terminal-733934239-line-10)">-ФЗ</text><text class="terminal-733934239-r5" x="378.2" y="264" textLength="12.2" clip-path="url(#terminal-733934239-line-10)">)</text><text class="terminal-733934239-r4" x="622.2" y="264" textLength="36.6" clip-path="url(#terminal-733934239-line-10)">0.9</text><text class="terminal-733934239-r3" x="658.8" y="264" textLength="24.4" clip-path="url(#terminal-733934239-line-10)">&#160;с</text><text class="terminal-733934239-r1" x="1207.8" y="264" textLength="12.2" clip-path="url(#terminal-733934239-line-10)">
+</text><text class="terminal-733934239-r6" x="24.4" y="288.4" textLength="12.2" clip-path="url(#terminal-733934239-line-11)">✓</text><text class="terminal-733934239-r1" x="36.6" y="288.4" textLength="561.2" clip-path="url(#terminal-733934239-line-11)">&#160;Реестр&#160;блокировок&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r4" x="622.2" y="288.4" textLength="36.6" clip-path="url(#terminal-733934239-line-11)">0.7</text><text class="terminal-733934239-r3" x="658.8" y="288.4" textLength="24.4" clip-path="url(#terminal-733934239-line-11)">&#160;с</text><text class="terminal-733934239-r1" x="1207.8" y="288.4" textLength="12.2" clip-path="url(#terminal-733934239-line-11)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="312.8" textLength="12.2" clip-path="url(#terminal-733934239-line-12)">
+</text><text class="terminal-733934239-r1" x="0" y="337.2" textLength="24.4" clip-path="url(#terminal-733934239-line-13)">┌─</text><text class="terminal-733934239-r5" x="36.6" y="337.2" textLength="146.4" clip-path="url(#terminal-733934239-line-13)">kinopoisk.ru</text><text class="terminal-733934239-r1" x="183" y="337.2" textLength="610" clip-path="url(#terminal-733934239-line-13)">&#160;─────────────────────────────────────────────────</text><text class="terminal-733934239-r1" x="793" y="337.2" textLength="24.4" clip-path="url(#terminal-733934239-line-13)">─┐</text><text class="terminal-733934239-r1" x="1207.8" y="337.2" textLength="12.2" clip-path="url(#terminal-733934239-line-13)">
+</text><text class="terminal-733934239-r1" x="0" y="361.6" textLength="12.2" clip-path="url(#terminal-733934239-line-14)">│</text><text class="terminal-733934239-r1" x="805.2" y="361.6" textLength="12.2" clip-path="url(#terminal-733934239-line-14)">│</text><text class="terminal-733934239-r1" x="1207.8" y="361.6" textLength="12.2" clip-path="url(#terminal-733934239-line-14)">
+</text><text class="terminal-733934239-r1" x="0" y="386" textLength="12.2" clip-path="url(#terminal-733934239-line-15)">│</text><text class="terminal-733934239-r8" x="36.6" y="386" textLength="61" clip-path="url(#terminal-733934239-line-15)">&#160;&#160;B&#160;&#160;</text><text class="terminal-733934239-r5" x="134.2" y="386" textLength="170.8" clip-path="url(#terminal-733934239-line-15)">Независимость&#160;</text><text class="terminal-733934239-r5" x="305" y="386" textLength="24.4" clip-path="url(#terminal-733934239-line-15)">86</text><text class="terminal-733934239-r3" x="329.4" y="386" textLength="85.4" clip-path="url(#terminal-733934239-line-15)">/100&#160;&#160;&#160;</text><text class="terminal-733934239-r9" x="414.8" y="386" textLength="317.2" clip-path="url(#terminal-733934239-line-15)">██████████████████████████</text><text class="terminal-733934239-r10" x="732" y="386" textLength="48.8" clip-path="url(#terminal-733934239-line-15)">░░░░</text><text class="terminal-733934239-r1" x="805.2" y="386" textLength="12.2" clip-path="url(#terminal-733934239-line-15)">│</text><text class="terminal-733934239-r1" x="1207.8" y="386" textLength="12.2" clip-path="url(#terminal-733934239-line-15)">
+</text><text class="terminal-733934239-r1" x="0" y="410.4" textLength="12.2" clip-path="url(#terminal-733934239-line-16)">│</text><text class="terminal-733934239-r1" x="805.2" y="410.4" textLength="12.2" clip-path="url(#terminal-733934239-line-16)">│</text><text class="terminal-733934239-r1" x="1207.8" y="410.4" textLength="12.2" clip-path="url(#terminal-733934239-line-16)">
+</text><text class="terminal-733934239-r1" x="0" y="434.8" textLength="12.2" clip-path="url(#terminal-733934239-line-17)">│</text><text class="terminal-733934239-r3" x="36.6" y="434.8" textLength="256.2" clip-path="url(#terminal-733934239-line-17)">Иностранных&#160;сервисов&#160;</text><text class="terminal-733934239-r5" x="292.8" y="434.8" textLength="12.2" clip-path="url(#terminal-733934239-line-17)">2</text><text class="terminal-733934239-r3" x="305" y="434.8" textLength="170.8" clip-path="url(#terminal-733934239-line-17)">&#160;&#160;&#160;российских&#160;</text><text class="terminal-733934239-r5" x="475.8" y="434.8" textLength="24.4" clip-path="url(#terminal-733934239-line-17)">13</text><text class="terminal-733934239-r1" x="805.2" y="434.8" textLength="12.2" clip-path="url(#terminal-733934239-line-17)">│</text><text class="terminal-733934239-r1" x="1207.8" y="434.8" textLength="12.2" clip-path="url(#terminal-733934239-line-17)">
+</text><text class="terminal-733934239-r1" x="0" y="459.2" textLength="12.2" clip-path="url(#terminal-733934239-line-18)">│</text><text class="terminal-733934239-r6" x="36.6" y="459.2" textLength="24.4" clip-path="url(#terminal-733934239-line-18)">■&#160;</text><text class="terminal-733934239-r1" x="61" y="459.2" textLength="158.6" clip-path="url(#terminal-733934239-line-18)">Россия&#160;87%&#160;&#160;&#160;</text><text class="terminal-733934239-r11" x="219.6" y="459.2" textLength="24.4" clip-path="url(#terminal-733934239-line-18)">■&#160;</text><text class="terminal-733934239-r1" x="244" y="459.2" textLength="158.6" clip-path="url(#terminal-733934239-line-18)">Бельгия&#160;7%&#160;&#160;&#160;</text><text class="terminal-733934239-r12" x="402.6" y="459.2" textLength="24.4" clip-path="url(#terminal-733934239-line-18)">■&#160;</text><text class="terminal-733934239-r1" x="427" y="459.2" textLength="170.8" clip-path="url(#terminal-733934239-line-18)">Сингапур&#160;7%&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="805.2" y="459.2" textLength="12.2" clip-path="url(#terminal-733934239-line-18)">│</text><text class="terminal-733934239-r1" x="1207.8" y="459.2" textLength="12.2" clip-path="url(#terminal-733934239-line-18)">
+</text><text class="terminal-733934239-r1" x="0" y="483.6" textLength="12.2" clip-path="url(#terminal-733934239-line-19)">│</text><text class="terminal-733934239-r1" x="805.2" y="483.6" textLength="12.2" clip-path="url(#terminal-733934239-line-19)">│</text><text class="terminal-733934239-r1" x="1207.8" y="483.6" textLength="12.2" clip-path="url(#terminal-733934239-line-19)">
+</text><text class="terminal-733934239-r1" x="0" y="508" textLength="12.2" clip-path="url(#terminal-733934239-line-20)">│</text><text class="terminal-733934239-r3" x="36.6" y="508" textLength="366" clip-path="url(#terminal-733934239-line-20)">Персональные&#160;данные&#160;(152-ФЗ)&#160;&#160;</text><text class="terminal-733934239-r13" x="402.6" y="508" textLength="61" clip-path="url(#terminal-733934239-line-20)">!&#160;3&#160;&#160;</text><text class="terminal-733934239-r6" x="463.6" y="508" textLength="61" clip-path="url(#terminal-733934239-line-20)">✓&#160;2&#160;&#160;</text><text class="terminal-733934239-r3" x="524.6" y="508" textLength="61" clip-path="url(#terminal-733934239-line-20)">?&#160;2&#160;&#160;</text><text class="terminal-733934239-r1" x="805.2" y="508" textLength="12.2" clip-path="url(#terminal-733934239-line-20)">│</text><text class="terminal-733934239-r1" x="1207.8" y="508" textLength="12.2" clip-path="url(#terminal-733934239-line-20)">
+</text><text class="terminal-733934239-r1" x="0" y="532.4" textLength="12.2" clip-path="url(#terminal-733934239-line-21)">│</text><text class="terminal-733934239-r3" x="36.6" y="532.4" textLength="366" clip-path="url(#terminal-733934239-line-21)">Блокировки&#160;в&#160;России&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r6" x="402.6" y="532.4" textLength="61" clip-path="url(#terminal-733934239-line-21)">✓&#160;2&#160;&#160;</text><text class="terminal-733934239-r1" x="805.2" y="532.4" textLength="12.2" clip-path="url(#terminal-733934239-line-21)">│</text><text class="terminal-733934239-r1" x="1207.8" y="532.4" textLength="12.2" clip-path="url(#terminal-733934239-line-21)">
+</text><text class="terminal-733934239-r1" x="0" y="556.8" textLength="12.2" clip-path="url(#terminal-733934239-line-22)">│</text><text class="terminal-733934239-r1" x="805.2" y="556.8" textLength="12.2" clip-path="url(#terminal-733934239-line-22)">│</text><text class="terminal-733934239-r1" x="1207.8" y="556.8" textLength="12.2" clip-path="url(#terminal-733934239-line-22)">
+</text><text class="terminal-733934239-r1" x="0" y="581.2" textLength="24.4" clip-path="url(#terminal-733934239-line-23)">└─</text><text class="terminal-733934239-r1" x="24.4" y="581.2" textLength="683.2" clip-path="url(#terminal-733934239-line-23)">───────────────────────────────────────────────────────&#160;</text><text class="terminal-733934239-r3" x="707.6" y="581.2" textLength="73.2" clip-path="url(#terminal-733934239-line-23)">17.2&#160;с</text><text class="terminal-733934239-r1" x="793" y="581.2" textLength="24.4" clip-path="url(#terminal-733934239-line-23)">─┘</text><text class="terminal-733934239-r1" x="1207.8" y="581.2" textLength="12.2" clip-path="url(#terminal-733934239-line-23)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="605.6" textLength="12.2" clip-path="url(#terminal-733934239-line-24)">
+</text><text class="terminal-733934239-r5" x="0" y="630" textLength="341.6" clip-path="url(#terminal-733934239-line-25)">ЧТО&#160;СДЕЛАТЬ&#160;В&#160;ПЕРВУЮ&#160;ОЧЕРЕДЬ</text><text class="terminal-733934239-r1" x="1207.8" y="630" textLength="12.2" clip-path="url(#terminal-733934239-line-25)">
+</text><text class="terminal-733934239-r13" x="0" y="654.4" textLength="24.4" clip-path="url(#terminal-733934239-line-26)">&#160;1</text><text class="terminal-733934239-r1" x="48.8" y="654.4" textLength="1159" clip-path="url(#terminal-733934239-line-26)">Настроить&#160;автоматический&#160;выпуск&#160;по&#160;ACME,&#160;чтобы&#160;быстро&#160;сменить&#160;УЦ.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="654.4" textLength="12.2" clip-path="url(#terminal-733934239-line-26)">
+</text><text class="terminal-733934239-r3" x="48.8" y="678.8" textLength="439.2" clip-path="url(#terminal-733934239-line-27)">SSL-сертификат:&#160;GlobalSign&#160;(Бельгия)</text><text class="terminal-733934239-r1" x="1207.8" y="678.8" textLength="12.2" clip-path="url(#terminal-733934239-line-27)">
+</text><text class="terminal-733934239-r13" x="0" y="703.2" textLength="24.4" clip-path="url(#terminal-733934239-line-28)">&#160;2</text><text class="terminal-733934239-r1" x="48.8" y="703.2" textLength="1159" clip-path="url(#terminal-733934239-line-28)">Поставьте&#160;отдельную&#160;ссылку&#160;на&#160;политику&#160;обработки&#160;персональных&#160;данных&#160;в&#160;подвале&#160;сайта&#160;и&#160;рядом&#160;с&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="703.2" textLength="12.2" clip-path="url(#terminal-733934239-line-28)">
+</text><text class="terminal-733934239-r1" x="48.8" y="727.6" textLength="1159" clip-path="url(#terminal-733934239-line-29)">формами&#160;(152-ФЗ,&#160;ст.&#160;18.1&#160;ч.&#160;2).&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="727.6" textLength="12.2" clip-path="url(#terminal-733934239-line-29)">
+</text><text class="terminal-733934239-r3" x="48.8" y="752" textLength="463.6" clip-path="url(#terminal-733934239-line-30)">Политика&#160;обработки&#160;персональных&#160;данных</text><text class="terminal-733934239-r1" x="1207.8" y="752" textLength="12.2" clip-path="url(#terminal-733934239-line-30)">
+</text><text class="terminal-733934239-r13" x="0" y="776.4" textLength="24.4" clip-path="url(#terminal-733934239-line-31)">&#160;3</text><text class="terminal-733934239-r1" x="48.8" y="776.4" textLength="1159" clip-path="url(#terminal-733934239-line-31)">Добавьте&#160;баннер&#160;с&#160;уведомлением&#160;о&#160;cookies&#160;и&#160;ссылкой&#160;на&#160;политику.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="776.4" textLength="12.2" clip-path="url(#terminal-733934239-line-31)">
+</text><text class="terminal-733934239-r3" x="48.8" y="800.8" textLength="256.2" clip-path="url(#terminal-733934239-line-32)">Уведомление&#160;о&#160;cookies</text><text class="terminal-733934239-r1" x="1207.8" y="800.8" textLength="12.2" clip-path="url(#terminal-733934239-line-32)">
+</text><text class="terminal-733934239-r14" x="0" y="825.2" textLength="231.8" clip-path="url(#terminal-733934239-line-33)">&#160;&#160;&#160;и&#160;ещё&#160;2&#160;в&#160;отчёте</text><text class="terminal-733934239-r1" x="1207.8" y="825.2" textLength="12.2" clip-path="url(#terminal-733934239-line-33)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="849.6" textLength="12.2" clip-path="url(#terminal-733934239-line-34)">
+</text><text class="terminal-733934239-r5" x="0" y="874" textLength="280.6" clip-path="url(#terminal-733934239-line-35)">ИНОСТРАННЫЕ&#160;ЗАВИСИМОСТИ</text><text class="terminal-733934239-r1" x="1207.8" y="874" textLength="12.2" clip-path="url(#terminal-733934239-line-35)">
+</text><text class="terminal-733934239-r13" x="0" y="898.4" textLength="122" clip-path="url(#terminal-733934239-line-36)">&#160;●&#160;средний</text><text class="terminal-733934239-r3" x="146.4" y="898.4" textLength="231.8" clip-path="url(#terminal-733934239-line-36)">SSL-сертификат&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="402.6" y="898.4" textLength="280.6" clip-path="url(#terminal-733934239-line-36)">GlobalSign&#160;(Бельгия)&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="898.4" textLength="12.2" clip-path="url(#terminal-733934239-line-36)">
+</text><text class="terminal-733934239-r15" x="0" y="922.8" textLength="122" clip-path="url(#terminal-733934239-line-37)">&#160;●&#160;низкий&#160;</text><text class="terminal-733934239-r3" x="146.4" y="922.8" textLength="231.8" clip-path="url(#terminal-733934239-line-37)">Аналитика&#160;и&#160;пиксели</text><text class="terminal-733934239-r1" x="402.6" y="922.8" textLength="280.6" clip-path="url(#terminal-733934239-line-37)">TikTok&#160;Pixel&#160;(Сингапур)</text><text class="terminal-733934239-r1" x="1207.8" y="922.8" textLength="12.2" clip-path="url(#terminal-733934239-line-37)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="947.2" textLength="12.2" clip-path="url(#terminal-733934239-line-38)">
+</text><text class="terminal-733934239-r5" x="0" y="971.6" textLength="341.6" clip-path="url(#terminal-733934239-line-39)">ПЕРСОНАЛЬНЫЕ&#160;ДАННЫЕ&#160;(152-ФЗ)</text><text class="terminal-733934239-r1" x="1207.8" y="971.6" textLength="12.2" clip-path="url(#terminal-733934239-line-39)">
+</text><text class="terminal-733934239-r13" x="0" y="996" textLength="24.4" clip-path="url(#terminal-733934239-line-40)">&#160;!</text><text class="terminal-733934239-r5" x="48.8" y="996" textLength="463.6" clip-path="url(#terminal-733934239-line-40)">Политика&#160;обработки&#160;персональных&#160;данных</text><text class="terminal-733934239-r1" x="1207.8" y="996" textLength="12.2" clip-path="url(#terminal-733934239-line-40)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1020.4" textLength="1159" clip-path="url(#terminal-733934239-line-41)">Отдельной&#160;ссылки&#160;на&#160;политику&#160;на&#160;главной&#160;нет,&#160;о&#160;персональных&#160;данных&#160;говорится&#160;в&#160;документе&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1020.4" textLength="12.2" clip-path="url(#terminal-733934239-line-41)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1044.8" textLength="1159" clip-path="url(#terminal-733934239-line-42)">«Соглашение».&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1044.8" textLength="12.2" clip-path="url(#terminal-733934239-line-42)">
+</text><text class="terminal-733934239-r3" x="0" y="1069.2" textLength="24.4" clip-path="url(#terminal-733934239-line-43)">&#160;?</text><text class="terminal-733934239-r1" x="48.8" y="1069.2" textLength="1159" clip-path="url(#terminal-733934239-line-43)">Согласие&#160;на&#160;обработку&#160;в&#160;формах&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1069.2" textLength="12.2" clip-path="url(#terminal-733934239-line-43)">
+</text><text class="terminal-733934239-r3" x="48.8" y="1093.6" textLength="1098" clip-path="url(#terminal-733934239-line-44)">На&#160;главной&#160;странице&#160;нет&#160;форм&#160;с&#160;персональными&#160;данными.&#160;Проверьте&#160;формы&#160;на&#160;других&#160;страницах&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1093.6" textLength="12.2" clip-path="url(#terminal-733934239-line-44)">
+</text><text class="terminal-733934239-r3" x="48.8" y="1118" textLength="97.6" clip-path="url(#terminal-733934239-line-45)">вручную.</text><text class="terminal-733934239-r1" x="1207.8" y="1118" textLength="12.2" clip-path="url(#terminal-733934239-line-45)">
+</text><text class="terminal-733934239-r13" x="0" y="1142.4" textLength="24.4" clip-path="url(#terminal-733934239-line-46)">&#160;!</text><text class="terminal-733934239-r5" x="48.8" y="1142.4" textLength="256.2" clip-path="url(#terminal-733934239-line-46)">Уведомление&#160;о&#160;cookies</text><text class="terminal-733934239-r1" x="1207.8" y="1142.4" textLength="12.2" clip-path="url(#terminal-733934239-line-46)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1166.8" textLength="1159" clip-path="url(#terminal-733934239-line-47)">Сайт&#160;использует&#160;TikTok&#160;Pixel,&#160;Яндекс&#160;Метрика,&#160;Top.Mail.ru,&#160;Пиксель&#160;VK,&#160;Рекламная&#160;сеть&#160;Яндекса,&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1166.8" textLength="12.2" clip-path="url(#terminal-733934239-line-47)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1191.2" textLength="1159" clip-path="url(#terminal-733934239-line-48)">Adfox,&#160;AdRiver,&#160;но&#160;уведомление&#160;о&#160;cookies&#160;не&#160;найдено.&#160;Роскомнадзор&#160;относит&#160;данные&#160;метрических&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1191.2" textLength="12.2" clip-path="url(#terminal-733934239-line-48)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1215.6" textLength="1159" clip-path="url(#terminal-733934239-line-49)">сервисов&#160;к&#160;персональным.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1215.6" textLength="12.2" clip-path="url(#terminal-733934239-line-49)">
+</text><text class="terminal-733934239-r13" x="0" y="1240" textLength="24.4" clip-path="url(#terminal-733934239-line-50)">&#160;!</text><text class="terminal-733934239-r5" x="48.8" y="1240" textLength="366" clip-path="url(#terminal-733934239-line-50)">Трансграничная&#160;передача&#160;данных</text><text class="terminal-733934239-r1" x="1207.8" y="1240" textLength="12.2" clip-path="url(#terminal-733934239-line-50)">
+</text><text class="terminal-733934239-r1" x="48.8" y="1264.4" textLength="1159" clip-path="url(#terminal-733934239-line-51)">Данные&#160;посетителей&#160;уходят&#160;иностранным&#160;сервисам:&#160;TikTok&#160;Pixel&#160;(Сингапур).&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1264.4" textLength="12.2" clip-path="url(#terminal-733934239-line-51)">
+</text><text class="terminal-733934239-r6" x="0" y="1288.8" textLength="24.4" clip-path="url(#terminal-733934239-line-52)">&#160;✓</text><text class="terminal-733934239-r1" x="48.8" y="1288.8" textLength="292.8" clip-path="url(#terminal-733934239-line-52)">Хранение&#160;данных&#160;в&#160;России</text><text class="terminal-733934239-r3" x="341.6" y="1288.8" textLength="305" clip-path="url(#terminal-733934239-line-52)">&#160;—&#160;Сервер&#160;сайта&#160;в&#160;России.</text><text class="terminal-733934239-r1" x="1207.8" y="1288.8" textLength="12.2" clip-path="url(#terminal-733934239-line-52)">
+</text><text class="terminal-733934239-r6" x="0" y="1313.2" textLength="24.4" clip-path="url(#terminal-733934239-line-53)">&#160;✓</text><text class="terminal-733934239-r1" x="48.8" y="1313.2" textLength="256.2" clip-path="url(#terminal-733934239-line-53)">Защищённое&#160;соединение</text><text class="terminal-733934239-r3" x="305" y="1313.2" textLength="317.2" clip-path="url(#terminal-733934239-line-53)">&#160;—&#160;Сайт&#160;работает&#160;по&#160;HTTPS.</text><text class="terminal-733934239-r1" x="1207.8" y="1313.2" textLength="12.2" clip-path="url(#terminal-733934239-line-53)">
+</text><text class="terminal-733934239-r3" x="0" y="1337.6" textLength="24.4" clip-path="url(#terminal-733934239-line-54)">&#160;?</text><text class="terminal-733934239-r1" x="48.8" y="1337.6" textLength="1159" clip-path="url(#terminal-733934239-line-54)">Реестр&#160;операторов&#160;персональных&#160;данных&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1337.6" textLength="12.2" clip-path="url(#terminal-733934239-line-54)">
+</text><text class="terminal-733934239-r3" x="48.8" y="1362" textLength="756.4" clip-path="url(#terminal-733934239-line-55)">ИНН&#160;компании&#160;на&#160;сайте&#160;не&#160;найден,&#160;поэтому&#160;реестр&#160;не&#160;проверялся.</text><text class="terminal-733934239-r1" x="1207.8" y="1362" textLength="12.2" clip-path="url(#terminal-733934239-line-55)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="1386.4" textLength="12.2" clip-path="url(#terminal-733934239-line-56)">
+</text><text class="terminal-733934239-r5" x="0" y="1410.8" textLength="231.8" clip-path="url(#terminal-733934239-line-57)">БЛОКИРОВКИ&#160;В&#160;РОССИИ</text><text class="terminal-733934239-r1" x="1207.8" y="1410.8" textLength="12.2" clip-path="url(#terminal-733934239-line-57)">
+</text><text class="terminal-733934239-r6" x="0" y="1435.2" textLength="24.4" clip-path="url(#terminal-733934239-line-58)">&#160;✓</text><text class="terminal-733934239-r1" x="48.8" y="1435.2" textLength="317.2" clip-path="url(#terminal-733934239-line-58)">Домен&#160;в&#160;реестре&#160;блокировок</text><text class="terminal-733934239-r3" x="366" y="1435.2" textLength="305" clip-path="url(#terminal-733934239-line-58)">&#160;—&#160;Домен&#160;не&#160;заблокирован.</text><text class="terminal-733934239-r1" x="1207.8" y="1435.2" textLength="12.2" clip-path="url(#terminal-733934239-line-58)">
+</text><text class="terminal-733934239-r6" x="0" y="1459.6" textLength="24.4" clip-path="url(#terminal-733934239-line-59)">&#160;✓</text><text class="terminal-733934239-r1" x="48.8" y="1459.6" textLength="183" clip-path="url(#terminal-733934239-line-59)">IP-адреса&#160;сайта</text><text class="terminal-733934239-r3" x="231.8" y="1459.6" textLength="353.8" clip-path="url(#terminal-733934239-line-59)">&#160;—&#160;IP&#160;сайта&#160;не&#160;заблокированы.</text><text class="terminal-733934239-r1" x="1207.8" y="1459.6" textLength="12.2" clip-path="url(#terminal-733934239-line-59)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="1484" textLength="12.2" clip-path="url(#terminal-733934239-line-60)">
+</text><text class="terminal-733934239-r3" x="0" y="1508.4" textLength="805.2" clip-path="url(#terminal-733934239-line-61)">Полный&#160;список&#160;сервисов&#160;—&#160;в&#160;HTML-отчёте&#160;или&#160;с&#160;параметром&#160;--details.</text><text class="terminal-733934239-r1" x="1207.8" y="1508.4" textLength="12.2" clip-path="url(#terminal-733934239-line-61)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="1532.8" textLength="12.2" clip-path="url(#terminal-733934239-line-62)">
+</text><text class="terminal-733934239-r5" x="0" y="1557.2" textLength="109.8" clip-path="url(#terminal-733934239-line-63)">ЗАМЕЧАНИЯ</text><text class="terminal-733934239-r1" x="1207.8" y="1557.2" textLength="12.2" clip-path="url(#terminal-733934239-line-63)">
+</text><text class="terminal-733934239-r3" x="12.2" y="1581.6" textLength="1195.6" clip-path="url(#terminal-733934239-line-64)">!&#160;Сайт&#160;открывался&#160;в&#160;браузере:&#160;учтены&#160;все&#160;скрипты,&#160;загруженные&#160;главной&#160;страницей.&#160;Сервисы&#160;с&#160;других&#160;</text><text class="terminal-733934239-r1" x="1207.8" y="1581.6" textLength="12.2" clip-path="url(#terminal-733934239-line-64)">
+</text><text class="terminal-733934239-r3" x="12.2" y="1606" textLength="475.8" clip-path="url(#terminal-733934239-line-65)">страниц&#160;сайта&#160;могут&#160;не&#160;попасть&#160;в&#160;отчёт.</text><text class="terminal-733934239-r1" x="1207.8" y="1606" textLength="12.2" clip-path="url(#terminal-733934239-line-65)">
+</text><text class="terminal-733934239-r1" x="1207.8" y="1630.4" textLength="12.2" clip-path="url(#terminal-733934239-line-66)">
+</text><text class="terminal-733934239-r5" x="0" y="1654.8" textLength="73.2" clip-path="url(#terminal-733934239-line-67)">Отчёт:</text><text class="terminal-733934239-r1" x="73.2" y="1654.8" textLength="305" clip-path="url(#terminal-733934239-line-67)">&#160;docs\example-report.html</text><text class="terminal-733934239-r1" x="1207.8" y="1654.8" textLength="12.2" clip-path="url(#terminal-733934239-line-67)">
 </text>
     </g>
     </g>

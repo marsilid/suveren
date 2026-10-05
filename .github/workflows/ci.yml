@@ -40,3 +40,12 @@ jobs:
         run: pytest -q
       - name: CLI smoke test
         run: suveren services
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t suveren .
+      - name: Smoke test
+        run: docker run --rm suveren services

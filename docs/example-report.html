@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Suveren — example.com</title>
+<title>Suveren — kinopoisk.ru</title>
 <style>
   :root {
     --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5d6673;
@@ -83,6 +83,16 @@
   .check .st-ok { color: var(--grade-a); } .check .st-warn { color: var(--medium); }
   .check .st-fail { color: var(--grade-f); } .check .st-unknown { color: var(--info); }
   .checks { padding: 0; }
+  td .st-ok { color: var(--grade-a); font-weight: 700; } td .st-warn { color: var(--medium); font-weight: 700; }
+  td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
+  ol.actions { margin: 0; padding: 18px 20px 18px 44px; }
+  ol.actions li { margin: 0 0 12px; padding-left: 4px; }
+  ol.actions li:last-child { margin-bottom: 0; }
+  ol.actions li::marker { font-weight: 800; }
+  ol.actions span { color: var(--text); display: block; }
+  ol.actions small { color: var(--muted); font-size: 13px; }
+  .mini-grade { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid currentColor; font-weight: 800; margin-right: 6px; }
   a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 560px) {
@@ -97,50 +107,42 @@
   <header class="top">
     <span class="brand">Suveren</span>
     <span class="meta">
-      05.10.2026 21:33 UTC · 2.6 с
+      05.10.2026 22:13 UTC · 17.2 с
     </span>
   </header>
-  <h1>example.com</h1>
+  <h1>kinopoisk.ru</h1>
 
   <section class="card summary">
-    <div class="grade grade-D">D</div>
+    <div class="grade grade-B">B</div>
     <div>
-      <div class="score"><strong>56</strong> / 100 — независимость от иностранных сервисов</div>
+      <div class="score"><strong>86</strong> / 100 — независимость от иностранных сервисов</div>
       <div class="counts">
-        Иностранных сервисов: <b>4</b> · российских: <b>0</b>
+        Иностранных сервисов: <b>2</b> · российских: <b>13</b>
       </div>
       <div class="bar">
-<span style="width: 100%; background: #3b5bdb" title="США 100%"></span>      </div>
+<span style="width: 87%; background: var(--grade-a)" title="Россия 87%"></span><span style="width: 7%; background: #3b5bdb" title="Бельгия 7%"></span><span style="width: 7%; background: #e8590c" title="Сингапур 7%"></span>      </div>
       <div class="legend">
-<span><i style="background: #3b5bdb"></i>США 100%</span>      </div>
+<span><i style="background: var(--grade-a)"></i>Россия 87%</span><span><i style="background: #3b5bdb"></i>Бельгия 7%</span><span><i style="background: #e8590c"></i>Сингапур 7%</span>      </div>
     </div>
   </section>
 
+  <h2>Что сделать в первую очередь</h2>
+  <ol class="card actions">
+    <li class="sev-medium"><span>Настроить автоматический выпуск по ACME, чтобы быстро сменить УЦ.</span><small>SSL-сертификат: GlobalSign (Бельгия)</small></li>
+    <li class="sev-medium"><span>Поставьте отдельную ссылку на политику обработки персональных данных в подвале сайта и рядом с формами (152-ФЗ, ст. 18.1 ч. 2).</span><small>Политика обработки персональных данных</small></li>
+    <li class="sev-medium"><span>Добавьте баннер с уведомлением о cookies и ссылкой на политику.</span><small>Уведомление о cookies</small></li>
+    <li class="sev-medium"><span>Уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12, требование действует с 1 марта 2023 года) или замените сервисы на российские.</span><small>Трансграничная передача данных</small></li>
+    <li class="sev-low"><span>Заменить на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.</span><small>Аналитика и пиксели: TikTok Pixel (Сингапур)</small></li>
+  </ol>
+
   <h2>Замечания</h2>
-  <p class="card note">Сайт работает через CDN, поэтому настоящий хостинг скрыт и не проверялся. Проверьте вручную, где находится сервер.</p>
-  <p class="card note">Скрипты и виджеты искались только на главной странице. Сервисы, которые подключаются на других страницах или изнутри JS-бандлов, могут не попасть в отчёт.</p>
+  <p class="card note">Сайт открывался в браузере: учтены все скрипты, загруженные главной страницей. Сервисы с других страниц сайта могут не попасть в отчёт.</p>
 
   <h2>Риски</h2>
-  <article class="card finding sev-high">
-    <div class="head">
-      <span class="badge"><span>высокий</span></span>
-      <h3>DNS-серверы: Cloudflare (США)</h3>
-    </div>
-    <p>Если провайдер DNS заблокирует аккаунт, перестанут работать сразу сайт, почта и все остальные сервисы домена.</p>
-    <p class="fix">Перенести DNS в Yandex Cloud DNS, Selectel DNS или к российскому регистратору (RU-CENTER, REG.RU).</p>
-  </article>
   <article class="card finding sev-medium">
     <div class="head">
       <span class="badge"><span>средний</span></span>
-      <h3>CDN и защита от DDoS: Cloudflare (США)</h3>
-    </div>
-    <p>Весь трафик сайта идёт через иностранную сеть доставки. При отключении сайт будет недоступен, пока не поменяются DNS-записи. Также фиксировались замедления сайтов за иностранными CDN для пользователей из России.</p>
-    <p class="fix">DDoS-Guard, Qrator, Servicepipe, NGENIX или CDN в Yandex Cloud, Selectel, VK Cloud.</p>
-  </article>
-  <article class="card finding sev-medium">
-    <div class="head">
-      <span class="badge"><span>средний</span></span>
-      <h3>SSL-сертификат: SSL.com (США)</h3>
+      <h3>SSL-сертификат: GlobalSign (Бельгия)</h3>
     </div>
     <p>Сертификат выпустил иностранный удостоверяющий центр. Он может отозвать сертификат или отказать в продлении: в 2022 году так поступали с рядом российских организаций.</p>
     <p class="fix">Настроить автоматический выпуск по ACME, чтобы быстро сменить УЦ. Для аудитории в России можно дополнительно выпустить сертификат НУЦ Минцифры.</p>
@@ -148,12 +150,54 @@
   <article class="card finding sev-low">
     <div class="head">
       <span class="badge"><span>низкий</span></span>
-      <h3>Доменная зона: .com — Verisign (США)</h3>
+      <h3>Аналитика и пиксели: TikTok Pixel (Сингапур)</h3>
     </div>
-    <p>Зоной управляет иностранный реестр. Реестр и регистраторы обязаны выполнять санкционные требования своей страны и могут заблокировать домен.</p>
-    <p class="fix">Держать основной или резервный домен в зоне .ru или .рф.</p>
+    <p>Данные о посетителях собирает иностранный сервис. Скрипт работает в браузере посетителя и передаёт его IP-адрес и cookies на иностранные серверы. Это может считаться трансграничной передачей персональных данных (152-ФЗ), о которой нужно уведомлять Роскомнадзор.</p>
+    <p class="fix">Заменить на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.</p>
   </article>
 
+  <h2 id="checks-1">Персональные данные (152-ФЗ)</h2>
+  <div class="card checks">
+    <div class="check">
+      <span class="icon st-warn" title="внимание"><span>!</span></span>
+      <h3>Политика обработки персональных данных</h3>
+<p>Отдельной ссылки на политику на главной нет, о персональных данных говорится в документе «Соглашение». <a href="https://www.kinopoisk.ru/docs/usage/" target="_blank" rel="noopener">открыть</a></p><p class="fix">Поставьте отдельную ссылку на политику обработки персональных данных в подвале сайта и рядом с формами (152-ФЗ, ст. 18.1 ч. 2).</p>    </div>
+    <div class="check">
+      <span class="icon st-unknown" title="не ясно"><span>?</span></span>
+      <h3>Согласие на обработку в формах</h3>
+<p>На главной странице нет форм с персональными данными. Проверьте формы на других страницах вручную.</p>    </div>
+    <div class="check">
+      <span class="icon st-warn" title="внимание"><span>!</span></span>
+      <h3>Уведомление о cookies</h3>
+<p>Сайт использует TikTok Pixel, Яндекс Метрика, Top.Mail.ru, Пиксель VK, Рекламная сеть Яндекса, Adfox, AdRiver, но уведомление о cookies не найдено. Роскомнадзор относит данные метрических сервисов к персональным.</p><p class="fix">Добавьте баннер с уведомлением о cookies и ссылкой на политику.</p>    </div>
+    <div class="check">
+      <span class="icon st-warn" title="внимание"><span>!</span></span>
+      <h3>Трансграничная передача данных</h3>
+<p>Данные посетителей уходят иностранным сервисам: TikTok Pixel (Сингапур).</p><p class="fix">Уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12, требование действует с 1 марта 2023 года) или замените сервисы на российские.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Хранение данных в России</h3>
+<p>Сервер сайта в России.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Защищённое соединение</h3>
+<p>Сайт работает по HTTPS.</p>    </div>
+    <div class="check">
+      <span class="icon st-unknown" title="не ясно"><span>?</span></span>
+      <h3>Реестр операторов персональных данных</h3>
+<p>ИНН компании на сайте не найден, поэтому реестр не проверялся.</p><p class="fix">Укажите реквизиты компании на сайте. Проверить реестр можно командой suveren company &lt;ИНН&gt;.</p>    </div>
+  </div>
+  <h2 id="checks-2">Блокировки в России</h2>
+  <div class="card checks">
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>Домен в реестре блокировок</h3>
+<p>Домен не заблокирован.</p>    </div>
+    <div class="check">
+      <span class="icon st-ok" title="в порядке"><span>✓</span></span>
+      <h3>IP-адреса сайта</h3>
+<p>IP сайта не заблокированы.</p>    </div>
+  </div>
 
   <h2>Все найденные сервисы</h2>
   <div class="card table-wrap">
@@ -162,46 +206,132 @@
       <tbody>
         <tr class="group"><td colspan="4">Доменная зона</td></tr>
         <tr>
-          <td>.com — Verisign</td>
-          <td>США</td>
-          <td class="evidence">example.com</td>
+          <td>.ru — Координационный центр доменов .RU/.РФ</td>
+          <td>Россия</td>
+          <td class="evidence">kinopoisk.ru</td>
           <td>
-<span class="badge sev-low"><span>низкий</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
         <tr class="group"><td colspan="4">Регистратор домена</td></tr>
         <tr>
-          <td>RESERVED-Internet Assigned Numbers Authority</td>
-          <td>неизвестно</td>
-          <td class="evidence">WHOIS</td>
+          <td>RU-CENTER</td>
+          <td>Россия</td>
+          <td class="evidence">RU-CENTER-RU</td>
           <td>
-<span class="empty">—</span>          </td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
         </tr>
         <tr class="group"><td colspan="4">DNS-серверы</td></tr>
         <tr>
-          <td>Cloudflare</td>
-          <td>США</td>
-          <td class="evidence">NS elliott.ns.cloudflare.com, NS hera.ns.cloudflare.com</td>
+          <td>Яндекс 360</td>
+          <td>Россия</td>
+          <td class="evidence">NS ns3.yandex.ru, NS ns4.yandex.ru</td>
           <td>
-<span class="badge sev-high"><span>высокий</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
-        <tr class="group"><td colspan="4">CDN и защита от DDoS</td></tr>
+        <tr class="group"><td colspan="4">Почта</td></tr>
         <tr>
-          <td>Cloudflare</td>
-          <td>США</td>
-          <td class="evidence">IP 104.20.23.154 (AS13335), IP 172.66.147.243 (AS13335)</td>
+          <td>Яндекс 360</td>
+          <td>Россия</td>
+          <td class="evidence">MX mx.yandex.ru</td>
           <td>
-<span class="badge sev-medium"><span>средний</span></span>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Хостинг сайта</td></tr>
+        <tr>
+          <td>Yandex Cloud</td>
+          <td>Россия</td>
+          <td class="evidence">IP 213.180.199.9 (AS13238)</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
         <tr class="group"><td colspan="4">SSL-сертификат</td></tr>
         <tr>
-          <td>SSL.com</td>
-          <td>США</td>
-          <td class="evidence">SSL Corporation</td>
+          <td>GlobalSign</td>
+          <td>Бельгия</td>
+          <td class="evidence">GlobalSign nv-sa</td>
           <td>
 <span class="badge sev-medium"><span>средний</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Аналитика и пиксели</td></tr>
+        <tr>
+          <td>TikTok Pixel</td>
+          <td>Сингапур</td>
+          <td class="evidence">analytics.tiktok.com</td>
+          <td>
+<span class="badge sev-low"><span>низкий</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Яндекс Метрика</td>
+          <td>Россия</td>
+          <td class="evidence">mc.yandex.ru</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Top.Mail.ru</td>
+          <td>Россия</td>
+          <td class="evidence">top-fwz1.mail.ru</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Пиксель VK</td>
+          <td>Россия</td>
+          <td class="evidence">vk.com/rtrg</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Реклама</td></tr>
+        <tr>
+          <td>Рекламная сеть Яндекса</td>
+          <td>Россия</td>
+          <td class="evidence">yandex.ru/ads</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Adfox</td>
+          <td>Россия</td>
+          <td class="evidence">ads.adfox.ru</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>AdRiver</td>
+          <td>Россия</td>
+          <td class="evidence">ad.adriver.ru</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Библиотеки с внешнего CDN</td></tr>
+        <tr>
+          <td>Yandex CDN (yastatic)</td>
+          <td>Россия</td>
+          <td class="evidence">yastatic.net</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Виджеты соцсетей</td></tr>
+        <tr>
+          <td>Виджеты VK</td>
+          <td>Россия</td>
+          <td class="evidence">vk.com/js/api/openapi.js</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
           </td>
         </tr>
       </tbody>

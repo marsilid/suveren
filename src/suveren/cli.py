@@ -105,22 +105,33 @@ def _open(path: Path) -> None:
         webbrowser.open(path.resolve().as_uri())
 
 
+def _spinner(text: str) -> contextlib.AbstractContextManager[object]:
+    """A live spinner in a real terminal; nothing when output is redirected, so logs and
+    --export-svg don't fill up with animation frames."""
+    if console.is_terminal:
+        return console.status(text, spinner="dots")
+    return contextlib.nullcontext()
+
+
 class StageLog:
     """Prints each finished scan stage with its duration under a live spinner."""
 
     def __init__(self) -> None:
-        self.status = console.status("", spinner="dots")
+        self.status = console.status("", spinner="dots") if console.is_terminal else None
 
     def __enter__(self) -> StageLog:
-        self.status.__enter__()
+        if self.status is not None:
+            self.status.__enter__()
         return self
 
     def __exit__(self, *exc: object) -> None:
-        self.status.__exit__(*exc)  # type: ignore[arg-type]
+        if self.status is not None:
+            self.status.__exit__(*exc)  # type: ignore[arg-type]
 
     def __call__(self, stage: str, seconds: float | None) -> None:
         if seconds is None:
-            self.status.update(f"[dim]{stage}…[/]")
+            if self.status is not None:
+                self.status.update(f"[dim]{stage}…[/]")
         else:
             console.print(f"  [green]✓[/] {stage:<44} [dim]{seconds:5.1f} с[/]")
 
@@ -330,7 +341,7 @@ def batch(
 
         return await gather_limited([lambda h=h: one(h) for h in hosts], jobs)
 
-    with console.status("[dim]Проверка…[/]"):
+    with _spinner("[dim]Проверка…[/]"):
         results = asyncio.run(run_all())
 
     reports = [r for _, r, _ in results if r is not None]
@@ -479,7 +490,7 @@ def company(
     console.print(BANNER.format(version=__version__))
     console.print(f"  Проверяю [bold]{target}[/]\n")
     try:
-        with console.status(
+        with _spinner(
             "[dim]ЕГРЮЛ, реестры, санкционные списки… "
             "(в первый раз списки скачиваются около минуты)[/]"
         ):
@@ -562,14 +573,14 @@ def update() -> None:
 
     async def run() -> None:
         async with make_client(30.0) as client:
-            with console.status("[dim]Санкционные списки…[/]"):
+            with _spinner("[dim]Санкционные списки…[/]"):
                 index = await load_index(client, refresh=True)
             for note in index.notes:
                 console.print(f"  [yellow]![/] {note}")
             for source in SANCTION_SOURCES:
                 count = sum(1 for e in index.entries if e.source == source.key)
                 console.print(f"  [green]✓[/] {source.title}: {count} записей")
-            with console.status("[dim]Реестр блокировок…[/]"):
+            with _spinner("[dim]Реестр блокировок…[/]"):
                 sizes, notes = await ensure_lists(client, refresh=True)
             for note in notes:
                 console.print(f"  [yellow]![/] {note}")
