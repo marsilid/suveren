@@ -69,6 +69,19 @@
   tr.group td { background: var(--code-bg); font-weight: 600; }
   .table-wrap { overflow-x: auto; padding: 0; }
   .empty { color: var(--muted); font-style: italic; }
+  .check { display: grid; grid-template-columns: 28px 1fr; gap: 4px 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .check:last-child { border-bottom: 0; }
+  .check .icon { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 800; font-size: 13px; color: var(--bg); background: currentColor; }
+  .check .icon span { color: var(--bg); }
+  .check h3 { margin: 1px 0 0; font-size: 15px; }
+  .check p { margin: 4px 0 0; grid-column: 2; }
+  .check .fix { color: var(--muted); }
+  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .st-ok { color: var(--grade-a); } .st-warn { color: var(--medium); }
+  .st-fail { color: var(--grade-f); } .st-unknown { color: var(--info); }
+  .checks { padding: 0; }
+  a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 560px) {
     .summary { grid-template-columns: 1fr; justify-items: start; }
@@ -126,6 +139,20 @@
   <p class="empty">Иностранных зависимостей не найдено.</p>
   {% endfor %}
 
+  {% for group, items in report.check_groups %}
+  <h2>{{ group }}</h2>
+  <div class="card checks">
+    {% for c in items %}
+    <div class="check">
+      <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
+      <h3>{{ c.title }}</h3>
+      {% if c.details %}<p>{{ c.details }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
   <h2>Все найденные сервисы</h2>
   <div class="card table-wrap">
     <table>
@@ -152,7 +179,7 @@
 
   <footer>
     Отчёт создан Suveren v{{ version }}. Проверка пассивная: публичные DNS-записи, WHOIS,
-    SSL-сертификат и код главной страницы. Страна сервиса — юрисдикция компании-владельца.
+    SSL-сертификат, код главной страницы и открытые реестры. Страна сервиса — юрисдикция компании-владельца.
     Оценка помогает расставить приоритеты и не является юридическим заключением.
   </footer>
 </div>

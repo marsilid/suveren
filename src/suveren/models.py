@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from typing import Any
 
+from suveren.checks import Check
 from suveren.utils import country_name
 
 
@@ -288,6 +289,14 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     facts: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    checks: list[Check] = field(default_factory=list)
+
+    @property
+    def check_groups(self) -> list[tuple[str, list[Check]]]:
+        groups: dict[str, list[Check]] = {}
+        for check in self.checks:
+            groups.setdefault(check.group, []).append(check)
+        return list(groups.items())
 
     @property
     def score(self) -> int:
@@ -335,6 +344,7 @@ class Report:
             "countries": dict(self.countries),
             "findings": [f.to_dict() for f in self.sorted_findings()],
             "dependencies": [d.to_dict() for d in self.dependencies],
+            "checks": [c.to_dict() for c in self.checks],
             "facts": self.facts,
             "notes": self.notes,
         }

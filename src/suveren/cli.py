@@ -8,7 +8,7 @@ import json
 import sys
 import webbrowser
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -20,11 +20,11 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__
-from suveren.analyze import analyze
-from suveren.collect import collect
+from suveren.checks import Check, Status
 from suveren.errors import SuverenError
 from suveren.models import Report, Severity
 from suveren.report import write_html, write_json
+from suveren.scan import run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
 
@@ -138,6 +138,34 @@ def _print_summary(report: Report) -> None:
     console.print(table)
 
 
+STATUS_STYLE = {
+    Status.OK: "green",
+    Status.WARN: "yellow",
+    Status.FAIL: "bold red",
+    Status.UNKNOWN: "dim",
+}
+
+
+def _print_checks(checks: list[Check]) -> None:
+    groups: dict[str, list[Check]] = {}
+    for check in checks:
+        groups.setdefault(check.group, []).append(check)
+    for group, items in groups.items():
+        table = Table(
+            title=f"\n{group}", title_justify="left", box=None, show_header=False, padding=(0, 1)
+        )
+        table.add_column(no_wrap=True)
+        table.add_column()
+        for c in items:
+            text = Text(c.title, style="bold")
+            if c.details:
+                text.append(f"\n{c.details}")
+            if c.recommendation and c.status is not Status.OK:
+                text.append(f"\n→ {c.recommendation}", style="dim")
+            table.add_row(Text(c.status.icon, style=STATUS_STYLE[c.status]), text)
+        console.print(table)
+
+
 def _validate_grade(value: str | None) -> str | None:
     if value is None:
         return None
@@ -177,6 +205,19 @@ def scan(
     export_svg: Annotated[
         Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
     ] = None,
+    pd_check: Annotated[
+        bool,
+        typer.Option(
+            "--152fz", help="Проверить соответствие 152-ФЗ: политика, согласия, cookies, реестр."
+        ),
+    ] = False,
+    blocklist: Annotated[
+        bool, typer.Option("--blocklist", help="Проверить по реестру блокировок Роскомнадзора.")
+    ] = False,
+    full: Annotated[bool, typer.Option("--full", help="Все проверки сразу.")] = False,
+    refresh: Annotated[
+        bool, typer.Option("--refresh", help="Обновить скачанные списки, не дожидаясь суток.")
+    ] = False,
 ) -> None:
     """Проверить сайт: DNS, почта, хостинг, CDN, регистратор, сертификат, скрипты."""
     try:
@@ -186,18 +227,26 @@ def scan(
         raise _fail(str(exc)) from exc
 
     console.print(BANNER.format(version=__version__))
-    started = datetime.now(timezone.utc)
     try:
         with console.status(f"Проверяю {host}…", spinner="dots"):
-            facts = asyncio.run(collect(host, timeout=timeout, dns_mode=dns_mode.value))
+            report = asyncio.run(
+                run_scan(
+                    host,
+                    timeout=timeout,
+                    dns_mode=dns_mode.value,
+                    compliance=pd_check or full,
+                    blocklist=blocklist or full,
+                    refresh=refresh,
+                )
+            )
     except SuverenError as exc:
         raise _fail(str(exc), code=1) from exc
-    report = analyze(facts, started_at=started)
 
     for note in report.notes:
         console.print(f"[yellow]![/] [dim]{note}[/]")
     console.print()
     _print_summary(report)
+    _print_checks(report.checks)
 
     if not no_report:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
