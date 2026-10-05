@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suveren — example.com</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5d6673;
+    --accent: #1971c2; --code-bg: #f0f2f5;
+    --high: #d9480f; --medium: #b7791f; --low: #1c7ed6; --info: #6b7280;
+    --grade-a: #2f9e44; --grade-b: #66a80f; --grade-c: #e8a100; --grade-d: #e8590c; --grade-f: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --surface: #171b21; --border: #2a3039; --text: #e6e9ee; --muted: #9aa4b2;
+      --accent: #74c0fc; --code-bg: #20262e;
+      --high: #ff922b; --medium: #fcc419; --low: #4dabf7; --info: #9aa4b2;
+      --grade-a: #51cf66;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  .brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+  .meta { color: var(--muted); font-size: 13px; }
+  h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }
+  h2 { font-size: 20px; margin: 40px 0 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .summary { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+  .grade {
+    width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+    border: 8px solid currentColor; font-size: 48px; font-weight: 800;
+  }
+  .grade-A { color: var(--grade-a); } .grade-B { color: var(--grade-b); } .grade-C { color: var(--grade-c); }
+  .grade-D { color: var(--grade-d); } .grade-F { color: var(--grade-f); }
+  .score { font-size: 15px; color: var(--muted); margin-bottom: 6px; }
+  .score strong { color: var(--text); font-size: 22px; }
+  .counts { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .counts b { color: var(--text); }
+  .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--code-bg); }
+  .bar span { display: block; height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .sev-high { color: var(--high); } .sev-medium { color: var(--medium); }
+  .sev-low { color: var(--low); } .sev-info { color: var(--info); } .sev-ok { color: var(--grade-a); }
+  .badge {
+    display: inline-block; min-width: 76px; text-align: center; padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    background: currentColor; white-space: nowrap;
+  }
+  .badge span { color: var(--bg); }
+  .finding { border-left: 4px solid currentColor; padding: 14px 16px; margin-bottom: 10px; }
+  .finding .head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .finding h3 { margin: 0; font-size: 15px; color: var(--text); }
+  .finding p { margin: 8px 0 0; color: var(--text); }
+  .finding .fix { color: var(--muted); }
+  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .note { border-left: 4px solid var(--medium); padding: 12px 16px; margin: 0 0 12px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  td { word-break: break-word; }
+  td.evidence { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  tr.group td { background: var(--code-bg); font-weight: 600; }
+  .table-wrap { overflow-x: auto; padding: 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
+  @media (max-width: 560px) {
+    .summary { grid-template-columns: 1fr; justify-items: start; }
+    td.evidence { display: none; }
+  }
+  @media print { body { background: #fff; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand">Suveren</span>
+    <span class="meta">
+      05.10.2026 21:12 UTC · 2.6 с
+    </span>
+  </header>
+  <h1>example.com</h1>
+
+  <section class="card summary">
+    <div class="grade grade-D">D</div>
+    <div>
+      <div class="score"><strong>56</strong> / 100 — независимость от иностранных сервисов</div>
+      <div class="counts">
+        Иностранных сервисов: <b>4</b> · российских: <b>0</b>
+      </div>
+      <div class="bar">
+<span style="width: 100%; background: #3b5bdb" title="США 100%"></span>      </div>
+      <div class="legend">
+<span><i style="background: #3b5bdb"></i>США 100%</span>      </div>
+    </div>
+  </section>
+
+  <h2>Замечания</h2>
+  <p class="card note">Сайт работает через CDN, поэтому настоящий хостинг скрыт и не проверялся. Проверьте вручную, где находится сервер.</p>
+  <p class="card note">Скрипты и виджеты искались только на главной странице. Сервисы, которые подключаются на других страницах или изнутри JS-бандлов, могут не попасть в отчёт.</p>
+
+  <h2>Риски</h2>
+  <article class="card finding sev-high">
+    <div class="head">
+      <span class="badge"><span>высокий</span></span>
+      <h3>DNS-серверы: Cloudflare (США)</h3>
+    </div>
+    <p>Если провайдер DNS заблокирует аккаунт, перестанут работать сразу сайт, почта и все остальные сервисы домена.</p>
+    <p class="fix">Перенести DNS в Yandex Cloud DNS, Selectel DNS или к российскому регистратору (RU-CENTER, REG.RU).</p>
+  </article>
+  <article class="card finding sev-medium">
+    <div class="head">
+      <span class="badge"><span>средний</span></span>
+      <h3>CDN и защита от DDoS: Cloudflare (США)</h3>
+    </div>
+    <p>Весь трафик сайта идёт через иностранную сеть доставки. При отключении сайт будет недоступен, пока не поменяются DNS-записи. Также фиксировались замедления сайтов за иностранными CDN для пользователей из России.</p>
+    <p class="fix">DDoS-Guard, Qrator, Servicepipe, NGENIX или CDN в Yandex Cloud, Selectel, VK Cloud.</p>
+  </article>
+  <article class="card finding sev-medium">
+    <div class="head">
+      <span class="badge"><span>средний</span></span>
+      <h3>SSL-сертификат: SSL.com (США)</h3>
+    </div>
+    <p>Сертификат выпустил иностранный удостоверяющий центр. Он может отозвать сертификат или отказать в продлении: в 2022 году так поступали с рядом российских организаций.</p>
+    <p class="fix">Настроить автоматический выпуск по ACME, чтобы быстро сменить УЦ. Для аудитории в России можно дополнительно выпустить сертификат НУЦ Минцифры.</p>
+  </article>
+  <article class="card finding sev-low">
+    <div class="head">
+      <span class="badge"><span>низкий</span></span>
+      <h3>Доменная зона: .com — Verisign (США)</h3>
+    </div>
+    <p>Зоной управляет иностранный реестр. Реестр и регистраторы обязаны выполнять санкционные требования своей страны и могут заблокировать домен.</p>
+    <p class="fix">Держать основной или резервный домен в зоне .ru или .рф.</p>
+  </article>
+
+  <h2>Все найденные сервисы</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Сервис</th><th>Страна</th><th>Где найдено</th><th>Риск</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="4">Доменная зона</td></tr>
+        <tr>
+          <td>.com — Verisign</td>
+          <td>США</td>
+          <td class="evidence">example.com</td>
+          <td>
+<span class="badge sev-low"><span>низкий</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Регистратор домена</td></tr>
+        <tr>
+          <td>RESERVED-Internet Assigned Numbers Authority</td>
+          <td>неизвестно</td>
+          <td class="evidence">WHOIS</td>
+          <td>
+<span class="empty">—</span>          </td>
+        </tr>
+        <tr class="group"><td colspan="4">DNS-серверы</td></tr>
+        <tr>
+          <td>Cloudflare</td>
+          <td>США</td>
+          <td class="evidence">NS elliott.ns.cloudflare.com, NS hera.ns.cloudflare.com</td>
+          <td>
+<span class="badge sev-high"><span>высокий</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">CDN и защита от DDoS</td></tr>
+        <tr>
+          <td>Cloudflare</td>
+          <td>США</td>
+          <td class="evidence">IP 104.20.23.154 (AS13335), IP 172.66.147.243 (AS13335)</td>
+          <td>
+<span class="badge sev-medium"><span>средний</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">SSL-сертификат</td></tr>
+        <tr>
+          <td>SSL.com</td>
+          <td>США</td>
+          <td class="evidence">SSL Corporation</td>
+          <td>
+<span class="badge sev-medium"><span>средний</span></span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Отчёт создан Suveren v0.1.0. Проверка пассивная: публичные DNS-записи, WHOIS,
+    SSL-сертификат и код главной страницы. Страна сервиса — юрисдикция компании-владельца.
+    Оценка помогает расставить приоритеты и не является юридическим заключением.
+  </footer>
+</div>
+</body>
+</html>
