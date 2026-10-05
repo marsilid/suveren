@@ -83,6 +83,10 @@
   .check .st-ok { color: var(--grade-a); } .check .st-warn { color: var(--medium); }
   .check .st-fail { color: var(--grade-f); } .check .st-unknown { color: var(--info); }
   .checks { padding: 0; }
+  td .st-ok { color: var(--grade-a); font-weight: 700; } td .st-warn { color: var(--medium); font-weight: 700; }
+  td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
+  .mini-grade { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid currentColor; font-weight: 800; margin-right: 6px; }
   a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 560px) {

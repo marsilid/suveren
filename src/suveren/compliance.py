@@ -20,7 +20,10 @@ from suveren.page import Form, Link, Page, parse_page
 from suveren.registries import RknOperator, rkn_operator
 
 _POLICY_TEXT = re.compile(r"персональн|конфиденциальн|privacy|политик[аи] обработки", re.I)
-_POLICY_HREF = re.compile(r"privacy|polit|policy|konfiden|personal|pdn|152", re.I)
+_POLICY_HREF = re.compile(r"privacy|polit|policy|konfiden|confiden|personal|pdn|152", re.I)
+# Fallback documents that often contain the personal-data section on big sites.
+_LEGAL_TEXT = re.compile(r"соглашени|правов|юридическ|оферт|условия использования|terms", re.I)
+_LEGAL_HREF = re.compile(r"legal|terms|agreement|usage|oferta|soglash|rules", re.I)
 _PD_FIELD = re.compile(
     r"phone|tel|e-?mail|mail|name|fio|фио|имя|телефон|почт|фамили|contact|whatsapp|telegram",
     re.I,
@@ -44,6 +47,8 @@ class PolicyInfo:
     fetched: bool = False
     is_pdf: bool = False
     error: str | None = None
+    # Found inside a general legal document (user agreement) rather than a policy link.
+    indirect_label: str | None = None
 
 
 @dataclass(slots=True)
@@ -55,6 +60,31 @@ class ComplianceInput:
     inns: list[str] = field(default_factory=list)
     operator: RknOperator | None = None
     operator_error: str | None = None
+    page_problem: str | None = None
+
+
+# Checks that are concluded from the page markup; meaningless if the page is an
+# anti-bot stub or an empty JavaScript shell.
+_HTML_CHECKS = frozenset(
+    {
+        "Политика обработки персональных данных",
+        "Согласие на обработку в формах",
+        "Уведомление о cookies",
+        "Трансграничная передача данных",
+    }
+)
+
+
+def _mark_unverifiable(checks: list[Check], problem: str) -> None:
+    for c in checks:
+        if c.title not in _HTML_CHECKS:
+            continue
+        found_something = c.status is Status.OK and c.link  # e.g. a policy link was found
+        if found_something or (c.status is Status.WARN and c.title != "Уведомление о cookies"):
+            continue
+        c.status = Status.UNKNOWN
+        c.details = f"Не проверено: {problem}."
+        c.recommendation = "Проверьте вручную или запустите проверку с параметром --browser."
 
 
 def find_policy_link(links: list[Link], base: str) -> str | None:
@@ -80,6 +110,17 @@ def find_policy_link(links: list[Link], base: str) -> str | None:
         return None
     scored.sort(key=lambda item: -item[0])
     return scored[0][1]
+
+
+def find_legal_link(links: list[Link], base: str) -> tuple[str, str] | None:
+    """(URL, link text) of a user agreement / legal page, used when no policy link exists."""
+    for link in links:
+        href = link.href.strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
+        if _LEGAL_TEXT.search(link.text) or (_LEGAL_HREF.search(href) and link.text.strip()):
+            return urljoin(base, href), link.text.strip() or href
+    return None
 
 
 def pd_forms(page: Page) -> list[Form]:
@@ -129,6 +170,19 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Если подвал сайта подгружается скриптом, проверьте вручную.",
                 "Опубликуйте политику и поставьте ссылку на неё в подвале сайта и рядом с каждой "
                 "формой (152-ФЗ, ст. 18.1 ч. 2).",
+            )
+        )
+    elif policy.indirect_label:
+        checks.append(
+            Check(
+                GROUP_152,
+                "Политика обработки персональных данных",
+                Status.WARN,
+                "Отдельной ссылки на политику на главной нет, о персональных данных говорится "
+                f"в документе «{policy.indirect_label}».",
+                "Поставьте отдельную ссылку на политику обработки персональных данных в подвале "
+                "сайта и рядом с формами (152-ФЗ, ст. 18.1 ч. 2).",
+                link=policy.url,
             )
         )
     elif policy.error:
@@ -309,6 +363,8 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
 
     # 7. Register of personal-data operators.
     checks.append(_operator_check(data))
+    if data.page_problem:
+        _mark_unverifiable(checks, data.page_problem)
     return checks
 
 
@@ -397,14 +453,23 @@ async def fetch_policy(client: httpx.AsyncClient, url: str) -> PolicyInfo:
 
 
 async def run_compliance(
-    client: httpx.AsyncClient, final_url: str | None, html: str, deps: list[Dependency]
+    client: httpx.AsyncClient,
+    final_url: str | None,
+    html: str,
+    deps: list[Dependency],
+    page_problem: str | None = None,
 ) -> list[Check]:
     page = parse_page(html)
-    data = ComplianceInput(final_url=final_url, page=page, deps=deps)
+    data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
     base = final_url or ""
     policy_url = find_policy_link(page.links, base) if base else None
     if policy_url:
         data.policy = await fetch_policy(client, policy_url)
+    elif base and (legal := find_legal_link(page.links, base)):
+        doc = await fetch_policy(client, legal[0])
+        if doc.fetched and "персональн" in doc.text.lower():
+            doc.indirect_label = legal[1][:60]
+            data.policy = doc
     if base:
         data.inns, _ = await discover_inns(client, base, html, data.policy.text)
     if data.inns:

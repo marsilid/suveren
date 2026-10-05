@@ -46,6 +46,7 @@ class Category(str, Enum):
     DNS = "dns"
     MAIL = "mail"
     HOSTING = "hosting"
+    BUILDER = "builder"
     CDN = "cdn"
     TLS = "tls"
     PAYMENTS = "payments"
@@ -81,7 +82,7 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Зоной управляет иностранный реестр. Реестр и регистраторы обязаны выполнять "
         "санкционные требования своей страны и могут заблокировать домен.",
-        "Держать основной или резервный домен в зоне .ru или .рф.",
+        "Зарегистрировать основной или резервный домен в зоне .ru или .рф.",
     ),
     Category.REGISTRAR: CategoryInfo(
         "Регистратор домена",
@@ -103,8 +104,8 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.HIGH,
         "Отключение почтового сервиса означает потерю входящих писем и доступа к архиву "
         "переписки, а вместе с ним — к восстановлению паролей от других сервисов.",
-        "Яндекс 360 для бизнеса, VK WorkSpace (Mail.ru для бизнеса) или собственный "
-        "почтовый сервер в России.",
+        "Перенести почту в Яндекс 360 для бизнеса, VK WorkSpace (Mail.ru для бизнеса) "
+        "или на собственный сервер в России.",
     ),
     Category.HOSTING: CategoryInfo(
         "Хостинг сайта",
@@ -112,7 +113,17 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         "Сервер сайта у иностранного провайдера. Провайдер может удалить аккаунт или перестать "
         "принимать оплату из России, и сайт пропадёт вместе с данными. Кроме того, базы с "
         "персональными данными граждан РФ по закону должны храниться в России (152-ФЗ, ст. 18).",
-        "Yandex Cloud, Selectel, VK Cloud, Timeweb Cloud, Beget.",
+        "Перенести сайт к российскому провайдеру: Yandex Cloud, Selectel, VK Cloud, "
+        "Timeweb Cloud, Beget.",
+    ),
+    Category.BUILDER: CategoryInfo(
+        "Конструктор сайта / CMS",
+        Severity.MEDIUM,
+        "Сайт работает на платформе иностранной компании. Если она заблокирует аккаунт или "
+        "перестанет принимать оплату из России, сайт перестанет работать, а перенести его "
+        "на другую платформу непросто: экспорт обычно неполный.",
+        "Перенести сайт на российскую платформу (Nethouse, LPgenerator, InSales) или на "
+        "собственный хостинг с WordPress или 1С-Битрикс.",
     ),
     Category.CDN: CategoryInfo(
         "CDN и защита от DDoS",
@@ -120,7 +131,8 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         "Весь трафик сайта идёт через иностранную сеть доставки. При отключении сайт будет "
         "недоступен, пока не поменяются DNS-записи. Также фиксировались замедления сайтов за "
         "иностранными CDN для пользователей из России.",
-        "DDoS-Guard, Qrator, Servicepipe, NGENIX или CDN в Yandex Cloud, Selectel, VK Cloud.",
+        "Перейти на российский CDN или защиту от DDoS: DDoS-Guard, Qrator, Servicepipe, "
+        "NGENIX, Yandex Cloud CDN.",
     ),
     Category.TLS: CategoryInfo(
         "SSL-сертификат",
@@ -135,42 +147,42 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.MEDIUM,
         "Иностранная платёжная система не принимает карты российских банков и может "
         "заблокировать выплаты." + _PD_NOTE,
-        "ЮKassa, CloudPayments, Т-Касса, Robokassa, оплата через СБП.",
+        "Подключить ЮKassa, CloudPayments, Т-Кассу, Robokassa или оплату через СБП.",
         visitor_data=True,
     ),
     Category.AUTH: CategoryInfo(
         "Вход через внешний сервис",
         Severity.MEDIUM,
         "При блокировке сервиса пользователи не смогут войти в свои аккаунты." + _PD_NOTE,
-        "VK ID, Яндекс ID, Сбер ID или собственная авторизация.",
+        "Заменить вход на VK ID, Яндекс ID, Сбер ID или собственную авторизацию.",
         visitor_data=True,
     ),
     Category.ANALYTICS: CategoryInfo(
         "Аналитика и пиксели",
         Severity.LOW,
         "Данные о посетителях собирает иностранный сервис." + _PD_NOTE,
-        "Яндекс Метрика, Top.Mail.ru, Matomo на собственном сервере.",
+        "Заменить на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.",
         visitor_data=True,
     ),
     Category.ADS: CategoryInfo(
         "Реклама",
         Severity.LOW,
         "Рекламный скрипт иностранной сети." + _PD_NOTE,
-        "Яндекс Директ и РСЯ, VK Реклама.",
+        "Перейти на Яндекс Директ и РСЯ или VK Рекламу.",
         visitor_data=True,
     ),
     Category.CAPTCHA: CategoryInfo(
         "Капча",
         Severity.LOW,
         "Если капча не загрузится, посетители не смогут отправить формы." + _PD_NOTE,
-        "Yandex SmartCaptcha.",
+        "Заменить на Yandex SmartCaptcha.",
         visitor_data=True,
     ),
     Category.CHAT: CategoryInfo(
         "Онлайн-чат и виджеты",
         Severity.LOW,
         "Переписка с клиентами и их контакты хранятся у иностранного сервиса." + _PD_NOTE,
-        "Jivo, Битрикс24, Carrot quest, Talk-Me.",
+        "Перейти на Jivo, Битрикс24, Carrot quest или Talk-Me.",
         visitor_data=True,
     ),
     Category.FONTS: CategoryInfo(
@@ -193,21 +205,21 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Карта может перестать загружаться или потребовать оплату, недоступную из России."
         + _PD_NOTE,
-        "Яндекс Карты, 2ГИС.",
+        "Заменить на Яндекс Карты или 2ГИС.",
         visitor_data=True,
     ),
     Category.VIDEO: CategoryInfo(
         "Встроенное видео",
         Severity.LOW,
         "Видео с иностранной платформы." + _PD_NOTE,
-        "RUTUBE, VK Видео, Kinescope.",
+        "Перенести видео на RUTUBE, VK Видео или Kinescope.",
         visitor_data=True,
     ),
     Category.SOCIAL: CategoryInfo(
         "Виджеты соцсетей",
         Severity.LOW,
         "Встроенный виджет иностранной соцсети." + _PD_NOTE,
-        "Виджеты VK, Telegram, Одноклассников.",
+        "Заменить на виджеты VK, Telegram или Одноклассников.",
         visitor_data=True,
     ),
 }

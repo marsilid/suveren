@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from suveren import __version__
+from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
 from suveren.models import Category, Report
 from suveren.sanctions import SOURCE_TITLES
@@ -78,3 +80,32 @@ def write_company(report: CompanyReport, html_path: Path | None, json_path: Path
             json.dumps(report.to_dict(), indent=2, ensure_ascii=False, default=str),
             encoding="utf-8",
         )
+
+
+def write_batch_html(
+    reports: list[Report], failed: list[tuple[str, str | None]], path: Path
+) -> Path:
+    """Summary page for `batch`: one row per site, linking to its own report."""
+    rows = []
+    for r in sorted(reports, key=lambda r: (r.score, r.target)):
+        checks = {status: 0 for status in Status}
+        for c in r.checks:
+            checks[c.status] += 1
+        rows.append(
+            {
+                "report": r,
+                "fails": checks[Status.FAIL],
+                "warns": checks[Status.WARN],
+                "blocked": any(
+                    c.group == GROUP_BLOCK and c.status is Status.FAIL for c in r.checks
+                ),
+                "top": r.sorted_findings()[:2],
+            }
+        )
+    template = _environment().get_template("batch.html.j2")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        template.render(rows=rows, failed=failed, version=__version__, generated=datetime.now()),
+        encoding="utf-8",
+    )
+    return path

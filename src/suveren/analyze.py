@@ -117,7 +117,8 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         else:
             deps.append(Dependency(Category.TLS, facts.tls_issuer, None, "сертификат"))
 
-    for service, matched in db.scan_page(facts.html):
+    page_text = facts.html + "\n" + "\n".join(facts.loaded_urls)
+    for service, matched in db.scan_page(page_text):
         assert service.category is not None
         deps.append(_from_service(service.category, service, matched))
 
@@ -144,7 +145,10 @@ def build_findings(deps: list[Dependency]) -> list[Finding]:
         if notes:
             description += " " + " ".join(notes)
         names = ", ".join(f"{d.service} ({d.country_ru})" for d in foreign)
-        alternatives = _join_unique(d.alternative for d in foreign) or [category.info.alternatives]
+        # A service-specific tip only when it is the only one; several tips read badly
+        # glued together, so the category's general advice is used instead.
+        specific = _join_unique(d.alternative for d in foreign)
+        alternatives = specific if len(specific) == 1 else [category.info.alternatives]
         findings.append(
             Finding(
                 category=category,
@@ -167,10 +171,31 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
     report.findings = build_findings(deps)
     report.facts = facts.to_dict()
     report.notes = facts.notes + notes
-    if facts.html:
+    problem = facts.page_problem
+    if facts.html and problem:
+        hint = (
+            "" if facts.rendered else " Попробуйте режим --browser: он открывает сайт в браузере."
+        )
         report.notes.append(
-            "Скрипты и виджеты искались только на главной странице. Сервисы, которые "
-            "подключаются на других страницах или изнутри JS-бандлов, могут не попасть в отчёт."
+            f"Главную страницу проанализировать не удалось: {problem}. Скрипты и виджеты не "
+            f"проверены, проверка 152-ФЗ неполная.{hint}"
+        )
+    elif facts.rendered:
+        report.notes.append(
+            "Сайт открывался в браузере: учтены все скрипты, загруженные главной страницей. "
+            "Сервисы с других страниц сайта могут не попасть в отчёт."
+        )
+    elif facts.html:
+        report.notes.append(
+            "Скрипты и виджеты искались в коде главной страницы. Сервисы, которые подключаются "
+            "на других страницах или подгружаются скриптами, могут не попасть в отчёт "
+            "(режим --browser находит больше)."
+        )
+    if facts.tls_trusted is False:
+        report.notes.append(
+            "SSL-сертификату сайта не доверяет стандартный набор корневых сертификатов. "
+            "Если он выпущен НУЦ Минцифры, браузеры без российского корневого сертификата "
+            "(Chrome, Firefox, Safari по умолчанию) покажут посетителям ошибку."
         )
     report.finished_at = datetime.now(timezone.utc)
     return report

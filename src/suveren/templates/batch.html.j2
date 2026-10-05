@@ -1,0 +1,45 @@
+{% extends "base.html.j2" %}
+{% block title %}Suveren — сводка по {{ rows | length }} сайтам{% endblock %}
+{% block content %}
+  <header class="top">
+    <span class="brand">Suveren · массовая проверка</span>
+    <span class="meta">{{ generated.strftime("%d.%m.%Y %H:%M") }}</span>
+  </header>
+  <h1>Проверено сайтов: {{ rows | length }}</h1>
+
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr><th>Сайт</th><th>Оценка</th><th>Иностранных / российских</th><th>152-ФЗ</th><th>Главные риски</th></tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        {% set r = row.report %}
+        <tr>
+          <td><a href="{{ r.target }}.html">{{ r.target }}</a>{% if row.blocked %}<br><span class="badge sev-high"><span>заблокирован</span></span>{% endif %}</td>
+          <td><span class="mini-grade grade-{{ r.grade }}">{{ r.grade }}</span> {{ r.score }}</td>
+          <td>{{ r.foreign_count }} / {{ r.domestic_count }}</td>
+          <td>
+            {% if row.fails %}<span class="st-fail">✗ {{ row.fails }}</span>{% endif %}
+            {% if row.warns %}<span class="st-warn">! {{ row.warns }}</span>{% endif %}
+            {% if not row.fails and not row.warns %}<span class="st-ok">✓</span>{% endif %}
+          </td>
+          <td>{% for f in row.top %}{{ f.title }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="empty">нет</span>{% endfor %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if failed %}
+  <h2>Не удалось проверить</h2>
+  <div class="card">
+    <ul>{% for host, error in failed %}<li>{{ host }} — {{ error }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <footer>
+    Отчёт создан Suveren v{{ version }}. Подробности по каждому сайту открываются по ссылке.
+    Оценка помогает расставить приоритеты и не является юридическим заключением.
+  </footer>
+{% endblock %}

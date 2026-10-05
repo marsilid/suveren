@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import csv
 import json
 import sys
 import webbrowser
@@ -20,20 +21,27 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__
-from suveren.blocklist import DOMAINS, IP_LISTS
-from suveren.blocklist import SOURCE as BLOCK_SOURCE
-from suveren.cache import cache_dir, fetch_cached
-from suveren.checks import Check, Status
+from suveren.blocklist import ensure_lists
+from suveren.cache import cache_dir
+from suveren.checks import GROUP_152, GROUP_BLOCK, Status
 from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.errors import SuverenError
-from suveren.models import Report, Severity
-from suveren.report import write_company, write_html, write_json
+from suveren.models import Report
+from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
 from suveren.sanctions import SOURCES as SANCTION_SOURCES
-from suveren.scan import run_scan
+from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
+from suveren.view import (
+    BANNER,
+    GRADE_STYLE,
+    print_checks,
+    print_scan,
+    score_bar,
+    section,
+)
 
 # The output uses box-drawing and Cyrillic. A legacy Windows console (cp1251/cp866)
 # can't encode some of it and would crash, so force UTF-8 output.
@@ -49,21 +57,6 @@ app = typer.Typer(
     "блокировки, ЕГРЮЛ, санкции.",
 )
 console = Console(record=True)
-
-BANNER = r"""[bold green]
-  ___
- / __|_  ___ _____ _ _ ___ _ _
- \__ \ || \ V / -_) '_/ -_) ' \
- |___/\_,_|\_/\___|_| \___|_||_|[/]  [dim]v{version} · независимость инфраструктуры[/]
-"""
-
-SEVERITY_STYLE = {
-    Severity.HIGH: "bold red",
-    Severity.MEDIUM: "yellow",
-    Severity.LOW: "cyan",
-    Severity.INFO: "dim",
-}
-GRADE_STYLE = {"A": "bold green", "B": "green", "C": "yellow", "D": "red", "F": "bold red"}
 GRADE_ORDER = ("A", "B", "C", "D", "F")
 
 
@@ -94,86 +87,6 @@ def _fail(message: str, code: int = 2) -> typer.Exit:
     return typer.Exit(code)
 
 
-def _print_summary(report: Report) -> None:
-    style = GRADE_STYLE[report.grade]
-    countries = " · ".join(f"{country_name(c)} {share}%" for c, share in report.countries)
-    console.print(
-        Panel(
-            f"Независимость [{style}]{report.grade}[/]   [bold]{report.score}[/]/100\n"
-            f"Иностранных сервисов: [bold]{report.foreign_count}[/] · "
-            f"российских: [bold]{report.domestic_count}[/]\n"
-            f"[dim]{countries or 'страны не определены'}[/]",
-            title=f"[bold]{report.target}[/]",
-            expand=False,
-            padding=(0, 2),
-        )
-    )
-
-    findings = report.sorted_findings()
-    if not findings:
-        console.print("[green]Иностранных зависимостей не найдено.[/]")
-    else:
-        risks = Table(
-            title="\nРиски", title_justify="left", box=None, show_header=False, padding=(0, 1)
-        )
-        risks.add_column(no_wrap=True)
-        risks.add_column()
-        for f in findings:
-            text = Text(f.title)
-            text.append(f"\n→ {f.recommendation}", style="dim")
-            risks.add_row(Text(f.severity.ru.upper(), style=SEVERITY_STYLE[f.severity]), text)
-        console.print(risks)
-
-    table = Table(
-        title="\nВсе найденные сервисы",
-        title_justify="left",
-        box=None,
-        header_style="bold",
-        padding=(0, 2),
-    )
-    table.add_column("Категория", style="dim")
-    table.add_column("Сервис")
-    table.add_column("Страна")
-    table.add_column("")
-    for d in report.dependencies:
-        if d.foreign:
-            mark = Text("!", style=SEVERITY_STYLE[d.severity or Severity.LOW])
-        elif d.foreign is False:
-            mark = Text("✓", style="green")
-        else:
-            mark = Text("?", style="dim")
-        table.add_row(d.category.title, d.service, d.country_ru, mark)
-    console.print(table)
-
-
-STATUS_STYLE = {
-    Status.OK: "green",
-    Status.WARN: "yellow",
-    Status.FAIL: "bold red",
-    Status.UNKNOWN: "dim",
-}
-
-
-def _print_checks(checks: list[Check]) -> None:
-    groups: dict[str, list[Check]] = {}
-    for check in checks:
-        groups.setdefault(check.group, []).append(check)
-    for group, items in groups.items():
-        table = Table(
-            title=f"\n{group}", title_justify="left", box=None, show_header=False, padding=(0, 1)
-        )
-        table.add_column(no_wrap=True)
-        table.add_column()
-        for c in items:
-            text = Text(c.title, style="bold")
-            if c.details:
-                text.append(f"\n{c.details}")
-            if c.recommendation and c.status is not Status.OK:
-                text.append(f"\n→ {c.recommendation}", style="dim")
-            table.add_row(Text(c.status.icon, style=STATUS_STYLE[c.status]), text)
-        console.print(table)
-
-
 def _validate_grade(value: str | None) -> str | None:
     if value is None:
         return None
@@ -183,9 +96,63 @@ def _validate_grade(value: str | None) -> str | None:
     return grade
 
 
+def _stamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _open(path: Path) -> None:
+    with contextlib.suppress(Exception):
+        webbrowser.open(path.resolve().as_uri())
+
+
+class StageLog:
+    """Prints each finished scan stage with its duration under a live spinner."""
+
+    def __init__(self) -> None:
+        self.status = console.status("", spinner="dots")
+
+    def __enter__(self) -> StageLog:
+        self.status.__enter__()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.status.__exit__(*exc)  # type: ignore[arg-type]
+
+    def __call__(self, stage: str, seconds: float | None) -> None:
+        if seconds is None:
+            self.status.update(f"[dim]{stage}…[/]")
+        else:
+            console.print(f"  [green]✓[/] {stage:<44} [dim]{seconds:5.1f} с[/]")
+
+
+# --- scan -----------------------------------------------------------------------------
+
+
 @app.command()
 def scan(
     target: Annotated[str, typer.Argument(help="Домен или ссылка, например example.ru")],
+    browser: Annotated[
+        bool,
+        typer.Option(
+            "--browser",
+            "-b",
+            help="Открыть сайт в браузере (Edge/Chrome): находит скрипты, подгружаемые "
+            "динамически, и проходит часть защит от ботов. Нужен пакет playwright.",
+        ),
+    ] = False,
+    details: Annotated[
+        bool, typer.Option("--details", "-d", help="Показать все найденные сервисы.")
+    ] = False,
+    quick: Annotated[
+        bool,
+        typer.Option("--quick", help="Только иностранные сервисы, без 152-ФЗ и блокировок."),
+    ] = False,
+    no_152fz: Annotated[
+        bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
+    ] = False,
+    no_blocklist: Annotated[
+        bool, typer.Option("--no-blocklist", help="Пропустить реестр блокировок РКН.")
+    ] = False,
     output: Annotated[
         Path | None,
         typer.Option("--output", "-o", help="Путь к HTML-отчёту (по умолчанию reports/...)."),
@@ -199,6 +166,10 @@ def scan(
     open_report: Annotated[
         bool, typer.Option("--open/--no-open", help="Открыть отчёт в браузере.")
     ] = True,
+    fail_under: Annotated[
+        str | None,
+        typer.Option("--fail-under", help="Код выхода 3, если оценка хуже указанной (для CI)."),
+    ] = None,
     timeout: Annotated[
         float, typer.Option("--timeout", "-t", min=1.0, help="Сетевой таймаут, секунды.")
     ] = 10.0,
@@ -206,29 +177,12 @@ def scan(
         DnsChoice,
         typer.Option("--dns", help="DNS: auto (системный, при сбое DoH), system или doh."),
     ] = DnsChoice.auto,
-    fail_under: Annotated[
-        str | None,
-        typer.Option("--fail-under", help="Код выхода 3, если оценка хуже указанной (для CI)."),
-    ] = None,
-    export_svg: Annotated[
-        Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
-    ] = None,
-    no_152fz: Annotated[
-        bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
-    ] = False,
-    no_blocklist: Annotated[
-        bool,
-        typer.Option("--no-blocklist", help="Пропустить проверку по реестру блокировок РКН."),
-    ] = False,
-    quick: Annotated[
-        bool,
-        typer.Option(
-            "--quick", help="Только иностранные сервисы: без 152-ФЗ и блокировок (для CI)."
-        ),
-    ] = False,
     refresh: Annotated[
         bool, typer.Option("--refresh", help="Обновить скачанные списки, не дожидаясь суток.")
     ] = False,
+    export_svg: Annotated[
+        Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
+    ] = None,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
     try:
@@ -238,8 +192,9 @@ def scan(
         raise _fail(str(exc)) from exc
 
     console.print(BANNER.format(version=__version__))
+    console.print(f"  Проверяю [bold]{host}[/]\n")
     try:
-        with console.status(f"Проверяю {host}…", spinner="dots"):
+        with StageLog() as log:
             report = asyncio.run(
                 run_scan(
                     host,
@@ -248,27 +203,26 @@ def scan(
                     compliance=not (no_152fz or quick),
                     blocklist=not (no_blocklist or quick),
                     refresh=refresh,
+                    browser=browser,
+                    progress=log,
                 )
             )
     except SuverenError as exc:
         raise _fail(str(exc), code=1) from exc
 
-    for note in report.notes:
-        console.print(f"[yellow]![/] [dim]{note}[/]")
     console.print()
-    _print_summary(report)
-    _print_checks(report.checks)
+    print_scan(console, report, details=details)
 
+    console.print()
     if not no_report:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        html_path = output or Path("reports") / f"{host}-{stamp}.html"
+        html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
         write_html(report, html_path)
-        console.print(f"\n[bold]HTML-отчёт:[/] {html_path}")
+        console.print(f"[bold]Отчёт:[/] {html_path}")
         if open_report:
-            webbrowser.open(html_path.resolve().as_uri())
+            _open(html_path)
     if json_path is not None:
         write_json(report, json_path)
-        console.print(f"[bold]JSON:[/] {json_path}")
+        console.print(f"[bold]JSON:[/]  {json_path}")
     if export_svg is not None:
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
@@ -276,6 +230,130 @@ def scan(
     if threshold is not None and GRADE_ORDER.index(report.grade) > GRADE_ORDER.index(threshold):
         console.print(f"\n[bold red]✗ Оценка {report.grade} хуже требуемой {threshold}.[/]")
         raise typer.Exit(3)
+
+
+# --- batch ----------------------------------------------------------------------------
+
+
+def read_targets(path: Path) -> list[str]:
+    """Domains from a text file: one per line, '#' comments and blanks ignored."""
+    hosts: list[str] = []
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        value = line.split("#", 1)[0].strip()
+        if value:
+            host = normalize_domain(value)
+            if host not in hosts:
+                hosts.append(host)
+    return hosts
+
+
+def batch_row(report: Report) -> dict[str, object]:
+    def count(group: str, status: Status) -> int:
+        return sum(1 for c in report.checks if c.group == group and c.status is status)
+
+    return {
+        "domain": report.target,
+        "grade": report.grade,
+        "score": report.score,
+        "foreign": report.foreign_count,
+        "domestic": report.domestic_count,
+        "pd_fail": count(GROUP_152, Status.FAIL),
+        "pd_warn": count(GROUP_152, Status.WARN),
+        "blocked": count(GROUP_BLOCK, Status.FAIL) > 0,
+        "top_risks": "; ".join(f.title for f in report.sorted_findings()[:3]),
+    }
+
+
+@app.command()
+def batch(
+    file: Annotated[Path, typer.Argument(help="Текстовый файл: по одному домену в строке.")],
+    quick: Annotated[
+        bool, typer.Option("--quick", help="Только иностранные сервисы (быстрее).")
+    ] = False,
+    jobs: Annotated[
+        int, typer.Option("--jobs", "-j", min=1, max=10, help="Сколько сайтов проверять сразу.")
+    ] = 4,
+    out_dir: Annotated[
+        Path | None, typer.Option("--out", help="Папка для отчётов (по умолчанию reports/...).")
+    ] = None,
+    open_report: Annotated[
+        bool, typer.Option("--open/--no-open", help="Открыть сводный отчёт в браузере.")
+    ] = True,
+    timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
+) -> None:
+    """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
+    try:
+        hosts = read_targets(file)
+    except (OSError, SuverenError) as exc:
+        raise _fail(f"не удалось прочитать список: {exc}") from exc
+    if not hosts:
+        raise _fail("в файле нет доменов")
+
+    folder = out_dir or Path("reports") / f"batch-{_stamp()}"
+    folder.mkdir(parents=True, exist_ok=True)
+    console.print(BANNER.format(version=__version__))
+    console.print(f"  Проверяю сайтов: [bold]{len(hosts)}[/] · одновременно {jobs}\n")
+
+    results: list[tuple[str, Report | None, str | None]] = []
+
+    async def run_all() -> list[tuple[str, Report | None, str | None]]:
+        if not quick:
+            async with make_client(30.0) as client:
+                await ensure_lists(client, refresh=refresh)
+
+        async def one(host: str) -> tuple[str, Report | None, str | None]:
+            try:
+                report = await run_scan(
+                    host, timeout=timeout, compliance=not quick, blocklist=not quick
+                )
+            except SuverenError as exc:
+                console.print(f"  [red]✗[/] {host:<32} [dim]{exc}[/]")
+                return host, None, str(exc)
+            write_html(report, folder / f"{host}.html")
+            write_json(report, folder / f"{host}.json")
+            line = Text("  ")
+            line.append(f" {report.grade} ", style=GRADE_STYLE[report.grade])
+            line.append(f" {host:<32} ")
+            line.append_text(score_bar(report.score, report.grade))
+            line.append(f" {report.score:>3}", style="bold")
+            console.print(line)
+            return host, report, None
+
+        return await gather_limited([lambda h=h: one(h) for h in hosts], jobs)
+
+    with console.status("[dim]Проверка…[/]"):
+        results = asyncio.run(run_all())
+
+    reports = [r for _, r, _ in results if r is not None]
+    failed = [(h, err) for h, r, err in results if r is None]
+
+    csv_path = folder / "summary.csv"
+    with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=list(batch_row(reports[0]).keys()) if reports else ["domain"]
+        )
+        writer.writeheader()
+        for r in sorted(reports, key=lambda r: r.score):
+            writer.writerow(batch_row(r))
+    index_path = write_batch_html(reports, failed, folder / "index.html")
+
+    grades = Counter(r.grade for r in reports)
+    section(console, "Итого")
+    line = Text("  ")
+    for g in GRADE_ORDER:
+        if grades[g]:
+            line.append(f" {g} ", style=GRADE_STYLE[g])
+            line.append(f" {grades[g]}   ")
+    console.print(line)
+    if failed:
+        console.print(f"  [red]Не проверены: {len(failed)}[/]")
+    console.print(f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}")
+    if open_report:
+        _open(index_path)
+
+
+# --- diff -----------------------------------------------------------------------------
 
 
 def _dep_key(dep: dict) -> tuple[str, str]:
@@ -307,23 +385,40 @@ def diff(
         console.print(f"  [{style}]− убран   [/] {key[0]}: {key[1]}")
     for key in sorted(b_deps.keys() - a_deps.keys()):
         changed = True
-        foreign = b_deps[key].get("foreign")
-        style = "red" if foreign else "green"
+        style = "red" if b_deps[key].get("foreign") else "green"
         console.print(f"  [{style}]+ добавлен[/] {key[0]}: {key[1]}")
+
+    a_checks = {c["title"]: c["status"] for c in a.get("checks", [])}
+    for c in b.get("checks", []):
+        before = a_checks.get(c["title"])
+        if before and before != c["status"]:
+            changed = True
+            good = c["status"] == "ok"
+            style = "green" if good else "red"
+            console.print(
+                f"  [{style}]{'✓' if good else '✗'} {c['title']}[/]: {before} → {c['status']}"
+            )
     if not changed:
-        console.print("  [dim]Набор сервисов не изменился.[/]")
+        console.print("  [dim]Ничего не изменилось.[/]")
+
+
+# --- services -------------------------------------------------------------------------
 
 
 @app.command()
-def services() -> None:
+def services(
+    search: Annotated[
+        str | None, typer.Argument(help="Фильтр по названию, например google.")
+    ] = None,
+) -> None:
     """Показать базу сервисов, которые умеет распознавать Suveren."""
-    foreign = Counter(s.country for s in ALL_SERVICES if s.foreign)
-    domestic = sum(1 for s in ALL_SERVICES if not s.foreign)
+    items = [s for s in ALL_SERVICES if not search or search.lower() in s.name.lower()]
+    foreign = sum(1 for s in items if s.foreign)
     table = Table(box=None, header_style="bold", padding=(0, 2))
     table.add_column("Сервис")
     table.add_column("Страна")
     table.add_column("Как распознаётся", style="dim")
-    for s in sorted(ALL_SERVICES, key=lambda s: (not s.foreign, s.name.lower())):
+    for s in sorted(items, key=lambda s: (not s.foreign, s.name.lower())):
         ways = [
             label
             for label, present in (
@@ -339,10 +434,11 @@ def services() -> None:
         country = Text(country_name(s.country), style="green" if not s.foreign else "")
         table.add_row(s.name, country, ", ".join(ways))
     console.print(table)
-    console.print(
-        f"\nВсего: [bold]{len(ALL_SERVICES)}[/] · иностранных {sum(foreign.values())} · "
-        f"российских {domestic}"
-    )
+    domestic = len(items) - foreign
+    console.print(f"\nВсего: [bold]{len(items)}[/] · иностранных {foreign} · российских {domestic}")
+
+
+# --- company --------------------------------------------------------------------------
 
 
 @app.command()
@@ -373,58 +469,83 @@ def company(
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
     console.print(BANNER.format(version=__version__))
+    console.print(f"  Проверяю [bold]{target}[/]\n")
     try:
-        with console.status("Проверяю компанию… (первый раз скачиваются санкционные списки)"):
+        with console.status(
+            "[dim]ЕГРЮЛ, реестры, санкционные списки… "
+            "(в первый раз списки скачиваются около минуты)[/]"
+        ):
             report = asyncio.run(
                 run_company(target, timeout=timeout, sanctions=not no_sanctions, refresh=refresh)
             )
     except SuverenError as exc:
         raise _fail(str(exc)) from exc
 
-    for note in report.notes:
-        console.print(f"[yellow]![/] [dim]{note}[/]")
     rec = report.egrul
-    lines = []
+    rows = []
     if rec:
-        lines.append(rec.name_full)
-        lines.append(f"ИНН {rec.inn or '—'} · ОГРН {rec.ogrn or '—'}")
+        rows.append(Text(rec.name_full, style="bold"))
+        rows.append(Text(f"ИНН {rec.inn or '—'} · ОГРН {rec.ogrn or '—'}", style="dim"))
+        if rec.registered:
+            rows.append(Text(f"Зарегистрирована {rec.registered:%d.%m.%Y}", style="dim"))
         if rec.head:
-            lines.append(f"[dim]{rec.head}[/]")
+            rows.append(Text(rec.head, style="dim"))
     elif report.domain:
-        lines.append(f"Сайт {report.domain}, ИНН {report.inn or 'не найден'}")
-    console.print()
+        rows.append(Text(f"Сайт {report.domain}, ИНН {report.inn or 'не найден'}"))
+    worst = min((c.status for c in report.checks), key=_status_rank, default=Status.UNKNOWN)
+    verdict = {
+        Status.FAIL: ("ЕСТЬ ПРОБЛЕМЫ", "bold white on red"),
+        Status.WARN: ("ЕСТЬ ВОПРОСЫ", "bold black on yellow"),
+        Status.OK: ("ВСЁ В ПОРЯДКЕ", "bold black on green"),
+        Status.UNKNOWN: ("НЕДОСТАТОЧНО ДАННЫХ", "bold white on grey35"),
+    }[worst]
+    rows.insert(0, Text(f" {verdict[0]} ", style=verdict[1]))
+    rows.insert(1, Text(""))
     console.print(
-        Panel("\n".join(lines) or report.query, title=f"[bold]{report.title}[/]", expand=False)
+        Panel(
+            Text("\n").join(rows) if rows else Text(report.query),
+            title=f"[bold]{report.title}[/]",
+            title_align="left",
+            padding=(1, 2),
+            expand=False,
+        )
     )
-    _print_checks(report.checks)
+    section(console, "Результаты")
+    print_checks(console, report.checks, verbose=True)
 
     if report.hits:
-        table = Table(
-            title="\nСовпадения в санкционных списках",
-            title_justify="left",
-            box=None,
-            header_style="bold",
-            padding=(0, 2),
-        )
-        table.add_column("Список")
+        section(console, "Совпадения в санкционных списках")
+        table = Table(box=None, header_style="dim", padding=(0, 2), pad_edge=False)
+        table.add_column(" Список")
         table.add_column("Запись")
         table.add_column("Как найдено", style="dim")
         for h in report.hits:
-            table.add_row(SOURCE_TITLES[h.entry.source], h.entry.names[0], h.how_ru)
+            table.add_row(f" {SOURCE_TITLES[h.entry.source]}", h.entry.names[0], h.how_ru)
         console.print(table)
+    if report.notes:
+        section(console, "Замечания")
+        for note in report.notes:
+            console.print(Text(f" ! {note}", style="dim"))
 
+    console.print()
     html_path = None
     if not no_report:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         slug = report.inn or report.ogrn or report.domain or "company"
-        html_path = output or Path("reports") / f"company-{slug}-{stamp}.html"
+        html_path = output or Path("reports") / f"company-{slug}-{_stamp()}.html"
     write_company(report, html_path, json_path)
     if html_path is not None:
-        console.print(f"\n[bold]HTML-отчёт:[/] {html_path}")
+        console.print(f"[bold]Отчёт:[/] {html_path}")
         if open_report:
-            webbrowser.open(html_path.resolve().as_uri())
+            _open(html_path)
     if json_path is not None:
-        console.print(f"[bold]JSON:[/] {json_path}")
+        console.print(f"[bold]JSON:[/]  {json_path}")
+
+
+def _status_rank(status: Status) -> int:
+    return {Status.FAIL: 0, Status.WARN: 1, Status.OK: 2, Status.UNKNOWN: 3}[status]
+
+
+# --- update ---------------------------------------------------------------------------
 
 
 @app.command()
@@ -433,21 +554,19 @@ def update() -> None:
 
     async def run() -> None:
         async with make_client(30.0) as client:
-            with console.status("Санкционные списки…"):
+            with console.status("[dim]Санкционные списки…[/]"):
                 index = await load_index(client, refresh=True)
             for note in index.notes:
-                console.print(f"[yellow]![/] {note}")
+                console.print(f"  [yellow]![/] {note}")
             for source in SANCTION_SOURCES:
                 count = sum(1 for e in index.entries if e.source == source.key)
-                console.print(f"[green]✓[/] {source.title}: {count} записей")
-            for name in (DOMAINS, *IP_LISTS):
-                with console.status(f"Реестр блокировок: {name}…"):
-                    path, note = await fetch_cached(
-                        client, BLOCK_SOURCE + name, f"blocklist-{name}", refresh=True
-                    )
-                mark = "[yellow]![/]" if note else "[green]✓[/]"
-                size = path.stat().st_size / 1_048_576
-                console.print(f"{mark} Реестр блокировок {name}: {size:.1f} МБ")
+                console.print(f"  [green]✓[/] {source.title}: {count} записей")
+            with console.status("[dim]Реестр блокировок…[/]"):
+                sizes, notes = await ensure_lists(client, refresh=True)
+            for note in notes:
+                console.print(f"  [yellow]![/] {note}")
+            total = sum(sizes.values()) / 1_048_576
+            console.print(f"  [green]✓[/] Реестр блокировок РКН: {total:.1f} МБ")
         console.print(f"\n[dim]Кэш: {cache_dir()}[/]")
 
     try:

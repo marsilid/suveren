@@ -150,8 +150,39 @@ def _infra() -> list[Service]:
         ),
         Service("Gandi", "FR", ns=("gandi.net",), mx=("gandi.net",), registrar=("gandi",)),
         Service("NS1", "US", ns=("nsone.net",)),
-        Service("Vercel", "US", ns=("vercel-dns.com",)),
-        Service("Wix", "IL", ns=("wixdns.net",), asn=(58182,), as_names=("wix",)),
+        Service("Vercel", "US", ns=("vercel-dns.com",), as_names=("vercel",)),
+        Service(
+            "Wix",
+            "IL",
+            Category.BUILDER,
+            ns=("wixdns.net",),
+            asn=(58182,),
+            as_names=("wix",),
+            page=(r"static\.wixstatic\.com", r"static\.parastorage\.com"),
+        ),
+        Service(
+            "Tilda",
+            "AE",
+            Category.BUILDER,
+            as_names=("tilda",),
+            page=(r"tildacdn\.(?:com|pro|one|net)", r"tilda-blocks"),
+            note="Tilda создана российской командой, но её сеть зарегистрирована на компанию "
+            "в ОАЭ.",
+        ),
+        Service(
+            "Webflow",
+            "US",
+            Category.BUILDER,
+            page=(r"assets\.website-files\.com", r"cdn\.prod\.website-files\.com"),
+        ),
+        Service(
+            "Squarespace",
+            "US",
+            Category.BUILDER,
+            page=(r"static1\.squarespace\.com", r"squarespace-cdn\.com"),
+        ),
+        Service("Shopify", "CA", Category.BUILDER, page=(r"cdn\.shopify\.com",)),
+        Service("Framer", "NL", Category.BUILDER, page=(r"framerusercontent\.com",)),
         Service(
             "Akamai",
             "US",
@@ -178,6 +209,9 @@ def _infra() -> list[Service]:
         Service("iCloud Mail", "US", mx=("mail.icloud.com",)),
         Service("Fastmail", "AU", mx=("messagingengine.com",)),
         Service("Yahoo Mail", "US", mx=("yahoodns.net",)),
+        Service("Broadcom MessageLabs", "US", mx=("messagelabs.com",)),
+        Service("DNS Made Easy", "US", ns=("dnsmadeeasy.com",), as_names=("tiggee",)),
+        Service("NetActuate", "US", as_names=("netactuate",)),
         # Registrars that leave no other trace.
         Service("Tucows", "CA", registrar=("tucows",)),
         Service("Porkbun", "US", registrar=("porkbun",)),
@@ -191,6 +225,7 @@ def _infra() -> list[Service]:
         Service("Squarespace Domains", "US", registrar=("squarespace", "google llc")),
         Service("PDR (PublicDomainRegistry)", "IN", registrar=("publicdomainregistry", "pdr ltd")),
         # --- Russian infrastructure -------------------------------------------------
+        Service("Координационный центр доменов .RU/.РФ", "RU", registrar=("cc-ru", "cc-rf")),
         Service(
             "Яндекс 360",
             "RU",
@@ -305,7 +340,7 @@ def _page() -> list[Service]:
             "US",
             c.ANALYTICS,
             page=(r"googletagmanager\.com", r"google-analytics\.com"),
-            alternative="Яндекс Метрика.",
+            alternative="Заменить на Яндекс Метрику.",
         ),
         Service(
             "Meta Pixel (Facebook)",
@@ -314,21 +349,21 @@ def _page() -> list[Service]:
             page=(r"connect\.facebook\.net/[^\"']*fbevents", r"fbq\("),
             severity=Severity.MEDIUM,
             note=META_NOTE,
-            alternative="Пиксель VK Рекламы, Яндекс Метрика.",
+            alternative="Заменить на пиксель VK Рекламы или Яндекс Метрику.",
         ),
         Service(
             "Hotjar",
             "MT",
             c.ANALYTICS,
             page=(r"static\.hotjar\.com",),
-            alternative="Вебвизор в Яндекс Метрике.",
+            alternative="Заменить на Вебвизор в Яндекс Метрике.",
         ),
         Service(
             "Microsoft Clarity",
             "US",
             c.ANALYTICS,
             page=(r"clarity\.ms",),
-            alternative="Вебвизор в Яндекс Метрике.",
+            alternative="Заменить на Вебвизор в Яндекс Метрике.",
         ),
         Service("Mixpanel", "US", c.ANALYTICS, page=(r"cdn\.mxpnl\.com", r"api\.mixpanel\.com")),
         Service("Amplitude", "US", c.ANALYTICS, page=(r"cdn\.amplitude\.com",)),
@@ -348,7 +383,21 @@ def _page() -> list[Service]:
             page=(r"static\.ads-twitter\.com",),
             note="X (Twitter) заблокирован в России.",
         ),
-        Service("TikTok Pixel", "SG", c.ANALYTICS, page=(r"analytics\.tiktok\.com",)),
+        Service(
+            "TikTok Pixel", "SG", c.ANALYTICS, page=(r"analytics\.tiktok\.com", r"tiktokw\.us")
+        ),
+        Service("Microsoft Bing Ads", "US", c.ANALYTICS, page=(r"bat\.bing\.com",)),
+        Service("Pinterest Tag", "US", c.ANALYTICS, page=(r"s\.pinimg\.com/ct",)),
+        Service(
+            "Cloudflare Web Analytics",
+            "US",
+            c.ANALYTICS,
+            page=(r"static\.cloudflareinsights\.com",),
+        ),
+        Service(
+            "Sentry", "US", c.ANALYTICS, page=(r"browser\.sentry-cdn\.com", r"ingest\.sentry\.io")
+        ),
+        Service("Mindbox", "RU", c.ANALYTICS, page=(r"api\.mindbox\.ru", r"api\.s\.mindbox\.ru")),
         Service("Яндекс Метрика", "RU", c.ANALYTICS, page=(r"mc\.yandex\.(?:ru|com)",)),
         Service("Top.Mail.ru", "RU", c.ANALYTICS, page=(r"top-fwz1\.mail\.ru", r"top\.mail\.ru")),
         Service("Пиксель VK", "RU", c.ANALYTICS, page=(r"vk\.com/rtrg",)),
@@ -367,6 +416,14 @@ def _page() -> list[Service]:
         ),
         Service("Criteo", "FR", c.ADS, page=(r"static\.criteo\.net",)),
         Service("Рекламная сеть Яндекса", "RU", c.ADS, page=(r"an\.yandex\.ru", r"yandex\.ru/ads")),
+        Service("Adfox", "RU", c.ADS, page=(r"ads\.adfox\.ru",)),
+        Service("AdRiver", "RU", c.ADS, page=(r"ad\.adriver\.ru",)),
+        Service("VK Реклама", "RU", c.ADS, page=(r"ad\.mail\.ru", r"ads\.vk\.com")),
+        # --- Site builders and CMS (Russian) ---------------------------------------------
+        Service("1С-Битрикс", "RU", c.BUILDER, page=(r"/bitrix/(?:js|templates|cache)/",)),
+        Service("Nethouse", "RU", c.BUILDER, page=(r"nethouse\.ru",)),
+        Service("LPgenerator", "RU", c.BUILDER, page=(r"lpgenerator\.ru",)),
+        Service("InSales", "RU", c.BUILDER, page=(r"insales\.ru", r"insales-cdn\.com")),
         # --- Captcha ------------------------------------------------------------------
         Service(
             "Google reCAPTCHA",
@@ -434,6 +491,22 @@ def _page() -> list[Service]:
         ),
         Service("Carrot quest", "RU", c.CHAT, page=(r"cdn\.carrotquest\.(?:app|io)",)),
         Service("Talk-Me", "RU", c.CHAT, page=(r"lcab\.talk-me\.ru",)),
+        Service("Callibri", "RU", c.CHAT, page=(r"cdn\.callibri\.ru",)),
+        Service("Envybox", "RU", c.CHAT, page=(r"cdn\.envybox\.io",)),
+        Service("Marquiz", "RU", c.CHAT, page=(r"script\.marquiz\.ru", r"marquiz\.ru/v2")),
+        Service("amoCRM", "RU", c.CHAT, page=(r"gso\.amocrm\.ru", r"forms\.amocrm\.ru")),
+        Service("Яндекс Формы", "RU", c.CHAT, page=(r"forms\.yandex\.ru",)),
+        Service(
+            "Google Forms",
+            "US",
+            c.CHAT,
+            page=(r"docs\.google\.com/forms",),
+            note="Ответы в форме хранятся на серверах Google за рубежом.",
+            alternative="Заменить на Яндекс Формы или форму на собственном сайте.",
+        ),
+        Service("Typeform", "ES", c.CHAT, page=(r"embed\.typeform\.com",)),
+        Service("Calendly", "US", c.CHAT, page=(r"assets\.calendly\.com",)),
+        Service("OneSignal (push)", "US", c.CHAT, page=(r"cdn\.onesignal\.com",)),
         # --- Maps ---------------------------------------------------------------------------
         Service(
             "Google Maps",
@@ -516,6 +589,7 @@ INFRA_SERVICES: tuple[Service, ...] = tuple(_infra())
 TLS_SERVICES: tuple[Service, ...] = tuple(_tls())
 PAGE_SERVICES: tuple[Service, ...] = tuple(_page())
 ALL_SERVICES: tuple[Service, ...] = INFRA_SERVICES + TLS_SERVICES + PAGE_SERVICES
+_WITH_PAGE_PATTERNS = tuple(s for s in ALL_SERVICES if s.page)
 
 # Top-level domains run by Russian registries.
 RU_ZONES = frozenset(
@@ -600,7 +674,7 @@ def scan_page(html: str) -> list[tuple[Service, str]]:
     """Find page-level services in the HTML; returns (service, matched text) pairs."""
     text = html.lower()
     found: list[tuple[Service, str]] = []
-    for service in PAGE_SERVICES:
+    for service in _WITH_PAGE_PATTERNS:
         for regex in service._page_re:
             match = regex.search(text)
             if match:

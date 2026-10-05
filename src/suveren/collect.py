@@ -11,7 +11,6 @@ import asyncio
 import contextlib
 import ipaddress
 import re
-import socket
 import ssl
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +20,7 @@ import httpx
 from suveren import __version__
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import ModuleError, TargetNotFoundError
+from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
 USER_AGENT = (
@@ -68,9 +68,21 @@ class Facts:
     web: list[NetInfo] = field(default_factory=list)
     registrar: str | None = None
     tls_issuer: str | None = None
+    tls_trusted: bool | None = None
     final_url: str | None = None
+    page_status: int | None = None
     html: str = ""
+    # Extra hosts the page loaded at runtime (filled by the --browser mode).
+    loaded_urls: list[str] = field(default_factory=list)
+    rendered: bool = False
     notes: list[str] = field(default_factory=list)
+
+    @property
+    def page_problem(self) -> str | None:
+        """Why the home page can't be analysed, or None if it can."""
+        if not self.html:
+            return "главная страница не загрузилась"
+        return page_problem(self.page_status, self.html, rendered=self.rendered)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -81,8 +93,36 @@ class Facts:
             "web": [n.to_dict() for n in self.web],
             "registrar": self.registrar,
             "tls_issuer": self.tls_issuer,
+            "tls_trusted": self.tls_trusted,
             "final_url": self.final_url,
+            "page_status": self.page_status,
+            "rendered": self.rendered,
+            "page_problem": self.page_problem,
         }
+
+
+_CHALLENGE = re.compile(
+    r"captcha|challenge|доступ ограничен|проверка безопасности|запрос отклонен|"
+    r"checking your browser|ddos-guard|servicepipe|qrator|antibot|are you a robot|"
+    r"не робот|enable javascript|включите javascript",
+    re.I,
+)
+
+
+def page_problem(status: int | None, html: str, *, rendered: bool = False) -> str | None:
+    """Detect anti-bot pages and empty JavaScript shells that can't be analysed."""
+    page = parse_page(html)
+    thin = len(page.links) < 3 and len(page.text) < 600
+    # A browser may pass a challenge that first answered 403/503: judge the content then.
+    if status is not None and status >= 400 and (thin or not rendered):
+        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+    if thin and _CHALLENGE.search(html[:20000]):
+        return "сайт показал страницу проверки «вы не робот»"
+    if thin:
+        if rendered:
+            return "страница почти пустая даже после загрузки в браузере"
+        return "страница собирается скриптами в браузере, в исходном HTML её содержимого нет"
+    return None
 
 
 # --- Parsers (pure functions, unit-tested) -------------------------------------------
@@ -116,6 +156,8 @@ def clean_as_name(raw: str) -> str | None:
     _, sep, org = name.partition(" - ")
     if sep and org.strip():
         name = org
+    # Cymru replaces quotes with underscores: 'JSC _ER-Telecom Holding_'.
+    name = re.sub(r"_([^_]+)_", r"«\1»", name)
     return name.strip() or None
 
 
@@ -171,6 +213,7 @@ class Collector:
         self.client = client
         self.timeout = timeout
         self._net_cache: dict[str, NetInfo] = {}
+        self._insecure: httpx.AsyncClient | None = None
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -221,16 +264,33 @@ class Collector:
         unique = sorted(set(ips))[:MAX_HOSTS]
         return list(await asyncio.gather(*(self.net_info(ip) for ip in unique)))
 
-    async def homepage(self, host: str) -> tuple[str, str]:
+    async def homepage(self, host: str) -> tuple[str, int, str]:
+        """(final URL, HTTP status, HTML). Tolerates certificates Python doesn't trust,
+        such as the Russian НУЦ Минцифры root, before falling back to plain HTTP."""
         last_error: Exception | None = None
-        for url in (f"https://{host}/", f"http://{host}/"):
+        attempts = ((self.client, f"https://{host}/"), (None, f"https://{host}/"))
+        for client, url in (*attempts, (self.client, f"http://{host}/")):
+            if client is None:
+                if not _is_tls_error(last_error):
+                    continue
+                client = self.insecure_client
             try:
-                resp = await self.client.get(url)
+                resp = await client.get(url)
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
-            return str(resp.url), resp.text[:MAX_HTML_CHARS]
+            return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS]
         raise ModuleError(f"сайт не открылся ({type(last_error).__name__})")
+
+    @property
+    def insecure_client(self) -> httpx.AsyncClient:
+        if self._insecure is None:
+            self._insecure = make_client(self.timeout, verify=False)
+        return self._insecure
+
+    async def aclose(self) -> None:
+        if self._insecure is not None:
+            await self._insecure.aclose()
 
     async def registrar(self, domain: str) -> str | None:
         with contextlib.suppress(httpx.HTTPError, ValueError):
@@ -256,19 +316,37 @@ class Collector:
         except (OSError, TimeoutError) as exc:
             raise ModuleError(f"WHOIS недоступен ({type(exc).__name__})") from exc
 
-    async def tls_issuer(self, host: str) -> str | None:
-        context = ssl.create_default_context()
+    async def tls_issuer(self, host: str) -> tuple[str | None, bool | None]:
+        """(issuer organisation, trusted by the standard CA bundle)."""
         try:
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, 443, ssl=context, server_hostname=host),
-                self.timeout,
-            )
-        except (OSError, TimeoutError, ssl.SSLError, socket.gaierror):
-            return None
+            return await self._issuer(host, verify=True), True
+        except ssl.SSLCertVerificationError:
+            pass
+        except (OSError, TimeoutError, ssl.SSLError):
+            return None, None
+        try:
+            return await self._issuer(host, verify=False), False
+        except (OSError, TimeoutError, ssl.SSLError):
+            return None, None
+
+    async def _issuer(self, host: str, *, verify: bool) -> str | None:
+        context = ssl.create_default_context()
+        if not verify:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, 443, ssl=context, server_hostname=host),
+            self.timeout,
+        )
         try:
             sslobj = writer.get_extra_info("ssl_object")
-            cert = sslobj.getpeercert() if sslobj else None
-            return issuer_org(cert) if cert else None
+            if sslobj is None:
+                return None
+            if verify:
+                cert = sslobj.getpeercert()
+                return issuer_org(cert) if cert else None
+            der = sslobj.getpeercert(binary_form=True)
+            return issuer_from_der(der) if der else None
         finally:
             writer.close()
             with contextlib.suppress(Exception):
@@ -315,13 +393,43 @@ async def whois_raw(domain: str, timeout: float) -> str | None:
         return None
 
 
-def make_client(timeout: float) -> httpx.AsyncClient:
+def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=True,
-        headers={"User-Agent": USER_AGENT, "Accept": "text/html,*/*"},
+        verify=verify,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.5",
+        },
         limits=httpx.Limits(max_connections=20),
     )
+
+
+def _is_tls_error(exc: BaseException | None) -> bool:
+    """httpx wraps certificate failures in ConnectError; walk the chain."""
+    while exc is not None:
+        if isinstance(exc, ssl.SSLError):
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
+def issuer_from_der(der: bytes) -> str | None:
+    """Issuer organisation from a raw certificate (used when it isn't trusted)."""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+
+    try:
+        cert = x509.load_der_x509_certificate(der)
+    except ValueError:
+        return None
+    for oid in (NameOID.ORGANIZATION_NAME, NameOID.COMMON_NAME):
+        attrs = cert.issuer.get_attributes_for_oid(oid)
+        if attrs:
+            return str(attrs[0].value)
+    return None
 
 
 async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto") -> Facts:
@@ -355,6 +463,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             "tls": "SSL-сертификат",
         }
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        await c.aclose()
 
     for key, value in zip(tasks, results, strict=True):
         if isinstance(value, BaseException):
@@ -369,9 +478,9 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
         elif key == "web":
             facts.web = value
         elif key == "homepage":
-            facts.final_url, facts.html = value
+            facts.final_url, facts.page_status, facts.html = value
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":
-            facts.tls_issuer = value
+            facts.tls_issuer, facts.tls_trusted = value
     return facts

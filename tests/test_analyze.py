@@ -86,7 +86,7 @@ def test_page_services_grouped_into_one_finding_per_category():
     analytics = [f for f in report.findings if f.category is Category.ANALYTICS]
     assert len(analytics) == 1
     assert analytics[0].services == ["Google Analytics / Tag Manager", "Hotjar"]
-    assert "Яндекс Метрика" in analytics[0].recommendation
+    assert "Яндекс Метрику" in analytics[0].recommendation
 
 
 def test_foreign_zone_is_low():

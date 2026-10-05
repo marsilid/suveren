@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from suveren.cache import fetch_cached
+from suveren.cache import cache_dir, fetch_cached
 from suveren.checks import GROUP_BLOCK, Check, Status
 from suveren.errors import ModuleError
 
@@ -64,28 +64,29 @@ def _lines(path: Path) -> Iterable[str]:
         yield from fh
 
 
+async def ensure_lists(
+    client: httpx.AsyncClient, *, refresh: bool = False
+) -> tuple[dict[str, int], list[str]]:
+    """Download the lists if missing or stale; returns sizes in bytes and notes."""
+    sizes: dict[str, int] = {}
+    notes: list[str] = []
+    for name in (DOMAINS, *IP_LISTS):
+        path, note = await fetch_cached(client, SOURCE + name, f"blocklist-{name}", refresh=refresh)
+        sizes[name] = path.stat().st_size
+        if note:
+            notes.append(note)
+    return sizes, notes
+
+
 async def run_blocklist(
     client: httpx.AsyncClient, host: str, ips: list[str], *, refresh: bool = False
 ) -> tuple[list[Check], list[str]]:
-    notes: list[str] = []
     try:
-        domains_path, note = await fetch_cached(
-            client, SOURCE + DOMAINS, f"blocklist-{DOMAINS}", refresh=refresh
-        )
-        if note:
-            notes.append(note)
-        ip_paths = []
-        for name in IP_LISTS:
-            path, note = await fetch_cached(
-                client, SOURCE + name, f"blocklist-{name}", refresh=refresh
-            )
-            ip_paths.append(path)
-            if note:
-                notes.append(note)
+        _, notes = await ensure_lists(client, refresh=refresh)
     except ModuleError as exc:
-        return [
-            Check(GROUP_BLOCK, "Реестр блокировок Роскомнадзора", Status.UNKNOWN, str(exc))
-        ], notes
+        return [Check(GROUP_BLOCK, "Реестр блокировок Роскомнадзора", Status.UNKNOWN, str(exc))], []
+    domains_path = cache_dir() / f"blocklist-{DOMAINS}"
+    ip_paths = [cache_dir() / f"blocklist-{name}" for name in IP_LISTS]
 
     checks: list[Check] = []
     blocked = find_blocked_domains(_lines(domains_path), domain_candidates(host))
