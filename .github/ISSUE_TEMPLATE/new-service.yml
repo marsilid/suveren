@@ -1,0 +1,59 @@
+name: Добавить сервис
+description: Suveren не распознал сервис (хостинг, почту, скрипт, виджет) или указал неверную страну
+title: "Сервис: "
+labels: ["база сервисов"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Программировать не нужно: достаточно рассказать, что это за сервис и как его узнать.
+        Список доменов, которых нет в базе, показывает команда `suveren unknown`.
+  - type: input
+    id: name
+    attributes:
+      label: Название сервиса
+      placeholder: Например, Callibri
+    validations:
+      required: true
+  - type: input
+    id: country
+    attributes:
+      label: Страна компании-владельца
+      description: Юрисдикция компании, а не место дата-центра. Если знаете, дайте ссылку на источник.
+      placeholder: Россия
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Что это за сервис
+      options:
+        - DNS / почта / хостинг / CDN
+        - Конструктор сайта или CMS
+        - Аналитика или пиксель
+        - Реклама
+        - Чат, форма, виджет
+        - Капча
+        - Шрифты или библиотеки
+        - Карты или видео
+        - Оплата или вход через внешний сервис
+        - Другое
+    validations:
+      required: true
+  - type: textarea
+    id: traces
+    attributes:
+      label: Как его узнать
+      description: Домены скриптов, NS- или MX-серверы, название сети (ASN). Подойдёт фрагмент кода страницы.
+      placeholder: "<script src=\"https://cdn.callibri.ru/callibri.js\">"
+    validations:
+      required: true
+  - type: input
+    id: example
+    attributes:
+      label: Сайт, где он встречается
+      placeholder: example.ru
+  - type: input
+    id: alternative
+    attributes:
+      label: Российская замена (если сервис иностранный)

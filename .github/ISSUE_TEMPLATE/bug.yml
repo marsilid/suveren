@@ -1,0 +1,36 @@
+name: Ошибка или неверный вывод
+description: Программа упала, зависла или сделала неверный вывод о сайте
+labels: ["ошибка"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Команда
+      placeholder: suveren scan example.ru --browser
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Что произошло и что ожидалось
+      description: Если вывод неверный, объясните, почему вы так считаете.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Вывод программы
+      description: Скопируйте текст из консоли. Для упавшей программы важна последняя часть.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Версия и система
+      description: "`suveren --version`, Windows / Linux / macOS"
+      placeholder: Suveren 1.0.0, Windows 11
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Вывод `suveren doctor`
+      description: Помогает понять, не сломался ли один из источников данных.
+      render: text
