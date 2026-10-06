@@ -29,6 +29,7 @@ from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
 from suveren.errors import SuverenError
+from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
@@ -676,3 +677,20 @@ def doctor(
         console.print(f"\n[bold red]Не работает источников: {len(broken)}.[/]")
         raise typer.Exit(1)
     console.print("\n[green]Все источники работают.[/]")
+
+
+# --- menu -----------------------------------------------------------------------------
+
+
+@app.command()
+def menu() -> None:
+    """Меню для работы без командной строки."""
+    run_menu(app, console)
+
+
+def main_exe() -> None:
+    """Entry point of the Windows .exe: a double click opens the menu."""
+    if len(sys.argv) == 1:
+        run_menu(app, console)
+    else:
+        app()
