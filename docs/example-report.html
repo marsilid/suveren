@@ -85,6 +85,8 @@
   .checks { padding: 0; }
   td .st-ok { color: var(--grade-a); font-weight: 700; } td .st-warn { color: var(--medium); font-weight: 700; }
   td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
+  .check .law { color: var(--muted); font-size: 12.5px; }
+  .muted-note { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
   ol.actions { margin: 0; padding: 18px 20px 18px 44px; }
   ol.actions li { margin: 0 0 12px; padding-left: 4px; }
   ol.actions li:last-child { margin-bottom: 0; }
@@ -107,7 +109,7 @@
   <header class="top">
     <span class="brand">Suveren</span>
     <span class="meta">
-      05.10.2026 22:13 UTC · 17.2 с
+      06.10.2026 13:18 UTC · 47.0 с
     </span>
   </header>
   <h1>kinopoisk.ru</h1>
@@ -115,14 +117,14 @@
   <section class="card summary">
     <div class="grade grade-B">B</div>
     <div>
-      <div class="score"><strong>86</strong> / 100 — независимость от иностранных сервисов</div>
+      <div class="score"><strong>78</strong> / 100 — независимость от иностранных сервисов</div>
       <div class="counts">
-        Иностранных сервисов: <b>2</b> · российских: <b>13</b>
+        Иностранных сервисов: <b>4</b> · российских: <b>15</b>
       </div>
       <div class="bar">
-<span style="width: 87%; background: var(--grade-a)" title="Россия 87%"></span><span style="width: 7%; background: #3b5bdb" title="Бельгия 7%"></span><span style="width: 7%; background: #e8590c" title="Сингапур 7%"></span>      </div>
+<span style="width: 79%; background: var(--grade-a)" title="Россия 79%"></span><span style="width: 11%; background: #3b5bdb" title="США 11%"></span><span style="width: 5%; background: #e8590c" title="Бельгия 5%"></span><span style="width: 5%; background: #ae3ec9" title="Сингапур 5%"></span>      </div>
       <div class="legend">
-<span><i style="background: var(--grade-a)"></i>Россия 87%</span><span><i style="background: #3b5bdb"></i>Бельгия 7%</span><span><i style="background: #e8590c"></i>Сингапур 7%</span>      </div>
+<span><i style="background: var(--grade-a)"></i>Россия 79%</span><span><i style="background: #3b5bdb"></i>США 11%</span><span><i style="background: #e8590c"></i>Бельгия 5%</span><span><i style="background: #ae3ec9"></i>Сингапур 5%</span>      </div>
     </div>
   </section>
 
@@ -136,7 +138,7 @@
   </ol>
 
   <h2>Замечания</h2>
-  <p class="card note">Сайт открывался в браузере: учтены все скрипты, загруженные главной страницей. Сервисы с других страниц сайта могут не попасть в отчёт.</p>
+  <p class="card note">Проверено страниц: 7 (главная и ещё 6). Сайт открывался в браузере, учтены все скрипты, загруженные страницами.</p>
 
   <h2>Риски</h2>
   <article class="card finding sev-medium">
@@ -155,37 +157,53 @@
     <p>Данные о посетителях собирает иностранный сервис. Скрипт работает в браузере посетителя и передаёт его IP-адрес и cookies на иностранные серверы. Это может считаться трансграничной передачей персональных данных (152-ФЗ), о которой нужно уведомлять Роскомнадзор.</p>
     <p class="fix">Заменить на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.</p>
   </article>
+  <article class="card finding sev-low">
+    <div class="head">
+      <span class="badge"><span>низкий</span></span>
+      <h3>Библиотеки с внешнего CDN: Google Hosted Libraries (США)</h3>
+    </div>
+    <p>Если CDN недоступен, перестанут работать меню, формы и кнопки. Чужой CDN — ещё и риск подмены кода, как случилось с polyfill.io в 2024 году. Скрипт работает в браузере посетителя и передаёт его IP-адрес и cookies на иностранные серверы. Это может считаться трансграничной передачей персональных данных (152-ФЗ), о которой нужно уведомлять Роскомнадзор.</p>
+    <p class="fix">Собрать библиотеки в бандл и раздавать с собственного сервера.</p>
+  </article>
+  <article class="card finding sev-low">
+    <div class="head">
+      <span class="badge"><span>низкий</span></span>
+      <h3>Карты: Google Maps (США)</h3>
+    </div>
+    <p>Карта может перестать загружаться или потребовать оплату, недоступную из России. Скрипт работает в браузере посетителя и передаёт его IP-адрес и cookies на иностранные серверы. Это может считаться трансграничной передачей персональных данных (152-ФЗ), о которой нужно уведомлять Роскомнадзор.</p>
+    <p class="fix">Заменить на Яндекс Карты или 2ГИС.</p>
+  </article>
 
   <h2 id="checks-1">Персональные данные (152-ФЗ)</h2>
-  <div class="card checks">
+<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>  <div class="card checks">
     <div class="check">
       <span class="icon st-warn" title="внимание"><span>!</span></span>
       <h3>Политика обработки персональных данных</h3>
-<p>Отдельной ссылки на политику на главной нет, о персональных данных говорится в документе «Соглашение». <a href="https://www.kinopoisk.ru/docs/usage/" target="_blank" rel="noopener">открыть</a></p><p class="fix">Поставьте отдельную ссылку на политику обработки персональных данных в подвале сайта и рядом с формами (152-ФЗ, ст. 18.1 ч. 2).</p>    </div>
+<p>Отдельной ссылки на политику на главной нет, о персональных данных говорится в документе «Соглашение». <a href="https://www.kinopoisk.ru/docs/usage/" target="_blank" rel="noopener">открыть</a></p><p class="fix">Поставьте отдельную ссылку на политику обработки персональных данных в подвале сайта и рядом с формами (152-ФЗ, ст. 18.1 ч. 2).</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 18.1</a></p>    </div>
     <div class="check">
       <span class="icon st-unknown" title="не ясно"><span>?</span></span>
       <h3>Согласие на обработку в формах</h3>
-<p>На главной странице нет форм с персональными данными. Проверьте формы на других страницах вручную.</p>    </div>
+<p>На проверенных страницах (7) нет форм с персональными данными. Проверьте формы на остальных страницах вручную.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 9</a></p>    </div>
     <div class="check">
       <span class="icon st-warn" title="внимание"><span>!</span></span>
       <h3>Уведомление о cookies</h3>
-<p>Сайт использует TikTok Pixel, Яндекс Метрика, Top.Mail.ru, Пиксель VK, Рекламная сеть Яндекса, Adfox, AdRiver, но уведомление о cookies не найдено. Роскомнадзор относит данные метрических сервисов к персональным.</p><p class="fix">Добавьте баннер с уведомлением о cookies и ссылкой на политику.</p>    </div>
+<p>Сайт использует TikTok Pixel, Яндекс Метрика, Top.Mail.ru, Пиксель VK, Рекламная сеть Яндекса, Adfox, AdRiver, но уведомление о cookies не найдено. По позиции Роскомнадзора данные метрических сервисов могут быть персональными данными.</p><p class="fix">Добавьте баннер с уведомлением о cookies и ссылкой на политику.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 9</a></p>    </div>
     <div class="check">
       <span class="icon st-warn" title="внимание"><span>!</span></span>
       <h3>Трансграничная передача данных</h3>
-<p>Данные посетителей уходят иностранным сервисам: TikTok Pixel (Сингапур).</p><p class="fix">Уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12, требование действует с 1 марта 2023 года) или замените сервисы на российские.</p>    </div>
+<p>Данные посетителей уходят иностранным сервисам: TikTok Pixel (Сингапур), Google Hosted Libraries (США), Google Maps (США).</p><p class="fix">Уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12, требование действует с 1 марта 2023 года) или замените сервисы на российские.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 12</a></p>    </div>
     <div class="check">
       <span class="icon st-ok" title="в порядке"><span>✓</span></span>
       <h3>Хранение данных в России</h3>
-<p>Сервер сайта в России.</p>    </div>
+<p>Сервер сайта в России.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 18 ч. 5</a></p>    </div>
     <div class="check">
       <span class="icon st-ok" title="в порядке"><span>✓</span></span>
       <h3>Защищённое соединение</h3>
-<p>Сайт работает по HTTPS.</p>    </div>
+<p>Сайт работает по HTTPS.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 19</a></p>    </div>
     <div class="check">
       <span class="icon st-unknown" title="не ясно"><span>?</span></span>
       <h3>Реестр операторов персональных данных</h3>
-<p>ИНН компании на сайте не найден, поэтому реестр не проверялся.</p><p class="fix">Укажите реквизиты компании на сайте. Проверить реестр можно командой suveren company &lt;ИНН&gt;.</p>    </div>
+<p>ИНН компании на сайте не найден, поэтому реестр не проверялся.</p><p class="fix">Укажите реквизиты компании на сайте. Проверить реестр можно командой suveren company &lt;ИНН&gt;.</p><p class="law">Основание: <a href="https://www.consultant.ru/document/cons_doc_LAW_61801/" target="_blank" rel="noopener">152-ФЗ, ст. 22</a></p>    </div>
   </div>
   <h2 id="checks-2">Блокировки в России</h2>
   <div class="card checks">
@@ -323,6 +341,39 @@
           <td class="evidence">yastatic.net</td>
           <td>
 <span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Яндекс (прочие ресурсы)</td>
+          <td>Россия</td>
+          <td class="evidence">st.kp.yandex.net</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>VK / Mail.ru (прочие ресурсы)</td>
+          <td>Россия</td>
+          <td class="evidence">privacy-cs.mail.ru</td>
+          <td>
+<span class="badge sev-ok"><span>РФ</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td>Google Hosted Libraries</td>
+          <td>США</td>
+          <td class="evidence">ajax.googleapis.com · /s/</td>
+          <td>
+<span class="badge sev-low"><span>низкий</span></span>
+          </td>
+        </tr>
+        <tr class="group"><td colspan="4">Карты</td></tr>
+        <tr>
+          <td>Google Maps</td>
+          <td>США</td>
+          <td class="evidence">maps.googleapis.com · /s/</td>
+          <td>
+<span class="badge sev-low"><span>низкий</span></span>
           </td>
         </tr>
         <tr class="group"><td colspan="4">Виджеты соцсетей</td></tr>
