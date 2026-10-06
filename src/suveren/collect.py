@@ -20,7 +20,7 @@ import httpx
 from suveren import __version__
 from suveren.crawl import FetchedPage
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
-from suveren.errors import ModuleError, TargetNotFoundError
+from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -320,7 +320,7 @@ class Collector:
             if not server:
                 return None
             return parse_whois_registrar(await whois_query(server, domain, self.timeout))
-        except (OSError, TimeoutError) as exc:
+        except (OSError, *TIMEOUTS) as exc:
             raise ModuleError(f"WHOIS недоступен ({type(exc).__name__})") from exc
 
     async def tls_issuer(self, host: str) -> tuple[str | None, bool | None]:
@@ -329,11 +329,11 @@ class Collector:
             return await self._issuer(host, verify=True), True
         except ssl.SSLCertVerificationError:
             pass
-        except (OSError, TimeoutError, ssl.SSLError):
+        except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
         try:
             return await self._issuer(host, verify=False), False
-        except (OSError, TimeoutError, ssl.SSLError):
+        except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
 
     async def _issuer(self, host: str, *, verify: bool) -> str | None:
@@ -396,7 +396,7 @@ async def whois_raw(domain: str, timeout: float) -> str | None:
             None,
         )
         return await whois_query(server, domain, timeout) if server else None
-    except (OSError, TimeoutError):
+    except (OSError, *TIMEOUTS):
         return None
 
 
@@ -474,7 +474,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
 
     for key, value in zip(tasks, results, strict=True):
         if isinstance(value, BaseException):
-            if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, TimeoutError)):
+            if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
             facts.notes.append(f"Не удалось получить {labels[key]}: {value}")
             continue

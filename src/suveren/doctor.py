@@ -22,7 +22,7 @@ from suveren.collect import (
     whois_query,
 )
 from suveren.dnsutil import create_resolver
-from suveren.errors import ModuleError
+from suveren.errors import TIMEOUTS, ModuleError
 from suveren.registries import egrul_search, rkn_operator
 from suveren.sanctions import SOURCES
 
@@ -48,7 +48,7 @@ async def _timed(name: str, fn: Callable[[], Awaitable[str]]) -> Probe:
         return Probe(name, True, details, time.perf_counter() - started)
     except _Optional as exc:
         return Probe(name, None, str(exc), time.perf_counter() - started)
-    except (ModuleError, httpx.HTTPError, OSError, TimeoutError, ValueError, KeyError) as exc:
+    except (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS, ValueError, KeyError) as exc:
         message = str(exc) or type(exc).__name__
         return Probe(name, False, message, time.perf_counter() - started)
 

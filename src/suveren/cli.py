@@ -28,7 +28,7 @@ from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
-from suveren.errors import SuverenError
+from suveren.errors import TIMEOUTS, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.report import write_batch_html, write_company, write_html, write_json
@@ -356,7 +356,7 @@ def batch(
                     ),
                     SITE_DEADLINE,
                 )
-            except (SuverenError, TimeoutError) as exc:
+            except (SuverenError, *TIMEOUTS) as exc:
                 reason = str(exc) or f"не уложилась в {SITE_DEADLINE // 60} мин"
                 console.print(f"  [red]✗[/] {host:<32} [dim]{reason}[/]")
                 return host, None, reason
