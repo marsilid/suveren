@@ -11,6 +11,7 @@ from typing import TypeVar
 
 import httpx
 
+from suveren import unknown
 from suveren.analyze import analyze
 from suveren.blocklist import run_blocklist
 from suveren.checks import GROUP_152, Check, Status
@@ -74,6 +75,9 @@ async def run_scan(
             links = pick_links(parse_page(facts.html), facts.final_url or "", pages)
             facts.extra_pages = _usable(await fetch_pages(client, links))
     report = analyze(facts, started_at=started)
+    unseen = _unknown_domains(facts, host)
+    report.facts["unknown_domains"] = sorted(unseen)
+    unknown.record(unseen, host)
 
     if compliance or blocklist:
         async with make_client(timeout) as client:
@@ -110,6 +114,16 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         page_problem=facts.page_problem,
         extra_pages=facts.extra_pages,
     )
+
+
+def _unknown_domains(facts: Facts, host: str) -> set[str]:
+    urls: list[str] = []
+    if facts.html and not facts.page_problem:
+        urls += unknown.resource_urls(facts.html, facts.final_url or f"https://{host}/")
+        urls += facts.loaded_urls
+    for page in facts.extra_pages:
+        urls += unknown.resource_urls(page.html, page.url) + page.loaded_urls
+    return unknown.unknown_domains(urls, host)
 
 
 def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:

@@ -20,13 +20,14 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from suveren import __version__
+from suveren import __version__, unknown
 from suveren.blocklist import ensure_lists
 from suveren.cache import cache_dir
 from suveren.checks import GROUP_152, GROUP_BLOCK, Status
 from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
+from suveren.doctor import run_doctor
 from suveren.errors import SuverenError
 from suveren.models import Report
 from suveren.report import write_batch_html, write_company, write_html, write_json
@@ -615,3 +616,63 @@ def update() -> None:
         asyncio.run(run())
     except SuverenError as exc:
         raise _fail(str(exc), code=1) from exc
+
+
+# --- unknown --------------------------------------------------------------------------
+
+
+@app.command("unknown")
+def unknown_cmd(
+    limit: Annotated[int, typer.Option("--limit", "-n", min=1, help="Сколько показать.")] = 30,
+    reset: Annotated[bool, typer.Option("--clear", help="Очистить накопленный список.")] = False,
+) -> None:
+    """Внешние домены, которых нет в базе: с чего начать её пополнение."""
+    if reset:
+        unknown.clear()
+        console.print("[green]✓[/] Список очищен.")
+        return
+    data = unknown.load()
+    if not data:
+        console.print(
+            "[dim]Пока пусто. Домены копятся при каждой проверке сайтов (только на этом "
+            "компьютере, никуда не отправляются).[/]"
+        )
+        return
+    rows = sorted(data.items(), key=lambda item: (-item[1]["count"], item[0]))[:limit]
+    table = Table(box=None, header_style="bold", padding=(0, 2))
+    table.add_column("Домен")
+    table.add_column("Сайтов", justify="right")
+    table.add_column("Где встречался", style="dim")
+    for domain, entry in rows:
+        table.add_row(domain, str(entry["count"]), ", ".join(entry["sites"]))
+    console.print(table)
+    console.print(
+        f"\n[dim]Всего неизвестных доменов: {len(data)}. Чтобы добавить сервис в базу, "
+        "откройте issue «Добавить сервис» на GitHub или допишите запись в services.py.[/]"
+    )
+
+
+# --- doctor ---------------------------------------------------------------------------
+
+
+@app.command()
+def doctor(
+    timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 20.0,
+) -> None:
+    """Проверить, что все источники данных доступны и отвечают как ожидается."""
+    with _spinner("[dim]Проверяю источники данных…[/]"):
+        probes = asyncio.run(run_doctor(timeout))
+    table = Table(box=None, show_header=False, padding=(0, 1))
+    table.add_column(no_wrap=True)
+    table.add_column(no_wrap=True)
+    table.add_column(style="dim")
+    table.add_column(justify="right", style="dim")
+    for p in probes:
+        icon = {True: "[green]✓[/]", False: "[bold red]✗[/]", None: "[yellow]–[/]"}[p.ok]
+        table.add_row(f" {icon}", p.name, p.details, f"{p.seconds:.1f} с")
+    console.print(table)
+    broken = [p for p in probes if p.ok is False]
+    if broken:
+        console.print(f"\n[bold red]Не работает источников: {len(broken)}.[/]")
+        raise typer.Exit(1)
+    console.print("\n[green]Все источники работают.[/]")

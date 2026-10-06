@@ -153,3 +153,32 @@ def test_every_page_service_has_category_and_valid_country():
 def test_service_names_are_unique():
     names = [s.name for s in db.ALL_SERVICES]
     assert len(names) == len(set(names))
+
+
+def test_unknown_domains_skip_own_and_known():
+    from suveren.unknown import resource_urls, unknown_domains
+
+    html = (
+        '<script src="/app.js"></script>'
+        '<script src="https://cdn.example.ru/x.js"></script>'
+        '<script src="https://mc.yandex.ru/metrika/tag.js"></script>'
+        '<img src="https://pixel.some-adtech.io/p.gif">'
+        '<a href="https://not-a-resource.com/">ссылка</a>'
+    )
+    urls = resource_urls(html, "https://example.ru/")
+    assert "https://example.ru/app.js" in urls
+    assert unknown_domains(urls, "example.ru") == {"some-adtech.io"}
+
+
+def test_unknown_record_and_load(tmp_path, monkeypatch):
+    from suveren import unknown
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    unknown.record({"a.io", "b.io"}, "site1.ru")
+    unknown.record({"a.io"}, "site2.ru")
+    unknown.record({"a.io"}, "site2.ru")  # the same site twice counts once
+    data = unknown.load()
+    assert data["a.io"]["count"] == 2
+    assert data["a.io"]["sites"] == ["site1.ru", "site2.ru"]
+    unknown.clear()
+    assert unknown.load() == {}
