@@ -327,7 +327,9 @@ def _tls() -> list[Service]:
         Service("Entrust", "US", issuer=("entrust",), severity=commercial),
         Service("SSL.com", "US", issuer=("ssl corporation", "ssl.com"), severity=commercial),
         Service("GoDaddy (УЦ)", "US", issuer=("godaddy", "starfield"), severity=commercial),
-        Service("НУЦ Минцифры", "RU", issuer=("russian trusted",)),
+        Service(
+            "НУЦ Минцифры", "RU", issuer=("russian trusted", "ministry of digital development")
+        ),
     ]
 
 

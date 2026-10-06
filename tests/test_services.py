@@ -203,3 +203,8 @@ def test_own_domain_is_not_a_dependency():
         s.name for s, _ in db.scan_page(html, own_domain="beeline.ru")
     }
     assert "Билайн (реклама)" in {s.name for s, _ in db.scan_page(html, own_domain="example.ru")}
+
+
+def test_mintsifry_issuer_recognised_by_ministry_name():
+    service = db.by_issuer("The Ministry of Digital Development and Communications")
+    assert service is not None and service.country == "RU"
