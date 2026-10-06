@@ -397,7 +397,12 @@ def _page() -> list[Service]:
         Service(
             "Sentry", "US", c.ANALYTICS, page=(r"browser\.sentry-cdn\.com", r"ingest\.sentry\.io")
         ),
-        Service("Mindbox", "RU", c.ANALYTICS, page=(r"api\.mindbox\.ru", r"api\.s\.mindbox\.ru")),
+        Service("Mindbox", "RU", c.ANALYTICS, page=(r"mindbox\.ru",)),
+        Service("Gazprom-Media Data", "RU", c.ANALYTICS, page=(r"gpmdata\.ru",)),
+        Service("Segmento (Сбер)", "RU", c.ADS, page=(r"rutarget\.ru", r"segmento\.ru")),
+        Service("Buzzoola", "RU", c.ADS, page=(r"buzzoola\.com",)),
+        Service("Rambler&Co (реклама и счётчики)", "RU", c.ADS, page=(r"\.rambler\.ru",)),
+        Service("Билайн (реклама)", "RU", c.ADS, page=(r"\.beeline\.ru",)),
         Service("Яндекс Метрика", "RU", c.ANALYTICS, page=(r"mc\.yandex\.(?:ru|com)",)),
         Service("Top.Mail.ru", "RU", c.ANALYTICS, page=(r"top-fwz1\.mail\.ru", r"top\.mail\.ru")),
         Service("Пиксель VK", "RU", c.ANALYTICS, page=(r"vk\.com/rtrg",)),
@@ -477,7 +482,13 @@ def _page() -> list[Service]:
             alternative="Удалить скрипт: современным браузерам полифиллы не нужны.",
         ),
         Service("Yandex CDN (yastatic)", "RU", c.JS_CDN, page=(r"yastatic\.net",)),
-        Service("Яндекс (прочие ресурсы)", "RU", c.JS_CDN, page=(r"\.yandex\.net",)),
+        Service(
+            "Яндекс (прочие ресурсы)",
+            "RU",
+            c.JS_CDN,
+            # Resource hosts only, so that a plain link to yandex.ru/maps doesn't count.
+            page=(r"\.yandex\.net", r"(?:yandex\.ru|ya\.ru)/(?:clck|portal)/"),
+        ),
         Service(
             "VK / Mail.ru (прочие ресурсы)",
             "RU",
@@ -684,14 +695,31 @@ def by_issuer(issuer: str | None) -> Service | None:
     return next((s for s in TLS_SERVICES if any(m in name for m in s.issuer)), None)
 
 
-def scan_page(html: str) -> list[tuple[Service, str]]:
-    """Find page-level services in the HTML; returns (service, matched text) pairs."""
+MAX_MATCHES_CHECKED = 50
+
+
+def scan_page(html: str, own_domain: str | None = None) -> list[tuple[Service, str]]:
+    """Find page-level services in the HTML; returns (service, matched text) pairs.
+
+    Matches that mention ``own_domain`` are the site's own hosts (beeline.ru linking
+    to www.beeline.ru), not a dependency, and are skipped.
+    """
     text = html.lower()
+    own = (own_domain or "").lower()
     found: list[tuple[Service, str]] = []
     for service in _WITH_PAGE_PATTERNS:
-        for regex in service._page_re:
-            match = regex.search(text)
-            if match:
-                found.append((service, match.group(0)))
-                break
+        hit = _first_foreign_match(service, text, own)
+        if hit is not None:
+            found.append((service, hit))
     return found
+
+
+def _first_foreign_match(service: Service, text: str, own: str) -> str | None:
+    for regex in service._page_re:
+        for n, match in enumerate(regex.finditer(text)):
+            if n >= MAX_MATCHES_CHECKED:
+                break
+            matched = match.group(0)
+            if not own or own not in matched:
+                return matched
+    return None

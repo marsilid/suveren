@@ -119,14 +119,15 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
 
     page_text = facts.html + "\n" + "\n".join(facts.loaded_urls)
     found: set[str] = set()
-    for service, matched in db.scan_page(page_text):
+    own = facts.domain  # the site's own hosts are not a dependency on itself
+    for service, matched in db.scan_page(page_text, own_domain=own):
         assert service.category is not None
         deps.append(_from_service(service.category, service, matched))
         found.add(service.name)
     # Services that appear only on inner pages say where they were seen.
     for extra in facts.extra_pages:
         text = extra.html + "\n" + "\n".join(extra.loaded_urls)
-        for service, matched in db.scan_page(text):
+        for service, matched in db.scan_page(text, own_domain=own):
             if service.name in found:
                 continue
             assert service.category is not None

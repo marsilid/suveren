@@ -193,3 +193,13 @@ def test_page_patterns_are_fast_on_long_tokens():
     started = time.perf_counter()
     db.scan_page(html)
     assert time.perf_counter() - started < 1.0
+
+
+def test_own_domain_is_not_a_dependency():
+    html = (
+        '<a href="https://www.beeline.ru/tariffs">Тарифы</a><img src="https://ad.beeline.ru/p.gif">'
+    )
+    assert "Билайн (реклама)" not in {
+        s.name for s, _ in db.scan_page(html, own_domain="beeline.ru")
+    }
+    assert "Билайн (реклама)" in {s.name for s, _ in db.scan_page(html, own_domain="example.ru")}
