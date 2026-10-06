@@ -67,7 +67,7 @@ On Windows you can also run `Suveren.bat`, which installs everything on first la
 
 ## Limitations
 
-Only the home page (plus the policy and contacts pages it links to) is analysed; some sites block
+The home page and up to 6 inner pages (`--pages`, contacts and order pages first) are analysed; some sites block
 even the browser mode; a site behind a CDN hides its real hosting; name-based sanctions matches
 need human review. The scan is passive. The report is a triage aid, **not legal advice**.
 

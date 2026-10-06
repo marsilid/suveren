@@ -118,9 +118,20 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
             deps.append(Dependency(Category.TLS, facts.tls_issuer, None, "сертификат"))
 
     page_text = facts.html + "\n" + "\n".join(facts.loaded_urls)
+    found: set[str] = set()
     for service, matched in db.scan_page(page_text):
         assert service.category is not None
         deps.append(_from_service(service.category, service, matched))
+        found.add(service.name)
+    # Services that appear only on inner pages say where they were seen.
+    for extra in facts.extra_pages:
+        text = extra.html + "\n" + "\n".join(extra.loaded_urls)
+        for service, matched in db.scan_page(text):
+            if service.name in found:
+                continue
+            assert service.category is not None
+            deps.append(_from_service(service.category, service, f"{matched} · {extra.path}"))
+            found.add(service.name)
 
     return _merge(deps), notes
 
@@ -180,17 +191,21 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
             f"Главную страницу проанализировать не удалось: {problem}. Скрипты и виджеты не "
             f"проверены, проверка 152-ФЗ неполная.{hint}"
         )
-    elif facts.rendered:
-        report.notes.append(
-            "Сайт открывался в браузере: учтены все скрипты, загруженные главной страницей. "
-            "Сервисы с других страниц сайта могут не попасть в отчёт."
-        )
     elif facts.html:
-        report.notes.append(
-            "Скрипты и виджеты искались в коде главной страницы. Сервисы, которые подключаются "
-            "на других страницах или подгружаются скриптами, могут не попасть в отчёт "
-            "(режим --browser находит больше)."
+        pages = 1 + len(facts.extra_pages)
+        where = (
+            f"Проверено страниц: {pages} (главная и ещё {pages - 1})"
+            if pages > 1
+            else "Проверена только главная страница"
         )
+        if facts.rendered:
+            how = "Сайт открывался в браузере, учтены все скрипты, загруженные страницами."
+        else:
+            how = (
+                "Скрипты искались в коде страниц: то, что подгружается скриптами, может не "
+                "попасть в отчёт (режим --browser находит больше)."
+            )
+        report.notes.append(f"{where}. {how}")
     if facts.tls_trusted is False:
         report.notes.append(
             "SSL-сертификату сайта не доверяет стандартный набор корневых сертификатов. "

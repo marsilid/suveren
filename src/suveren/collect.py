@@ -18,6 +18,7 @@ from typing import Any
 import httpx
 
 from suveren import __version__
+from suveren.crawl import FetchedPage
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import ModuleError, TargetNotFoundError
 from suveren.page import parse_page
@@ -75,6 +76,8 @@ class Facts:
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     rendered: bool = False
+    # Internal pages fetched besides the home page (contacts, order forms, ...).
+    extra_pages: list[FetchedPage] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -98,6 +101,7 @@ class Facts:
             "page_status": self.page_status,
             "rendered": self.rendered,
             "page_problem": self.page_problem,
+            "extra_pages": [p.url for p in self.extra_pages],
         }
 
 

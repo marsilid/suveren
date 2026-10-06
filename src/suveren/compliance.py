@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from suveren.checks import GROUP_152, Check, Status
+from suveren.crawl import FetchedPage
 from suveren.discover import discover_inns
 from suveren.errors import ModuleError
 from suveren.models import Category, Dependency
@@ -61,6 +62,8 @@ class ComplianceInput:
     operator: RknOperator | None = None
     operator_error: str | None = None
     page_problem: str | None = None
+    # Inner pages: (path, raw HTML, parsed page).
+    extra: list[tuple[str, str, Page]] = field(default_factory=list)
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -141,6 +144,21 @@ def pd_forms(page: Page) -> list[Form]:
     return result
 
 
+def _unique_forms(located: list[tuple[str, Form]]) -> list[tuple[str, Form]]:
+    """A header or footer form repeats on every page; count it once (first page wins)."""
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    unique = []
+    for path, form in located:
+        signature = (
+            form.action.split("?", 1)[0].rstrip("/"),
+            tuple(sorted(f"{i.type}:{i.name}" for i in form.inputs if i.type != "hidden")),
+        )
+        if signature not in seen:
+            seen.add(signature)
+            unique.append((path, form))
+    return unique
+
+
 def has_cookie_notice(html: str) -> bool:
     if _COOKIE_WIDGETS.search(html):
         return True
@@ -154,7 +172,12 @@ def has_cookie_notice(html: str) -> bool:
 def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     checks: list[Check] = []
     page = data.page
-    forms = pd_forms(page)
+    located = _unique_forms(
+        [("главная", f) for f in pd_forms(page)]
+        + [(path, f) for path, _, extra in data.extra for f in pd_forms(extra)]
+    )
+    forms = [f for _, f in located]
+    pages_checked = 1 + len(data.extra)
     foreign_visitor = [d for d in data.deps if d.foreign and d.category.info.visitor_data]
     tracking = [d for d in data.deps if d.category in _TRACKING]
 
@@ -166,7 +189,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 GROUP_152,
                 "Политика обработки персональных данных",
                 Status.FAIL,
-                "В коде главной страницы нет ссылки на политику обработки персональных данных. "
+                "На проверенных страницах нет ссылки на политику обработки персональных данных. "
                 "Если подвал сайта подгружается скриптом, проверьте вручную.",
                 "Опубликуйте политику и поставьте ссылку на неё в подвале сайта и рядом с каждой "
                 "формой (152-ФЗ, ст. 18.1 ч. 2).",
@@ -216,12 +239,19 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 GROUP_152,
                 "Согласие на обработку в формах",
                 Status.UNKNOWN,
-                "На главной странице нет форм с персональными данными. Проверьте формы на "
-                "других страницах вручную.",
+                (
+                    "На главной странице нет форм с персональными данными."
+                    if pages_checked == 1
+                    else f"На проверенных страницах ({pages_checked}) нет форм с "
+                    "персональными данными."
+                )
+                + " Проверьте формы на остальных страницах вручную.",
             )
         )
     else:
         no_consent = [f for f in forms if not _form_has_consent(f)]
+        bad_ids = {id(f) for f in no_consent}
+        where = ", ".join(dict.fromkeys(p for p, f in located if id(f) in bad_ids))
         prechecked = [f for f in forms if any(i.type == "checkbox" and i.checked for i in f.inputs)]
         if no_consent:
             checks.append(
@@ -230,7 +260,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     "Согласие на обработку в формах",
                     Status.FAIL,
                     f"Форм с персональными данными: {len(forms)}, без согласия на обработку: "
-                    f"{len(no_consent)}.",
+                    f"{len(no_consent)} ({where}).",
                     "Добавьте в каждую форму отдельный чекбокс согласия со ссылкой на текст "
                     "согласия. С 1 сентября 2025 года согласие должно оформляться отдельно от "
                     "других документов (152-ФЗ, ст. 9).",
@@ -260,7 +290,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     # 3. Cookie notice.
     if tracking:
         names = ", ".join(dict.fromkeys(d.service for d in tracking))
-        if has_cookie_notice(html):
+        if has_cookie_notice(html) or any(has_cookie_notice(h) for _, h, _ in data.extra):
             checks.append(
                 Check(
                     GROUP_152,
@@ -458,11 +488,17 @@ async def run_compliance(
     html: str,
     deps: list[Dependency],
     page_problem: str | None = None,
+    extra_pages: list[FetchedPage] | None = None,
 ) -> list[Check]:
     page = parse_page(html)
     data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
+    data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     policy_url = find_policy_link(page.links, base) if base else None
+    for path, _, extra in data.extra:  # the link may only be in an inner page's footer
+        if policy_url:
+            break
+        policy_url = find_policy_link(extra.links, urljoin(base, path))
     if policy_url:
         data.policy = await fetch_policy(client, policy_url)
     elif base and (legal := find_legal_link(page.links, base)):
@@ -471,7 +507,8 @@ async def run_compliance(
             doc.indirect_label = legal[1][:60]
             data.policy = doc
     if base:
-        data.inns, _ = await discover_inns(client, base, html, data.policy.text)
+        extra_text = " ".join([data.policy.text, *(h for _, h, _ in data.extra)])
+        data.inns, _ = await discover_inns(client, base, html, extra_text)
     if data.inns:
         try:
             data.operator = await rkn_operator(client, data.inns[0])

@@ -14,12 +14,14 @@ import httpx
 from suveren.analyze import analyze
 from suveren.blocklist import run_blocklist
 from suveren.checks import GROUP_152, Check, Status
-from suveren.collect import Facts, collect, make_client
+from suveren.collect import Facts, collect, make_client, page_problem
 from suveren.compliance import run_compliance
+from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
 from suveren.dnsutil import ResolverMode
 from suveren.errors import ModuleError
 from suveren.models import Report
-from suveren.render import render
+from suveren.page import parse_page
+from suveren.render import BrowserSession
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -49,6 +51,7 @@ async def run_scan(
     blocklist: bool = True,
     refresh: bool = False,
     browser: bool = False,
+    pages: int = DEFAULT_PAGES,
     progress: Progress | None = None,
 ) -> Report:
     progress = progress or _quiet
@@ -56,20 +59,20 @@ async def run_scan(
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
         facts = await collect(host, timeout=timeout, dns_mode=dns_mode)
     if browser:
-        async with _stage(progress, "Загрузка сайта в браузере"):
+        async with _stage(
+            progress, "Сайт в браузере" + (f" (до {pages + 1} стр.)" if pages else "")
+        ):
             try:
-                page = await render(
-                    facts.final_url or f"https://{host}/", timeout=max(timeout, 25.0)
-                )
+                await _render_site(facts, host, timeout=max(timeout, 25.0), pages=pages)
             except ModuleError as exc:
                 facts.notes.append(f"Режим --browser не сработал: {exc}. Использован обычный HTML.")
-            else:
-                facts.final_url, facts.page_status, facts.html = (
-                    page.final_url,
-                    page.status,
-                    page.html,
-                )
-                facts.loaded_urls, facts.rendered = page.requests, True
+    if pages and not facts.rendered and facts.html and not facts.page_problem:
+        async with (
+            _stage(progress, f"Внутренние страницы (до {pages})"),
+            make_client(timeout) as client,
+        ):
+            links = pick_links(parse_page(facts.html), facts.final_url or "", pages)
+            facts.extra_pages = _usable(await fetch_pages(client, links))
     report = analyze(facts, started_at=started)
 
     if compliance or blocklist:
@@ -100,8 +103,31 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
             )
         ]
     return await run_compliance(
-        client, facts.final_url, facts.html, report.dependencies, page_problem=facts.page_problem
+        client,
+        facts.final_url,
+        facts.html,
+        report.dependencies,
+        page_problem=facts.page_problem,
+        extra_pages=facts.extra_pages,
     )
+
+
+def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:
+    """Drop inner pages that are bot walls or empty shells."""
+    return [p for p in pages if not page_problem(p.status, p.html, rendered=bool(p.loaded_urls))]
+
+
+async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -> None:
+    async with BrowserSession(timeout=timeout) as session:
+        home = await session.open(facts.final_url or f"https://{host}/")
+        facts.final_url, facts.page_status, facts.html = home.final_url, home.status, home.html
+        facts.loaded_urls, facts.rendered = home.requests, True
+        if pages and not facts.page_problem:
+            links = pick_links(parse_page(home.html), home.final_url, pages)
+            rendered = await session.open_many(links)
+            facts.extra_pages = _usable(
+                [FetchedPage(r.final_url, r.status, r.html, r.requests) for r in rendered]
+            )
 
 
 async def gather_limited(jobs: list[Callable[[], Awaitable[T]]], limit: int) -> list[T]:

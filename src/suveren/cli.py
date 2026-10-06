@@ -26,6 +26,7 @@ from suveren.cache import cache_dir
 from suveren.checks import GROUP_152, GROUP_BLOCK, Status
 from suveren.collect import make_client
 from suveren.company import run_company
+from suveren.crawl import DEFAULT_PAGES
 from suveren.errors import SuverenError
 from suveren.models import Report
 from suveren.report import write_batch_html, write_company, write_html, write_json
@@ -154,6 +155,16 @@ def scan(
     details: Annotated[
         bool, typer.Option("--details", "-d", help="Показать все найденные сервисы.")
     ] = False,
+    pages: Annotated[
+        int,
+        typer.Option(
+            "--pages",
+            "-p",
+            min=0,
+            max=30,
+            help="Сколько внутренних страниц проверить помимо главной (0 — только главную).",
+        ),
+    ] = DEFAULT_PAGES,
     quick: Annotated[
         bool,
         typer.Option("--quick", help="Только иностранные сервисы, без 152-ФЗ и блокировок."),
@@ -215,6 +226,7 @@ def scan(
                     blocklist=not (no_blocklist or quick),
                     refresh=refresh,
                     browser=browser,
+                    pages=pages,
                     progress=log,
                 )
             )
@@ -294,6 +306,16 @@ def batch(
         bool,
         typer.Option("--browser", "-b", help="Открывать сайты в браузере (точнее, но дольше)."),
     ] = False,
+    pages: Annotated[
+        int,
+        typer.Option(
+            "--pages",
+            "-p",
+            min=0,
+            max=30,
+            help="Сколько внутренних страниц проверить помимо главной (0 — только главную).",
+        ),
+    ] = DEFAULT_PAGES,
     timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
 ) -> None:
@@ -325,6 +347,7 @@ def batch(
                     compliance=not quick,
                     blocklist=not quick,
                     browser=browser,
+                    pages=pages,
                 )
             except SuverenError as exc:
                 console.print(f"  [red]✗[/] {host:<32} [dim]{exc}[/]")
