@@ -30,6 +30,10 @@ _PD_FIELD = re.compile(
     re.I,
 )
 _CONSENT_TEXT = re.compile(r"соглас|персональн|политик|privacy|consent", re.I)
+_CONSENT_NEARBY = re.compile(
+    r"соглас\w*\s+(?:на|с)\s+(?:обработк|политик|условиям)|обработк\w* (?:моих )?персональных",
+    re.I,
+)
 _COOKIE_WIDGETS = re.compile(
     r"cookiebot|onetrust|cookieyes|cookie-?notice|cookie-?consent|cookieconsent|cookie-?banner|"
     r"cookies?-?(?:popup|alert|bar|warning|policy|accept)|t-cookies|klaro|ccm19|cookie_agree",
@@ -249,21 +253,39 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
     else:
-        no_consent = [f for f in forms if not _form_has_consent(f)]
-        bad_ids = {id(f) for f in no_consent}
-        where = ", ".join(dict.fromkeys(p for p, f in located if id(f) in bad_ids))
+        # Consent text often sits right under the form rather than inside <form>; when the
+        # page mentions it, the form is "probably fine" rather than a clear failure.
+        page_texts = {"главная": page.text, **{p: pg.text for p, _, pg in data.extra}}
+        missing = [(p, f) for p, f in located if not _form_has_consent(f)]
+        hard = [(p, f) for p, f in missing if not _CONSENT_NEARBY.search(page_texts.get(p, ""))]
+        soft = [(p, f) for p, f in missing if (p, f) not in hard]
         prechecked = [f for f in forms if any(i.type == "checkbox" and i.checked for i in f.inputs)]
-        if no_consent:
+        if hard:
+            where = ", ".join(dict.fromkeys(p for p, _ in hard))
             checks.append(
                 Check(
                     GROUP_152,
                     "Согласие на обработку в формах",
                     Status.FAIL,
-                    f"Форм с персональными данными: {len(forms)}, без согласия на обработку: "
-                    f"{len(no_consent)} ({where}).",
+                    f"Форм с персональными данными: {len(forms)}. Рядом с {len(hard)} из них "
+                    f"не найдено согласия на обработку данных ({where}).",
                     "Добавьте в каждую форму отдельный чекбокс согласия со ссылкой на текст "
                     "согласия. С 1 сентября 2025 года согласие должно оформляться отдельно от "
                     "других документов (152-ФЗ, ст. 9).",
+                )
+            )
+        elif soft:
+            where = ", ".join(dict.fromkeys(p for p, _ in soft))
+            checks.append(
+                Check(
+                    GROUP_152,
+                    "Согласие на обработку в формах",
+                    Status.WARN,
+                    f"Форм с персональными данными: {len(forms)}. Согласие упоминается на "
+                    f"странице, но не внутри формы ({where}): проверьте, что посетитель "
+                    "подтверждает его сам.",
+                    "Сделайте согласие отдельным чекбоксом внутри формы, без заранее "
+                    "поставленной галочки (152-ФЗ, ст. 9).",
                 )
             )
         elif prechecked:
@@ -305,8 +327,8 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     GROUP_152,
                     "Уведомление о cookies",
                     Status.WARN,
-                    f"Сайт использует {names}, но уведомление о cookies не найдено. "
-                    "Роскомнадзор относит данные метрических сервисов к персональным.",
+                    f"Сайт использует {names}, но уведомление о cookies не найдено. По позиции "
+                    "Роскомнадзора данные метрических сервисов могут быть персональными данными.",
                     "Добавьте баннер с уведомлением о cookies и ссылкой на политику.",
                 )
             )
@@ -344,7 +366,12 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Хранение данных в России",
                 Status.FAIL if forms else Status.WARN,
                 f"Сайт размещён за рубежом: {where}."
-                + (" При этом на нём есть формы сбора данных." if forms else ""),
+                + (
+                    " На нём есть формы сбора данных: если заявки сохраняются на этом "
+                    "сервере, база с персональными данными находится за рубежом."
+                    if forms
+                    else ""
+                ),
                 "Перенесите сайт и базу данных к российскому провайдеру: базы с персональными "
                 "данными граждан РФ должны храниться в России (152-ФЗ, ст. 18 ч. 5).",
             )
@@ -395,7 +422,22 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     checks.append(_operator_check(data))
     if data.page_problem:
         _mark_unverifiable(checks, data.page_problem)
+    for check in checks:
+        check.law = check.law or LAW_BY_TITLE.get(check.title)
     return checks
+
+
+# Where each conclusion comes from in the law, shown next to it in the report.
+LAW_BY_TITLE = {
+    "Политика обработки персональных данных": "152-ФЗ, ст. 18.1",
+    "Содержание политики": "152-ФЗ, ст. 18.1",
+    "Согласие на обработку в формах": "152-ФЗ, ст. 9",
+    "Уведомление о cookies": "152-ФЗ, ст. 9",
+    "Трансграничная передача данных": "152-ФЗ, ст. 12",
+    "Хранение данных в России": "152-ФЗ, ст. 18 ч. 5",
+    "Защищённое соединение": "152-ФЗ, ст. 19",
+    "Реестр операторов персональных данных": "152-ФЗ, ст. 22",
+}
 
 
 def _form_has_consent(form: Form) -> bool:

@@ -27,6 +27,18 @@ class Status(str, Enum):
 GROUP_152 = "Персональные данные (152-ФЗ)"
 GROUP_BLOCK = "Блокировки в России"
 
+# Official consolidated texts, so every conclusion can be checked against the law.
+LAW_URLS = {
+    "152-ФЗ": "https://www.consultant.ru/document/cons_doc_LAW_61801/",
+    "ЗоЗПП": "https://www.consultant.ru/document/cons_doc_LAW_305/",
+}
+
+
+def law_url(law: str | None) -> str | None:
+    if not law:
+        return None
+    return LAW_URLS.get(law.split(",", 1)[0].strip())
+
 
 @dataclass(slots=True)
 class Check:
@@ -36,6 +48,11 @@ class Check:
     details: str = ""
     recommendation: str = ""
     link: str | None = None
+    law: str | None = None  # e.g. "152-ФЗ, ст. 9"
+
+    @property
+    def law_url(self) -> str | None:
+        return law_url(self.law)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,4 +62,6 @@ class Check:
             "details": self.details,
             "recommendation": self.recommendation,
             "link": self.link,
+            "law": self.law,
+            "law_url": self.law_url,
         }

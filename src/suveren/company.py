@@ -244,6 +244,12 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
 
     if report.domain:
         checks.append(_site_check(report))
+    laws = {
+        "Реестр операторов персональных данных": "152-ФЗ, ст. 22",
+        "Сайт и компания": "ЗоЗПП, ст. 26.1",
+    }
+    for check in checks:
+        check.law = laws.get(check.title)
     return checks
 
 

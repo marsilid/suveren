@@ -59,6 +59,7 @@
 
   {% for group, items in report.check_groups %}
   <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
+  {% if group.startswith("Персональные") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
   <div class="card checks">
     {% for c in items %}
     <div class="check">
@@ -66,6 +67,7 @@
       <h3>{{ c.title }}</h3>
       {% if c.details %}<p>{{ c.details }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
       {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation }}</p>{% endif %}
+      {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
     </div>
     {% endfor %}
   </div>

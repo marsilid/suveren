@@ -137,3 +137,17 @@ def test_contact_links_same_site_only():
         "https://example.ru/rekvizity",
         "https://example.ru/contacts",
     ]
+
+
+def test_consent_text_next_to_form_is_a_warning():
+    html = """<form action="/lead"><input type="tel" name="phone"><button>Отправить</button></form>
+      <p>Нажимая кнопку, вы даёте согласие на обработку персональных данных.</p>"""
+    assert status(run(html), "Согласие на обработку в формах") is Status.WARN
+
+
+def test_checks_cite_the_law():
+    checks = {c.title: c for c in run("<p>x</p>")}
+    policy = checks["Политика обработки персональных данных"]
+    assert policy.law == "152-ФЗ, ст. 18.1"
+    assert policy.law_url.startswith("https://www.consultant.ru/")
+    assert policy.to_dict()["law"] == "152-ФЗ, ст. 18.1"
