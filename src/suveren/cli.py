@@ -510,6 +510,10 @@ def company(
     no_sanctions: Annotated[
         bool, typer.Option("--no-sanctions", help="Не проверять санкционные списки.")
     ] = False,
+    browser: Annotated[
+        bool,
+        typer.Option("--browser", "-b", help="Открыть сайт в браузере, если он закрыт от роботов."),
+    ] = False,
     refresh: Annotated[
         bool, typer.Option("--refresh", help="Обновить санкционные списки сейчас.")
     ] = False,
@@ -526,7 +530,13 @@ def company(
             "(в первый раз списки скачиваются около минуты)[/]"
         ):
             report = asyncio.run(
-                run_company(target, timeout=timeout, sanctions=not no_sanctions, refresh=refresh)
+                run_company(
+                    target,
+                    timeout=timeout,
+                    sanctions=not no_sanctions,
+                    refresh=refresh,
+                    browser=browser,
+                )
             )
     except SuverenError as exc:
         raise _fail(str(exc)) from exc

@@ -9,11 +9,12 @@ from typing import Any
 import httpx
 
 from suveren.checks import Check, Status
-from suveren.collect import make_client, parse_whois_org, whois_raw
+from suveren.collect import make_client, page_problem, parse_whois_org, whois_raw
 from suveren.discover import discover_inns
 from suveren.errors import InvalidTargetError, ModuleError
 from suveren.inn import classify
 from suveren.registries import EgrulRecord, RknOperator, egrul_search, rkn_operator
+from suveren.render import render
 from suveren.sanctions import (
     SOURCE_TITLES,
     Hit,
@@ -41,6 +42,7 @@ class CompanyReport:
     person_hits: list[Hit] = field(default_factory=list)
     sanctions_sources: list[str] = field(default_factory=list)
     whois_org: str | None = None
+    site_problem: str | None = None
     checks: list[Check] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -160,6 +162,15 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
         pass
     elif not sanctions_ok:
         checks.append(Check(GROUP, "Санкционные списки", Status.UNKNOWN, "Списки не загрузились."))
+    elif rec is None and not (report.inn or report.ogrn):
+        checks.append(
+            Check(
+                GROUP,
+                "Санкционные списки",
+                Status.UNKNOWN,
+                "Не с чем сверять: ни ИНН, ни название компании не известны.",
+            )
+        )
     else:
         strong = [h for h in report.company_hits if h.how in ("id", "name")]
         partial = [h for h in report.company_hits if h.how == "partial"]
@@ -195,7 +206,23 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 )
             )
         head = (rec.name_full if rec.individual else rec.head_name) if rec else None
-        if head:
+        if head and rec and rec.head_is_org:
+            strong = any(h.how in ("id", "name") for h in report.person_hits)
+            title = "Управляющая организация в санкционных списках"
+            if report.person_hits:
+                checks.append(
+                    Check(
+                        GROUP,
+                        title,
+                        Status.FAIL if strong else Status.WARN,
+                        f"{head}: "
+                        + ("найдена в санкционных списках." if strong else "похожие названия."),
+                        "Подробности в таблице ниже.",
+                    )
+                )
+            else:
+                checks.append(Check(GROUP, title, Status.OK, f"{head}: совпадений нет."))
+        elif head:
             if report.person_hits:
                 checks.append(
                     Check(
@@ -256,6 +283,15 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
 def _site_check(report: CompanyReport) -> Check:
     title = "Сайт и компания"
     rec = report.egrul
+    if not report.inn and report.site_problem:
+        return Check(
+            GROUP,
+            title,
+            Status.UNKNOWN,
+            f"Сайт {report.domain} проверить не удалось: {report.site_problem}.",
+            "Попробуйте параметр --browser или укажите ИНН компании вручную: "
+            "suveren company <ИНН>.",
+        )
     if not report.inn:
         return Check(
             GROUP,
@@ -295,18 +331,29 @@ def _site_check(report: CompanyReport) -> Check:
     )
 
 
-async def _from_site(client: httpx.AsyncClient, report: CompanyReport, timeout: float) -> None:
+async def _from_site(
+    client: httpx.AsyncClient, report: CompanyReport, timeout: float, *, browser: bool = False
+) -> None:
     assert report.domain
-    html, base = "", f"https://{report.domain}/"
+    html, base, status = "", f"https://{report.domain}/", None
     for url in (base, f"http://{report.domain}/"):
         try:
             resp = await client.get(url)
-            html, base = resp.text[:3_000_000], str(resp.url)
+            html, base, status = resp.text[:3_000_000], str(resp.url), resp.status_code
             break
         except httpx.HTTPError:
             continue
-    if not html:
-        report.notes.append(f"Сайт {report.domain} не открылся.")
+    problem = page_problem(status, html) if html else "сайт не открылся"
+    if problem and browser:
+        try:
+            page = await render(base, timeout=max(timeout, 25.0))
+            html, base = page.html, page.final_url
+            problem = page_problem(page.status, html, rendered=True)
+        except ModuleError as exc:
+            report.notes.append(f"Режим --browser не сработал: {exc}.")
+    report.site_problem = problem
+    if problem:
+        report.notes.append(f"Сайт {report.domain}: {problem}.")
     else:
         inns, source = await discover_inns(client, base, html)
         if inns:
@@ -320,7 +367,12 @@ async def _from_site(client: httpx.AsyncClient, report: CompanyReport, timeout: 
 
 
 async def run_company(
-    target: str, *, timeout: float = 15.0, sanctions: bool = True, refresh: bool = False
+    target: str,
+    *,
+    timeout: float = 15.0,
+    sanctions: bool = True,
+    refresh: bool = False,
+    browser: bool = False,
 ) -> CompanyReport:
     value = target.strip()
     kind = classify(value)
@@ -339,7 +391,7 @@ async def run_company(
 
     async with make_client(timeout) as client:
         if report.domain:
-            await _from_site(client, report, timeout)
+            await _from_site(client, report, timeout, browser=browser)
 
         query = report.inn or report.ogrn
         if query:
@@ -372,7 +424,10 @@ async def run_company(
                 if ids or names:
                     report.company_hits = screen_company(index, ids, names)
                 head = (rec.name_full if rec.individual else rec.head_name) if rec else None
-                if head:
+                if head and rec and rec.head_is_org:
+                    # Run by a managing company: screen it as a company, not as a name.
+                    report.person_hits = screen_company(index, [], [head])
+                elif head:
                     report.person_hits = screen_person(index, head)
             except ModuleError as exc:
                 report.notes.append(f"Санкционные списки: {exc}.")

@@ -21,6 +21,9 @@ BROWSER_UA = (
 )
 EGRUL_URL = "https://egrul.nalog.ru/"
 RKN_URL = "https://pd.rkn.gov.ru/operators-registry/operators-list/"
+_ORG_NAME = re.compile(
+    r"общество|акционерн|компани|предприяти|учреждени|\b(?:ооо|ао|пао|зао|оао|нко)\b", re.I
+)
 
 
 def parse_ru_date(value: str | None) -> date | None:
@@ -55,6 +58,14 @@ class EgrulRecord:
         if not self.head:
             return None
         return self.head.split(":", 1)[-1].strip() or None
+
+    @property
+    def head_is_org(self) -> bool:
+        """The company is run by a managing company rather than a person."""
+        name = self.head_name or ""
+        return (
+            bool(_ORG_NAME.search(name)) or "управляющая организация" in (self.head or "").lower()
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {

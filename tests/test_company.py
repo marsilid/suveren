@@ -97,3 +97,28 @@ def test_company_html_renders():
     html = render_company_html(report)
     assert "РОМАШКА" in html
     assert "совпадение по названию" in html
+
+
+def test_managing_company_is_screened_as_an_organisation():
+    rec = record(head='Управляющая организация: ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "УК ВК"')
+    assert rec.head_is_org
+    report = CompanyReport(query="x", inn="7707083893", egrul=rec)
+    entry = Entry("eu", "1", "entity", ["UK VK"], [], "RUS")
+    report.person_hits = [Hit(entry, "name", "УК ВК")]
+    result = statuses(report)
+    assert result["Управляющая организация в санкционных списках"] is Status.FAIL
+    assert "Руководитель в санкционных списках" not in result
+
+
+def test_person_head_is_not_an_organisation():
+    assert not record().head_is_org
+
+
+def test_unreadable_site_is_unknown_not_a_violation():
+    report = CompanyReport(query="example.ru", domain="example.ru", site_problem="защита от ботов")
+    assert statuses(report)["Сайт и компания"] is Status.UNKNOWN
+
+
+def test_nothing_to_screen_is_not_ok():
+    report = CompanyReport(query="example.ru", domain="example.ru", site_problem="защита от ботов")
+    assert statuses(report)["Санкционные списки"] is Status.UNKNOWN

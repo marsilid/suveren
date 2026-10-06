@@ -82,7 +82,7 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         console.print("  [dim]Первая проверка скачивает санкционные списки (около 100 МБ).[/]")
         target = ask("ИНН, ОГРН или сайт компании")
         if target:
-            call("company", target)
+            call("company", target, "--browser")
 
     def diff() -> None:
         old = ask("Старый отчёт (JSON)")
