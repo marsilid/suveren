@@ -417,9 +417,9 @@ def _page() -> list[Service]:
         Service("Criteo", "FR", c.ADS, page=(r"static\.criteo\.net",)),
         Service("Рекламная сеть Яндекса", "RU", c.ADS, page=(r"an\.yandex\.ru", r"yandex\.ru/ads")),
         Service("Adfox", "RU", c.ADS, page=(r"ads\.adfox\.ru",)),
-        Service("AdRiver", "RU", c.ADS, page=(r"[\w.-]*adriver\.ru",)),
+        Service("AdRiver", "RU", c.ADS, page=(r"adriver\.ru",)),
         Service("VK Реклама", "RU", c.ADS, page=(r"ad\.mail\.ru", r"ads\.vk\.com")),
-        Service("МТС Ads", "RU", c.ADS, page=(r"[\w-]+\.a\.mts\.ru", r"ads\.mts\.ru")),
+        Service("МТС Ads", "RU", c.ADS, page=(r"\.a\.mts\.ru", r"ads\.mts\.ru")),
         # --- Site builders and CMS (Russian) ---------------------------------------------
         Service("1С-Битрикс", "RU", c.BUILDER, page=(r"/bitrix/(?:js|templates|cache)/",)),
         Service("Nethouse", "RU", c.BUILDER, page=(r"nethouse\.ru",)),
@@ -477,7 +477,7 @@ def _page() -> list[Service]:
             alternative="Удалить скрипт: современным браузерам полифиллы не нужны.",
         ),
         Service("Yandex CDN (yastatic)", "RU", c.JS_CDN, page=(r"yastatic\.net",)),
-        Service("Яндекс (прочие ресурсы)", "RU", c.JS_CDN, page=(r"[\w.-]+\.yandex\.net",)),
+        Service("Яндекс (прочие ресурсы)", "RU", c.JS_CDN, page=(r"\.yandex\.net",)),
         Service(
             "VK / Mail.ru (прочие ресурсы)",
             "RU",
@@ -485,8 +485,8 @@ def _page() -> list[Service]:
             # Static and SDK hosts only: plain links to vk.com or e.mail.ru are not resources.
             page=(
                 r"(?:st\d*|static|privacy-cs|img\d*|imgs\d*)\.mail\.ru",
-                r"[\w-]+\.userapi\.com",
-                r"[\w-]+\.okcdn\.ru",
+                r"\.userapi\.com",
+                r"\.okcdn\.ru",
                 r"(?:st|static|sun\d+-\d+)\.vk\.(?:com|ru)",
             ),
         ),

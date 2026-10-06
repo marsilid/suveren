@@ -61,6 +61,7 @@ app = typer.Typer(
 )
 console = Console(record=True)
 GRADE_ORDER = ("A", "B", "C", "D", "F")
+SITE_DEADLINE = 300  # seconds per site in batch
 
 
 class DnsChoice(str, Enum):
@@ -343,17 +344,22 @@ def batch(
 
         async def one(host: str) -> tuple[str, Report | None, str | None]:
             try:
-                report = await run_scan(
-                    host,
-                    timeout=timeout,
-                    compliance=not quick,
-                    blocklist=not quick,
-                    browser=browser,
-                    pages=pages,
+                # One stuck site must not hold up the whole list.
+                report = await asyncio.wait_for(
+                    run_scan(
+                        host,
+                        timeout=timeout,
+                        compliance=not quick,
+                        blocklist=not quick,
+                        browser=browser,
+                        pages=pages,
+                    ),
+                    SITE_DEADLINE,
                 )
-            except SuverenError as exc:
-                console.print(f"  [red]✗[/] {host:<32} [dim]{exc}[/]")
-                return host, None, str(exc)
+            except (SuverenError, TimeoutError) as exc:
+                reason = str(exc) or f"не уложилась в {SITE_DEADLINE // 60} мин"
+                console.print(f"  [red]✗[/] {host:<32} [dim]{reason}[/]")
+                return host, None, reason
             write_html(report, folder / f"{host}.html")
             write_json(report, folder / f"{host}.json")
             line = Text("  ")

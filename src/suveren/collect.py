@@ -29,6 +29,7 @@ USER_AGENT = (
 )
 RDAP_URL = "https://rdap.org/domain/{}"
 IANA_WHOIS = "whois.iana.org"
+NO_RDAP_ZONES = frozenset({"ru", "su", "xn--p1ai"})
 MAX_HTML_CHARS = 2_000_000
 MAX_HOSTS = 6
 
@@ -297,13 +298,15 @@ class Collector:
             await self._insecure.aclose()
 
     async def registrar(self, domain: str) -> str | None:
-        with contextlib.suppress(httpx.HTTPError, ValueError):
-            resp = await self.client.get(RDAP_URL.format(domain))
-            if resp.status_code == 200:
-                name = parse_rdap_registrar(resp.json())
-                if name:
-                    return name
         tld = domain.rsplit(".", 1)[-1]
+        # The .ru/.рф/.su registry has no RDAP: asking costs seconds for a 404.
+        if tld not in NO_RDAP_ZONES:
+            with contextlib.suppress(httpx.HTTPError, ValueError):
+                resp = await self.client.get(RDAP_URL.format(domain))
+                if resp.status_code == 200:
+                    name = parse_rdap_registrar(resp.json())
+                    if name:
+                        return name
         try:
             iana = await whois_query(IANA_WHOIS, tld, self.timeout)
             server = next(

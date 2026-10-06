@@ -16,6 +16,7 @@ type (NOERROR/NODATA or NXDOMAIN). Anything that prevents a trustworthy answer
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Literal
 
@@ -43,6 +44,9 @@ RR_TYPES = {
     "DNSKEY": 48,
     "CAA": 257,
 }
+HEALTH_TIMEOUT = 3.0
+_system_healthy: bool | None = None
+
 DOH_ENDPOINTS = ("https://dns.google/resolve", "https://cloudflare-dns.com/dns-query")
 
 
@@ -61,13 +65,14 @@ class DnsResolver(ABC):
         """False only on a definitive NXDOMAIN."""
 
     async def is_healthy(self) -> bool:
-        for name, rtype in _CANARIES:
+        async def probe(name: str, rtype: str) -> bool:
             try:
-                if not await self.resolve(name, rtype):
-                    return False
+                return bool(await self.resolve(name, rtype))
             except DnsLookupError:
                 return False
-        return True
+
+        results = await asyncio.gather(*(probe(n, t) for n, t in _CANARIES))
+        return all(results)
 
 
 class SystemResolver(DnsResolver):
@@ -169,7 +174,14 @@ async def create_resolver(
     if mode == "doh":
         return DohResolver(client), None
     system = SystemResolver(timeout)
-    if mode == "system" or await system.is_healthy():
+    if mode == "system":
+        return system, None
+    # The health probe can wait for a timeout on a filtering network, so its answer
+    # is remembered for the rest of the process (batch scans many sites in a row).
+    global _system_healthy
+    if _system_healthy is None:
+        _system_healthy = await SystemResolver(min(timeout, HEALTH_TIMEOUT)).is_healthy()
+    if _system_healthy:
         return system, None
     return DohResolver(client), (
         "The system DNS resolver returned incomplete answers (it looks filtered), "

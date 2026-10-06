@@ -182,3 +182,14 @@ def test_unknown_record_and_load(tmp_path, monkeypatch):
     assert data["a.io"]["sites"] == ["site1.ru", "site2.ru"]
     unknown.clear()
     assert unknown.load() == {}
+
+
+def test_page_patterns_are_fast_on_long_tokens():
+    r"""A pattern that starts with an unbounded character class (like [\w.-]*x) is
+    quadratic on minified JS and once hung a whole batch: keep every pattern linear."""
+    import time
+
+    html = "<script>var " + "a" * 50_000 + "=1;" + "b." * 20_000 + "</script>"
+    started = time.perf_counter()
+    db.scan_page(html)
+    assert time.perf_counter() - started < 1.0
