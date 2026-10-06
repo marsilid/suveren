@@ -79,6 +79,8 @@ class Facts:
     rendered: bool = False
     # Internal pages fetched besides the home page (contacts, order forms, ...).
     extra_pages: list[FetchedPage] = field(default_factory=list)
+    # Pages opened in the browser for later checks (the privacy policy), keyed by URL.
+    prefetched: dict[str, FetchedPage] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property

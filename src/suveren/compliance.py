@@ -13,14 +13,23 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from suveren.checks import GROUP_152, Check, Status
+from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import FetchedPage
 from suveren.discover import discover_inns
 from suveren.errors import ModuleError
 from suveren.models import Category, Dependency
 from suveren.page import Form, Link, Page, parse_page
 from suveren.registries import RknOperator, rkn_operator
+from suveren.utils import registrable_domain
 
-_POLICY_TEXT = re.compile(r"персональн|конфиденциальн|privacy|политик[аи] обработки", re.I)
+_PLATFORM_DOMAINS = frozenset(
+    {
+        "yandex.ru", "yandex.com", "ya.ru", "google.com", "google.ru", "vk.com", "vk.ru",
+        "mail.ru", "ok.ru", "apple.com", "microsoft.com", "facebook.com", "2gis.ru",
+        "jivo.ru", "jivosite.com", "cloudflare.com", "tilda.cc", "youtube.com",
+    }
+)  # fmt: skip
+_PD_PHRASE = re.compile(r"персональн\w* данн|обработк\w* (?:персональн|данн)", re.I)
 _POLICY_HREF = re.compile(r"privacy|polit|policy|konfiden|confiden|personal|pdn|152", re.I)
 # Fallback documents that often contain the personal-data section on big sites.
 _LEGAL_TEXT = re.compile(r"соглашени|правов|юридическ|оферт|условия использования|terms", re.I)
@@ -54,6 +63,8 @@ class PolicyInfo:
     error: str | None = None
     # Found inside a general legal document (user agreement) rather than a policy link.
     indirect_label: str | None = None
+    # The link works but the text could not be read (bot wall, JS shell).
+    unreadable: str | None = None
 
 
 @dataclass(slots=True)
@@ -95,28 +106,41 @@ def _mark_unverifiable(checks: list[Check], problem: str) -> None:
 
 
 def find_policy_link(links: list[Link], base: str) -> str | None:
-    """Best candidate for the privacy-policy link on the page."""
-    scored: list[tuple[int, str]] = []
+    """Best candidate for the privacy-policy link on the page.
+
+    The link text must be about personal data or privacy ("персональный ассистент"
+    is not), and the site's own policy beats a third party's (a map widget often
+    links to Yandex's policy).
+    """
+    site = registrable_domain(urlsplit(base).hostname or "")
+    scored: list[tuple[bool, int, str]] = []
     for link in links:
         href = link.href.strip()
         if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
             continue
-        score = 0
         text = link.text.lower()
-        if "персональн" in text:
+        score = 0
+        if _PD_PHRASE.search(text):
             score += 3
         if "конфиденциальн" in text or "privacy" in text:
             score += 2
-        if _POLICY_TEXT.search(text):
+        if "политик" in text or "policy" in text:
             score += 1
+        if score == 0:
+            continue  # the URL alone (/personal/, /premium/) is not evidence
         if _POLICY_HREF.search(href):
             score += 1
+        url = urljoin(base, href)
+        domain = registrable_domain(urlsplit(url).hostname or "")
+        own = domain == site
+        if not own and domain in _PLATFORM_DOMAINS:
+            continue  # a widget's own policy (Yandex Maps, Google) is not the site's
         if score >= 2:
-            scored.append((score, urljoin(base, href)))
+            scored.append((own, score, url))
     if not scored:
         return None
-    scored.sort(key=lambda item: -item[0])
-    return scored[0][1]
+    scored.sort(key=lambda item: (not item[0], -item[1]))
+    return scored[0][2]
 
 
 def find_legal_link(links: list[Link], base: str) -> tuple[str, str] | None:
@@ -229,11 +253,18 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 GROUP_152,
                 "Политика обработки персональных данных",
                 Status.OK,
-                "Политика опубликована" + (" (PDF)." if policy.is_pdf else "."),
+                "Политика опубликована"
+                + (
+                    " (PDF)."
+                    if policy.is_pdf
+                    else f", но прочитать текст не удалось: {policy.unreadable}."
+                    if policy.unreadable
+                    else "."
+                ),
                 link=policy.url,
             )
         )
-        if policy.fetched and not policy.is_pdf:
+        if policy.fetched and not policy.is_pdf and not policy.unreadable:
             checks.append(_policy_content(policy.text, bool(foreign_visitor)))
 
     # 2. Consent in forms.
@@ -507,20 +538,48 @@ def _operator_check(data: ComplianceInput) -> Check:
     )
 
 
-async def fetch_policy(client: httpx.AsyncClient, url: str) -> PolicyInfo:
+def policy_target(
+    page: Page, extras: list[tuple[str, Page]], base: str
+) -> tuple[str, str | None] | None:
+    """(URL, None) for a policy link, or (URL, link text) for a user agreement to fall
+    back on. The link may only be in an inner page's footer, so those are searched too."""
+    if not base:
+        return None
+    for url, candidate in [(base, page), *extras]:
+        found = find_policy_link(candidate.links, url)
+        if found:
+            return found, None
+    legal = find_legal_link(page.links, base)
+    return (legal[0], legal[1]) if legal else None
+
+
+async def fetch_policy(
+    client: httpx.AsyncClient, url: str, prefetched: FetchedPage | None = None
+) -> PolicyInfo:
     info = PolicyInfo(url=url)
-    try:
-        resp = await client.get(url)
-        resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        info.error = type(exc).__name__
+    if urlsplit(url).path.lower().endswith(".pdf"):
+        info.fetched = info.is_pdf = True
         return info
-    info.fetched = True
-    content_type = resp.headers.get("content-type", "")
-    if "pdf" in content_type or urlsplit(url).path.lower().endswith(".pdf"):
-        info.is_pdf = True
+    if prefetched is not None:
+        status, html, content_type = prefetched.status, prefetched.html, "text/html"
     else:
-        info.text = parse_page(resp.text[:3_000_000]).text
+        try:
+            resp = await client.get(url)
+        except httpx.HTTPError as exc:
+            info.error = type(exc).__name__
+            return info
+        status, html = resp.status_code, resp.text[:3_000_000]
+        content_type = resp.headers.get("content-type", "")
+    info.fetched = True
+    if "pdf" in content_type:
+        info.is_pdf = True
+        return info
+    # A bot wall or an empty shell is not the policy: don't judge its "content".
+    problem = detect_page_problem(status, html, rendered=prefetched is not None)
+    if problem:
+        info.unreadable = problem
+    else:
+        info.text = parse_page(html).text
     return info
 
 
@@ -531,22 +590,21 @@ async def run_compliance(
     deps: list[Dependency],
     page_problem: str | None = None,
     extra_pages: list[FetchedPage] | None = None,
+    prefetched: dict[str, FetchedPage] | None = None,
 ) -> list[Check]:
+    """``prefetched`` holds pages already opened in the browser (the policy), keyed by URL."""
     page = parse_page(html)
     data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
-    policy_url = find_policy_link(page.links, base) if base else None
-    for path, _, extra in data.extra:  # the link may only be in an inner page's footer
-        if policy_url:
-            break
-        policy_url = find_policy_link(extra.links, urljoin(base, path))
-    if policy_url:
-        data.policy = await fetch_policy(client, policy_url)
-    elif base and (legal := find_legal_link(page.links, base)):
-        doc = await fetch_policy(client, legal[0])
+    prefetched = prefetched or {}
+    target = policy_target(page, [(urljoin(base, p), pg) for p, _, pg in data.extra], base)
+    if target and target[1] is None:
+        data.policy = await fetch_policy(client, target[0], prefetched.get(target[0]))
+    elif target:
+        doc = await fetch_policy(client, target[0], prefetched.get(target[0]))
         if doc.fetched and "персональн" in doc.text.lower():
-            doc.indirect_label = legal[1][:60]
+            doc.indirect_label = target[1][:60]
             data.policy = doc
     if base:
         extra_text = " ".join([data.policy.text, *(h for _, h, _ in data.extra)])

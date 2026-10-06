@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TypeVar
+from urllib.parse import urljoin
 
 import httpx
 
@@ -16,13 +18,13 @@ from suveren.analyze import analyze
 from suveren.blocklist import run_blocklist
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import Facts, collect, make_client, page_problem
-from suveren.compliance import run_compliance
+from suveren.compliance import policy_target, run_compliance
 from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
 from suveren.dnsutil import ResolverMode
 from suveren.errors import ModuleError
 from suveren.models import Report
 from suveren.page import parse_page
-from suveren.render import BrowserSession
+from suveren.render import EXTRA_SETTLE_MS, BrowserSession
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -113,6 +115,7 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         report.dependencies,
         page_problem=facts.page_problem,
         extra_pages=facts.extra_pages,
+        prefetched=facts.prefetched,
     )
 
 
@@ -136,12 +139,24 @@ async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -
         home = await session.open(facts.final_url or f"https://{host}/")
         facts.final_url, facts.page_status, facts.html = home.final_url, home.status, home.html
         facts.loaded_urls, facts.rendered = home.requests, True
-        if pages and not facts.page_problem:
-            links = pick_links(parse_page(home.html), home.final_url, pages)
+        if facts.page_problem:
+            return
+        home_page = parse_page(home.html)
+        if pages:
+            links = pick_links(home_page, home.final_url, pages)
             rendered = await session.open_many(links)
             facts.extra_pages = _usable(
                 [FetchedPage(r.final_url, r.status, r.html, r.requests) for r in rendered]
             )
+        # Open the privacy policy here too: over plain HTTP it is often a bot wall.
+        extras = [(urljoin(home.final_url, p.path), parse_page(p.html)) for p in facts.extra_pages]
+        target = policy_target(home_page, extras, home.final_url)
+        if target and not target[0].lower().endswith(".pdf"):
+            with contextlib.suppress(ModuleError):
+                doc = await session.open(target[0], settle_ms=EXTRA_SETTLE_MS)
+                facts.prefetched[target[0]] = FetchedPage(
+                    doc.final_url, doc.status, doc.html, doc.requests
+                )
 
 
 async def gather_limited(jobs: list[Callable[[], Awaitable[T]]], limit: int) -> list[T]:

@@ -151,3 +151,18 @@ def test_checks_cite_the_law():
     assert policy.law == "152-ФЗ, ст. 18.1"
     assert policy.law_url.startswith("https://www.consultant.ru/")
     assert policy.to_dict()["law"] == "152-ФЗ, ст. 18.1"
+
+
+def test_policy_link_ignores_personal_products_and_prefers_own_site():
+    page = parse_page(
+        '<a href="/features/#personal">Персональный ассистент</a>'
+        '<a href="/premium/">Персональные занятия</a>'
+        '<a href="https://yandex.ru/legal/confidential/">Политика конфиденциальности Яндекса</a>'
+        '<a href="/privacy">Политика конфиденциальности</a>'
+    )
+    assert find_policy_link(page.links, BASE) == "https://example.ru/privacy"
+
+
+def test_policy_link_none_for_unrelated_personal_links():
+    page = parse_page('<a href="/personal/">Персональный менеджер</a>')
+    assert find_policy_link(page.links, BASE) is None

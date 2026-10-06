@@ -27,6 +27,7 @@ USER_AGENT = (
 )
 SETTLE_MS = 8000
 EXTRA_SETTLE_MS = 4000
+SCROLL_SETTLE_MS = 2500
 
 
 @dataclass(slots=True)
@@ -99,6 +100,11 @@ class BrowserSession:
             # Let late scripts (tag managers, chats, cookie banners) load.
             with contextlib.suppress(self._error):
                 await page.wait_for_load_state("networkidle", timeout=settle_ms)
+            # Many sites render the footer (policy link, company details) only when it
+            # scrolls into view.
+            with contextlib.suppress(self._error):
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_load_state("networkidle", timeout=SCROLL_SETTLE_MS)
             return Rendered(
                 final_url=page.url,
                 status=response.status if response else None,
