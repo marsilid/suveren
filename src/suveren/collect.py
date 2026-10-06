@@ -107,9 +107,10 @@ class Facts:
 
 
 _CHALLENGE = re.compile(
-    r"captcha|challenge|доступ ограничен|проверка безопасности|запрос отклонен|"
-    r"checking your browser|ddos-guard|servicepipe|qrator|antibot|are you a robot|"
-    r"не робот|enable javascript|включите javascript",
+    r"captcha|challenge|доступ ограничен|доступ запрещ|проверка безопасности|"
+    r"запрос отклонен|пройдите проверку|подтвердите, что вы|checking your browser|"
+    r"ddos-guard|servicepipe|qrator|antibot|are you a robot|не робот|access denied|"
+    r"enable javascript|включите javascript",
     re.I,
 )
 
@@ -117,11 +118,14 @@ _CHALLENGE = re.compile(
 def page_problem(status: int | None, html: str, *, rendered: bool = False) -> str | None:
     """Detect anti-bot pages and empty JavaScript shells that can't be analysed."""
     page = parse_page(html)
-    thin = len(page.links) < 3 and len(page.text) < 600
+    # Stub pages are short; they may still carry a phone number or a few links.
+    short = len(page.text) < 1500
+    thin = len(page.links) < 10 and len(page.text) < 600
+    challenge = short and bool(_CHALLENGE.search(html[:30000]))
     # A browser may pass a challenge that first answered 403/503: judge the content then.
-    if status is not None and status >= 400 and (thin or not rendered):
+    if status is not None and status >= 400 and (thin or challenge or not rendered):
         return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
-    if thin and _CHALLENGE.search(html[:20000]):
+    if challenge:
         return "сайт показал страницу проверки «вы не робот»"
     if thin:
         if rendered:

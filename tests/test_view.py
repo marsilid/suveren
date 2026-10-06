@@ -140,3 +140,11 @@ def test_builder_detection():
     tilda = next(d for d in deps if d.service == "Tilda")
     assert tilda.category is Category.BUILDER
     assert tilda.foreign
+
+
+def test_challenge_page_with_a_few_links_is_detected():
+    stub = "<p>Спортмастер 8-800-777-777-1 Пожалуйста, пройдите проверку.</p>" + "".join(
+        f'<a href="tel:{i}">{i}</a>' for i in range(4)
+    )
+    assert page_problem(401, stub, rendered=True) is not None
+    assert page_problem(200, stub, rendered=True) is not None
