@@ -312,3 +312,16 @@ def test_plural():
     ]
     one = web('<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>')
     assert "с 1 стороннего адреса (1 домен)" in websec.scripts_inventory(one).details
+
+
+def test_advice_names_only_what_is_missing():
+    only_report = csp_check(
+        web(headers={"content-security-policy-report-only": "default-src 'self'"})
+    )
+    assert "Режим наблюдения уже включён" in only_report.recommendation
+    assert "Начните с" in csp_check(web()).recommendation
+
+    frames_ok = headers_check(web(headers={"x-frame-options": "SAMEORIGIN"}))
+    assert frames_ok.recommendation == "Добавьте заголовок X-Content-Type-Options: nosniff."
+    both = headers_check(web())
+    assert both.recommendation.startswith("Добавьте заголовки X-Frame-Options")

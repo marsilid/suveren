@@ -421,7 +421,11 @@ def csp_check(w: WebFacts) -> Check:
             Status.WARN,
             "Заголовка Content-Security-Policy нет: если на сайт внедрят скрипт (через "
             "уязвимость или взломанный сторонний сервис), браузер его выполнит." + how,
-            "Начните с Content-Security-Policy-Report-Only, соберите список источников и "
+            "Режим наблюдения уже включён: разберите его отчёты о нарушениях и, когда "
+            "настоящие скрипты перестанут в них попадать, отправляйте ту же политику в "
+            "заголовке Content-Security-Policy."
+            if report_only
+            else "Начните с Content-Security-Policy-Report-Only, соберите список источников и "
             "включите политику со script-src без 'unsafe-inline' и object-src 'none'.",
         )
     problems = csp_weaknesses(policy)
@@ -467,14 +471,17 @@ def hsts_check(w: WebFacts) -> Check | None:
 def headers_check(w: WebFacts) -> Check:
     title = "Защитные заголовки"
     missing = []
+    fixes = []
     csp = parse_csp(w.headers.get("content-security-policy", ""))
     if "x-frame-options" not in w.headers and "frame-ancestors" not in csp:
         missing.append(
             "X-Frame-Options или frame-ancestors (сайт можно встроить в чужую страницу и "
             "обманом заставить нажать кнопку — кликджекинг)"
         )
+        fixes.append("X-Frame-Options: SAMEORIGIN (или CSP frame-ancestors 'self')")
     if w.headers.get("x-content-type-options", "").lower() != "nosniff":
         missing.append("X-Content-Type-Options: nosniff (браузер может принять файл за скрипт)")
+        fixes.append("X-Content-Type-Options: nosniff")
     if not missing:
         return Check(
             GROUP_WEB, title, Status.OK, "Защита от встраивания и подмены типа файлов есть."
@@ -484,8 +491,9 @@ def headers_check(w: WebFacts) -> Check:
         title,
         Status.WARN,
         "Нет: " + "; ".join(missing) + ".",
-        "Добавьте заголовки X-Frame-Options: SAMEORIGIN (или CSP frame-ancestors 'self') и "
-        "X-Content-Type-Options: nosniff.",
+        ("Добавьте заголовок " if len(fixes) == 1 else "Добавьте заголовки ")
+        + " и ".join(fixes)
+        + ".",
     )
 
 
