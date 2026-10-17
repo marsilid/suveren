@@ -36,4 +36,9 @@ def priorities(report: Report) -> list[Action]:
             actions.append(
                 Action(severity * 10, severity, first_sentence(c.recommendation), c.title)
             )
-    return sorted(actions, key=lambda a: -a.weight)
+    # Two checks may give the same advice (the mail verdict and the DMARC check both say
+    # "add DMARC"): keep the more urgent copy only.
+    unique: dict[str, Action] = {}
+    for a in sorted(actions, key=lambda a: -a.weight):
+        unique.setdefault(a.action, a)
+    return list(unique.values())

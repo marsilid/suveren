@@ -12,7 +12,7 @@
 
 </div>
 
-Suveren answers three questions:
+Suveren answers four questions:
 
 1. **What breaks if foreign providers cut you off?** It finds everything running on
    infrastructure outside Russia (DNS, mail, hosting, CDN, site builder, registrar, TLS
@@ -21,7 +21,9 @@ Suveren answers three questions:
 2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
    policy, consent in forms, cookie notice, cross-border transfer, data localisation, the
    Roskomnadzor register of personal-data operators and the Roskomnadzor block list.
-3. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
+3. **Can someone forge a letter from the company's domain?** SPF, DMARC, DKIM and MTA-STS
+   records, summed up as a plain verdict: yes, partly or no.
+4. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
    the company and its head against the US (OFAC SDN), EU and UK sanctions lists.
 
 The tool targets Russian businesses, so its interface and reports are in Russian.
@@ -55,6 +57,10 @@ On Windows you can also run `Suveren.bat`, which installs everything on first la
 - Each category with a foreign dependency yields one finding: high −20, medium −10, low −4.
   A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, otherwise F. A Russian server next to a foreign one in the
   same category lowers the risk one step.
+- The mail verdict follows what receivers enforce: DMARC `p=reject` means a forged From: is
+  rejected, `quarantine` or `pct` < 100 sends it to spam, `p=none` or no DMARC lets it through.
+  SPF is checked for a single record, `+all`/`?all` and the 10-lookup limit across all includes;
+  DKIM keys are looked up under common selectors and a miss is reported as "not verified".
 - `--browser` renders the home page with Playwright in the installed Edge or Chrome and counts
   every network request, so tag-manager-injected scripts are found too. Anti-bot stubs and empty
   JavaScript shells are detected and reported as "not verified" rather than as failures.
