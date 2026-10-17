@@ -218,3 +218,40 @@ def test_same_advice_is_listed_once():
     actions = [a.action for a in priorities(report)]
     assert len(actions) == len(set(actions))
     assert any("_dmarc.example.ru" in a for a in actions)
+
+
+def test_spf_includes_name_real_services():
+    from suveren.mailsec import SPF_INCLUDES
+    from suveren.services import ALL_SERVICES
+
+    names = {s.name for s in ALL_SERVICES}
+    assert set(SPF_INCLUDES) <= names
+
+
+@pytest.mark.parametrize(
+    ("mx", "expected"),
+    [
+        (["aspmx.l.google.com", "alt1.aspmx.l.google.com"], "include:_spf.google.com"),
+        (["mx.yandex.net"], "include:_spf.yandex.net"),
+        (["example-ru.mail.protection.outlook.com"], "include:spf.protection.outlook.com"),
+        (["mx.zoho.eu"], "include:zoho.eu"),
+        (["emx.mail.ru"], "include:_spf.mail.ru"),
+    ],
+)
+def test_spf_example_follows_the_mail_provider(mx, expected):
+    check = spf_check(facts(spf=SpfResult(None, 0), mx_hosts=mx))
+    assert expected in check.recommendation
+    if "yandex" not in expected:
+        assert "yandex" not in check.recommendation
+
+
+def test_spf_example_for_unknown_provider_is_generic():
+    check = spf_check(facts(spf=SpfResult(None, 0), mx_hosts=["mail.example.ru"]))
+    assert '"v=spf1 mx ~all"' in check.recommendation
+    assert "include:_spf" not in check.recommendation
+
+
+def test_collect_mail_keeps_mx_hosts_by_priority():
+    records = {("example.ru", "MX"): ["20 alt1.aspmx.l.google.com.", "10 aspmx.l.google.com."]}
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.mx_hosts == ["aspmx.l.google.com", "alt1.aspmx.l.google.com"]

@@ -17,7 +17,9 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from suveren import services as db
 from suveren.checks import Check, Status
+from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS
 
@@ -185,6 +187,49 @@ class MailFacts:
     dkim: list[str]  # selectors with a published key
     mta_sts: str | None = None  # policy mode: enforce / testing / none
     tls_rpt: bool = False
+    mx_hosts: list[str] = field(default_factory=list)  # by priority
+
+
+# What each mail provider asks to put in SPF; every name was checked to publish an SPF
+# record on 2026-10-17. Keys are service names from services.py, found by MX.
+SPF_INCLUDES = {
+    "Яндекс 360": "_spf.yandex.net",
+    "VK WorkSpace (Mail.ru)": "_spf.mail.ru",
+    "Google Workspace": "_spf.google.com",
+    "Microsoft 365": "spf.protection.outlook.com",
+    "Zoho Mail": "zoho.com",
+    "Timeweb": "_spf.timeweb.ru",
+    "Beget": "beget.com",
+    "REG.RU": "_spf.hosting.reg.ru",
+    "RU-CENTER": "_spf.nic.ru",
+    "Джино": "_spf.jino.ru",
+    "Хостлэнд": "_spf.hostland.ru",
+    "Proton Mail": "_spf.protonmail.ch",
+    "Fastmail": "spf.messagingengine.com",
+    "iCloud Mail": "icloud.com",
+    "Mailgun": "mailgun.org",
+    "SendGrid": "sendgrid.net",
+}
+
+
+def spf_example(m: MailFacts) -> str:
+    """An SPF record to start from, for the provider that receives the domain's mail."""
+    for host in m.mx_hosts:
+        service = db.by_mx(host)
+        include = SPF_INCLUDES.get(service.name) if service else None
+        if service and include:
+            if include == "zoho.com" and host.endswith(".eu"):
+                include = "zoho.eu"
+            return (
+                f'"v=spf1 include:{include} ~all": почта домена у {service.name}. Если письма '
+                "отправляют и другие сервисы (рассылки, CRM, сайт), добавьте их include: в ту "
+                "же запись"
+            )
+    return (
+        '"v=spf1 mx ~all", если письма отправляют те же серверы, что принимают почту, и '
+        "добавьте include: каждого сервиса, который отправляет письма от имени домена "
+        "(его даёт почтовый провайдер)"
+    )
 
 
 def _dmarc_hint(domain: str) -> str:
@@ -274,8 +319,7 @@ def spf_check(m: MailFacts) -> Check:
             Status.WARN if m.receives_mail else Status.FAIL,
             "SPF-записи нет: почтовые сервисы не знают, с каких серверов домен отправляет "
             "письма, и чаще отправляют настоящую почту в спам.",
-            f'Опубликуйте TXT-запись для {m.domain}, например "v=spf1 include:_spf.yandex.net '
-            '~all" для Яндекс 360 (подставьте своего почтового провайдера).'
+            f"Опубликуйте TXT-запись для {m.domain}, например {spf_example(m)}."
             if m.receives_mail
             else f'Опубликуйте для {m.domain} TXT-запись "v=spf1 -all": домен не отправляет почту.',
         )
@@ -485,6 +529,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         dmarc=parse_dmarc(dmarc_txt[0]) if len(dmarc_txt) == 1 else None,
         dmarc_count=len(dmarc_txt),
         dkim=[],
+        mx_hosts=parse_mx(mx),
     )
     if receives:
         facts.dkim = await _dkim(resolver, domain)
