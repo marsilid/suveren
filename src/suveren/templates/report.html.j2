@@ -62,11 +62,11 @@
   <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
   {% if fines and group.startswith("Персональные") %}
   <div class="card fines">
-    {% if fines.certain %}
+    {% if fines.counted %}
     <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
-    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма по явным нарушениям ниже, по одной статье на каждое.</p>
+    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую.</p>
     {% else %}
-    <h3>Явных нарушений со штрафом не найдено</h3>
+    <h3>Проблем, за которые есть штраф, не найдено</h3>
     <p class="muted-sum">Есть признаки, за которые штраф возможен в зависимости от обстоятельств.</p>
     {% endif %}
     <div class="table-wrap">
@@ -74,8 +74,8 @@
       <thead><tr><th>Нарушение</th><th>Статья</th><th>Юрлицо</th><th>ИП</th><th>Должностное лицо</th><th>Повторно, юрлицо</th></tr></thead>
       <tbody>
       {% for i in fines.items %}
-        <tr{% if not i.certain %} class="possible"{% endif %}>
-          <td>{{ i.title }}{% if not i.certain %}<br><small>возможно, не входит в сумму</small>{% endif %}</td>
+        <tr{% if not i.counted %} class="possible"{% endif %}>
+          <td>{{ i.title }}{% if i.note %}<br><small>{{ i.note }}</small>{% endif %}{% if not i.counted %}<br><small>«внимание»: не входит в сумму</small>{% endif %}</td>
           <td><a href="{{ i.fine.url }}" target="_blank" rel="noopener">{{ i.fine.article }}</a></td>
           <td>{{ i.fine.legal | span }}</td>
           <td>{{ i.fine.sole_trader | span }}</td>

@@ -120,15 +120,17 @@ def summary_panel(report: Report) -> Panel:
 
 def fines_line(fines: FineEstimate) -> Text:
     """One line with the total, as the backlog asks; details are in the HTML report."""
-    text = Text(" ₽  ", style="bold red" if fines.certain else "dim")
-    if fines.certain:
+    text = Text(" ₽  ", style="bold red" if fines.counted else "dim")
+    if fines.counted:
         text.append(f"Потенциальные штрафы: до {rub(fines.total('legal'))} для юрлица", "bold")
-        text.append(f" ({len(fines.certain)} наруш.", "dim")
-        if fines.possible:
-            text.append(f", ещё {len(fines.possible)} возможных не входят в сумму", "dim")
+        text.append(f" (статей: {len(fines.counted)}", "dim")
+        if fines.listed:
+            text.append(f"; ещё {len(fines.listed)} по предупреждениям не в сумме", "dim")
         text.append(")", "dim")
     else:
-        text.append(f"Возможные штрафы по {len(fines.possible)} признакам, явных нарушений нет")
+        text.append(
+            f"Штраф возможен по {len(fines.listed)} предупреждениям, проблем со штрафом нет"
+        )
     text.append(". Оценка максимального риска, не юридическое заключение.", "dim")
     return text
 

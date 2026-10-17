@@ -20,20 +20,23 @@ VIOLATIONS = [
 ]
 
 
-def test_total_counts_only_certain_violations():
+def test_total_counts_problems_and_lists_warnings():
     fines = estimate(VIOLATIONS)
-    assert [i.fine.article for i in fines.certain] == [
+    assert [i.fine.article for i in fines.counted] == [
         "КоАП, ст. 13.11 ч. 3",
         "КоАП, ст. 13.11 ч. 8",
         "КоАП, ст. 13.55",
-    ]
-    assert [i.fine.article for i in fines.possible] == [
         "КоАП, ст. 13.11 ч. 1",
-        "КоАП, ст. 13.11 ч. 10",
     ]
-    assert fines.total("legal") == 60_000 + 6_000_000 + 700_000
+    assert [i.fine.article for i in fines.listed] == ["КоАП, ст. 13.11 ч. 10"]
+    assert fines.total("legal") == 60_000 + 6_000_000 + 700_000 + 300_000
     # A sole trader: named in ч. 3, otherwise fined as an official (note to ст. 2.4).
-    assert fines.total("sole_trader") == 20_000 + 200_000 + 50_000
+    assert fines.total("sole_trader") == 20_000 + 200_000 + 50_000 + 100_000
+    by_title = {i.title: i for i in fines.items}
+    assert (
+        by_title["Согласие на обработку в формах"].note == "если для этой обработки нужно согласие"
+    )
+    assert by_title["Политика обработки персональных данных"].note is None
 
 
 def test_ok_unknown_and_warnings_without_a_rule_add_nothing():
@@ -71,7 +74,8 @@ def test_rub_format():
 def test_json_has_total_items_and_disclaimer():
     report = Report("example.ru", checks=list(VIOLATIONS))
     data = report.to_dict()["fines"]
-    assert data["total_max_legal_entity"] == 6_760_000
+    assert data["total_max_legal_entity"] == 7_060_000
+    assert data["items"][-1]["counted"] is False
     assert len(data["items"]) == 5
     assert data["items"][0]["url"].startswith("https://www.consultant.ru/")
     assert data["disclaimer"] == DISCLAIMER
@@ -80,8 +84,9 @@ def test_json_has_total_items_and_disclaimer():
 
 def test_html_block_above_personal_data_section():
     html = render_html(Report("example.ru", checks=list(VIOLATIONS)))
-    assert "Потенциальные штрафы: до 6,76 млн ₽ для юрлица" in html
-    assert "возможно, не входит в сумму" in html
+    assert "Потенциальные штрафы: до 7,06 млн ₽ для юрлица" in html
+    assert "«внимание»: не входит в сумму" in html
+    assert "если для этой обработки нужно согласие" in html
     assert "не юридическое заключение" in html
     assert html.index("Потенциальные штрафы") > html.index("Персональные данные (152-ФЗ)")
 
@@ -90,6 +95,6 @@ def test_terminal_line():
     console = Console(record=True, width=200)
     console.print(fines_line(estimate(VIOLATIONS)))
     out = console.export_text()
-    assert "до 6,76 млн ₽ для юрлица" in out
-    assert "ещё 2 возможных не входят в сумму" in out
+    assert "до 7,06 млн ₽ для юрлица" in out
+    assert "ещё 1 по предупреждениям не в сумме" in out
     assert "не юридическое заключение" in out

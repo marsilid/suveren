@@ -232,3 +232,35 @@ def test_login_page_url_drops_return_and_tracking_parameters():
     assert find_login_page(page, BASE) == "https://my.example.ru/sign?tcb=1"
     keep = parse_page('<a href="/account/login?role=applicant&amp;backurl=%2F">Войти</a>')
     assert find_login_page(keep, BASE) == "https://example.ru/account/login?role=applicant"
+
+
+def test_sign_in_page_behind_a_bot_wall_is_not_checked():
+    check = login_check([], ["главная"], blocked=("my.example.ru/sign", "защита от ботов"))
+    assert check.status is Status.UNKNOWN
+    assert "my.example.ru/sign" in check.details
+
+
+def test_run_compliance_tells_a_bot_wall_from_a_sign_in_page():
+    home = '<a href="/">Главная</a><a href="/sign">Войти</a>' + "<p>текст</p>" * 200
+    wall = (
+        "<p>Вы не робот? Мы зарегистрировали подозрительный трафик.</p>"
+        '<form action="/verify"><input type="hidden" name="r"><input type="submit"></form>'
+    )
+
+    def handler(request):
+        if request.url.path == "/sign":
+            return httpx.Response(302, headers={"location": "https://example.ru/verify?u=%2Fsign"})
+        if request.url.path == "/verify":
+            return httpx.Response(200, html=wall)
+        return httpx.Response(404)
+
+    async def go():
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=True) as client:
+            return await run_compliance(client, BASE, home, [])
+
+    checks = asyncio.run(go())
+    login = next(c for c in checks if c.group == GROUP_LAWS)
+    assert login.status is Status.UNKNOWN
+    policy = next(c for c in checks if c.title == "Политика обработки персональных данных")
+    assert "Страница входа (/sign) не открылась" in policy.details

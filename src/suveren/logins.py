@@ -438,9 +438,11 @@ def login_check(
     pages: list[str],
     problem: str | None = None,
     shell: str | None = None,
+    blocked: tuple[str, str] | None = None,
 ) -> Check:
     """One verdict for the site. ``pages`` are the paths looked at, home page first;
-    ``shell`` is the sign-in page if its content is drawn by scripts."""
+    ``shell`` is the sign-in page if its content is drawn by scripts; ``blocked`` is
+    (where, why) if it answered with a bot wall."""
     russian = list(dict.fromkeys(e.provider for e in evidence if not e.foreign))
     allowed = f" Вход через {', '.join(russian)} разрешён." if russian else ""
     by_provider: dict[str, list[LoginEvidence]] = {}
@@ -481,6 +483,17 @@ def login_check(
             law=LAW,
         )
     where = ", ".join(pages[:6]) + (" и др." if len(pages) > 6 else "")
+    if blocked:
+        # The buttons are usually on the sign-in page itself: without it, no verdict.
+        return Check(
+            GROUP_LAWS,
+            TITLE,
+            Status.UNKNOWN,
+            f"Не проверено: страница входа ({blocked[0]}) не открылась — {blocked[1]}. "
+            f"На остальных страницах ({where}) входа через иностранные сервисы нет.{allowed}",
+            "Откройте страницу входа сами и посмотрите, какие способы входа там есть.",
+            law=LAW,
+        )
     return Check(
         GROUP_LAWS,
         TITLE,

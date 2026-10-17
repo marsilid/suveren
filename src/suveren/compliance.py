@@ -13,6 +13,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 import httpx
 
 from suveren.checks import GROUP_152, Check, Status
+from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage
 from suveren.discover import discover_inns
@@ -97,6 +98,8 @@ class ComplianceInput:
     extra: list[tuple[str, str, Page]] = field(default_factory=list)
     # The sign-in page, if found: (where, parsed page).
     login: tuple[str, Page] | None = None
+    # The sign-in page answered with a bot wall: (where, why).
+    login_blocked: tuple[str, str] | None = None
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -237,7 +240,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Политика обработки персональных данных",
                 Status.FAIL,
                 "На проверенных страницах нет ссылки на политику обработки персональных данных. "
-                "Если подвал сайта подгружается скриптом, проверьте вручную.",
+                "Если подвал сайта подгружается скриптом, проверьте вручную."
+                + (
+                    f" Страница входа ({data.login_blocked[0]}) не открылась: "
+                    f"{data.login_blocked[1]}, а ссылка бывает только там."
+                    if data.login_blocked
+                    else ""
+                ),
                 "Опубликуйте политику и поставьте ссылку на неё в подвале сайта и рядом с каждой "
                 "формой (152-ФЗ, ст. 18.1 ч. 2).",
             )
@@ -664,9 +673,19 @@ async def _login_page(
     if not url or urlsplit(url).path in {p for p, _, _ in data.extra}:
         return None
     doc = prefetched.get(url) or await _fetch_html(client, url)
-    # A sign-in page is short by nature, and often has a captcha: only an error
-    # answer means it wasn't seen. Its buttons may still be drawn by a script.
-    return doc if doc and (doc.status or 200) < 400 else None
+    if doc is None:
+        return None
+    # A sign-in page is short by nature and often has a captcha, so a bot wall is
+    # told apart by having no field to type a login into (drom.ru redirects to /verify).
+    wall = bot_wall(doc.status, doc.html)
+    fields = {i.type for f in parse_page(doc.html).forms for i in f.inputs}
+    if (doc.status or 200) >= 400 or (wall and not fields & _LOGIN_FIELDS):
+        data.login_blocked = (_where(url, base), wall or f"ответ {doc.status}")
+        return None
+    return doc
+
+
+_LOGIN_FIELDS = frozenset({"text", "email", "tel", "password"})
 
 
 def _foreign_login(
@@ -697,7 +716,7 @@ def _foreign_login(
         pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
         if not doc.loaded_urls and len(login_page.text) < 300:
             shell = where
-    return login_check(evidence, pages, data.page_problem, shell)
+    return login_check(evidence, pages, data.page_problem, shell, data.login_blocked)
 
 
 def _where(url: str, base: str) -> str:

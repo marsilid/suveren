@@ -10,10 +10,10 @@ against the consolidated text as amended on 04.08.2026:
   names sole traders separately:
   https://www.consultant.ru/document/cons_doc_LAW_34661/de33c73dc4e364406642dc44f280f59154201a2e/
 
-Only problems ("fail") that match one part of an article go into the total. A
-warning, or a problem whose legal qualification depends on facts Suveren can't see
-(was consent needed at all? is the company exempt from notifying?), is listed as
-"possible" with its article, and is not added up.
+Every problem ("fail") that matches a part of an article goes into the total, one
+article counted once. Where the qualification depends on facts Suveren can't see
+(was consent needed at all?), the row says so. A warning with an article is listed
+and not added up; "not checked" is never counted.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ from suveren.checks import Check, Status
 
 DISCLAIMER = (
     "Оценка максимального риска по найденным признакам, а не юридическое заключение. "
-    "Размер штрафа назначает суд или Роскомнадзор с учётом обстоятельств; в сумму входят "
-    "только явные проблемы, по одной статье на нарушение."
+    "Размер штрафа назначает суд или Роскомнадзор с учётом обстоятельств. В сумму входят "
+    "найденные проблемы, по одной статье на нарушение; «внимание» и «не проверено» — нет."
 )
 CHECKED = "2026-10-17"
 
@@ -98,17 +98,29 @@ FOREIGN_SIGN_IN = Fine(
     citizen=(10_000, 20_000),
 )
 
-# (check title, status) -> (fine, certain). "certain" means the finding itself is
-# the offence described by that part; otherwise it is a possible qualification.
-RULES: dict[tuple[str, Status], tuple[Fine, bool]] = {
-    ("Политика обработки персональных данных", Status.FAIL): (POLICY_NOT_PUBLISHED, True),
-    ("Хранение данных в России", Status.FAIL): (LOCALISATION, True),
-    ("Вход через иностранные сервисы", Status.FAIL): (FOREIGN_SIGN_IN, True),
+# (check title, status) -> (fine, note). The note says when the finding is not by
+# itself the offence that part describes.
+RULES: dict[tuple[str, Status], tuple[Fine, str | None]] = {
+    ("Политика обработки персональных данных", Status.FAIL): (POLICY_NOT_PUBLISHED, None),
+    ("Хранение данных в России", Status.FAIL): (
+        LOCALISATION,
+        "если заявки с сайта хранятся на этом сервере",
+    ),
+    ("Вход через иностранные сервисы", Status.FAIL): (
+        FOREIGN_SIGN_IN,
+        "если владелец сайта — российская компания или гражданин",
+    ),
     # A lead form may be processed without consent to answer the request (152-ФЗ,
     # ст. 6 ч. 1 п. 5), so missing consent is not always an offence.
-    ("Согласие на обработку в формах", Status.FAIL): (UNLAWFUL_PROCESSING, False),
+    ("Согласие на обработку в формах", Status.FAIL): (
+        UNLAWFUL_PROCESSING,
+        "если для этой обработки нужно согласие",
+    ),
     # Some operators may process data without notifying (152-ФЗ, ст. 22 ч. 2).
-    ("Реестр операторов персональных данных", Status.WARN): (NO_NOTIFICATION, False),
+    ("Реестр операторов персональных данных", Status.WARN): (
+        NO_NOTIFICATION,
+        "если компания не освобождена от уведомления",
+    ),
 }
 
 
@@ -116,7 +128,8 @@ RULES: dict[tuple[str, Status], tuple[Fine, bool]] = {
 class FineItem:
     title: str
     fine: Fine
-    certain: bool
+    note: str | None
+    counted: bool  # a problem ("fail"): goes into the total
 
     def to_dict(self) -> dict[str, Any]:
         f = self.fine
@@ -124,7 +137,8 @@ class FineItem:
             "check": self.title,
             "article": f.article,
             "url": f.url,
-            "certain": self.certain,
+            "counted": self.counted,
+            "condition": self.note,
             "legal_entity": list(f.legal),
             "official": list(f.official),
             "sole_trader": list(f.sole_trader),
@@ -138,17 +152,18 @@ class FineEstimate:
     items: tuple[FineItem, ...]
 
     @property
-    def certain(self) -> list[FineItem]:
-        return [i for i in self.items if i.certain]
+    def counted(self) -> list[FineItem]:
+        return [i for i in self.items if i.counted]
 
     @property
-    def possible(self) -> list[FineItem]:
-        return [i for i in self.items if not i.certain]
+    def listed(self) -> list[FineItem]:
+        """Warnings with an article: shown, not added up."""
+        return [i for i in self.items if not i.counted]
 
     def total(self, who: str = "legal") -> int:
-        """Sum of the maximum fines for the certain items. ``who``: legal, sole_trader,
+        """Sum of the maximum fines for the problems. ``who``: legal, sole_trader,
         official or citizen."""
-        return sum(getattr(i.fine, who)[1] for i in self.certain)
+        return sum(getattr(i.fine, who)[1] for i in self.counted)
 
     def __bool__(self) -> bool:
         return bool(self.items)
@@ -170,7 +185,7 @@ def estimate(checks: list[Check]) -> FineEstimate:
         rule = RULES.get((check.title, check.status))
         if rule and rule[0].article not in seen:
             seen.add(rule[0].article)
-            items.append(FineItem(check.title, *rule))
+            items.append(FineItem(check.title, rule[0], rule[1], check.status is Status.FAIL))
     return FineEstimate(tuple(items))
 
 
