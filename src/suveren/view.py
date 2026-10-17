@@ -9,7 +9,8 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren.advice import priorities
-from suveren.checks import Check, Status
+from suveren.checks import GROUP_152, GROUP_LAWS, Check, Status
+from suveren.fines import FineEstimate, rub
 from suveren.models import Report, Severity
 from suveren.utils import country_name
 
@@ -117,6 +118,21 @@ def summary_panel(report: Report) -> Panel:
     )
 
 
+def fines_line(fines: FineEstimate) -> Text:
+    """One line with the total, as the backlog asks; details are in the HTML report."""
+    text = Text(" ₽  ", style="bold red" if fines.certain else "dim")
+    if fines.certain:
+        text.append(f"Потенциальные штрафы: до {rub(fines.total('legal'))} для юрлица", "bold")
+        text.append(f" ({len(fines.certain)} наруш.", "dim")
+        if fines.possible:
+            text.append(f", ещё {len(fines.possible)} возможных не входят в сумму", "dim")
+        text.append(")", "dim")
+    else:
+        text.append(f"Возможные штрафы по {len(fines.possible)} признакам, явных нарушений нет")
+    text.append(". Оценка максимального риска, не юридическое заключение.", "dim")
+    return text
+
+
 def section(console: Console, title: str) -> None:
     console.print()
     console.print(Text(title.upper(), style="bold"))
@@ -163,9 +179,14 @@ def print_scan(console: Console, report: Report, *, details: bool = False) -> No
             )
         console.print(table)
 
+    fines = report.fines
+    # The total goes under the last of the law sections it is counted from.
+    law_groups = [g for g, _ in report.check_groups if g in (GROUP_152, GROUP_LAWS)]
     for group, items in report.check_groups:
         section(console, group)
         print_checks(console, items)
+        if fines and law_groups and group == law_groups[-1]:
+            console.print(fines_line(fines))
 
     if details:
         section(console, "Все найденные сервисы")

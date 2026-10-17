@@ -9,6 +9,7 @@ from enum import Enum, IntEnum
 from typing import Any
 
 from suveren.checks import Check
+from suveren.fines import FineEstimate, estimate
 from suveren.utils import country_name
 
 
@@ -311,6 +312,11 @@ class Report:
         return list(groups.items())
 
     @property
+    def fines(self) -> FineEstimate:
+        """Fines for what the checks found: the maximum risk, not legal advice."""
+        return estimate(self.checks)
+
+    @property
     def score(self) -> int:
         return max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
 
@@ -357,6 +363,7 @@ class Report:
             "findings": [f.to_dict() for f in self.sorted_findings()],
             "dependencies": [d.to_dict() for d in self.dependencies],
             "checks": [c.to_dict() for c in self.checks],
+            "fines": self.fines.to_dict() if self.fines else None,
             "facts": self.facts,
             "notes": self.notes,
         }

@@ -57,8 +57,38 @@
   <p class="empty">Иностранных зависимостей не найдено.</p>
   {% endfor %}
 
+  {% set fines = report.fines %}
   {% for group, items in report.check_groups %}
   <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
+  {% if fines and group.startswith("Персональные") %}
+  <div class="card fines">
+    {% if fines.certain %}
+    <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
+    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма по явным нарушениям ниже, по одной статье на каждое.</p>
+    {% else %}
+    <h3>Явных нарушений со штрафом не найдено</h3>
+    <p class="muted-sum">Есть признаки, за которые штраф возможен в зависимости от обстоятельств.</p>
+    {% endif %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Нарушение</th><th>Статья</th><th>Юрлицо</th><th>ИП</th><th>Должностное лицо</th><th>Повторно, юрлицо</th></tr></thead>
+      <tbody>
+      {% for i in fines.items %}
+        <tr{% if not i.certain %} class="possible"{% endif %}>
+          <td>{{ i.title }}{% if not i.certain %}<br><small>возможно, не входит в сумму</small>{% endif %}</td>
+          <td><a href="{{ i.fine.url }}" target="_blank" rel="noopener">{{ i.fine.article }}</a></td>
+          <td>{{ i.fine.legal | span }}</td>
+          <td>{{ i.fine.sole_trader | span }}</td>
+          <td>{{ i.fine.official | span }}</td>
+          <td>{% if i.fine.repeat_legal %}{{ i.fine.repeat_legal | span }} ({{ i.fine.repeat_article }}){% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted-sum">{{ fines_disclaimer }}</p>
+  </div>
+  {% endif %}
   {% if group.startswith("Персональные") or group.startswith("Другие требования") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
   <div class="card checks">
     {% for c in items %}

@@ -12,6 +12,7 @@ from suveren import __version__
 from suveren.advice import priorities
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
+from suveren.fines import DISCLAIMER, rub, span
 from suveren.models import Category, Report
 from suveren.sanctions import SOURCE_TITLES
 from suveren.utils import country_name
@@ -30,12 +31,16 @@ def country_bars(report: Report) -> list[dict[str, object]]:
 
 
 def _environment() -> Environment:
-    return Environment(
+    env = Environment(
         loader=PackageLoader("suveren", "templates"),
         autoescape=select_autoescape(["html", "j2"]),
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["rub"] = rub
+    env.filters["span"] = span
+    env.globals["fines_disclaimer"] = DISCLAIMER
+    return env
 
 
 def render_html(report: Report) -> str:

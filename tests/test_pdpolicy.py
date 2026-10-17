@@ -209,7 +209,7 @@ def test_policy_link_and_bundled_consent_on_the_sign_in_page():
     assert policy.link == "https://my.example.ru/help/personal_data"
     consent = find(checks, CONSENT_TITLE)
     assert consent.status is Status.WARN
-    assert "вход, my.example.ru/sign" in consent.details
+    assert "на странице входа (my.example.ru/sign)" in consent.details
 
 
 def test_bundled_consent_in_page_text_without_full_stops():

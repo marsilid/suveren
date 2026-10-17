@@ -511,7 +511,7 @@ def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Ch
     if data.login:
         quote = bundled_in_text(data.login[1].text)
         if quote:
-            findings.append(ConsentFinding(f"вход, {data.login[0]}", quote, "form"))
+            findings.append(ConsentFinding(data.login[0], quote, "page"))
     policy = data.policy
     if policy.text:
         quote = implied_in_document(policy.text)

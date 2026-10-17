@@ -202,7 +202,8 @@ _IMPLIED = (
 class ConsentFinding:
     where: str
     quote: str
-    kind: str  # "form": consent and another document in one statement; "doc": implied
+    # "form" or "page": consent and another document in one statement; "doc": implied.
+    kind: str
 
 
 def _quote(sentence: str, limit: int = 160) -> str:
@@ -231,8 +232,14 @@ def bundled_in_text(text: str) -> str | None:
         start = max(low.rfind(".", 0, match.start()) + 1, match.start() - 160)
         end = low.find(".", match.end())
         end = len(low) if end < 0 else min(end, match.end() + 160)
-        if _OTHER_DOC.search(low[start:end]):
-            return _quote(original[start:end].strip())
+        other = _OTHER_DOC.search(low, start, end)
+        if other:
+            # Quote from a few words before the first of the two phrases, not from
+            # the menu items that happen to precede it.
+            first = min(other.start(), match.start())
+            cut = low.rfind(" ", start, max(start, first - 30))
+            begin = cut + 1 if cut >= 0 else start
+            return _quote(original[begin:end].strip())
     return None
 
 
@@ -276,15 +283,12 @@ def consent_check(findings: list[ConsentFinding], separate: str | None, forms: i
     )
     if findings:
         shown = findings[:2]
-        parts = [
-            (
-                f"в форме ({f.where}) согласие дают вместе с принятием другого документа: "
-                if f.kind == "form"
-                else f"в документе ({f.where}) согласием считается само действие посетителя: "
-            )
-            + f"«{f.quote}»"
-            for f in shown
-        ]
+        intro = {
+            "form": "в форме ({}) согласие дают вместе с принятием другого документа",
+            "page": "на странице входа ({}) согласие дают вместе с принятием другого документа",
+            "doc": "в документе ({}) согласием считается само действие посетителя",
+        }
+        parts = [f"{intro[f.kind].format(f.where)}: «{f.quote}»" for f in shown]
         return Check(
             GROUP_152,
             CONSENT_TITLE,

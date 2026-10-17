@@ -124,6 +124,7 @@ def test_batch_outputs(tmp_path):
     row = batch_row(report)
     assert row["domain"] == "example.ru"
     assert row["pd_fail"] == 1
+    assert isinstance(row["fines_max"], int)
     index = write_batch_html([report], [("bad.ru", "NXDOMAIN")], tmp_path / "index.html")
     html = index.read_text(encoding="utf-8")
     assert 'href="example.ru.html"' in html

@@ -26,6 +26,10 @@ Suveren answers six questions:
    2023 Russian sites may authorise users in Russia only by a Russian phone number, Gosuslugi,
    the biometric system or Russian-owned providers (Federal Law 149-FZ, art. 8 part 10), and
    since 7 July 2026 this is fined under art. 13.55 of the Code of Administrative Offences.
+   Above the 152-FZ section the report estimates the maximum fines (Code of Administrative
+   Offences, art. 13.11 and 13.55) for the problems found, per legal entity, sole trader and
+   official; possible offences are listed but not added up. It is an estimate of the maximum
+   risk, not legal advice; JSON has it in the `fines` field.
 3. **Can someone forge a letter from the company's domain?** SPF, DMARC, DKIM and MTA-STS
    records, summed up as a plain verdict: yes, partly or no.
 4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate

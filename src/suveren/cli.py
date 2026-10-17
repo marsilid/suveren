@@ -315,6 +315,7 @@ def batch_row(report: Report) -> dict[str, object]:
         "pd_fail": count(GROUP_152, Status.FAIL),
         "pd_warn": count(GROUP_152, Status.WARN),
         "blocked": count(GROUP_BLOCK, Status.FAIL) > 0,
+        "fines_max": report.fines.total(),
         "top_risks": "; ".join(f.title for f in report.sorted_findings()[:3]),
     }
 
