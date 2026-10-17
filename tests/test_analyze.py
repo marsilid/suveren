@@ -107,3 +107,26 @@ def test_report_json_and_html_render():
     html = render_html(report)
     assert "Google Workspace" in html
     assert "Яндекс 360" in html  # mail alternatives are rendered
+
+
+def test_own_network_is_recognised():
+    from suveren.analyze import own_network
+
+    assert own_network(NetInfo("1.1.1.1", 64500, "Habr Europe OU", "EE"), "habr.com")
+    assert own_network(NetInfo("1.1.1.1", 64500, "OOO Habr", "RU"), "habr.com")
+    # Generic or short names, and other companies, are not the site's own network.
+    assert not own_network(NetInfo("1.1.1.1", 13335, "CLOUDFLARENET", "US"), "cloud.ru")
+    assert not own_network(NetInfo("1.1.1.1", 64501, "CLOUD.DOG OU", "EE"), "cloud.ru")
+    assert not own_network(NetInfo("1.1.1.1", 24940, "Hetzner Online GmbH", "DE"), "habr.com")
+    assert not own_network(NetInfo("1.1.1.1", 64502, "VK", "RU"), "vk.com")
+
+
+def test_own_mail_servers_are_a_low_risk_not_a_vendor():
+    own = NetInfo("5.5.5.5", 64500, "Habr Europe OU", "EE")
+    report = analyze(
+        make_facts(host="habr.com", domain="habr.com", mx=[HostInfo("mxs.habramail.net", own)])
+    )
+    mail = finding(report, Category.MAIL)
+    assert mail.severity is Severity.LOW
+    assert "Собственная сеть (Habr Europe OU)" in mail.title
+    assert "собственная сеть компании" in mail.description
