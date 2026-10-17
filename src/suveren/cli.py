@@ -675,10 +675,17 @@ def unknown_cmd(
 @app.command()
 def doctor(
     timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 20.0,
+    abroad: Annotated[
+        bool,
+        typer.Option(
+            "--abroad",
+            help="Запуск не из России: если ЕГРЮЛ или реестр РКН не отвечают, это не ошибка.",
+        ),
+    ] = False,
 ) -> None:
     """Проверить, что все источники данных доступны и отвечают как ожидается."""
     with _spinner("[dim]Проверяю источники данных…[/]"):
-        probes = asyncio.run(run_doctor(timeout))
+        probes = asyncio.run(run_doctor(timeout, abroad=abroad))
     table = Table(box=None, show_header=False, padding=(0, 1))
     table.add_column(no_wrap=True)
     table.add_column(no_wrap=True)
