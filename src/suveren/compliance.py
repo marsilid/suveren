@@ -16,7 +16,7 @@ from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage
-from suveren.discover import discover_inns
+from suveren.discover import discover_inns, is_requisites_path
 from suveren.errors import ModuleError
 from suveren.logins import (
     LoginEvidence,
@@ -652,7 +652,8 @@ async def run_compliance(
             doc.indirect_label = target[1][:60]
             data.policy = doc
     if base:
-        extra_text = " ".join([data.policy.text, *(h for _, h, _ in data.extra)])
+        own = [h for path, h, _ in data.extra if is_requisites_path(path)]
+        extra_text = " ".join([data.policy.text, *own])
         data.inns, _ = await discover_inns(client, base, html, extra_text)
     if data.inns:
         try:

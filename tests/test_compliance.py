@@ -9,7 +9,7 @@ from suveren.compliance import (
     has_cookie_notice,
     pd_forms,
 )
-from suveren.discover import contact_links
+from suveren.discover import contact_links, is_requisites_path
 from suveren.models import Category, Dependency, Severity
 from suveren.page import parse_page
 from suveren.registries import RknOperator
@@ -170,3 +170,13 @@ def test_policy_link_ignores_personal_products_and_prefers_own_site():
 def test_policy_link_none_for_unrelated_personal_links():
     page = parse_page('<a href="/personal/">Персональный менеджер</a>')
     assert find_policy_link(page.links, BASE) is None
+
+
+def test_owner_inn_only_from_the_sites_own_pages():
+    # habr.com: a company blog post carries that company's ИНН, not the site owner's.
+    assert not is_requisites_path("/ru/companies/haulmont/news/123456/")
+    assert not is_requisites_path("/catalog/item-42/reviews")
+    for path in ("/contacts", "/rekvizity/", "/about", "/o-kompanii", "/oferta", "/privacy"):
+        assert is_requisites_path(path)
+    page = parse_page('<a href="/ru/companies/">Компании</a><a href="/ru/about/">О сайте</a>')
+    assert contact_links(page, BASE) == ["https://example.ru/ru/about/"]
