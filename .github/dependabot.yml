@@ -1,0 +1,8 @@
+# Keeps the pinned action SHAs above up to date: Dependabot opens a PR with the new
+# SHA and version comment, so pinning doesn't mean falling behind on fixes.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
