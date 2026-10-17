@@ -59,7 +59,7 @@
 
   {% for group, items in report.check_groups %}
   <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
-  {% if group.startswith("Персональные") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
+  {% if group.startswith("Персональные") or group.startswith("Другие требования") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
   <div class="card checks">
     {% for c in items %}
     <div class="check">

@@ -1,0 +1,8 @@
+<!doctype html><html><head><title>Вход</title>
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/ru_RU/appleid.auth.js"></script>
+</head><body>
+<form action="/login" method="post"><input type="email" name="email"><input type="password" name="password"><button>Войти</button></form>
+<a class="btn-social" href="https://accounts.google.com/o/oauth2/v2/auth?client_id=123.apps.googleusercontent.com&amp;redirect_uri=https%3A%2F%2Fshop.example.ru%2Fcb&amp;response_type=code&amp;scope=openid%20email">Войти через Google</a>
+<div id="appleid-signin" data-color="black" data-type="sign in"></div>
+<button type="button" class="apple"><svg></svg> Вход с Apple</button>
+</body></html>

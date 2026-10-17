@@ -22,6 +22,7 @@ from suveren.compliance import policy_target, run_compliance
 from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
 from suveren.dnsutil import ResolverMode, create_resolver
 from suveren.errors import ModuleError
+from suveren.logins import find_login_page
 from suveren.mailsec import run_mail_checks
 from suveren.models import Report
 from suveren.page import parse_page
@@ -148,6 +149,7 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         page_problem=facts.page_problem,
         extra_pages=facts.extra_pages,
         prefetched=facts.prefetched,
+        loaded_urls=facts.loaded_urls,
     )
 
 
@@ -183,10 +185,15 @@ async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -
         # Open the privacy policy here too: over plain HTTP it is often a bot wall.
         extras = [(urljoin(home.final_url, p.path), parse_page(p.html)) for p in facts.extra_pages]
         target = policy_target(home_page, extras, home.final_url)
-        if target and not target[0].lower().endswith(".pdf"):
+        urls = [target[0]] if target and not target[0].lower().endswith(".pdf") else []
+        # And the sign-in page: its buttons are usually drawn by a script.
+        login = find_login_page(home_page, home.final_url)
+        if login and login not in urls:
+            urls.append(login)
+        for url in urls:
             with contextlib.suppress(ModuleError):
-                doc = await session.open(target[0], settle_ms=EXTRA_SETTLE_MS)
-                facts.prefetched[target[0]] = FetchedPage(
+                doc = await session.open(url, settle_ms=EXTRA_SETTLE_MS)
+                facts.prefetched[url] = FetchedPage(
                     doc.final_url, doc.status, doc.html, doc.requests
                 )
 

@@ -20,7 +20,11 @@ Suveren answers six questions:
    grades independence from **A** to **F**.
 2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
    policy, consent in forms, cookie notice, cross-border transfer, data localisation, the
-   Roskomnadzor register of personal-data operators and the Roskomnadzor block list.
+   Roskomnadzor register of personal-data operators and the Roskomnadzor block list. It also
+   flags sign-in through Google, Apple, Facebook and other foreign services: since 1 December
+   2023 Russian sites may authorise users in Russia only by a Russian phone number, Gosuslugi,
+   the biometric system or Russian-owned providers (Federal Law 149-FZ, art. 8 part 10), and
+   since 7 July 2026 this is fined under art. 13.55 of the Code of Administrative Offences.
 3. **Can someone forge a letter from the company's domain?** SPF, DMARC, DKIM and MTA-STS
    records, summed up as a plain verdict: yes, partly or no.
 4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate

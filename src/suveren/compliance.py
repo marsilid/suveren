@@ -8,15 +8,22 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import httpx
 
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import page_problem as detect_page_problem
-from suveren.crawl import FetchedPage
+from suveren.crawl import MAX_HTML_CHARS, FetchedPage
 from suveren.discover import discover_inns
 from suveren.errors import ModuleError
+from suveren.logins import (
+    LoginEvidence,
+    find_evidence,
+    find_login_page,
+    login_check,
+    short_path,
+)
 from suveren.models import Category, Dependency
 from suveren.page import Form, Link, Page, parse_page
 from suveren.registries import RknOperator, rkn_operator
@@ -591,8 +598,10 @@ async def run_compliance(
     page_problem: str | None = None,
     extra_pages: list[FetchedPage] | None = None,
     prefetched: dict[str, FetchedPage] | None = None,
+    loaded_urls: list[str] | None = None,
 ) -> list[Check]:
-    """``prefetched`` holds pages already opened in the browser (the policy), keyed by URL."""
+    """``prefetched`` holds pages already opened in the browser (the policy, the sign-in
+    page), keyed by URL; ``loaded_urls`` are the home page's requests in the browser."""
     page = parse_page(html)
     data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
@@ -614,4 +623,57 @@ async def run_compliance(
             data.operator = await rkn_operator(client, data.inns[0])
         except ModuleError as exc:
             data.operator_error = str(exc)
-    return evaluate(data, html)
+    checks = evaluate(data, html)
+    loaded = {p.path: p.loaded_urls for p in extra_pages or []}
+    checks.append(await _foreign_login(client, data, html, loaded_urls or [], loaded, prefetched))
+    return checks
+
+
+async def _foreign_login(
+    client: httpx.AsyncClient,
+    data: ComplianceInput,
+    html: str,
+    loaded_urls: list[str],
+    extra_loaded: dict[str, list[str]],
+    prefetched: dict[str, FetchedPage],
+) -> Check:
+    """Look for foreign sign-in on the pages already fetched and on the sign-in page."""
+    base = data.final_url or ""
+    evidence: list[LoginEvidence] = []
+    pages: list[str] = []
+    if not data.page_problem:
+        evidence += find_evidence(html, data.page, base, "главная", loaded_urls)
+        pages.append("главная")
+    for path, extra_html, extra in data.extra:
+        where = short_path(unquote(path))
+        evidence += find_evidence(
+            extra_html, extra, urljoin(base, path), where, extra_loaded.get(path, [])
+        )
+        if where not in pages:
+            pages.append(where)
+    login_url = find_login_page(data.page, base) if base and not data.page_problem else None
+    shell: str | None = None
+    if login_url and urlsplit(login_url).path not in pages:
+        doc = prefetched.get(login_url) or await _fetch_html(client, login_url)
+        # A sign-in page is short by nature, and often has a captcha: only an error
+        # answer means it wasn't seen. Its buttons may still be drawn by a script.
+        if doc and (doc.status or 200) < 400:
+            parts, home = urlsplit(doc.url), urlsplit(base)
+            path = parts.path or "/"
+            where = short_path(path if parts.hostname == home.hostname else parts.hostname + path)
+            login_page = parse_page(doc.html)
+            evidence += find_evidence(doc.html, login_page, doc.url, where, doc.loaded_urls)
+            pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
+            if not doc.loaded_urls and len(login_page.text) < 300:
+                shell = where
+    return login_check(evidence, pages, data.page_problem, shell)
+
+
+async def _fetch_html(client: httpx.AsyncClient, url: str) -> FetchedPage | None:
+    try:
+        resp = await client.get(url)
+    except httpx.HTTPError:
+        return None
+    if "html" not in resp.headers.get("content-type", "html"):
+        return None
+    return FetchedPage(str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS])
