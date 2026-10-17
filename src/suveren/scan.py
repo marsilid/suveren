@@ -26,6 +26,7 @@ from suveren.mailsec import run_mail_checks
 from suveren.models import Report
 from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
+from suveren.subdomains import run_subdomain_checks
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -54,6 +55,7 @@ async def run_scan(
     compliance: bool = True,
     blocklist: bool = True,
     mail: bool = True,
+    subdomains: bool = True,
     refresh: bool = False,
     browser: bool = False,
     pages: int = DEFAULT_PAGES,
@@ -100,6 +102,20 @@ async def run_scan(
         async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
             resolver, _ = await create_resolver(dns_mode, timeout, client)
             report.checks += await run_mail_checks(resolver, client, facts.domain)
+
+    if subdomains:
+        async with (
+            _stage(progress, "Поддомены и их захват"),
+            make_client(timeout) as client,
+            make_client(timeout, verify=False) as page_client,
+        ):
+            # Forgotten subdomains often have broken certificates; the page is only read.
+            resolver, _ = await create_resolver(dns_mode, timeout, client)
+            checks, data = await run_subdomain_checks(
+                resolver, client, page_client, facts.domain, refresh=refresh
+            )
+            report.checks += checks
+            report.facts["subdomains"] = data
 
     report.finished_at = datetime.now(timezone.utc)
     return report

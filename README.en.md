@@ -12,7 +12,7 @@
 
 </div>
 
-Suveren answers four questions:
+Suveren answers five questions:
 
 1. **What breaks if foreign providers cut you off?** It finds everything running on
    infrastructure outside Russia (DNS, mail, hosting, CDN, site builder, registrar, TLS
@@ -23,7 +23,9 @@ Suveren answers four questions:
    Roskomnadzor register of personal-data operators and the Roskomnadzor block list.
 3. **Can someone forge a letter from the company's domain?** SPF, DMARC, DKIM and MTA-STS
    records, summed up as a plain verdict: yes, partly or no.
-4. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
+4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate
+   Transparency logs, checked for CNAMEs to deleted projects or to unregistered domains.
+5. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
    the company and its head against the US (OFAC SDN), EU and UK sanctions lists.
 
 The tool targets Russian businesses, so its interface and reports are in Russian.
@@ -61,6 +63,10 @@ On Windows you can also run `Suveren.bat`, which installs everything on first la
   rejected, `quarantine` or `pct` < 100 sends it to spam, `p=none` or no DMARC lets it through.
   SPF is checked for a single record, `+all`/`?all` and the 10-lookup limit across all includes;
   DKIM keys are looked up under common selectors and a miss is reported as "not verified".
+- Subdomain takeover uses the [can-i-take-over-xyz](https://github.com/EdOverflow/can-i-take-over-xyz)
+  fingerprints (CC BY 4.0). A CNAME to a domain missing from DNS counts as "anyone can buy it"
+  only if the registry (RDAP, WHOIS for .ru) confirms it is free: registered but undelegated
+  domains are common. Every hit says "possible takeover, verify manually".
 - `--browser` renders the home page with Playwright in the installed Edge or Chrome and counts
   every network request, so tag-manager-injected scripts are found too. Anti-bot stubs and empty
   JavaScript shells are detected and reported as "not verified" rather than as failures.

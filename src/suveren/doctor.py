@@ -29,6 +29,7 @@ from suveren.dnsutil import create_resolver
 from suveren.errors import TIMEOUTS, ModuleError
 from suveren.registries import egrul_search, rkn_operator
 from suveren.sanctions import SOURCES
+from suveren.subdomains import CRTSH_URL, clean_names, parse_crtsh
 
 PROBE_INN = "7707083893"  # ПАО Сбербанк: present in every registry and sanctions list
 # Sources that may not answer outside Russia at all.
@@ -119,6 +120,18 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
                 raise ModuleError("Сбербанк не найден в реестре: изменилась вёрстка?")
             return f"№ {op.reg_number}"
 
+        async def crtsh() -> str:
+            resp = await client.get(
+                CRTSH_URL,
+                params={"q": "%.example.com", "output": "json"},
+                timeout=httpx.Timeout(timeout, read=60.0),
+            )
+            resp.raise_for_status()
+            names = clean_names(parse_crtsh(resp.json()), "example.com")
+            if not names:
+                raise ModuleError("пустой ответ для example.com")
+            return f"поддоменов example.com: {len(names)}"
+
         async def blocklist() -> str:
             return await _reachable(client, BLOCK_SOURCE + DOMAINS)
 
@@ -144,6 +157,7 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
             ("ЕГРЮЛ (ФНС)", egrul),
             ("Реестр операторов ПДн (РКН)", rkn),
             ("Реестр блокировок", blocklist),
+            ("Журналы сертификатов (crt.sh)", crtsh),
             *((f"Санкции: {s.title}", sanctions(s.url)) for s in SOURCES),
             ("Браузер для --browser", browser),
         ]
