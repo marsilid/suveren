@@ -26,6 +26,14 @@ from suveren.logins import (
 )
 from suveren.models import Category, Dependency
 from suveren.page import Form, Link, Page, parse_page
+from suveren.pdpolicy import (
+    ConsentFinding,
+    bundled_in_form,
+    consent_check,
+    consent_doc_link,
+    implied_in_document,
+    policy_content,
+)
 from suveren.registries import RknOperator, rkn_operator
 from suveren.utils import registrable_domain
 
@@ -96,6 +104,7 @@ _HTML_CHECKS = frozenset(
         "Согласие на обработку в формах",
         "Уведомление о cookies",
         "Трансграничная передача данных",
+        "Отдельное согласие на обработку",
     }
 )
 
@@ -272,7 +281,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
-            checks.append(_policy_content(policy.text, bool(foreign_visitor)))
+            checks.append(policy_content(policy.text, bool(foreign_visitor)))
 
     # 2. Consent in forms.
     if not forms:
@@ -346,6 +355,11 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     f"Форм с персональными данными: {len(forms)}, во всех есть согласие.",
                 )
             )
+
+    # 2a. Consent drawn up separately from other documents.
+    separate = _consent_check(data, located)
+    if separate:
+        checks.append(separate)
 
     # 3. Cookie notice.
     if tracking:
@@ -470,6 +484,7 @@ LAW_BY_TITLE = {
     "Политика обработки персональных данных": "152-ФЗ, ст. 18.1",
     "Содержание политики": "152-ФЗ, ст. 18.1",
     "Согласие на обработку в формах": "152-ФЗ, ст. 9",
+    "Отдельное согласие на обработку": "152-ФЗ, ст. 9 ч. 1",
     "Уведомление о cookies": "152-ФЗ, ст. 9",
     "Трансграничная передача данных": "152-ФЗ, ст. 12",
     "Хранение данных в России": "152-ФЗ, ст. 18 ч. 5",
@@ -484,31 +499,26 @@ def _form_has_consent(form: Form) -> bool:
     return bool(re.search(r"персональн\w* данн|соглас\w* на обработк", form.text, re.I))
 
 
-def _policy_content(text: str, foreign: bool) -> Check:
-    low = text.lower()
-    required = {
-        "ссылка на 152-ФЗ": "152-фз" in low or "о персональных данных" in low,
-        "кто оператор": "оператор" in low,
-        "цели обработки": bool(re.search(r"цел[ьи]\w*", low)),
-        "права субъекта и отзыв согласия": "отзыв" in low or "права субъект" in low,
-    }
-    if foreign:
-        required["трансграничная передача"] = "трансграничн" in low
-    missing = [name for name, ok in required.items() if not ok]
-    if not missing:
-        return Check(
-            GROUP_152,
-            "Содержание политики",
-            Status.OK,
-            "В политике есть основные обязательные разделы.",
-        )
-    return Check(
-        GROUP_152,
-        "Содержание политики",
-        Status.WARN,
-        "В тексте политики не найдено: " + ", ".join(missing) + ".",
-        "Дополните политику недостающими разделами.",
-    )
+def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Check | None:
+    findings = []
+    for where, form in located:
+        quote = bundled_in_form(form)
+        if quote:
+            findings.append(ConsentFinding(where, quote, "form"))
+    policy = data.policy
+    if policy.text:
+        quote = implied_in_document(policy.text)
+        if quote:
+            label = f"«{policy.indirect_label}»" if policy.indirect_label else "политика"
+            findings.append(ConsentFinding(label, quote, "doc"))
+    base = data.final_url or ""
+    separate = None
+    for url, page in [(base, data.page), *((urljoin(base, p), pg) for p, _, pg in data.extra)]:
+        link = consent_doc_link(page.links)
+        if link:
+            separate = urljoin(url, link.href.strip())
+            break
+    return consent_check(findings, separate, len(located))
 
 
 def _operator_check(data: ComplianceInput) -> Check:

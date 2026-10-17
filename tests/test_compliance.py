@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from suveren.checks import Status
 from suveren.compliance import (
     ComplianceInput,
@@ -105,16 +107,18 @@ def test_http_site_fails_encryption():
 
 
 def test_policy_content_missing_sections():
-    policy = PolicyInfo(url=BASE + "privacy", fetched=True, text="Мы бережём ваши данные.")
+    partial = Path(__file__).parent / "fixtures" / "policies" / "partial.txt"
+    policy = PolicyInfo(
+        url=BASE + "privacy", fetched=True, text=partial.read_text(encoding="utf-8")
+    )
     checks = run("<p>x</p>", policy=policy)
     assert status(checks, "Политика обработки персональных данных") is Status.OK
     assert status(checks, "Содержание политики") is Status.WARN
 
 
 def test_policy_content_complete():
-    text = (
-        "Политика в соответствии с 152-ФЗ. Оператор ООО Ромашка. Цели обработки: связь. "
-        "Субъект может направить отзыв согласия."
+    text = (Path(__file__).parent / "fixtures" / "policies" / "full.txt").read_text(
+        encoding="utf-8"
     )
     policy = PolicyInfo(url=BASE + "privacy", fetched=True, text=text)
     assert status(run("<p>x</p>", policy=policy), "Содержание политики") is Status.OK

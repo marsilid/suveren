@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 _SKIP_TEXT = frozenset({"script", "style", "noscript", "template", "svg"})
+_FORM_BREAKS = frozenset(
+    {"input", "button", "select", "textarea", "label", "p", "div", "li", "br", "fieldset"}
+)
+_BREAK = "\x00"
 
 
 @dataclass(slots=True)
@@ -28,6 +32,9 @@ class Form:
     action: str
     inputs: list[FormInput] = field(default_factory=list)
     text: str = ""
+    # The text cut at fields, buttons, labels and blocks: one statement per checkbox
+    # label or note, so two separate consents don't read as one sentence.
+    statements: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -56,7 +63,9 @@ class _Parser(HTMLParser):
         elif tag == "form":
             self._form = Form(a.get("action", ""))
             self._form_text = []
-        elif tag in ("input", "textarea", "select") and self._form is not None:
+        if self._form is not None and tag in _FORM_BREAKS:
+            self._form_text.append(_BREAK)
+        if tag in ("input", "textarea", "select") and self._form is not None:
             hint = " ".join(a.get(k, "") for k in ("id", "placeholder", "aria-label", "class"))
             self._form.inputs.append(
                 FormInput(
@@ -75,9 +84,19 @@ class _Parser(HTMLParser):
             self.page.links.append(self._link)
             self._link = None
         elif tag == "form" and self._form is not None:
-            self._form.text = " ".join(" ".join(self._form_text).split())
-            self.page.forms.append(self._form)
-            self._form = None
+            self._finish_form()
+        elif self._form is not None and tag in _FORM_BREAKS:
+            self._form_text.append(_BREAK)
+
+    def _finish_form(self) -> None:
+        assert self._form is not None
+        joined = " ".join(self._form_text)
+        self._form.text = " ".join(joined.replace(_BREAK, " ").split())
+        self._form.statements = [
+            s for s in (" ".join(p.split()) for p in joined.split(_BREAK)) if s
+        ]
+        self.page.forms.append(self._form)
+        self._form = None
 
     def handle_data(self, data: str) -> None:
         if self._skip:
@@ -91,8 +110,7 @@ class _Parser(HTMLParser):
     def close(self) -> None:
         super().close()
         if self._form is not None:  # unclosed <form>
-            self._form.text = " ".join(" ".join(self._form_text).split())
-            self.page.forms.append(self._form)
+            self._finish_form()
         self.page.text = re.sub(r"\s+", " ", " ".join(self._text)).strip()
 
 

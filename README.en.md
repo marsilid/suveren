@@ -19,7 +19,8 @@ Suveren answers six questions:
    certificate, page scripts and widgets), explains the risk, suggests a Russian alternative and
    grades independence from **A** to **F**.
 2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
-   policy, consent in forms, cookie notice, cross-border transfer, data localisation, the
+   policy (with a checklist of the sections Roskomnadzor recommends), consent in forms and whether
+   it is drawn up separately from offers and user agreements (required since 1 September 2025), cookie notice, cross-border transfer, data localisation, the
    Roskomnadzor register of personal-data operators and the Roskomnadzor block list. It also
    flags sign-in through Google, Apple, Facebook and other foreign services: since 1 December
    2023 Russian sites may authorise users in Russia only by a Russian phone number, Gosuslugi,

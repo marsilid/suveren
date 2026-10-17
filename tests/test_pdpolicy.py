@@ -1,0 +1,174 @@
+from pathlib import Path
+
+from suveren.checks import Status
+from suveren.compliance import ComplianceInput, PolicyInfo, evaluate
+from suveren.page import parse_page
+from suveren.pdpolicy import (
+    CONSENT_TITLE,
+    bundled_in_form,
+    consent_doc_link,
+    implied_in_document,
+    missing_sections,
+    policy_content,
+)
+
+FIXTURES = Path(__file__).parent / "fixtures" / "policies"
+BASE = "https://example.ru/"
+
+
+def text(name):
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def run(html, policy=None):
+    data = ComplianceInput(
+        final_url=BASE, page=parse_page(html), deps=[], policy=policy or PolicyInfo()
+    )
+    return evaluate(data, html)
+
+
+def find(checks, title):
+    return next((c for c in checks if c.title == title), None)
+
+
+def test_full_policy_has_every_section():
+    assert missing_sections(text("full.txt")) == []
+    assert policy_content(text("full.txt"), foreign=False).status is Status.OK
+
+
+def test_full_policy_without_cross_border_when_site_uses_foreign_services():
+    assert missing_sections(text("full.txt"), foreign=True) == [
+        "трансграничная передача (на сайте есть иностранные сервисы)"
+    ]
+
+
+def test_partial_policy_lists_missing_sections():
+    missing = missing_sections(text("partial.txt"))
+    assert "цели обработки" in missing
+    assert "правовые основания обработки" in missing
+    assert "порядок уничтожения" in missing
+    # The e-mail for requests is there.
+    assert "как направить запрос оператору" not in missing
+    check = policy_content(text("partial.txt"), foreign=False)
+    assert check.status is Status.WARN
+    assert "очень короткий" in check.details
+    assert "71634598" in check.recommendation
+
+
+def test_consent_hidden_in_offer_is_found_but_cookie_wording_is_not():
+    quote = implied_in_document(text("offer_with_consent.txt"))
+    assert quote and quote.startswith("Регистрация на Сайте означает согласие")
+    assert (
+        implied_in_document("Продолжая пользоваться сайтом, вы соглашаетесь на обработку cookie.")
+        is None
+    )
+    # Consent described as a separate act is fine.
+    assert implied_in_document(text("full.txt")) is None
+
+
+def test_form_bundles_consent_with_offer():
+    html = (
+        '<form action="/order"><input type="tel" name="phone">'
+        '<label><input type="checkbox" name="agree"> Я принимаю условия публичной оферты '
+        "и даю согласие на обработку персональных данных</label></form>"
+    )
+    form = parse_page(html).forms[0]
+    assert "условия публичной оферты" in bundled_in_form(form)
+    check = find(run(html), CONSENT_TITLE)
+    assert check.status is Status.WARN
+    assert "вместе с принятием другого документа" in check.details
+    assert check.law == "152-ФЗ, ст. 9 ч. 1"
+
+
+def test_form_with_two_checkboxes_is_not_bundled():
+    html = (
+        '<form action="/order"><input type="tel" name="phone">'
+        '<label><input type="checkbox" name="offer"> Я принимаю условия оферты.</label>'
+        '<label><input type="checkbox" name="pd"> Я даю <a href="/soglasie">согласие на '
+        "обработку персональных данных</a>.</label></form>"
+    )
+    assert bundled_in_form(parse_page(html).forms[0]) is None
+    check = find(run(html), CONSENT_TITLE)
+    assert check.status is Status.OK
+    assert check.link == "https://example.ru/soglasie"
+
+
+def test_consent_with_policy_only_is_not_bundled():
+    """The policy only informs; agreeing with it in the same checkbox is not flagged."""
+    html = (
+        '<form><input type="email" name="email"><input type="checkbox"> Я согласен с '
+        "политикой конфиденциальности и даю согласие на обработку персональных данных</form>"
+    )
+    assert bundled_in_form(parse_page(html).forms[0]) is None
+
+
+def test_forms_without_separate_consent_document_are_unknown():
+    html = (
+        '<form action="/lead"><input type="tel" name="phone"><input type="checkbox"> '
+        "Согласен на обработку персональных данных</form>"
+    )
+    assert find(run(html), CONSENT_TITLE).status is Status.UNKNOWN
+
+
+def test_no_forms_and_nothing_found_adds_no_check():
+    assert find(run("<p>Привет</p>"), CONSENT_TITLE) is None
+
+
+def test_consent_in_agreement_used_as_policy():
+    policy = PolicyInfo(
+        url=BASE + "terms",
+        fetched=True,
+        text=text("offer_with_consent.txt"),
+        indirect_label="Пользовательское соглашение",
+    )
+    check = find(run("<p>x</p>", policy), CONSENT_TITLE)
+    assert check.status is Status.WARN
+    assert "«Пользовательское соглашение»" in check.details
+
+
+def test_consent_link_text():
+    links = parse_page(
+        '<a href="/policy">Политика конфиденциальности</a>'
+        '<a href="/consent">Согласие на обработку персональных данных</a>'
+    ).links
+    assert consent_doc_link(links).href == "/consent"
+    assert consent_doc_link(parse_page('<a href="#">Согласие на обработку</a>').links) is None
+
+
+def test_separate_labels_in_one_form_are_separate_statements():
+    """Skillbox-like: a consent checkbox, a button, and a note about the site rules."""
+    html = (
+        '<form><input type="tel" name="phone"><label><input type="checkbox"> Я соглашаюсь '
+        "на обработку персональных данных</label><button>Получить консультацию</button>"
+        "<p>Нажимая на кнопку, я соглашаюсь с правилами сайта</p></form>"
+    )
+    form = parse_page(html).forms[0]
+    assert len(form.statements) >= 3
+    assert bundled_in_form(form) is None
+
+
+def test_policy_page_that_is_only_the_site_shell_is_unknown():
+    shell = "Каталог Вклады Кредиты Ипотека Войти Скачать приложение О компании Контакты " * 30
+    check = policy_content(shell, foreign=False)
+    assert check.status is Status.UNKNOWN
+    assert "подгружается скриптом" in check.details
+
+
+def test_consent_word_link_with_matching_href():
+    links = parse_page(
+        'Я даю <a href="/legal/agreement_lc_mail/">согласие</a> на обработку данных'
+        '<a href="/promo">согласие</a>'
+    ).links
+    assert consent_doc_link(links).href == "/legal/agreement_lc_mail/"
+
+
+def test_page_that_links_to_a_pdf_policy_is_unknown():
+    page = (
+        "Политика в отношении обработки персональных данных. Действующая политика по обработке "
+        "персональных данных в формате PDF. Политика обработки персональных данных. "
+        + "Вклады Кредиты Ипотека Калькуляторы Страхование Новости Отзывы Рейтинги "
+        * 120
+    )
+    check = policy_content(page, foreign=False)
+    assert check.status is Status.UNKNOWN
+    assert "указатель" in check.details
