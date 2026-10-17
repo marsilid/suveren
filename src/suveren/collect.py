@@ -32,6 +32,7 @@ IANA_WHOIS = "whois.iana.org"
 NO_RDAP_ZONES = frozenset({"ru", "su", "xn--p1ai"})
 MAX_HTML_CHARS = 2_000_000
 MAX_HOSTS = 6
+MAX_IPS_PER_HOST = 4
 
 
 @dataclass(slots=True)
@@ -252,21 +253,35 @@ class Collector:
                     info.country = as_country or info.country
         return info
 
-    async def _host_info(self, host: str) -> HostInfo:
+    async def _host_infos(self, host: str) -> list[HostInfo]:
+        """One entry per network the host's addresses live in.
+
+        A server name often has several A records in different networks (ns1 in the US
+        and in Russia), returned in rotating order: looking only at the first one made
+        the result change from run to run.
+        """
         try:
-            ips = await self.resolver.resolve(host, "A")
+            ips = sorted(set(await self.resolver.resolve(host, "A")))[:MAX_IPS_PER_HOST]
         except DnsLookupError:
             ips = []
-        return HostInfo(host, await self.net_info(ips[0]) if ips else None)
+        if not ips:
+            return [HostInfo(host)]
+        nets = await asyncio.gather(*(self.net_info(ip) for ip in ips))
+        unique: dict[object, NetInfo] = {}
+        for net in nets:
+            unique.setdefault(net.asn or net.ip, net)
+        return [HostInfo(host, net) for net in unique.values()]
+
+    async def _hosts(self, hosts: list[str]) -> list[HostInfo]:
+        found = await asyncio.gather(*(self._host_infos(h) for h in hosts))
+        return [info for infos in found for info in infos]
 
     async def ns(self, domain: str) -> list[HostInfo]:
         records = await self.resolver.resolve(domain, "NS")
-        hosts = sorted({r.rstrip(".").lower() for r in records})[:MAX_HOSTS]
-        return list(await asyncio.gather(*(self._host_info(h) for h in hosts)))
+        return await self._hosts(sorted({r.rstrip(".").lower() for r in records})[:MAX_HOSTS])
 
     async def mx(self, domain: str) -> list[HostInfo]:
-        hosts = parse_mx(await self.resolver.resolve(domain, "MX"))[:MAX_HOSTS]
-        return list(await asyncio.gather(*(self._host_info(h) for h in hosts)))
+        return await self._hosts(parse_mx(await self.resolver.resolve(domain, "MX"))[:MAX_HOSTS])
 
     async def web(self, host: str) -> list[NetInfo]:
         ips = await self.resolver.resolve(host, "A")
@@ -452,9 +467,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
     async with make_client(timeout) as client:
         resolver, note = await create_resolver(dns_mode, timeout, client)
         if note:
-            facts.notes.append(
-                "Системный DNS отвечал неполно, поэтому использовался DNS-over-HTTPS."
-            )
+            facts.notes.append(note)
         if not await resolver.exists(domain):
             raise TargetNotFoundError(f"домен {domain} не существует (NXDOMAIN)")
 

@@ -2,16 +2,61 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
 
 from suveren import services as db
 from suveren.collect import Facts, HostInfo, NetInfo
-from suveren.models import Category, Dependency, Finding, Report
+from suveren.models import Category, Dependency, Finding, Report, Severity
+from suveren.page import page_code
 from suveren.services import Service
 
 # Layers where a domestic server next to a foreign one is real redundancy.
 REDUNDANT_LAYERS = frozenset({Category.DNS, Category.MAIL, Category.HOSTING, Category.CDN})
+
+# Words that open many network names; a site called cloud.ru doesn't own CLOUD.DOG OU.
+_GENERIC_LABELS = frozenset(
+    {
+        "cloud",
+        "host",
+        "hosting",
+        "server",
+        "servers",
+        "data",
+        "web",
+        "net",
+        "network",
+        "online",
+        "telecom",
+        "digital",
+        "global",
+        "media",
+        "group",
+        "tech",
+        "mail",
+        "internet",
+        "datacenter",
+    }
+)
+_LEGAL_FORMS = frozenset(
+    {"ooo", "llc", "jsc", "pjsc", "ao", "pao", "zao", "oao", "ltd", "gmbh", "inc", "as", "ou"}
+)
+OWN_NETWORK_NOTE = (
+    "Похоже, это собственная сеть компании, а не внешний провайдер: отключить её по решению "
+    "третьей стороны сложнее, но серверы находятся за рубежом."
+)
+
+
+def own_network(net: NetInfo | None, domain: str) -> bool:
+    """The network is registered to the site's own company ('Habr Europe OU' for habr.com)."""
+    if net is None or not net.as_name:
+        return False
+    label = domain.split(".")[0].lower()
+    if len(label) < 4 or label in _GENERIC_LABELS:
+        return False
+    words = [w for w in re.findall(r"[a-z0-9]+", net.as_name.lower()) if w not in _LEGAL_FORMS]
+    return bool(words) and words[0] == label
 
 
 def _from_service(category: Category, service: Service, evidence: str) -> Dependency:
@@ -51,11 +96,21 @@ def _merge(deps: Iterable[Dependency]) -> list[Dependency]:
     return list(merged.values())
 
 
+def _own(category: Category, net: NetInfo, evidence: str) -> Dependency:
+    dep = _from_network(category, net, net.ip, evidence)
+    dep.service = f"Собственная сеть ({dep.service})"
+    if dep.foreign:
+        dep.severity = Severity.LOW
+        dep.note = OWN_NETWORK_NOTE
+    return dep
+
+
 def _server_deps(
     category: Category,
     hosts: list[HostInfo],
     lookup: Callable[[str], Service | None],
     label: str,
+    domain: str,
 ) -> list[Dependency]:
     deps = []
     for h in hosts:
@@ -63,6 +118,8 @@ def _server_deps(
         service = lookup(h.host) or (db.by_network(h.net.asn, h.net.as_name) if h.net else None)
         if service:
             deps.append(_from_service(category, service, evidence))
+        elif h.net is not None and own_network(h.net, domain):
+            deps.append(_own(category, h.net, evidence))
         else:
             deps.append(_from_network(category, h.net, h.host, evidence))
     return deps
@@ -91,8 +148,8 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         else:
             deps.append(Dependency(Category.REGISTRAR, facts.registrar, None, "WHOIS"))
 
-    deps += _server_deps(Category.DNS, facts.ns, db.by_ns, "NS")
-    deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX")
+    deps += _server_deps(Category.DNS, facts.ns, db.by_ns, "NS", facts.domain)
+    deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX", facts.domain)
 
     hidden_origin = False
     for net in facts.web:
@@ -102,6 +159,8 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
             category = Category.CDN if service.cdn else Category.HOSTING
             hidden_origin |= service.cdn
             deps.append(_from_service(category, service, evidence))
+        elif own_network(net, facts.domain):
+            deps.append(_own(Category.HOSTING, net, evidence))
         else:
             deps.append(_from_network(Category.HOSTING, net, net.ip, evidence))
     if hidden_origin and not any(d.category is Category.HOSTING for d in deps):
@@ -117,7 +176,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         else:
             deps.append(Dependency(Category.TLS, facts.tls_issuer, None, "сертификат"))
 
-    page_text = facts.html + "\n" + "\n".join(facts.loaded_urls)
+    page_text = page_code(facts.html) + "\n" + "\n".join(facts.loaded_urls)
     found: set[str] = set()
     own = facts.domain  # the site's own hosts are not a dependency on itself
     for service, matched in db.scan_page(page_text, own_domain=own):
@@ -126,7 +185,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         found.add(service.name)
     # Services that appear only on inner pages say where they were seen.
     for extra in facts.extra_pages:
-        text = extra.html + "\n" + "\n".join(extra.loaded_urls)
+        text = page_code(extra.html) + "\n" + "\n".join(extra.loaded_urls)
         for service, matched in db.scan_page(text, own_domain=own):
             if service.name in found:
                 continue

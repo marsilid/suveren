@@ -1,7 +1,10 @@
-"""DNS resolution with two interchangeable backends.
+"""DNS resolution with three interchangeable backends.
 
 * ``SystemResolver`` — the OS-configured resolver via dnspython.
-* ``DohResolver`` — DNS-over-HTTPS JSON APIs (Google, then Cloudflare).
+* ``DotResolver`` — Yandex DNS over TLS (port 853): encrypted, so a filtering router
+  can't tamper with it, and the names being checked stay in Russia.
+* ``DohResolver`` — DNS-over-HTTPS JSON APIs (Google, then Cloudflare). It sends the
+  checked names abroad, so ``auto`` uses it only when nothing else answers and says so.
 
 Some networks (corporate proxies, captive portals, sandboxes, a few home routers)
 answer only A queries and return empty answers for TXT/MX/NS. For a security
@@ -22,14 +25,23 @@ from typing import Literal
 
 import dns.asyncresolver
 import dns.exception
+import dns.nameserver
 import dns.resolver
 import httpx
 
 from suveren.errors import ModuleError
 
-ResolverMode = Literal["auto", "system", "doh"]
+# "ru" never sends a query outside Russia: the system resolver is not used either,
+# since it may forward to anything.
+ResolverMode = Literal["auto", "system", "ru", "doh"]
 
-_FALLBACK_NAMESERVERS = ["1.1.1.1", "8.8.8.8"]
+# Yandex DNS: used when the OS has no resolver configured at all.
+_FALLBACK_NAMESERVERS = ["77.88.8.8", "77.88.8.1"]
+# Yandex DNS over TLS; the certificate is checked against this name.
+YANDEX_DOT = (
+    ("77.88.8.8", "common.dot.dns.yandex.net"),
+    ("77.88.8.1", "common.dot.dns.yandex.net"),
+)
 # (name, type) pairs that must always have records; used to detect filtering resolvers.
 _CANARIES = (("google.com", "MX"), ("cloudflare.com", "TXT"))
 
@@ -46,6 +58,7 @@ RR_TYPES = {
 }
 HEALTH_TIMEOUT = 3.0
 _system_healthy: bool | None = None
+_dot_healthy: bool | None = None
 
 DOH_ENDPOINTS = ("https://dns.google/resolve", "https://cloudflare-dns.com/dns-query")
 
@@ -88,6 +101,10 @@ class SystemResolver(DnsResolver):
         resolver.lifetime = timeout
         resolver.timeout = max(1.0, timeout / 2)
         self._resolver = resolver
+        self._configure(resolver)
+
+    def _configure(self, resolver: dns.asyncresolver.Resolver) -> None:
+        """Hook for subclasses that talk to specific servers."""
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         try:
@@ -109,6 +126,17 @@ class SystemResolver(DnsResolver):
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
             return True
         return True
+
+
+class DotResolver(SystemResolver):
+    """Yandex DNS over TLS: same answers as the system resolver, but encrypted."""
+
+    kind = "dot"
+
+    def _configure(self, resolver: dns.asyncresolver.Resolver) -> None:
+        resolver.nameservers = [
+            dns.nameserver.DoTNameserver(ip, hostname=name) for ip, name in YANDEX_DOT
+        ]
 
 
 def _clean_doh_data(rtype: str, data: str) -> str:
@@ -167,23 +195,38 @@ class DohResolver(DnsResolver):
         return payload.get("Status") != 3
 
 
+NOTE_DOT = (
+    "Системный DNS отвечал неполно, поэтому использовался Яндекс DNS по защищённому "
+    "каналу (DNS-over-TLS)."
+)
+NOTE_DOH = (
+    "Системный DNS и Яндекс DNS не ответили, поэтому использовался DNS-over-HTTPS Google и "
+    "Cloudflare: имена проверяемых доменов ушли в эти компании (США). Чтобы этого не было, "
+    "запускайте с --dns ru."
+)
+
+
 async def create_resolver(
     mode: ResolverMode, timeout: float, client: httpx.AsyncClient
 ) -> tuple[DnsResolver, str | None]:
-    """Return the resolver to use and, if we had to switch, a note explaining why."""
+    """Return the resolver to use and, if we had to switch, a note for the user."""
     if mode == "doh":
         return DohResolver(client), None
+    if mode == "ru":
+        return DotResolver(timeout), None
     system = SystemResolver(timeout)
     if mode == "system":
         return system, None
-    # The health probe can wait for a timeout on a filtering network, so its answer
-    # is remembered for the rest of the process (batch scans many sites in a row).
-    global _system_healthy
+    # Health probes can wait for a timeout on a filtering network, so their answers
+    # are remembered for the rest of the process (batch scans many sites in a row).
+    global _system_healthy, _dot_healthy
+    probe_timeout = min(timeout, HEALTH_TIMEOUT)
     if _system_healthy is None:
-        _system_healthy = await SystemResolver(min(timeout, HEALTH_TIMEOUT)).is_healthy()
+        _system_healthy = await SystemResolver(probe_timeout).is_healthy()
     if _system_healthy:
         return system, None
-    return DohResolver(client), (
-        "The system DNS resolver returned incomplete answers (it looks filtered), "
-        "so DNS-over-HTTPS was used instead."
-    )
+    if _dot_healthy is None:
+        _dot_healthy = await DotResolver(probe_timeout).is_healthy()
+    if _dot_healthy:
+        return DotResolver(timeout), NOTE_DOT
+    return DohResolver(client), NOTE_DOH

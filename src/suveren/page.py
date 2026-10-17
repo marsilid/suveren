@@ -96,6 +96,46 @@ class _Parser(HTMLParser):
         self.page.text = re.sub(r"\s+", " ", " ".join(self._text)).strip()
 
 
+class _CodeParser(HTMLParser):
+    """Keeps tags, attributes and script/style bodies; drops visible text and comments."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.parts: list[str] = []
+        self._raw = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.parts.append(self.get_starttag_text() or "")
+        if tag in ("script", "style"):
+            self._raw += 1
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.parts.append(self.get_starttag_text() or "")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("script", "style") and self._raw:
+            self._raw -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._raw:
+            self.parts.append(data)
+
+
+def page_code(html: str) -> str:
+    """The part of a page that can load something: tags and scripts, not the text.
+
+    An article that merely mentions "googletagmanager.com" must not count as the site
+    using Google Tag Manager, and a commented-out tag loads nothing either.
+    """
+    parser = _CodeParser()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:  # malformed markup: better a false positive than a missed script
+        return html
+    return "\n".join(parser.parts)
+
+
 def parse_page(html: str) -> Page:
     parser = _Parser()
     try:

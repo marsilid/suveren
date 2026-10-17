@@ -61,6 +61,9 @@ On Windows you can also run `Suveren.bat`, which installs everything on first la
 - Sanctions matching by INN/OGRN is exact. Name matching is transliteration-aware
   ("СБЕРБАНК РОССИИ" = "Sberbank of Russia"). Matches on a person's name are flagged as possible,
   because namesakes exist.
+- DNS goes through the system resolver. If it looks filtered, Yandex DNS over TLS is used, and
+  only if that fails too, Google and Cloudflare DNS-over-HTTPS (the report says so). `--dns ru`
+  never sends the checked names abroad.
 - All sources are public and free: Team Cymru IP-to-ASN, RDAP/WHOIS, egrul.nalog.ru,
   pd.rkn.gov.ru, the Roskomnadzor register dump from antifilter.download, and the official OFAC,
   EU and UK lists. Lists are cached for a day.
