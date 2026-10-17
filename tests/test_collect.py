@@ -1,3 +1,5 @@
+import asyncio
+
 from suveren.collect import (
     clean_as_name,
     issuer_org,
@@ -75,3 +77,50 @@ def test_issuer_org():
         )
     }
     assert issuer_org(cert) == "Let's Encrypt"
+
+
+class _RotatingResolver:
+    """Returns ns1's addresses in a different order on every call, like real DNS."""
+
+    kind = "fake"
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.nets = {"1.1.1.1": (64500, "US"), "2.2.2.2": (64501, "RU"), "3.3.3.3": (64500, "US")}
+
+    async def resolve(self, name: str, rtype: str) -> list[str]:
+        if name == "example.ru" and rtype == "NS":
+            return ["ns1.example.net."]
+        if name == "ns1.example.net" and rtype == "A":
+            self.calls += 1
+            ips = list(self.nets)
+            shift = self.calls % len(ips)
+            return ips[shift:] + ips[:shift]
+        if name.endswith(".origin.asn.cymru.com"):
+            ip = ".".join(reversed(name.split(".")[:4]))
+            asn, country = self.nets[ip]
+            return [f"{asn} | {ip}/24 | {country} | ripe | "]
+        if name.endswith(".asn.cymru.com"):
+            asn = int(name.split(".")[0][2:])
+            return [f"{asn} | ZZ | ripe | | NET{asn}, ZZ"]
+        return []
+
+
+def test_ns_lists_every_network_in_a_stable_order():
+    from suveren.collect import Collector
+
+    resolver = _RotatingResolver()
+    collector = Collector(resolver, None, 5.0)  # type: ignore[arg-type]
+    runs = [asyncio.run(collector.ns("example.ru")) for _ in range(3)]
+    seen = [[(h.host, h.net.asn) for h in run] for run in runs]
+    # Two networks (the third address shares AS64500), same answer every time.
+    assert seen[0] == [("ns1.example.net", 64500), ("ns1.example.net", 64501)]
+    assert seen[0] == seen[1] == seen[2]
+
+
+def test_host_without_address_is_kept():
+    from suveren.collect import Collector
+
+    collector = Collector(_RotatingResolver(), None, 5.0)  # type: ignore[arg-type]
+    hosts = asyncio.run(collector._hosts(["gone.example.net"]))
+    assert [(h.host, h.net) for h in hosts] == [("gone.example.net", None)]
