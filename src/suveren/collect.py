@@ -452,9 +452,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
     async with make_client(timeout) as client:
         resolver, note = await create_resolver(dns_mode, timeout, client)
         if note:
-            facts.notes.append(
-                "Системный DNS отвечал неполно, поэтому использовался DNS-over-HTTPS."
-            )
+            facts.notes.append(note)
         if not await resolver.exists(domain):
             raise TargetNotFoundError(f"домен {domain} не существует (NXDOMAIN)")
 

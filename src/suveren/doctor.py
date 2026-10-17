@@ -86,9 +86,7 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
             mx = await resolver.resolve("google.com", "MX")
             if not mx:
                 raise ModuleError("пустой ответ на MX google.com")
-            return f"{resolver.kind}" + (
-                " (системный DNS фильтрует, используется DoH)" if note else ""
-            )
+            return f"{resolver.kind}" + (" (системный DNS отвечает неполно)" if note else "")
 
         async def cymru() -> str:
             info = await collector.net_info("8.8.8.8")

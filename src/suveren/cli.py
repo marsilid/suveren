@@ -67,6 +67,7 @@ SITE_DEADLINE = 300  # seconds per site in batch
 class DnsChoice(str, Enum):
     auto = "auto"
     system = "system"
+    ru = "ru"
     doh = "doh"
 
 
@@ -200,7 +201,11 @@ def scan(
     ] = 10.0,
     dns_mode: Annotated[
         DnsChoice,
-        typer.Option("--dns", help="DNS: auto (системный, при сбое DoH), system или doh."),
+        typer.Option(
+            "--dns",
+            help="DNS: auto (системный, при сбое Яндекс DNS, затем Google), system, "
+            "ru (только Яндекс DNS, запросы не уходят за рубеж) или doh (Google/Cloudflare).",
+        ),
     ] = DnsChoice.auto,
     refresh: Annotated[
         bool, typer.Option("--refresh", help="Обновить скачанные списки, не дожидаясь суток.")
