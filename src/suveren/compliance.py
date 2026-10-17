@@ -29,6 +29,7 @@ from suveren.page import Form, Link, Page, parse_page
 from suveren.pdpolicy import (
     ConsentFinding,
     bundled_in_form,
+    bundled_in_text,
     consent_check,
     consent_doc_link,
     implied_in_document,
@@ -94,6 +95,8 @@ class ComplianceInput:
     page_problem: str | None = None
     # Inner pages: (path, raw HTML, parsed page).
     extra: list[tuple[str, str, Page]] = field(default_factory=list)
+    # The sign-in page, if found: (where, parsed page).
+    login: tuple[str, Page] | None = None
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -505,6 +508,10 @@ def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Ch
         quote = bundled_in_form(form)
         if quote:
             findings.append(ConsentFinding(where, quote, "form"))
+    if data.login:
+        quote = bundled_in_text(data.login[1].text)
+        if quote:
+            findings.append(ConsentFinding(f"вход, {data.login[0]}", quote, "form"))
     policy = data.policy
     if policy.text:
         quote = implied_in_document(policy.text)
@@ -617,7 +624,15 @@ async def run_compliance(
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     prefetched = prefetched or {}
-    target = policy_target(page, [(urljoin(base, p), pg) for p, _, pg in data.extra], base)
+    # The sign-in page: foreign sign-in buttons, and sometimes the only policy link
+    # (drom.ru links its policy from "При входе вы принимаете...").
+    login = await _login_page(client, data, prefetched)
+    extras = [(urljoin(base, p), pg) for p, _, pg in data.extra]
+    if login:
+        login_page = parse_page(login.html)
+        extras.append((login.url, login_page))
+        data.login = (_where(login.url, base), login_page)
+    target = policy_target(page, extras, base)
     if target and target[1] is None:
         data.policy = await fetch_policy(client, target[0], prefetched.get(target[0]))
     elif target:
@@ -635,17 +650,31 @@ async def run_compliance(
             data.operator_error = str(exc)
     checks = evaluate(data, html)
     loaded = {p.path: p.loaded_urls for p in extra_pages or []}
-    checks.append(await _foreign_login(client, data, html, loaded_urls or [], loaded, prefetched))
+    checks.append(_foreign_login(data, html, loaded_urls or [], loaded, login))
     return checks
 
 
-async def _foreign_login(
-    client: httpx.AsyncClient,
+async def _login_page(
+    client: httpx.AsyncClient, data: ComplianceInput, prefetched: dict[str, FetchedPage]
+) -> FetchedPage | None:
+    base = data.final_url or ""
+    if not base or data.page_problem:
+        return None
+    url = find_login_page(data.page, base)
+    if not url or urlsplit(url).path in {p for p, _, _ in data.extra}:
+        return None
+    doc = prefetched.get(url) or await _fetch_html(client, url)
+    # A sign-in page is short by nature, and often has a captcha: only an error
+    # answer means it wasn't seen. Its buttons may still be drawn by a script.
+    return doc if doc and (doc.status or 200) < 400 else None
+
+
+def _foreign_login(
     data: ComplianceInput,
     html: str,
     loaded_urls: list[str],
     extra_loaded: dict[str, list[str]],
-    prefetched: dict[str, FetchedPage],
+    doc: FetchedPage | None,
 ) -> Check:
     """Look for foreign sign-in on the pages already fetched and on the sign-in page."""
     base = data.final_url or ""
@@ -661,22 +690,22 @@ async def _foreign_login(
         )
         if where not in pages:
             pages.append(where)
-    login_url = find_login_page(data.page, base) if base and not data.page_problem else None
     shell: str | None = None
-    if login_url and urlsplit(login_url).path not in pages:
-        doc = prefetched.get(login_url) or await _fetch_html(client, login_url)
-        # A sign-in page is short by nature, and often has a captcha: only an error
-        # answer means it wasn't seen. Its buttons may still be drawn by a script.
-        if doc and (doc.status or 200) < 400:
-            parts, home = urlsplit(doc.url), urlsplit(base)
-            path = parts.path or "/"
-            where = short_path(path if parts.hostname == home.hostname else parts.hostname + path)
-            login_page = parse_page(doc.html)
-            evidence += find_evidence(doc.html, login_page, doc.url, where, doc.loaded_urls)
-            pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
-            if not doc.loaded_urls and len(login_page.text) < 300:
-                shell = where
+    if doc and data.login:
+        where, login_page = data.login
+        evidence += find_evidence(doc.html, login_page, doc.url, where, doc.loaded_urls)
+        pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
+        if not doc.loaded_urls and len(login_page.text) < 300:
+            shell = where
     return login_check(evidence, pages, data.page_problem, shell)
+
+
+def _where(url: str, base: str) -> str:
+    """Path for people; the host too if it is another subdomain (my.drom.ru/sign)."""
+    parts = urlsplit(url)
+    path = parts.path or "/"
+    same = parts.hostname == urlsplit(base).hostname
+    return short_path(path if same else f"{parts.hostname}{path}")
 
 
 async def _fetch_html(client: httpx.AsyncClient, url: str) -> FetchedPage | None:

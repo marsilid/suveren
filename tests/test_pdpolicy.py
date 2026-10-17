@@ -172,3 +172,41 @@ def test_page_that_links_to_a_pdf_policy_is_unknown():
     check = policy_content(page, foreign=False)
     assert check.status is Status.UNKNOWN
     assert "указатель" in check.details
+
+
+def test_policy_link_and_bundled_consent_on_the_sign_in_page():
+    """drom.ru: the home page has no policy link, the sign-in page does."""
+    import asyncio
+
+    import httpx
+
+    from suveren.compliance import run_compliance
+
+    home = '<a href="/">Главная</a><a href="https://my.example.ru/sign">Вход и регистрация</a>'
+    home += "<p>Объявления о продаже автомобилей.</p>" * 100
+    sign = (
+        '<form action="/sign"><input name="login"><input type="password" name="password">'
+        "<button>Войти</button></form><div>При входе вы принимаете "
+        '<a href="https://www.example.ru/rules/">условия использования</a> сайта и соглашаетесь '
+        "на обработку персональных данных согласно "
+        '<a href="https://my.example.ru/help/personal_data">политике конфиденциальности</a>.</div>'
+    )
+
+    def handler(request):
+        if request.url.path == "/sign":
+            return httpx.Response(200, html=sign)
+        if request.url.path == "/help/personal_data":
+            return httpx.Response(200, html="<p>" + text("full.txt") + "</p>")
+        return httpx.Response(404)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_compliance(client, BASE, home, [])
+
+    checks = asyncio.run(go())
+    policy = find(checks, "Политика обработки персональных данных")
+    assert policy.status is Status.OK
+    assert policy.link == "https://my.example.ru/help/personal_data"
+    consent = find(checks, CONSENT_TITLE)
+    assert consent.status is Status.WARN
+    assert "вход, my.example.ru/sign" in consent.details

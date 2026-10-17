@@ -214,10 +214,19 @@ def bundled_in_form(form: Form) -> str | None:
     """The statement where consent to processing is given together with accepting an
     offer or user agreement ("принимаю условия оферты и даю согласие на обработку")."""
     for statement in form.statements or [form.text]:
-        for sentence in _SENTENCE.findall(statement):
-            low = _norm(sentence)
-            if _PROCESSING.search(low) and _OTHER_DOC.search(low):
-                return _quote(sentence)
+        found = bundled_in_text(statement)
+        if found:
+            return found
+    return None
+
+
+def bundled_in_text(text: str) -> str | None:
+    """The same, in a short sentence of a page ("При входе вы принимаете условия
+    использования сайта и соглашаетесь на обработку персональных данных")."""
+    for sentence in _SENTENCE.findall(text):
+        low = _norm(sentence)
+        if len(low) <= 300 and _PROCESSING.search(low) and _OTHER_DOC.search(low):
+            return _quote(sentence)
     return None
 
 
