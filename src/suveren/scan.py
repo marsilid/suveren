@@ -27,6 +27,7 @@ from suveren.models import Report
 from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
 from suveren.subdomains import run_subdomain_checks
+from suveren.websec import run_web_checks
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -56,6 +57,7 @@ async def run_scan(
     blocklist: bool = True,
     mail: bool = True,
     subdomains: bool = True,
+    security: bool = True,
     refresh: bool = False,
     browser: bool = False,
     pages: int = DEFAULT_PAGES,
@@ -102,6 +104,13 @@ async def run_scan(
         async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
             resolver, _ = await create_resolver(dns_mode, timeout, client)
             report.checks += await run_mail_checks(resolver, client, facts.domain)
+
+    if security and (facts.html or facts.headers):
+        async with _stage(progress, "Безопасность сайта"), make_client(timeout) as client:
+            resolver, _ = await create_resolver(dns_mode, timeout, client)
+            checks, data = await run_web_checks(facts, resolver, client, timeout)
+            report.checks += checks
+            report.facts["web_security"] = data
 
     if subdomains:
         async with (

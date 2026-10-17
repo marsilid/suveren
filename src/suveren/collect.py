@@ -75,6 +75,13 @@ class Facts:
     final_url: str | None = None
     page_status: int | None = None
     html: str = ""
+    # Home page response headers (lower-case names) and raw Set-Cookie lines; the
+    # cookies are only read for their flags and never written to reports.
+    headers: dict[str, str] = field(default_factory=dict)
+    set_cookies: list[str] = field(default_factory=list)
+    # Why that HTTP response is not the real site (a bot wall), if it isn't. Kept apart
+    # from page_problem: --browser may get past the wall while the headers did not.
+    http_problem: str | None = None
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     rendered: bool = False
@@ -113,7 +120,7 @@ _CHALLENGE = re.compile(
     r"captcha|challenge|доступ ограничен|доступ запрещ|проверка безопасности|"
     r"запрос отклонен|пройдите проверку|подтвердите, что вы|checking your browser|"
     r"ddos-guard|servicepipe|qrator|antibot|are you a robot|не робот|access denied|"
-    r"enable javascript|включите javascript",
+    r"enable javascript|включите javascript|user_blocked",
     re.I,
 )
 
@@ -134,6 +141,19 @@ def page_problem(status: int | None, html: str, *, rendered: bool = False) -> st
         if rendered:
             return "страница почти пустая даже после загрузки в браузере"
         return "страница собирается скриптами в браузере, в исходном HTML её содержимого нет"
+    return None
+
+
+def bot_wall(status: int | None, html: str) -> str | None:
+    """A bot wall or an error answered instead of the site.
+
+    Unlike page_problem, an empty JavaScript shell is not one: a single-page app's
+    HTML is tiny, but its headers are the site's real headers.
+    """
+    if status is not None and status >= 400:
+        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+    if len(parse_page(html).text) < 1500 and _CHALLENGE.search(html[:30000]):
+        return "сайт показал страницу защиты от ботов"
     return None
 
 
@@ -290,9 +310,9 @@ class Collector:
         unique = sorted(set(ips))[:MAX_HOSTS]
         return list(await asyncio.gather(*(self.net_info(ip) for ip in unique)))
 
-    async def homepage(self, host: str) -> tuple[str, int, str]:
-        """(final URL, HTTP status, HTML). Tolerates certificates Python doesn't trust,
-        such as the Russian НУЦ Минцифры root, before falling back to plain HTTP."""
+    async def homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:
+        """(final URL, HTTP status, HTML, headers). Tolerates certificates Python doesn't
+        trust, such as the Russian НУЦ Минцифры root, before falling back to plain HTTP."""
         last_error: Exception | None = None
         attempts = ((self.client, f"https://{host}/"), (None, f"https://{host}/"))
         for client, url in (*attempts, (self.client, f"http://{host}/")):
@@ -305,7 +325,7 @@ class Collector:
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
-            return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS]
+            return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
         raise ModuleError(f"сайт не открылся ({type(last_error).__name__})")
 
     @property
@@ -504,7 +524,10 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
         elif key == "web":
             facts.web = value
         elif key == "homepage":
-            facts.final_url, facts.page_status, facts.html = value
+            facts.final_url, facts.page_status, facts.html, headers = value
+            facts.headers = {k.lower(): v for k, v in headers.items()}
+            facts.set_cookies = headers.get_list("set-cookie")
+            facts.http_problem = bot_wall(facts.page_status, facts.html)
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":
