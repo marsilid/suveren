@@ -173,7 +173,8 @@ def scan(
         bool,
         typer.Option(
             "--quick",
-            help="Только иностранные сервисы, без 152-ФЗ, блокировок, почты и поддоменов.",
+            help="Только иностранные сервисы, без 152-ФЗ, блокировок, почты, поддоменов и "
+            "проверок безопасности.",
         ),
     ] = False,
     no_152fz: Annotated[
@@ -184,6 +185,13 @@ def scan(
     ] = False,
     no_mail: Annotated[
         bool, typer.Option("--no-mail", help="Пропустить проверку защиты почты от подделки.")
+    ] = False,
+    no_security: Annotated[
+        bool,
+        typer.Option(
+            "--no-security",
+            help="Пропустить проверку безопасности сайта: сторонние скрипты, CSP, HSTS, TLS.",
+        ),
     ] = False,
     no_subdomains: Annotated[
         bool,
@@ -247,6 +255,7 @@ def scan(
                     blocklist=not (no_blocklist or quick),
                     mail=not (no_mail or quick),
                     subdomains=not (no_subdomains or quick),
+                    security=not (no_security or quick),
                     refresh=refresh,
                     browser=browser,
                     pages=pages,
@@ -373,6 +382,7 @@ def batch(
                         blocklist=not quick,
                         mail=not quick,
                         subdomains=not quick,
+                        security=not quick,
                         browser=browser,
                         pages=pages,
                     ),

@@ -12,7 +12,7 @@
 
 </div>
 
-Suveren answers five questions:
+Suveren answers six questions:
 
 1. **What breaks if foreign providers cut you off?** It finds everything running on
    infrastructure outside Russia (DNS, mail, hosting, CDN, site builder, registrar, TLS
@@ -25,7 +25,9 @@ Suveren answers five questions:
    records, summed up as a plain verdict: yes, partly or no.
 4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate
    Transparency logs, checked for CNAMEs to deleted projects or to unregistered domains.
-5. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
+5. **Whose code runs on the site, and how well are visitors protected?** Third-party scripts,
+   abandoned or compromised script domains, SRI, CSP, HSTS, cookie flags and TLS.
+6. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
    the company and its head against the US (OFAC SDN), EU and UK sanctions lists.
 
 The tool targets Russian businesses, so its interface and reports are in Russian.
@@ -67,6 +69,10 @@ On Windows you can also run `Suveren.bat`, which installs everything on first la
   fingerprints (CC BY 4.0). A CNAME to a domain missing from DNS counts as "anyone can buy it"
   only if the registry (RDAP, WHOIS for .ru) confirms it is free: registered but undelegated
   domains are common. Every hit says "possible takeover, verify manually".
+- Web security asks for SRI only on public library CDNs (analytics scripts change constantly and
+  can't have it), flags CSP `'unsafe-inline'` only without a nonce or hash, and skips header checks
+  when a bot wall answered or the site redirected to another domain. TLS is probed on the host you
+  asked for, not on a redirect target (yandex.ru → sso.passport.yandex.ru).
 - `--browser` renders the home page with Playwright in the installed Edge or Chrome and counts
   every network request, so tag-manager-injected scripts are found too. Anti-bot stubs and empty
   JavaScript shells are detected and reported as "not verified" rather than as failures.
