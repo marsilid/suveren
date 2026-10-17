@@ -210,3 +210,17 @@ def test_policy_link_and_bundled_consent_on_the_sign_in_page():
     consent = find(checks, CONSENT_TITLE)
     assert consent.status is Status.WARN
     assert "вход, my.example.ru/sign" in consent.details
+
+
+def test_bundled_consent_in_page_text_without_full_stops():
+    from suveren.pdpolicy import bundled_in_text
+
+    page = (
+        "Телефон Пароль Войти с паролем восстановить доступ "
+        * 10
+        + "При входе вы принимаете условия использования сайта и соглашаетесь на обработку "
+        "персональных данных согласно политике конфиденциальности ."
+    )
+    quote = bundled_in_text(page)
+    assert "При входе вы принимаете условия использования" in quote
+    assert bundled_in_text("Я соглашаюсь на обработку персональных данных. " * 3) is None

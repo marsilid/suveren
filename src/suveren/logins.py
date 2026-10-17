@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
 from suveren.checks import GROUP_LAWS, Check, Status
 from suveren.page import Page, page_code
@@ -347,10 +347,26 @@ def find_login_page(page: Page, base: str) -> str | None:
         if registrable_domain(parts.hostname.lower()) != site or url.rstrip("/") == home:
             continue
         if _LOGIN_TEXT.match(link.text.strip()):
-            return url
+            return _without_return(url)
         if by_href is None and _LOGIN_HREF.search(parts.path):
-            by_href = url
+            by_href = _without_return(url)
     return by_href
+
+
+# Where to go after signing in, and tracking: drom.ru hides the Telegram button when
+# the sign-in page is opened with ?return=...
+_RETURN_PARAM = re.compile(
+    r"^(?:return\w*|back\w*|redirect\w*|next|from|ret|goto|continue|utm_\w+|hhtm\w*)$", re.I
+)
+
+
+def _without_return(url: str) -> str:
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)]
+    kept = [(k, v) for k, v in query if not _RETURN_PARAM.match(k)]
+    if len(kept) == len(query):
+        return url
+    return urlunsplit(parts._replace(query=urlencode(kept)))
 
 
 _KIND_RU = {

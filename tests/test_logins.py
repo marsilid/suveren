@@ -222,3 +222,13 @@ def test_sign_in_page_drawn_by_scripts_is_named():
     check = login_check([], ["главная", "/login"], shell="/login")
     assert check.status is Status.OK
     assert "/login собирается скриптами" in check.details and "--browser" in check.details
+
+
+def test_login_page_url_drops_return_and_tracking_parameters():
+    page = parse_page(
+        '<a href="https://my.example.ru/sign?return=https%3A%2F%2Fexample.ru%2F&amp;tcb=1">'
+        "Вход и регистрация</a>"
+    )
+    assert find_login_page(page, BASE) == "https://my.example.ru/sign?tcb=1"
+    keep = parse_page('<a href="/account/login?role=applicant&amp;backurl=%2F">Войти</a>')
+    assert find_login_page(keep, BASE) == "https://example.ru/account/login?role=applicant"

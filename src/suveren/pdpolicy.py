@@ -223,10 +223,16 @@ def bundled_in_form(form: Form) -> str | None:
 def bundled_in_text(text: str) -> str | None:
     """The same, in a short sentence of a page ("При входе вы принимаете условия
     использования сайта и соглашаетесь на обработку персональных данных")."""
-    for sentence in _SENTENCE.findall(text):
-        low = _norm(sentence)
-        if len(low) <= 300 and _PROCESSING.search(low) and _OTHER_DOC.search(low):
-            return _quote(sentence)
+    # Page text often has no full stops between interface elements, so look around the
+    # consent phrase itself: from the previous full stop, at most 160 characters back.
+    original = " ".join(text.split())
+    low = original.lower().replace("ё", "е")  # same length: indices match the original
+    for match in _PROCESSING.finditer(low):
+        start = max(low.rfind(".", 0, match.start()) + 1, match.start() - 160)
+        end = low.find(".", match.end())
+        end = len(low) if end < 0 else min(end, match.end() + 160)
+        if _OTHER_DOC.search(low[start:end]):
+            return _quote(original[start:end].strip())
     return None
 
 
