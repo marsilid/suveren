@@ -238,7 +238,8 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             Check(
                 GROUP_152,
                 "Политика обработки персональных данных",
-                Status.FAIL,
+                # Unproven if the sign-in page, where the link sometimes is, was a bot wall.
+                Status.WARN if data.login_blocked else Status.FAIL,
                 "На проверенных страницах нет ссылки на политику обработки персональных данных. "
                 "Если подвал сайта подгружается скриптом, проверьте вручную."
                 + (

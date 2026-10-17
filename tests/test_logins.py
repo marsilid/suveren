@@ -264,3 +264,4 @@ def test_run_compliance_tells_a_bot_wall_from_a_sign_in_page():
     assert login.status is Status.UNKNOWN
     policy = next(c for c in checks if c.title == "Политика обработки персональных данных")
     assert "Страница входа (/sign) не открылась" in policy.details
+    assert policy.status is Status.WARN
