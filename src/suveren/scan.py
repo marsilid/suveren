@@ -20,8 +20,9 @@ from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
 from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
-from suveren.dnsutil import ResolverMode
+from suveren.dnsutil import ResolverMode, create_resolver
 from suveren.errors import ModuleError
+from suveren.mailsec import run_mail_checks
 from suveren.models import Report
 from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
@@ -52,6 +53,7 @@ async def run_scan(
     dns_mode: ResolverMode = "auto",
     compliance: bool = True,
     blocklist: bool = True,
+    mail: bool = True,
     refresh: bool = False,
     browser: bool = False,
     pages: int = DEFAULT_PAGES,
@@ -93,6 +95,11 @@ async def run_scan(
                     )
                 report.checks += checks
                 report.notes += notes
+
+    if mail:
+        async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
+            resolver, _ = await create_resolver(dns_mode, timeout, client)
+            report.checks += await run_mail_checks(resolver, client, facts.domain)
 
     report.finished_at = datetime.now(timezone.utc)
     return report

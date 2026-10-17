@@ -171,13 +171,16 @@ def scan(
     ] = DEFAULT_PAGES,
     quick: Annotated[
         bool,
-        typer.Option("--quick", help="Только иностранные сервисы, без 152-ФЗ и блокировок."),
+        typer.Option("--quick", help="Только иностранные сервисы, без 152-ФЗ, блокировок и почты."),
     ] = False,
     no_152fz: Annotated[
         bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
     ] = False,
     no_blocklist: Annotated[
         bool, typer.Option("--no-blocklist", help="Пропустить реестр блокировок РКН.")
+    ] = False,
+    no_mail: Annotated[
+        bool, typer.Option("--no-mail", help="Пропустить проверку защиты почты от подделки.")
     ] = False,
     output: Annotated[
         Path | None,
@@ -232,6 +235,7 @@ def scan(
                     dns_mode=dns_mode.value,
                     compliance=not (no_152fz or quick),
                     blocklist=not (no_blocklist or quick),
+                    mail=not (no_mail or quick),
                     refresh=refresh,
                     browser=browser,
                     pages=pages,
@@ -356,6 +360,7 @@ def batch(
                         timeout=timeout,
                         compliance=not quick,
                         blocklist=not quick,
+                        mail=not quick,
                         browser=browser,
                         pages=pages,
                     ),
