@@ -208,3 +208,32 @@ def test_own_domain_is_not_a_dependency():
 def test_mintsifry_issuer_recognised_by_ministry_name():
     service = db.by_issuer("The Ministry of Digital Development and Communications")
     assert service is not None and service.country == "RU"
+
+
+def code_names(html):
+    from suveren.page import page_code
+
+    return {s.name for s, _ in db.scan_page(page_code(html))}
+
+
+def test_mention_in_text_is_not_a_dependency():
+    html = "<article><p>Подключите googletagmanager.com и fonts.googleapis.com</p></article>"
+    assert code_names(html) == set()
+
+
+def test_commented_out_tag_is_not_a_dependency():
+    html = '<!-- <script src="https://www.googletagmanager.com/gtag/js"></script> -->'
+    assert code_names(html) == set()
+
+
+def test_tags_attributes_and_inline_scripts_are_checked():
+    html = """
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1"></script>
+    <img data-src="https://fonts.googleapis.com/css2?family=Inter">
+    <script>fbq('init', '123');</script>
+    """
+    assert code_names(html) == {
+        "Google Analytics / Tag Manager",
+        "Google Fonts",
+        "Meta Pixel (Facebook)",
+    }

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from suveren import services as db
 from suveren.collect import Facts, HostInfo, NetInfo
 from suveren.models import Category, Dependency, Finding, Report
+from suveren.page import page_code
 from suveren.services import Service
 
 # Layers where a domestic server next to a foreign one is real redundancy.
@@ -117,7 +118,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         else:
             deps.append(Dependency(Category.TLS, facts.tls_issuer, None, "сертификат"))
 
-    page_text = facts.html + "\n" + "\n".join(facts.loaded_urls)
+    page_text = page_code(facts.html) + "\n" + "\n".join(facts.loaded_urls)
     found: set[str] = set()
     own = facts.domain  # the site's own hosts are not a dependency on itself
     for service, matched in db.scan_page(page_text, own_domain=own):
@@ -126,7 +127,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         found.add(service.name)
     # Services that appear only on inner pages say where they were seen.
     for extra in facts.extra_pages:
-        text = extra.html + "\n" + "\n".join(extra.loaded_urls)
+        text = page_code(extra.html) + "\n" + "\n".join(extra.loaded_urls)
         for service, matched in db.scan_page(text, own_domain=own):
             if service.name in found:
                 continue
