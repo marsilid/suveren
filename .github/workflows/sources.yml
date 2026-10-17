@@ -26,4 +26,5 @@ jobs:
       - name: Install
         run: pip install .
       - name: Probe sources
-        run: suveren doctor
+        # Runners are outside Russia, where ЕГРЮЛ and the РКН register often time out.
+        run: suveren doctor --abroad

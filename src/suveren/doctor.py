@@ -3,6 +3,10 @@
 Run by hand when something looks wrong, and daily in CI so that a change on a
 government site is noticed before users hit it. Each probe uses a well-known
 target whose answer is stable (Сбербанк's ИНН, google.com, 8.8.8.8).
+
+Russian government sites often drop connections from abroad, and the CI runners
+are abroad: with ``abroad=True`` a network failure of those sources is reported
+as "not checked" instead of "broken". A wrong answer still counts as broken.
 """
 
 from __future__ import annotations
@@ -27,6 +31,8 @@ from suveren.registries import egrul_search, rkn_operator
 from suveren.sanctions import SOURCES
 
 PROBE_INN = "7707083893"  # ПАО Сбербанк: present in every registry and sanctions list
+# Sources that may not answer outside Russia at all.
+RU_ONLY = frozenset({"ЕГРЮЛ (ФНС)", "Реестр операторов ПДн (РКН)"})
 
 
 @dataclass(slots=True)
@@ -41,7 +47,13 @@ class _Optional(Exception):
     """An optional component (the browser mode) is not installed."""
 
 
-async def _timed(name: str, fn: Callable[[], Awaitable[str]]) -> Probe:
+def _network_failure(exc: BaseException) -> bool:
+    """The source did not answer at all, as opposed to answering something unexpected."""
+    cause = exc.__cause__ if isinstance(exc, ModuleError) else exc
+    return isinstance(cause, (httpx.TransportError, OSError, *TIMEOUTS))
+
+
+async def _timed(name: str, fn: Callable[[], Awaitable[str]], *, abroad: bool = False) -> Probe:
     started = time.perf_counter()
     try:
         details = await fn()
@@ -50,6 +62,9 @@ async def _timed(name: str, fn: Callable[[], Awaitable[str]]) -> Probe:
         return Probe(name, None, str(exc), time.perf_counter() - started)
     except (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS, ValueError, KeyError) as exc:
         message = str(exc) or type(exc).__name__
+        if abroad and name in RU_ONLY and _network_failure(exc):
+            message = f"не проверен: из-за границы не отвечает ({message})"
+            return Probe(name, None, message, time.perf_counter() - started)
         return Probe(name, False, message, time.perf_counter() - started)
 
 
@@ -62,7 +77,7 @@ async def _reachable(client: httpx.AsyncClient, url: str) -> str:
     return "доступен"
 
 
-async def run_doctor(timeout: float = 20.0) -> list[Probe]:
+async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Probe]:
     async with make_client(timeout) as client:
         resolver, note = await create_resolver("auto", timeout, client)
         collector = Collector(resolver, client, timeout)
@@ -134,4 +149,4 @@ async def run_doctor(timeout: float = 20.0) -> list[Probe]:
             *((f"Санкции: {s.title}", sanctions(s.url)) for s in SOURCES),
             ("Браузер для --browser", browser),
         ]
-        return [await _timed(name, fn) for name, fn in probes]
+        return [await _timed(name, fn, abroad=abroad) for name, fn in probes]
