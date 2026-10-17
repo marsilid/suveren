@@ -163,7 +163,7 @@ def test_bot_wall_is_unknown():
 
 
 def test_details_are_capped():
-    many = [LoginEvidence(f"P{i}", OAUTH, "/login", f"x{i}") for i in range(8)]
+    many = [LoginEvidence(f"P{i}", OAUTH, f"/p{i}", f"x{i}") for i in range(8)]
     assert "и ещё 3" in login_check(many, ["главная"]).details
 
 
@@ -190,7 +190,7 @@ def test_run_compliance_opens_the_sign_in_page():
     check = next(c for c in checks if c.group == GROUP_LAWS)
     assert "/user/login" in asked
     assert check.status is Status.FAIL
-    assert "страница /user/login" in check.details
+    assert "странице /user/login" in check.details
 
 
 def test_button_text_alone_warns_and_with_script_fails():

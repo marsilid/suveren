@@ -363,17 +363,29 @@ def _describe(items: list[LoginEvidence]) -> str:
     by_provider: dict[str, list[LoginEvidence]] = {}
     for e in items:
         by_provider.setdefault(e.provider, []).append(e)
-    parts = []
+    shown: list[tuple[str, LoginEvidence, list[str]]] = []
     for provider, found in list(by_provider.items())[:5]:
         best = min(found, key=lambda e: _BEST_FIRST.index(e.kind))
         pages = list(dict.fromkeys(e.where for e in found if e.kind == best.kind))
-        where = ", ".join(pages[:2]) + (f" и ещё {len(pages) - 2}" if len(pages) > 2 else "")
+        shown.append((provider, best, pages))
+    one_page = len({tuple(pages) for _, _, pages in shown}) == 1 and len(shown[0][2]) == 1
+    if one_page and len(shown) > 1:
+        # A row of buttons on the sign-in page: one example is enough.
+        best = min((b for _, b, _ in shown), key=lambda e: _BEST_FIRST.index(e.kind))
         sample = f"«{best.sample}»" if best.kind == BUTTON else best.sample
-        page_word = "страница" if len(pages) == 1 else "страницы"
-        parts.append(f"{provider} — {_KIND_RU[best.kind]} {sample} ({page_word} {where})")
+        return f"кнопки на странице {shown[0][2][0]} (например, {_KIND_RU[best.kind]} {sample})"
+    parts = []
+    for provider, best, pages in shown:
+        sample = f"«{best.sample}»" if best.kind == BUTTON else best.sample
+        part = f"{provider} — {_KIND_RU[best.kind]} {sample}"
+        if not one_page:
+            where = ", ".join(pages[:2]) + (f" и ещё {len(pages) - 2}" if len(pages) > 2 else "")
+            part += f" ({'страница' if len(pages) == 1 else 'страницы'} {where})"
+        parts.append(part)
     if len(by_provider) > 5:
         parts.append(f"и ещё {len(by_provider) - 5}")
-    return "; ".join(parts)
+    text = "; ".join(parts)
+    return f"{text} (страница {shown[0][2][0]})" if one_page else text
 
 
 def _is_strong(items: list[LoginEvidence]) -> bool:
