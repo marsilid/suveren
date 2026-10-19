@@ -76,6 +76,20 @@ def test_article_text_and_shop_links_are_not_sign_in():
     assert plain == []
 
 
+def test_help_articles_authors_and_pay_buttons_are_not_sign_in():
+    html = (
+        '<a href="/help/login/google">Как войти</a><a href="/docs/oauth/github">API</a>'
+        '<a href="/authors/?provider=google">Авторы</a>'
+        '<a href="/kb/articles/auth/apple">Статья</a>'
+        "<button>Продолжить с Apple Pay</button><button>Оплатить через Google Pay</button>"
+    )
+    assert find_evidence(html, parse_page(html), BASE, "главная") == []
+    # Real routes near the start of the path still count.
+    route = '<a href="/ru/users/auth/github">GitHub</a><a href="/login?provider=google">G</a>'
+    found = find_evidence(route, parse_page(route), BASE, "главная")
+    assert {e.provider for e in found if e.kind == PATH} == {"GitHub", "Google"}
+
+
 def test_own_routes_foreign_fail_and_russian_allowed():
     found = evidence("own_routes.html")
     foreign = {e.provider for e in found if e.kind == PATH and e.foreign}

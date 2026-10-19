@@ -163,7 +163,7 @@ _LABEL = re.compile(
     _VERB
     + r"\s+(?:через|с\s+помощью|с|with|using|via)\s+(?:аккаунт\w*\s+|account\s+)?("
     + "|".join(_LABEL_NAMES.values())
-    + r")(?!\w)",
+    + r")(?!\w)(?!\s*pay\b)",  # "Продолжить с Apple Pay" is a payment, not a sign-in
     re.I,
 )
 _ATTR_TEXT = re.compile(r"""(?:aria-label|title|alt|value)\s*=\s*["']([^"'<>]{3,100})["']""", re.I)
@@ -190,14 +190,24 @@ _AUTH_SEGMENT = (
 _ALL_NAMES = "|".join(
     sorted({n for p in FOREIGN + RUSSIAN for n in p.names}, key=len, reverse=True)
 )
-_OWN_PATH = re.compile(rf"/{_AUTH_SEGMENT}/(?:[\w-]+/)?({_ALL_NAMES})(?:[/?#.]|$)", re.I)
+# The route sits near the start of the path (/users/auth/github, /ru/api/auth/google),
+# not deep in a help article (/help/login/google, /docs/oauth/github).
+_OWN_PATH = re.compile(
+    rf"^(?:/[\w-]+){{0,2}}/{_AUTH_SEGMENT}/(?:[\w-]+/)?({_ALL_NAMES})(?:[/?#.]|$)", re.I
+)
+_DOC_SEGMENT = re.compile(
+    r"/(?:help|docs?|documentation|faq|support|kb|wiki|blog|news|articles?|guides?|manual)"
+    r"(?:/|$)",
+    re.I,
+)
 # Plugins name the network in a parameter (WordPress Nextend, 1C-Bitrix). A bare
 # ?provider= counts only on a sign-in route: ?service=apple may be a repair shop.
 _OWN_QUERY = re.compile(
     rf"[?&](?:loginSocial|auth_service_id)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.I
 )
 _AUTH_QUERY = re.compile(rf"[?&](?:provider|backend)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.I)
-_AUTH_WORD = re.compile(r"auth|login|signin|sign-in|sso", re.I)
+# A whole path word: "/authors/?provider=google" is not a sign-in route.
+_AUTH_WORD = re.compile(r"(?:^|[/_.-])(?:o?auth2?|login|signin|sign-in|sso)(?:$|[/_.-])", re.I)
 _PROVIDER_KEYS = {n.lower(): (p.name, True) for p in FOREIGN for n in p.names} | {
     n.lower(): (p.name, False) for p in RUSSIAN for n in p.names
 }
@@ -255,6 +265,8 @@ def _own_route(url: str, site: str) -> tuple[str, bool] | None:
     """(provider, foreign) if ``url`` is the site's own route that starts a sign-in."""
     parts = urlsplit(url)
     if parts.hostname and registrable_domain(parts.hostname.lower()) != site:
+        return None
+    if _DOC_SEGMENT.search(parts.path):
         return None
     query = f"?{parts.query}"
     match = _OWN_PATH.search(parts.path) or _OWN_QUERY.search(query)
