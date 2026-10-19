@@ -9,6 +9,9 @@ against the consolidated text as amended on 04.08.2026:
 - note to ст. 2.4: a sole trader (ИП) is fined as an official unless the article
   names sole traders separately:
   https://www.consultant.ru/document/cons_doc_LAW_34661/de33c73dc4e364406642dc44f280f59154201a2e/
+- notes to ст. 13.11 (checked 2026-10-20): under parts 1.1 and 8–18 a sole trader is
+  fined as a legal entity (note 1); in parts 10–18 an "official" is one of a state
+  body or a non-profit only (note 2).
 
 Every problem ("fail") that matches a part of an article goes into the total, one
 article counted once. Where the qualification depends on facts Suveren can't see
@@ -78,6 +81,7 @@ LOCALISATION = Fine(
     legal=(1_000_000, 6_000_000),
     official=(100_000, 200_000),
     citizen=(30_000, 50_000),
+    entrepreneur=(1_000_000, 6_000_000),  # note 1: as a legal entity
     repeat_legal=(6_000_000, 18_000_000),
     repeat_article="ч. 9",
 )
@@ -86,8 +90,9 @@ NO_NOTIFICATION = Fine(
     "КоАП, ст. 13.11 ч. 10",
     KOAP_1311,
     legal=(100_000, 300_000),
-    official=(30_000, 50_000),
+    official=(30_000, 50_000),  # note 2: officials of state bodies and non-profits only
     citizen=(5_000, 10_000),
+    entrepreneur=(100_000, 300_000),  # note 1: as a legal entity
 )
 # ст. 13.55: sign-in for users in Russia not by the methods 149-ФЗ allows.
 FOREIGN_SIGN_IN = Fine(
@@ -119,7 +124,8 @@ RULES: dict[tuple[str, Status], tuple[Fine, str | None]] = {
     # Some operators may process data without notifying (152-ФЗ, ст. 22 ч. 2).
     ("Реестр операторов персональных данных", Status.WARN): (
         NO_NOTIFICATION,
-        "если компания не освобождена от уведомления",
+        "если компания не освобождена от уведомления; штраф для должностного лица — "
+        "только в госорганах и некоммерческих организациях",
     ),
 }
 

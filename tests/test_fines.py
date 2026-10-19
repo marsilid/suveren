@@ -30,8 +30,10 @@ def test_total_counts_problems_and_lists_warnings():
     ]
     assert [i.fine.article for i in fines.listed] == ["КоАП, ст. 13.11 ч. 10"]
     assert fines.total("legal") == 60_000 + 6_000_000 + 700_000 + 300_000
-    # A sole trader: named in ч. 3, otherwise fined as an official (note to ст. 2.4).
-    assert fines.total("sole_trader") == 20_000 + 200_000 + 50_000 + 100_000
+    # A sole trader: named in ч. 3, as a legal entity in ч. 8 and ч. 10 (note 1 to
+    # ст. 13.11), otherwise as an official (note to ст. 2.4).
+    assert fines.total("sole_trader") == 20_000 + 6_000_000 + 50_000 + 100_000
+    assert fines.listed[0].fine.sole_trader == (100_000, 300_000)
     by_title = {i.title: i for i in fines.items}
     assert (
         by_title["Согласие на обработку в формах"].note == "если для этой обработки нужно согласие"
