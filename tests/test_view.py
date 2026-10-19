@@ -125,6 +125,8 @@ def test_batch_outputs(tmp_path):
     assert row["domain"] == "example.ru"
     assert row["pd_fail"] == 1
     assert isinstance(row["fines_max"], int)
+    # Old columns keep their places in summary.csv; new ones are appended.
+    assert list(row)[-2:] == ["top_risks", "fines_max"]
     index = write_batch_html([report], [("bad.ru", "NXDOMAIN")], tmp_path / "index.html")
     html = index.read_text(encoding="utf-8")
     assert 'href="example.ru.html"' in html
