@@ -18,3 +18,6 @@ reports/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Golden corpus of real sites: local only (tests/golden.py)
+corpus/

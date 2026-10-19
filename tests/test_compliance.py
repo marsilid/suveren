@@ -180,3 +180,62 @@ def test_owner_inn_only_from_the_sites_own_pages():
         assert is_requisites_path(path)
     page = parse_page('<a href="/ru/companies/">Компании</a><a href="/ru/about/">О сайте</a>')
     assert contact_links(page, BASE) == ["https://example.ru/ru/about/"]
+
+
+def test_policy_found_on_a_documents_page():
+    """beget.com: no policy link in the footer, only "Правила и лицензии"; there the
+    table of contents links to its own section, and the section links to a PDF."""
+    import asyncio
+
+    import httpx
+
+    from suveren.checks import GROUP_152
+    from suveren.compliance import hub_links, run_compliance
+
+    home = (
+        '<html><body><a href="/ru/oferta">Публичная оферта</a>'
+        '<a href="/ru/rules">Правила и лицензии</a><a href="https://other.ru/docs">Документы</a>'
+        + "<p>текст</p>" * 200
+        + "</body></html>"
+    )
+    hub = (
+        '<a href="/ru/rules#pd">Политика обработки персональных данных</a>'
+        '<h2 id="pd">Политика обработки персональных данных</h2>'
+        '<a href="/files/personal-data.pdf">Политика обработки персональных данных</a>'
+    )
+    assert hub_links([(BASE, parse_page(home))], BASE) == ["https://example.ru/ru/rules"]
+
+    def handler(request):
+        if request.url.path == "/ru/rules":
+            return httpx.Response(200, html=hub + "<p>текст</p>" * 100)
+        return httpx.Response(404)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_compliance(client, BASE, home, [])
+
+    checks = asyncio.run(go())
+    policy = next(c for c in checks if c.group == GROUP_152 and c.id == "SUV-PD-001")
+    assert policy.status is Status.OK
+    assert "PDF" in policy.details
+
+
+def test_gift_card_field_is_not_personal_data_but_css_classes_do_not_hide_a_phone():
+    card = '<form><input type="tel" name="GIFT_CARD"><button>Добавить</button></form>'
+    assert status(run(card), "Согласие на обработку в формах") is Status.UNKNOWN
+    phone = (
+        '<form><input type="tel" name="phone" class="js--SignInBySms__input">'
+        "<button>Позвоните мне</button></form>"
+    )
+    assert status(run(phone), "Согласие на обработку в формах") is Status.FAIL
+
+
+def test_first_step_of_a_form_without_consent_is_a_warning():
+    step = (
+        '<form><p>Отправим СМС с кодом подтверждения.</p><input type="tel" name="phone">'
+        "<button>Продолжить</button></form>"
+    )
+    checks = run(step)
+    check = next(c for c in checks if c.title == "Согласие на обработку в формах")
+    assert check.status is Status.WARN
+    assert "первом шаге" in check.details

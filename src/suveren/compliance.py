@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
 import httpx
 
@@ -189,10 +189,25 @@ def pd_forms(page: Page) -> list[Form]:
         if all(i.type == "search" or i.name in ("q", "s", "search", "query") for i in fields):
             continue
         if any(
-            i.type in ("email", "tel") or _PD_FIELD.search(f"{i.name} {i.hint}") for i in fields
+            (i.type in ("email", "tel") or _PD_FIELD.search(f"{i.name} {i.hint}"))
+            and not _NOT_PD_FIELD.search(i.name)
+            for i in fields
         ):
             result.append(form)
     return result
+
+
+# A gift card, promo code or SMS code typed into a "tel" field is not personal data
+# (vkusvill.ru's cart: <input type="tel" name="GIFT_CARD">). Only the field's name is
+# read: CSS classes say "card" for an e-mail field in a card layout (banki.ru) and
+# "SignInBySms" for a phone (citilink.ru).
+_NOT_PD_FIELD = re.compile(
+    r"card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|amount|qty|quantity", re.I
+)
+_FIRST_STEP = re.compile(
+    r"(?<!\w)(?:продолжить|далее|получить код|отправить код|выбрать станцию|next|continue)(?!\w)",
+    re.I,
+)
 
 
 def _unique_forms(located: list[tuple[str, Form]]) -> list[tuple[str, Form]]:
@@ -318,10 +333,28 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         # page mentions it, the form is "probably fine" rather than a clear failure.
         page_texts = {"главная": page.text, **{p: pg.text for p, _, pg in data.extra}}
         missing = [(p, f) for p, f in located if not _form_has_consent(f)]
-        hard = [(p, f) for p, f in missing if not _CONSENT_NEARBY.search(page_texts.get(p, ""))]
-        soft = [(p, f) for p, f in missing if (p, f) not in hard]
+        unseen = [(p, f) for p, f in missing if not _CONSENT_NEARBY.search(page_texts.get(p, ""))]
+        # The first step of a multi-step form ("Отправим СМС… Продолжить") often shows the
+        # consent on a later step that plain HTML does not have: not a proven failure.
+        steps = [(p, f) for p, f in unseen if _FIRST_STEP.search(f.text)]
+        hard = [x for x in unseen if x not in steps]
+        soft = [(p, f) for p, f in missing if (p, f) not in unseen]
         prechecked = [f for f in forms if any(i.type == "checkbox" and i.checked for i in f.inputs)]
-        if hard:
+        if steps and not hard:
+            where = ", ".join(dict.fromkeys(p for p, _ in steps))
+            checks.append(
+                Check(
+                    GROUP_152,
+                    "Согласие на обработку в формах",
+                    Status.WARN,
+                    f"Форм с персональными данными: {len(forms)}. Согласия не видно в "
+                    f"первом шаге формы ({where}). Если оно появляется на следующем шаге, "
+                    "всё в порядке: проверьте, пройдя форму до конца.",
+                    "Согласие должно быть дано до того, как данные отправлены. Если на "
+                    "первом шаге уже собирается телефон или имя, покажите согласие там же.",
+                )
+            )
+        elif hard:
             where = ", ".join(dict.fromkeys(p for p, _ in hard))
             checks.append(
                 Check(
@@ -644,6 +677,12 @@ async def run_compliance(
         extras.append((login.url, login_page))
         data.login = (_where(login.url, base), login_page)
     target = policy_target(page, extras, base)
+    if target is None or target[1] is not None:
+        # No direct link: the policy is often one page away, in a list of documents
+        # (beget.com: "Правила и лицензии"). Check that before falling back on an offer.
+        via_hub = await _policy_via_hub(client, [(base, page), *extras], base)
+        if via_hub:
+            target = (via_hub, None)
     if target and target[1] is None:
         data.policy = await fetch_policy(client, target[0], prefetched.get(target[0]))
     elif target:
@@ -664,6 +703,55 @@ async def run_compliance(
     loaded = {p.path: p.loaded_urls for p in extra_pages or []}
     checks.append(_foreign_login(data, html, loaded_urls or [], loaded, login))
     return checks
+
+
+_HUB_TEXT = re.compile(
+    r"^(?:документ\w*|правовая информация|правовые документы|юридическая информация|"
+    r"правила(?: и лицензии| и документы| сервиса| сайта)?|договор\w*|"
+    r"документы и (?:правила|лицензии)|legal|documents)$",
+    re.I,
+)
+MAX_HUBS = 3
+
+
+def hub_links(pages: list[tuple[str, Page]], base: str) -> list[str]:
+    """The site's own pages that list its legal documents, from link text alone."""
+    site = registrable_domain(urlsplit(base).hostname or "")
+    found: list[str] = []
+    for url, page in pages:
+        for link in page.links:
+            href = link.href.strip()
+            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                continue
+            if not _HUB_TEXT.match(" ".join(link.text.split())):
+                continue
+            absolute = urljoin(url, href)
+            if registrable_domain(urlsplit(absolute).hostname or "") != site:
+                continue
+            if absolute not in found:
+                found.append(absolute)
+    return found[:MAX_HUBS]
+
+
+async def _policy_via_hub(
+    client: httpx.AsyncClient, pages: list[tuple[str, Page]], base: str
+) -> str | None:
+    for url in hub_links(pages, base):
+        doc = await _fetch_html(client, url)
+        if doc is None or detect_page_problem(doc.status, doc.html, rendered=False):
+            continue
+        # The hub's table of contents links to its own sections (#politika...); the
+        # document itself is the link inside that section (beget.com: a PDF).
+        here = urldefrag(doc.url)[0]
+        links = [
+            link
+            for link in parse_page(doc.html).links
+            if urldefrag(urljoin(doc.url, link.href.strip()))[0] != here
+        ]
+        found = find_policy_link(links, doc.url)
+        if found:
+            return found
+    return None
 
 
 async def _login_page(
