@@ -222,5 +222,5 @@ def test_bundled_consent_in_page_text_without_full_stops():
         "персональных данных согласно политике конфиденциальности ."
     )
     quote = bundled_in_text(page)
-    assert "При входе вы принимаете условия использования" in quote
+    assert quote.startswith("При входе вы принимаете условия использования")
     assert bundled_in_text("Я соглашаюсь на обработку персональных данных. " * 3) is None

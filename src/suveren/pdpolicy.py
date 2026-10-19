@@ -178,6 +178,7 @@ _OTHER_DOC = re.compile(
     r"правил\w*\s+(?:сайта|сервиса|пользования|программы|акции)|договор\w*\s+(?:оферты|оказания)",
 )
 _SENTENCE = re.compile(r"[^.!?]+")
+_CAPITAL = re.compile(r"(?<!\S)[А-ЯЁA-Z][а-яёa-z]")
 # The document says using the site, registering or sending a form *is* consent:
 # "Использование сайта означает согласие на обработку..." or "Согласие считается
 # данным с момента регистрации...".
@@ -239,6 +240,11 @@ def bundled_in_text(text: str) -> str | None:
             first = min(other.start(), match.start())
             cut = low.rfind(" ", start, max(start, first - 30))
             begin = cut + 1 if cut >= 0 else start
+            # A capitalised word before the phrase usually starts the sentence: the
+            # words before it belong to the menu ("доступ При входе вы принимаете").
+            capital = [m.start() for m in _CAPITAL.finditer(original, begin, first)]
+            if capital:
+                begin = capital[-1]
             return _quote(original[begin:end].strip())
     return None
 
