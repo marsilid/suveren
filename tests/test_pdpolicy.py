@@ -224,3 +224,19 @@ def test_bundled_consent_in_page_text_without_full_stops():
     quote = bundled_in_text(page)
     assert quote.startswith("При входе вы принимаете условия использования")
     assert bundled_in_text("Я соглашаюсь на обработку персональных данных. " * 3) is None
+
+
+def test_separate_documents_in_footer_or_checkboxes_are_not_bundled():
+    from suveren.pdpolicy import bundled_in_text
+
+    footer = (
+        "Войти Пароль Пользовательское соглашение | Политика конфиденциальности | "
+        "Согласие на обработку персональных данных © 2026"
+    )
+    assert bundled_in_text(footer) is None
+    assert bundled_in_text(footer.replace(" |", "")) is None
+    boxes = "Я принимаю условия оферты Я даю согласие на обработку персональных данных"
+    assert bundled_in_text(boxes) is None
+    # One statement in a checkbox label is still found.
+    label = "Согласен с условиями оферты и обработкой персональных данных"
+    assert bundled_in_text(label) == label

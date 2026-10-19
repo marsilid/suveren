@@ -178,7 +178,8 @@ _OTHER_DOC = re.compile(
     r"правил\w*\s+(?:сайта|сервиса|пользования|программы|акции)|договор\w*\s+(?:оферты|оказания)",
 )
 _SENTENCE = re.compile(r"[^.!?]+")
-_CAPITAL = re.compile(r"(?<!\S)[А-ЯЁA-Z][а-яёa-z]")
+# A capitalised word ("При", "Я"), not an abbreviation ("ПДн", "ИП").
+_CAPITAL = re.compile(r"(?<!\S)[А-ЯЁA-Z](?:[а-яёa-z]|(?=\s))")
 # The document says using the site, registering or sending a form *is* consent:
 # "Использование сайта означает согласие на обработку..." or "Согласие считается
 # данным с момента регистрации...".
@@ -222,6 +223,15 @@ def bundled_in_form(form: Form) -> str | None:
     return None
 
 
+def _one_statement(original: str, a: re.Match[str], b: re.Match[str]) -> bool:
+    """Both phrases are in one statement: no new sentence or menu separator between
+    them. A footer "Пользовательское соглашение | Политика | Согласие на обработку"
+    or two checkboxes "Я принимаю условия оферты" "Я даю согласие" are separate."""
+    first, second = sorted((a, b), key=lambda m: m.start())
+    gap = original[first.end() : second.start()]
+    return not re.search(r"[|•·]", gap) and not _CAPITAL.search(gap)
+
+
 def bundled_in_text(text: str) -> str | None:
     """The same, in a short sentence of a page ("При входе вы принимаете условия
     использования сайта и соглашаетесь на обработку персональных данных")."""
@@ -233,7 +243,10 @@ def bundled_in_text(text: str) -> str | None:
         start = max(low.rfind(".", 0, match.start()) + 1, match.start() - 160)
         end = low.find(".", match.end())
         end = len(low) if end < 0 else min(end, match.end() + 160)
-        other = _OTHER_DOC.search(low, start, end)
+        other = next(
+            (o for o in _OTHER_DOC.finditer(low, start, end) if _one_statement(original, o, match)),
+            None,
+        )
         if other:
             # Quote from a few words before the first of the two phrases, not from
             # the menu items that happen to precede it.
