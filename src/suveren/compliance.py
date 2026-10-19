@@ -100,6 +100,7 @@ class ComplianceInput:
     login: tuple[str, Page] | None = None
     # The sign-in page answered with a bot wall: (where, why).
     login_blocked: tuple[str, str] | None = None
+    login_external: str | None = None  # the sign-in page redirected to this host
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -676,6 +677,12 @@ async def _login_page(
     doc = prefetched.get(url) or await _fetch_html(client, url)
     if doc is None:
         return None
+    # A redirect to another company's sign-in (Yandex ID, a corporate SSO): its buttons
+    # and its policy link are not this site's.
+    host = (urlsplit(doc.url).hostname or "").lower()
+    if host and registrable_domain(host) != registrable_domain(urlsplit(base).hostname or ""):
+        data.login_external = host
+        return None
     # A sign-in page is short by nature and often has a captcha, so a bot wall is
     # told apart by having no field to type a login into (drom.ru redirects to /verify).
     wall = bot_wall(doc.status, doc.html)
@@ -717,7 +724,9 @@ def _foreign_login(
         pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
         if not doc.loaded_urls and len(login_page.text) < 300:
             shell = where
-    return login_check(evidence, pages, data.page_problem, shell, data.login_blocked)
+    return login_check(
+        evidence, pages, data.page_problem, shell, data.login_blocked, data.login_external
+    )
 
 
 def _where(url: str, base: str) -> str:

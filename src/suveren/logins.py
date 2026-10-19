@@ -439,10 +439,12 @@ def login_check(
     problem: str | None = None,
     shell: str | None = None,
     blocked: tuple[str, str] | None = None,
+    external: str | None = None,
 ) -> Check:
     """One verdict for the site. ``pages`` are the paths looked at, home page first;
     ``shell`` is the sign-in page if its content is drawn by scripts; ``blocked`` is
-    (where, why) if it answered with a bot wall."""
+    (where, why) if it answered with a bot wall; ``external`` is the host the sign-in
+    page redirected to, which is another company's and is not looked at."""
     russian = list(dict.fromkeys(e.provider for e in evidence if not e.foreign))
     allowed = f" Вход через {', '.join(russian)} разрешён." if russian else ""
     by_provider: dict[str, list[LoginEvidence]] = {}
@@ -501,7 +503,10 @@ def login_check(
         f"Входа через Google, Apple и другие иностранные сервисы не найдено (проверено: "
         f"{where}). "
         + (
-            f"Страница входа {shell} собирается скриптами: точнее проверит режим --browser."
+            f"Вход ведёт на внешний сервис {external}: способы входа там не проверялись, "
+            "посмотрите их сами."
+            if external
+            else f"Страница входа {shell} собирается скриптами: точнее проверит режим --browser."
             if shell
             else "Если вход открывается во всплывающем окне, проверьте его вручную."
         )

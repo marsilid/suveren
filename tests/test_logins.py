@@ -207,6 +207,31 @@ def test_run_compliance_opens_the_sign_in_page():
     assert "странице /user/login" in check.details
 
 
+def test_sign_in_redirected_to_another_company_is_not_the_sites():
+    home = (
+        '<html><body><a href="/">Главная</a><a href="/user/login">Войти</a>'
+        + "<p>текст</p>" * 200
+        + "</body></html>"
+    )
+    login = (FIXTURES / "google_apple.html").read_text(encoding="utf-8")
+
+    def handler(request):
+        if request.url.path == "/user/login":
+            return httpx.Response(302, headers={"location": "https://sso.example.com/auth"})
+        if request.url.host == "sso.example.com":
+            return httpx.Response(200, html=login)
+        return httpx.Response(404)
+
+    async def go():
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=True) as client:
+            return await run_compliance(client, BASE, home, [])
+
+    check = next(c for c in asyncio.run(go()) if c.group == GROUP_LAWS)
+    assert check.status is Status.OK
+    assert "внешний сервис sso.example.com" in check.details
+
+
 def test_button_text_alone_warns_and_with_script_fails():
     button = '<button class="btn"><img alt=""> Войти через Google</button>'
     found = find_evidence(button, parse_page(button), BASE, "главная")
