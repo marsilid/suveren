@@ -16,6 +16,7 @@ import httpx
 from suveren import unknown
 from suveren.analyze import analyze
 from suveren.blocklist import run_blocklist
+from suveren.catalog import BY_ID
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
@@ -63,7 +64,9 @@ async def run_scan(
     browser: bool = False,
     pages: int = DEFAULT_PAGES,
     progress: Progress | None = None,
+    only: frozenset[str] | set[str] | None = None,
 ) -> Report:
+    """``only``: IDs of the checks to report (from ``--checks``); None reports all."""
     progress = progress or _quiet
     started = datetime.now(timezone.utc)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
@@ -127,8 +130,29 @@ async def run_scan(
             report.checks += checks
             report.facts["subdomains"] = data
 
+    if only is not None:
+        report.checks = narrow(report.checks, only)
     report.finished_at = datetime.now(timezone.utc)
     return report
+
+
+def narrow(checks: list[Check], only: frozenset[str] | set[str]) -> list[Check]:
+    """The chosen checks. When a module returned none of them (DNS did not answer and
+    the mail module gave one "not checked" verdict), its "not checked" stays: it says
+    why the chosen check is missing."""
+
+    def module(c: Check) -> str | None:
+        spec = BY_ID.get(c.id)
+        return spec.module if spec else None
+
+    answered = {module(c) for c in checks if c.id in only}
+    wanted = {BY_ID[i].module for i in only if i in BY_ID}
+    return [
+        c
+        for c in checks
+        if c.id in only
+        or (c.status is Status.UNKNOWN and module(c) in wanted and module(c) not in answered)
+    ]
 
 
 async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -> list[Check]:

@@ -54,7 +54,22 @@ suveren batch sites.txt              # many sites: index.html, CSV, a report per
 suveren company 7707083893           # company by tax ID (INN), OGRN or domain
 suveren diff before.json after.json
 suveren update                       # refresh sanctions and block lists
+suveren checks                       # every check with its stable ID and tags
 ```
+
+Every check has a stable ID (`SUV-MAIL-003` is DMARC, `SUV-LAW-001` is sign-in through
+foreign services), shown in the HTML report, JSON and SARIF; foreign dependencies have one
+per category (`SUV-DEP-HOSTING`). Pick checks by ID, prefix or tag, and only the modules
+they need run; profiles are `quick`, `standard` (default) and `deep` (browser, 12 pages):
+
+```bash
+suveren scan example.ru --checks mail,headers --profile deep
+suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail   # CI
+```
+
+`--sarif` writes SARIF 2.1.0 for GitHub/GitLab code scanning and DefectDojo. Exit codes:
+0 done, 1 scan failed, 2 bad arguments, 3 grade worse than `--fail-under`, 4 checks with
+the `--fail-on` status (`fail`, or `warn` and worse).
 
 On Windows you can also run `Suveren.bat`, which installs everything on first launch. A
 `Dockerfile` is included.

@@ -70,6 +70,11 @@ class Category(str, Enum):
     def title(self) -> str:
         return CATEGORIES[self].title
 
+    @property
+    def rule_id(self) -> str:
+        """Stable ID of the "foreign dependency" finding, e.g. "SUV-DEP-HOSTING"."""
+        return "SUV-DEP-" + self.name.replace("_", "-")
+
 
 _PD_NOTE = (
     " Скрипт работает в браузере посетителя и передаёт его IP-адрес и cookies на иностранные "
@@ -272,6 +277,7 @@ class Finding:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "id": self.category.rule_id,
             "category": self.category.value,
             "title": self.title,
             "severity": self.severity.label,

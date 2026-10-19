@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -43,6 +44,11 @@ def law_url(law: str | None) -> str | None:
     return LAW_URLS.get(law.split(",", 1)[0].strip())
 
 
+# Tests set this so that a check missing from the catalogue fails loudly; in use an
+# unknown check just has no ID.
+STRICT_IDS = os.environ.get("SUVEREN_STRICT_CHECK_IDS") == "1"
+
+
 @dataclass(slots=True)
 class Check:
     group: str
@@ -52,6 +58,17 @@ class Check:
     recommendation: str = ""
     link: str | None = None
     law: str | None = None  # e.g. "152-ФЗ, ст. 9"
+    id: str = ""  # stable ID from catalog.py, e.g. "SUV-MAIL-003"; filled in by title
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            from suveren.catalog import spec_for
+
+            spec = spec_for(self.group, self.title)
+            if spec is not None:
+                self.id = spec.id
+            elif STRICT_IDS:
+                raise ValueError(f"check missing from catalog.py: {self.group} / {self.title}")
 
     @property
     def law_url(self) -> str | None:
@@ -59,6 +76,7 @@ class Check:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "id": self.id,
             "group": self.group,
             "title": self.title,
             "status": self.status.value,

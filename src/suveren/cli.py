@@ -23,7 +23,8 @@ from rich.text import Text
 from suveren import __version__, unknown
 from suveren.blocklist import ensure_lists
 from suveren.cache import cache_dir
-from suveren.checks import GROUP_152, GROUP_BLOCK, Status
+from suveren.catalog import BY_ID, CATALOG, SelectionError, all_tags, select
+from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
 from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
@@ -31,9 +32,11 @@ from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
+from suveren.plan import PROFILE_HELP, Profile, make_plan
 from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
 from suveren.sanctions import SOURCES as SANCTION_SOURCES
+from suveren.sarif import write_sarif
 from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
@@ -69,6 +72,23 @@ class DnsChoice(str, Enum):
     system = "system"
     ru = "ru"
     doh = "doh"
+
+
+class FailOn(str, Enum):
+    fail = "fail"
+    warn = "warn"
+
+    @property
+    def ru(self) -> str:
+        return Status(self.value).ru
+
+
+def failing_checks(report: Report, fail_on: FailOn | None) -> list[Check]:
+    """Checks that make ``--fail-on`` exit with code 4; "not checked" never does."""
+    if fail_on is None:
+        return []
+    bad = {Status.FAIL} if fail_on is FailOn.fail else {Status.FAIL, Status.WARN}
+    return [c for c in report.checks if c.status in bad]
 
 
 def _version_callback(value: bool) -> None:
@@ -174,9 +194,21 @@ def scan(
         typer.Option(
             "--quick",
             help="Только иностранные сервисы, без 152-ФЗ, блокировок, почты, поддоменов и "
-            "проверок безопасности.",
+            "проверок безопасности (то же, что --profile quick).",
         ),
     ] = False,
+    profile: Annotated[
+        Profile, typer.Option("--profile", "-P", help=PROFILE_HELP)
+    ] = Profile.standard,
+    checks: Annotated[
+        str | None,
+        typer.Option(
+            "--checks",
+            "-c",
+            help="Только эти проверки: ID (SUV-MAIL-003), префиксы (SUV-WEB), теги (mail, "
+            "headers, law) через запятую. Список: suveren checks.",
+        ),
+    ] = None,
     no_152fz: Annotated[
         bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
     ] = False,
@@ -207,6 +239,13 @@ def scan(
     json_path: Annotated[
         Path | None, typer.Option("--json", help="Сохранить результат в JSON (нужно для diff).")
     ] = None,
+    sarif_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--sarif",
+            help="Сохранить результат в SARIF 2.1.0 (GitHub/GitLab code scanning, DefectDojo).",
+        ),
+    ] = None,
     no_report: Annotated[
         bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.")
     ] = False,
@@ -216,6 +255,14 @@ def scan(
     fail_under: Annotated[
         str | None,
         typer.Option("--fail-under", help="Код выхода 3, если оценка хуже указанной (для CI)."),
+    ] = None,
+    fail_on: Annotated[
+        FailOn | None,
+        typer.Option(
+            "--fail-on",
+            help="Код выхода 4, если есть проверки с этим статусом или хуже: fail — "
+            "только «проблема», warn — ещё и «внимание» (для CI).",
+        ),
     ] = None,
     timeout: Annotated[
         float, typer.Option("--timeout", "-t", min=1.0, help="Сетевой таймаут, секунды.")
@@ -239,7 +286,24 @@ def scan(
     try:
         host = normalize_domain(target)
         threshold = _validate_grade(fail_under)
-    except SuverenError as exc:
+        plan = make_plan(
+            Profile.quick if quick else profile,
+            checks,
+            browser=browser,
+            pages=pages,
+            skip={
+                name
+                for name, off in (
+                    ("compliance", no_152fz),
+                    ("blocklist", no_blocklist),
+                    ("mail", no_mail),
+                    ("security", no_security),
+                    ("subdomains", no_subdomains),
+                )
+                if off
+            },
+        )
+    except (SuverenError, SelectionError) as exc:
         raise _fail(str(exc)) from exc
 
     console.print(BANNER.format(version=__version__))
@@ -251,15 +315,9 @@ def scan(
                     host,
                     timeout=timeout,
                     dns_mode=dns_mode.value,
-                    compliance=not (no_152fz or quick),
-                    blocklist=not (no_blocklist or quick),
-                    mail=not (no_mail or quick),
-                    subdomains=not (no_subdomains or quick),
-                    security=not (no_security or quick),
                     refresh=refresh,
-                    browser=browser,
-                    pages=pages,
                     progress=log,
+                    **plan.kwargs(),  # type: ignore[arg-type]
                 )
             )
     except SuverenError as exc:
@@ -278,6 +336,9 @@ def scan(
     if json_path is not None:
         write_json(report, json_path)
         console.print(f"[bold]JSON:[/]  {json_path}")
+    if sarif_path is not None:
+        write_sarif(report, sarif_path)
+        console.print(f"[bold]SARIF:[/] {sarif_path}")
     if export_svg is not None:
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
@@ -285,6 +346,11 @@ def scan(
     if threshold is not None and GRADE_ORDER.index(report.grade) > GRADE_ORDER.index(threshold):
         console.print(f"\n[bold red]✗ Оценка {report.grade} хуже требуемой {threshold}.[/]")
         raise typer.Exit(3)
+    failing = failing_checks(report, fail_on)
+    if failing:
+        ids = ", ".join(dict.fromkeys(c.id for c in failing))
+        console.print(f"\n[bold red]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]")
+        raise typer.Exit(4)
 
 
 # --- batch ----------------------------------------------------------------------------
@@ -327,6 +393,13 @@ def batch(
     quick: Annotated[
         bool, typer.Option("--quick", help="Только иностранные сервисы (быстрее).")
     ] = False,
+    profile: Annotated[
+        Profile, typer.Option("--profile", "-P", help=PROFILE_HELP)
+    ] = Profile.standard,
+    checks: Annotated[
+        str | None,
+        typer.Option("--checks", "-c", help="Только эти проверки: ID, префиксы или теги."),
+    ] = None,
     jobs: Annotated[
         int, typer.Option("--jobs", "-j", min=1, max=10, help="Сколько сайтов проверять сразу.")
     ] = 4,
@@ -360,6 +433,10 @@ def batch(
         raise _fail(f"не удалось прочитать список: {exc}") from exc
     if not hosts:
         raise _fail("в файле нет доменов")
+    try:
+        plan = make_plan(Profile.quick if quick else profile, checks, browser=browser, pages=pages)
+    except SelectionError as exc:
+        raise _fail(str(exc)) from exc
 
     folder = out_dir or Path("reports") / f"batch-{_stamp()}"
     folder.mkdir(parents=True, exist_ok=True)
@@ -369,7 +446,7 @@ def batch(
     results: list[tuple[str, Report | None, str | None]] = []
 
     async def run_all() -> list[tuple[str, Report | None, str | None]]:
-        if not quick:
+        if "blocklist" in plan.modules:
             async with make_client(30.0) as client:
                 await ensure_lists(client, refresh=refresh)
 
@@ -377,17 +454,7 @@ def batch(
             try:
                 # One stuck site must not hold up the whole list.
                 report = await asyncio.wait_for(
-                    run_scan(
-                        host,
-                        timeout=timeout,
-                        compliance=not quick,
-                        blocklist=not quick,
-                        mail=not quick,
-                        subdomains=not quick,
-                        security=not quick,
-                        browser=browser,
-                        pages=pages,
-                    ),
+                    run_scan(host, timeout=timeout, **plan.kwargs()),  # type: ignore[arg-type]
                     SITE_DEADLINE,
                 )
             except (SuverenError, *TIMEOUTS) as exc:
@@ -520,6 +587,44 @@ def services(
     console.print(table)
     domestic = len(items) - foreign
     console.print(f"\nВсего: [bold]{len(items)}[/] · иностранных {foreign} · российских {domestic}")
+
+
+@app.command("checks")
+def list_checks(
+    query: Annotated[
+        str | None,
+        typer.Argument(help="ID (SUV-MAIL-003), префикс (SUV-WEB) или тег (mail, law)."),
+    ] = None,
+) -> None:
+    """Показать все проверки: ID, раздел, теги. Их можно выбрать в scan --checks."""
+    try:
+        ids = select(query) if query else set(BY_ID)
+    except SelectionError as exc:
+        raise _fail(str(exc)) from exc
+    specs = [s for s in CATALOG if s.id in ids]
+    if len(specs) == 1:
+        s = specs[0]
+        console.print(f"[bold]{s.id}[/]  {s.title}")
+        console.print(f"Раздел:  {s.group}")
+        console.print(f"Модуль:  {s.module}")
+        console.print(f"Теги:    {', '.join(s.tags)}")
+        console.print(f"\n{s.summary}")
+        return
+    table = Table(box=None, header_style="bold", padding=(0, 2))
+    table.add_column("ID", no_wrap=True)
+    table.add_column("Проверка")
+    table.add_column("Теги", style="dim")
+    group = None
+    for s in specs:
+        if s.group != group:
+            group = s.group
+            table.add_row("", Text(group, style="bold"), "")
+        table.add_row(s.id, s.title if not s.pattern else s.summary, ", ".join(s.tags))
+    console.print(table)
+    console.print(
+        f"\nВсего: [bold]{len(specs)}[/]. Теги: {', '.join(all_tags())}.\n"
+        "Выбрать: [bold]suveren scan сайт.ru --checks mail,SUV-WEB-004[/]"
+    )
 
 
 # --- company --------------------------------------------------------------------------

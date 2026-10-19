@@ -103,26 +103,26 @@ FOREIGN_SIGN_IN = Fine(
     citizen=(10_000, 20_000),
 )
 
-# (check title, status) -> (fine, note). The note says when the finding is not by
-# itself the offence that part describes.
+# (check ID from catalog.py, status) -> (fine, note). The note says when the finding
+# is not by itself the offence that part describes.
 RULES: dict[tuple[str, Status], tuple[Fine, str | None]] = {
-    ("Политика обработки персональных данных", Status.FAIL): (POLICY_NOT_PUBLISHED, None),
-    ("Хранение данных в России", Status.FAIL): (
+    ("SUV-PD-001", Status.FAIL): (POLICY_NOT_PUBLISHED, None),  # policy not published
+    ("SUV-PD-007", Status.FAIL): (  # server outside Russia
         LOCALISATION,
         "если заявки с сайта хранятся на этом сервере",
     ),
-    ("Вход через иностранные сервисы", Status.FAIL): (
+    ("SUV-LAW-001", Status.FAIL): (  # sign-in through foreign services
         FOREIGN_SIGN_IN,
         "если владелец сайта — российская компания или гражданин",
     ),
     # A lead form may be processed without consent to answer the request (152-ФЗ,
     # ст. 6 ч. 1 п. 5), so missing consent is not always an offence.
-    ("Согласие на обработку в формах", Status.FAIL): (
+    ("SUV-PD-003", Status.FAIL): (
         UNLAWFUL_PROCESSING,
         "если для этой обработки нужно согласие",
     ),
     # Some operators may process data without notifying (152-ФЗ, ст. 22 ч. 2).
-    ("Реестр операторов персональных данных", Status.WARN): (
+    ("SUV-PD-009", Status.WARN): (
         NO_NOTIFICATION,
         "если компания не освобождена от уведомления; штраф для должностного лица — "
         "только в госорганах и некоммерческих организациях",
@@ -188,7 +188,7 @@ def estimate(checks: list[Check]) -> FineEstimate:
     items: list[FineItem] = []
     seen: set[str] = set()
     for check in checks:
-        rule = RULES.get((check.title, check.status))
+        rule = RULES.get((check.id, check.status))
         if rule and rule[0].article not in seen:
             seen.add(rule[0].article)
             items.append(FineItem(check.title, rule[0], rule[1], check.status is Status.FAIL))
