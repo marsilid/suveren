@@ -237,3 +237,35 @@ def test_tags_attributes_and_inline_scripts_are_checked():
         "Google Fonts",
         "Meta Pixel (Facebook)",
     }
+
+
+def test_data_file_entries_are_valid():
+    """data/services.json is edited by hand: every entry must load and make sense."""
+    import json
+    import re
+    from importlib.resources import files
+
+    from suveren.models import Category, Severity
+
+    raw = json.loads(files("suveren").joinpath("data/services.json").read_text("utf-8"))
+    allowed = {
+        "name", "country", "category", "ns", "mx", "asn", "as_names", "cdn", "registrar",
+        "issuer", "page", "severity", "note", "alternative",
+    }  # fmt: skip
+    names = set()
+    for group in ("infra", "tls", "page"):
+        for d in raw[group]:
+            assert set(d) <= allowed, (d["name"], set(d) - allowed)
+            assert re.fullmatch(r"[A-Z]{2}", d["country"]), d["name"]
+            assert (group, d["name"]) not in names, f"duplicate {d['name']}"
+            names.add((group, d["name"]))
+            if "category" in d:
+                Category(d["category"])
+            if "severity" in d:
+                Severity[d["severity"].upper()]
+            for pattern in d.get("page", ()):
+                re.compile(pattern)
+            if group == "page":
+                assert d.get("page") and "category" in d, d["name"]
+            if group == "tls":
+                assert d.get("issuer"), d["name"]

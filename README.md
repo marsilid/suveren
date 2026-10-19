@@ -336,26 +336,30 @@ suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
 
 ## Как добавить сервис в базу
 
-База находится в [`src/suveren/services.py`](src/suveren/services.py):
+База — это файл данных [`src/suveren/data/services.json`](src/suveren/data/services.json),
+программировать не нужно. Инфраструктура (DNS, почта, хостинг) лежит в разделе `infra`:
 
-```python
-Service(
-    "Hetzner",               # название
-    "DE",                    # страна компании (ISO 3166)
-    ns=("hetzner.com",),     # суффиксы NS-серверов
-    mx=("your-server.de",),  # суффиксы MX-серверов
-    asn=(24940,),            # номера автономных систем
-    as_names=("hetzner",),   # или фрагменты названия сети
-)
+```json
+{
+ "name": "Hetzner",
+ "country": "DE",
+ "ns": ["hetzner.com"],
+ "mx": ["your-server.de"],
+ "asn": [24940],
+ "as_names": ["hetzner"]
+}
 ```
 
-Для сервисов, подключаемых на странице, задаются категория и регулярные выражения:
+`country` — страна компании (ISO 3166), `ns` и `mx` — суффиксы серверов, `asn` — номера
+автономных систем, `as_names` — фрагменты названия сети. Сервисы, подключаемые на странице, лежат
+в разделе `page`: у них есть категория и регулярные выражения по коду страницы:
 
-```python
-Service("Яндекс Метрика", "RU", c.ANALYTICS, page=(r"mc\.yandex\.(?:ru|com)",)),
+```json
+{"name": "Яндекс Метрика", "country": "RU", "category": "analytics", "page": ["mc\\.yandex\\.(?:ru|com)"]}
 ```
 
-Добавьте тест в `tests/test_services.py` и откройте pull request. Если не хотите писать код, откройте issue
+Тест `test_data_file_entries_are_valid` проверит, что запись корректна. Добавьте тест в
+`tests/test_services.py` и откройте pull request. Если не хотите ничего править, откройте issue
 «Добавить сервис»: там простая форма. Подсказка, что добавлять: `suveren unknown` показывает
 домены, которые встречались при проверках, но которых нет в базе (список хранится только на
 вашем компьютере).

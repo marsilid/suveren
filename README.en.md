@@ -118,8 +118,8 @@ need human review. The scan is passive. The report is a triage aid, **not legal 
 
 ## Contributing
 
-Services live in [`src/suveren/services.py`](src/suveren/services.py): add a `Service(...)`
-entry, add a test to `tests/test_services.py`, and open a pull request. Tests run offline.
+Services live in a data file, [`src/suveren/data/services.json`](src/suveren/data/services.json):
+add an entry (no Python needed), add a test to `tests/test_services.py`, and open a pull request. Tests run offline.
 
 ## License
 
