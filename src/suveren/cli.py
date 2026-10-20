@@ -8,6 +8,7 @@ import csv
 import json
 import sys
 import tempfile
+import time
 import webbrowser
 from collections import Counter
 from datetime import datetime
@@ -35,7 +36,7 @@ from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
-from suveren.plan import PROFILE_HELP, Profile, make_plan
+from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.render import print_pdf
 from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
@@ -45,9 +46,11 @@ from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
 from suveren.view import (
-    BANNER,
+    ACCENT,
     GRADE_STYLE,
+    header,
     print_checks,
+    print_footer,
     print_scan,
     score_bar,
     section,
@@ -66,7 +69,8 @@ app = typer.Typer(
     help="[bold]Suveren[/] — аудит сайта и компании: иностранные сервисы, 152-ФЗ, "
     "блокировки, ЕГРЮЛ, санкции.",
 )
-console = Console(record=True)
+# No automatic highlighting: it colours every number ("152-ФЗ", dates) at random.
+console = Console(record=True, highlight=False)
 GRADE_ORDER = ("A", "B", "C", "D", "F")
 SITE_DEADLINE = 300  # seconds per site in batch
 
@@ -103,14 +107,14 @@ def _brand(name: str | None, logo: Path | None, url: str | None) -> Brand | None
         raise _fail(str(exc)) from exc
 
 
-def _pdf(html_path: Path, pdf_path: Path) -> None:
+def _pdf(html_path: Path, pdf_path: Path) -> bool:
     try:
-        with _spinner("[dim]Печатаю PDF…[/]"):
+        with _spinner("[grey50]Печатаю PDF…[/]"):
             asyncio.run(print_pdf(html_path, pdf_path))
     except SuverenError as exc:
-        console.print(f"[yellow]![/] PDF не создан: {exc}")
-        return
-    console.print(f"[bold]PDF:[/]   {pdf_path}")
+        console.print(f"  [#e6b450]![/] PDF не создан: {exc}")
+        return False
+    return True
 
 
 class FailOn(str, Enum):
@@ -147,7 +151,7 @@ def main(
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
-    console.print(f"[bold red]✗[/] {message}")
+    console.print(f"[bold #e5534b]✗[/] {message}")
     return typer.Exit(code)
 
 
@@ -177,11 +181,28 @@ def _spinner(text: str) -> contextlib.AbstractContextManager[object]:
     return contextlib.nullcontext()
 
 
-class StageLog:
-    """Prints each finished scan stage with its duration under a live spinner."""
+def plan_label(plan: ScanPlan, profile: str | None = None) -> str:
+    """ "профиль deep · браузер · 13 стр. · отключение сервисов" for the header."""
+    parts = [f"профиль {profile}"] if profile else []
+    if plan.browser:
+        parts.append(f"браузер · {plan.pages + 1} стр.")
+    if "cutoff" in plan.modules:
+        parts.append("отключение сервисов")
+    return " · ".join(parts)
 
-    def __init__(self) -> None:
-        self.status = console.status("", spinner="dots") if console.is_terminal else None
+
+class StageLog:
+    """Prints each finished scan stage with its duration under a live spinner, and the
+    total when the block ends."""
+
+    def __init__(self, *, spinner: bool = True) -> None:
+        # No spinner when the screen is exported (--export-svg): its frames get recorded.
+        self.status = (
+            console.status("", spinner="dots", spinner_style=ACCENT)
+            if spinner and console.is_terminal
+            else None
+        )
+        self.started = time.monotonic()
 
     def __enter__(self) -> StageLog:
         if self.status is not None:
@@ -191,13 +212,15 @@ class StageLog:
     def __exit__(self, *exc: object) -> None:
         if self.status is not None:
             self.status.__exit__(*exc)  # type: ignore[arg-type]
+        if exc[0] is None:
+            console.print(f"  [grey50]готово за {time.monotonic() - self.started:.0f} с[/]")
 
     def __call__(self, stage: str, seconds: float | None) -> None:
         if seconds is None:
             if self.status is not None:
-                self.status.update(f"[dim]{stage}…[/]")
+                self.status.update(f"[grey50]{stage}…[/]")
         else:
-            console.print(f"  [green]✓[/] {stage:<44} [dim]{seconds:5.1f} с[/]")
+            console.print(f"  [#7fb069]✓[/]  {stage:<46} [grey50]{seconds:5.1f} с[/]")
 
 
 # --- scan -----------------------------------------------------------------------------
@@ -359,10 +382,13 @@ def scan(
     except (SuverenError, SelectionError) as exc:
         raise _fail(str(exc)) from exc
 
-    console.print(BANNER.format(version=__version__))
-    console.print(f"  Проверяю [bold]{host}[/]\n")
+    meta = plan_label(plan, "quick" if quick else profile.value)
+    if checks:
+        meta += f" · проверки: {checks}"
+    console.print(header(__version__, host, meta))
+    console.print()
     try:
-        with StageLog() as log:
+        with StageLog(spinner=export_svg is None) as log:
             report = asyncio.run(
                 run_scan(
                     host,
@@ -379,7 +405,7 @@ def scan(
     console.print()
     print_scan(console, report, details=details)
 
-    console.print()
+    files: list[tuple[str, Path]] = []
     if not no_report or pdf is not None:
         if no_report:  # only needed to print the PDF: never touch the user's --output
             html_path = Path(tempfile.gettempdir()) / f"suveren-{host}-{_stamp()}.html"
@@ -387,30 +413,31 @@ def scan(
             html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
         write_html(report, html_path, brand)
         if not no_report:
-            console.print(f"[bold]Отчёт:[/] {html_path}")
-        if pdf is not None:
-            _pdf(html_path, pdf)
+            files.append(("отчёт", html_path))
+        if pdf is not None and _pdf(html_path, pdf):
+            files.append(("pdf", pdf))
         if no_report:
             html_path.unlink(missing_ok=True)  # only needed to print the PDF
         elif open_report:
             _open(html_path)
     if json_path is not None:
         write_json(report, json_path)
-        console.print(f"[bold]JSON:[/]  {json_path}")
+        files.append(("json", json_path))
     if sarif_path is not None:
         write_sarif(report, sarif_path)
-        console.print(f"[bold]SARIF:[/] {sarif_path}")
+        files.append(("sarif", sarif_path))
+    print_footer(console, report, files)
     if export_svg is not None:
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
 
     if threshold is not None and GRADE_ORDER.index(report.grade) > GRADE_ORDER.index(threshold):
-        console.print(f"\n[bold red]✗ Оценка {report.grade} хуже требуемой {threshold}.[/]")
+        console.print(f"\n[bold #e5534b]✗ Оценка {report.grade} хуже требуемой {threshold}.[/]")
         raise typer.Exit(3)
     failing = failing_checks(report, fail_on)
     if failing:
         ids = ", ".join(dict.fromkeys(c.id for c in failing))
-        console.print(f"\n[bold red]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]")
+        console.print(f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]")
         raise typer.Exit(4)
 
 
@@ -505,8 +532,14 @@ def batch(
 
     folder = out_dir or Path("reports") / f"batch-{_stamp()}"
     folder.mkdir(parents=True, exist_ok=True)
-    console.print(BANNER.format(version=__version__))
-    console.print(f"  Проверяю сайтов: [bold]{len(hosts)}[/] · одновременно {jobs}\n")
+    console.print(
+        header(
+            __version__,
+            f"{len(hosts)} сайтов",
+            f"одновременно {jobs} · {plan_label(plan, profile.value)}",
+        )
+    )
+    console.print()
 
     results: list[tuple[str, Report | None, str | None]] = []
 
@@ -524,7 +557,7 @@ def batch(
                 )
             except (SuverenError, *TIMEOUTS) as exc:
                 reason = str(exc) or f"не уложилась в {SITE_DEADLINE // 60} мин"
-                console.print(f"  [red]✗[/] {host:<32} [dim]{reason}[/]")
+                console.print(f"  [#e5534b]✗[/] {host:<32} [grey50]{reason}[/]")
                 return host, None, reason
             write_html(report, folder / f"{host}.html", brand)
             write_json(report, folder / f"{host}.json")
@@ -538,7 +571,7 @@ def batch(
 
         return await gather_limited([lambda h=h: one(h) for h in hosts], jobs)
 
-    with _spinner("[dim]Проверка…[/]"):
+    with _spinner("[grey50]Проверка…[/]"):
         results = asyncio.run(run_all())
 
     reports = [r for _, r, _ in results if r is not None]
@@ -563,7 +596,7 @@ def batch(
             line.append(f" {grades[g]}   ")
     console.print(line)
     if failed:
-        console.print(f"  [red]Не проверены: {len(failed)}[/]")
+        console.print(f"  [#e5534b]Не проверены: {len(failed)}[/]")
     console.print(f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}")
     if open_report:
         _open(index_path)
@@ -615,7 +648,7 @@ def diff(
                 f"  [{style}]{'✓' if good else '✗'} {c['title']}[/]: {before} → {c['status']}"
             )
     if not changed:
-        console.print("  [dim]Ничего не изменилось.[/]")
+        console.print("  [grey50]Ничего не изменилось.[/]")
 
 
 # --- services -------------------------------------------------------------------------
@@ -737,11 +770,11 @@ def company(
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
     brand = _brand(brand_name, brand_logo, brand_url)
-    console.print(BANNER.format(version=__version__))
-    console.print(f"  Проверяю [bold]{target}[/]\n")
+    console.print(header(__version__, target, "проверка компании"))
+    console.print()
     try:
         with _spinner(
-            "[dim]ЕГРЮЛ, реестры, санкционные списки… "
+            "[grey50]ЕГРЮЛ, реестры, санкционные списки… "
             "(в первый раз списки скачиваются около минуты)[/]"
         ):
             report = asyncio.run(
@@ -812,17 +845,19 @@ def company(
             else output or Path("reports") / f"company-{slug}-{_stamp()}.html"
         )
     write_company(report, html_path, json_path, brand)
+    files: list[tuple[str, Path]] = []
     if html_path is not None:
-        if pdf is not None:
-            _pdf(html_path, pdf)
+        if not no_report:
+            files.append(("отчёт", html_path))
+        if pdf is not None and _pdf(html_path, pdf):
+            files.append(("pdf", pdf))
         if no_report:
             html_path.unlink(missing_ok=True)  # only needed to print the PDF
-        else:
-            console.print(f"[bold]Отчёт:[/] {html_path}")
-            if open_report:
-                _open(html_path)
+        elif open_report:
+            _open(html_path)
     if json_path is not None:
-        console.print(f"[bold]JSON:[/]  {json_path}")
+        files.append(("json", json_path))
+    print_footer(console, None, files)
 
 
 def _status_rank(status: Status) -> int:
@@ -838,20 +873,20 @@ def update() -> None:
 
     async def run() -> None:
         async with make_client(30.0) as client:
-            with _spinner("[dim]Санкционные списки…[/]"):
+            with _spinner("[grey50]Санкционные списки…[/]"):
                 index = await load_index(client, refresh=True)
             for note in index.notes:
-                console.print(f"  [yellow]![/] {note}")
+                console.print(f"  [#e6b450]![/] {note}")
             for source in SANCTION_SOURCES:
                 count = sum(1 for e in index.entries if e.source == source.key)
-                console.print(f"  [green]✓[/] {source.title}: {count} записей")
-            with _spinner("[dim]Реестр блокировок…[/]"):
+                console.print(f"  [#7fb069]✓[/] {source.title}: {count} записей")
+            with _spinner("[grey50]Реестр блокировок…[/]"):
                 sizes, notes = await ensure_lists(client, refresh=True)
             for note in notes:
-                console.print(f"  [yellow]![/] {note}")
+                console.print(f"  [#e6b450]![/] {note}")
             total = sum(sizes.values()) / 1_048_576
-            console.print(f"  [green]✓[/] Реестр блокировок РКН: {total:.1f} МБ")
-        console.print(f"\n[dim]Кэш: {cache_dir()}[/]")
+            console.print(f"  [#7fb069]✓[/] Реестр блокировок РКН: {total:.1f} МБ")
+        console.print(f"\n[grey50]Кэш: {cache_dir()}[/]")
 
     try:
         asyncio.run(run())
@@ -870,12 +905,12 @@ def unknown_cmd(
     """Внешние домены, которых нет в базе: с чего начать её пополнение."""
     if reset:
         unknown.clear()
-        console.print("[green]✓[/] Список очищен.")
+        console.print("[#7fb069]✓[/] Список очищен.")
         return
     data = unknown.load()
     if not data:
         console.print(
-            "[dim]Пока пусто. Домены копятся при каждой проверке сайтов (только на этом "
+            "[grey50]Пока пусто. Домены копятся при каждой проверке сайтов (только на этом "
             "компьютере, никуда не отправляются).[/]"
         )
         return
@@ -888,7 +923,7 @@ def unknown_cmd(
         table.add_row(domain, str(entry["count"]), ", ".join(entry["sites"]))
     console.print(table)
     console.print(
-        f"\n[dim]Всего неизвестных доменов: {len(data)}. Чтобы добавить сервис в базу, "
+        f"\n[grey50]Всего неизвестных доменов: {len(data)}. Чтобы добавить сервис в базу, "
         "откройте issue «Добавить сервис» на GitHub или допишите запись в services.py.[/]"
     )
 
@@ -908,7 +943,7 @@ def doctor(
     ] = False,
 ) -> None:
     """Проверить, что все источники данных доступны и отвечают как ожидается."""
-    with _spinner("[dim]Проверяю источники данных…[/]"):
+    with _spinner("[grey50]Проверяю источники данных…[/]"):
         probes = asyncio.run(run_doctor(timeout, abroad=abroad))
     table = Table(box=None, show_header=False, padding=(0, 1))
     table.add_column(no_wrap=True)
@@ -916,14 +951,14 @@ def doctor(
     table.add_column(style="dim")
     table.add_column(justify="right", style="dim")
     for p in probes:
-        icon = {True: "[green]✓[/]", False: "[bold red]✗[/]", None: "[yellow]–[/]"}[p.ok]
+        icon = {True: "[#7fb069]✓[/]", False: "[bold #e5534b]✗[/]", None: "[#e6b450]–[/]"}[p.ok]
         table.add_row(f" {icon}", p.name, p.details, f"{p.seconds:.1f} с")
     console.print(table)
     broken = [p for p in probes if p.ok is False]
     if broken:
-        console.print(f"\n[bold red]Не работает источников: {len(broken)}.[/]")
+        console.print(f"\n[bold #e5534b]Не работает источников: {len(broken)}.[/]")
         raise typer.Exit(1)
-    console.print("\n[green]Все источники работают.[/]")
+    console.print("\n[#7fb069]Все источники работают.[/]")
 
 
 # --- menu -----------------------------------------------------------------------------

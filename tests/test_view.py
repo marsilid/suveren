@@ -60,9 +60,24 @@ def test_print_scan_renders():
     print_scan(console, sample_report(), details=True)
     text = out.getvalue()
     assert "Независимость" in text
-    assert "ЧТО СДЕЛАТЬ В ПЕРВУЮ ОЧЕРЕДЬ" in text
     assert "Google Workspace" in text
-    assert "Защищённое соединение — Сайт работает по HTTPS." in text
+    assert "Защищённое соединение" in text and "Сайт работает по HTTPS." in text
+    assert "SUV-PD-008" in text  # check IDs on the right
+    assert "Персональные данные (152-ФЗ)" in text and "✗ 1" in text  # counts in the rule
+    assert "ЧТО СДЕЛАТЬ" not in text  # no shouting headers
+
+
+def test_footer_lists_files_and_first_steps():
+    from suveren.view import header, print_footer
+
+    out = StringIO()
+    console = Console(file=out, width=110, color_system=None)
+    console.print(header("1.1.0", "example.ru", "профиль deep"))
+    print_footer(console, sample_report(), [("отчёт", "reports/example.ru.html")])
+    text = out.getvalue()
+    assert text.startswith("suveren 1.1.0   example.ru   профиль deep")
+    assert "отчёт" in text and "reports/example.ru.html" in text
+    assert "Что сделать первым" in text and "1  " in text
 
 
 def test_page_problem_detection():
