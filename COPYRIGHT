@@ -1,0 +1,27 @@
+Suveren — аудит сайта и компании: иностранные сервисы, 152-ФЗ, блокировки, ЕГРЮЛ, санкции.
+Copyright (C) 2026 marsilid
+
+This program is free software: you can redistribute it and/or modify it under the terms
+of the GNU Affero General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU Affero General Public License for more details. The full text is in LICENSE.
+
+Лицензия по версиям
+-------------------
+- Начиная с версии 1.1.0 — GNU AGPL-3.0-or-later (файл LICENSE).
+- Версии до 1.0.x включительно были опубликованы под лицензией MIT. Копии этих версий
+  остаются под MIT; новые версии под неё не подпадают.
+
+Коммерческая лицензия
+---------------------
+AGPL обязывает открыть исходный код любой изменённой версии, в том числе используемой
+как сетевой сервис. Если это не подходит (закрытый продукт, SaaS, встраивание),
+автор выдаёт отдельную коммерческую лицензию. Обращайтесь к marsilid.
+
+Сторонние материалы
+-------------------
+- src/suveren/data/takeover.json — признаки захвата поддоменов из проекта
+  «Can I take over XYZ?» (EdOverflow and contributors), лицензия CC BY 4.0.

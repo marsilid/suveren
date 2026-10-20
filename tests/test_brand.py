@@ -20,7 +20,7 @@ def test_brand_in_header_and_footer_with_suveren_credit(tmp_path):
     html = render_html(sample_report(), brand)
     assert '<span class="brand"><img class="brand-logo" src="data:image/png;base64,' in html
     assert "Студия Север" in html and 'href="https://sever.ru"' in html
-    assert "Сделано с помощью Suveren" in html  # MIT: the credit stays
+    assert "Сделано с помощью Suveren" in html  # the tool stays credited
     plain = render_html(sample_report())
     assert '<span class="brand">Suveren</span>' in plain and "Студия" not in plain
 

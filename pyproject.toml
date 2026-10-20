@@ -8,8 +8,8 @@ version = "1.1.0"
 description = "Аудит сайта и компании: иностранные сервисы, 152-ФЗ, блокировки РКН, ЕГРЮЛ и санкционные списки"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE", "COPYRIGHT"]
 keywords = ["osint", "sanctions", "russia", "import-substitution", "152-fz", "egrul", "ofac", "compliance"]
 classifiers = [
     "Development Status :: 4 - Beta",

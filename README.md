@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/marsilid/suveren/actions/workflows/ci.yml/badge.svg)](https://github.com/marsilid/suveren/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 [English version](README.en.md)
 
@@ -447,4 +447,7 @@ python tests/golden.py update                    # принять новые в�
 
 ## Лицензия
 
-[MIT](LICENSE)
+Copyright © 2026 marsilid. Начиная с версии 1.1 — [GNU AGPL-3.0](LICENSE) или более поздняя:
+код открыт, а любая изменённая версия, в том числе работающая как сервис, тоже должна
+быть открыта. Для закрытых продуктов и SaaS есть коммерческая лицензия — подробности в
+[COPYRIGHT](COPYRIGHT). Версии до 1.0.x были опубликованы под MIT и остаются под ней.

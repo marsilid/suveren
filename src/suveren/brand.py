@@ -3,7 +3,8 @@
 Set by ``--brand-name``, ``--brand-logo`` and ``--brand-url`` or by the environment
 variables SUVEREN_BRAND_NAME, SUVEREN_BRAND_LOGO and SUVEREN_BRAND_URL (handy for a
 studio that always uses its own). A small "сделано с помощью Suveren" line stays in
-the footer: the licence is MIT, and saying so is honest.
+the footer: the tool is credited, which is honest (and the AGPL asks to keep
+notices; the report itself is the user's output, not covered by the licence).
 """
 
 from __future__ import annotations

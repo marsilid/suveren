@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/marsilid/suveren/actions/workflows/ci.yml/badge.svg)](https://github.com/marsilid/suveren/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 [Русская версия](README.md)
 
@@ -140,4 +140,7 @@ add an entry (no Python needed), add a test to `tests/test_services.py`, and ope
 
 ## License
 
-[MIT](LICENSE)
+Copyright © 2026 marsilid. From version 1.1, [GNU AGPL-3.0](LICENSE) or later: the code is
+open, and any modified version, including one run as a service, must be open too. A
+commercial licence is available for closed products and SaaS; see [COPYRIGHT](COPYRIGHT).
+Versions up to 1.0.x were published under MIT and remain so.
