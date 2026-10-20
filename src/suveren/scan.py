@@ -228,6 +228,7 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         extra_pages=facts.extra_pages,
         prefetched=facts.prefetched,
         loaded_urls=facts.loaded_urls,
+        rendered=facts.rendered,
     )
 
 

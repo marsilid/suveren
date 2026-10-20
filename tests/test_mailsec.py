@@ -267,3 +267,13 @@ def test_a_domain_without_mail_gets_reject_at_once():
     assert "p=reject" in dmarc.recommendation and "p=none" not in dmarc.recommendation
     sending = dmarc_check(facts(dmarc=None, dmarc_count=0))
     assert "p=none" in sending.recommendation  # a domain with mail starts by watching
+
+
+def test_dmarc_report_address_without_size_limit():
+    from suveren.mailsec import dmarc_check
+
+    record = "v=DMARC1; p=quarantine; rua=mailto:a@example.ru!10m,mailto:b@example.ru"
+    check = dmarc_check(facts(dmarc=parse_dmarc(record)))
+    assert (
+        "mailto:a@example.ru, mailto:b@example.ru." in check.details and "!10m" not in check.details
+    )

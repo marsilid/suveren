@@ -469,7 +469,11 @@ def hsts_check(w: WebFacts) -> Check | None:
             GROUP_WEB,
             title,
             Status.WARN,
-            f"HSTS включён, но на {age // 86400} дн.: этого мало, защита быстро истекает.",
+            # max-age=0 tells browsers to forget HSTS: it is switched off, not short.
+            "Заголовок Strict-Transport-Security есть, но с max-age=0: он выключает HSTS, "
+            "и первое открытие по http:// можно перехватить."
+            if age == 0
+            else f"HSTS включён, но на {_duration(age)}: этого мало, защита быстро истекает.",
             "Поставьте max-age не меньше 15552000 (180 дней), лучше 31536000.",
         )
     return Check(GROUP_WEB, title, Status.OK, f"HSTS включён на {age // 86400} дн.")
@@ -722,3 +726,12 @@ async def run_web_checks(
     at = max((i + 1 for i, c in enumerate(checks) if c.id in code), default=0)
     checks[at:at] = code_checks
     return checks, data
+
+
+def _duration(seconds: int) -> str:
+    """max-age in words: days, or hours and seconds when under a day."""
+    if seconds >= 86400:
+        return f"{seconds // 86400} дн."
+    if seconds >= 3600:
+        return f"{seconds // 3600} ч."
+    return f"{seconds} с"

@@ -252,3 +252,40 @@ def test_overall_grade_says_what_it_covers():
     html = render_html(empty)
     assert "проверены только иностранные зависимости" in html and "Сервисов не найдено" in html
     assert overall_scope(sample_report()) == "проверено: законы, зависимости"
+
+
+def test_agencies_under_gov_ru_have_their_own_domain():
+    from suveren.utils import registrable_domain
+
+    # nalog.gov.ru's mail is its own, not gov.ru's.
+    assert registrable_domain("www.nalog.gov.ru") == "nalog.gov.ru"
+
+
+def test_small_page_without_scripts_is_not_a_script_shell():
+    assert page_problem(200, "<h1>Example</h1><p>Short page.</p><a href='/x'>More</a>") is None
+    assert page_problem(200, '<div id="root"></div><script src="/app.js"></script>') is not None
+
+
+def test_missing_policy_is_a_problem_only_when_the_browser_saw_the_page():
+    def policy(rendered):
+        data = ComplianceInput(
+            final_url="https://example.ru/", page=parse_page(RICH_PAGE), deps=[], rendered=rendered
+        )
+        return {c.title: c for c in evaluate(data, RICH_PAGE)}[
+            "Политика обработки персональных данных"
+        ]
+
+    # Without a browser a footer added by scripts is unseen (mos.ru): a warning to recheck.
+    assert policy(False).status is Status.WARN and "--browser" in policy(False).details
+    assert policy(True).status is Status.FAIL
+
+
+def test_overall_scope_warns_when_much_was_not_checked():
+    from suveren.advice import overall_scope
+    from suveren.catalog import BY_ID
+
+    report = sample_report()
+    for check_id in ("SUV-PD-003", "SUV-PD-006", "SUV-LAW-001"):
+        spec = BY_ID[check_id]
+        report.checks.append(Check(spec.group, spec.title, Status.UNKNOWN, "Не проверено."))
+    assert "не удалось проверить 3 из 5" in overall_scope(report)

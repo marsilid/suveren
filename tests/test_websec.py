@@ -361,3 +361,11 @@ def test_browser_headers_stand_in_for_a_bot_wall():
     by_id = {c.id: c for c in checks}
     assert by_id["SUV-WEB-006"].status.value == "ok"  # protective headers seen
     assert by_id["SUV-WEB-004"].status.value != "unknown"  # CSP judged, not "not checked"
+
+
+def test_hsts_under_a_day_is_not_zero_days():
+    hour = hsts_check(web(headers={"strict-transport-security": "max-age=3600"}))
+    assert "1 ч." in hour.details and "0 дн." not in hour.details
+    assert "300 с" in hsts_check(web(headers={"strict-transport-security": "max-age=300"})).details
+    off = hsts_check(web(headers={"strict-transport-security": "max-age=0"}))
+    assert off.status is Status.WARN and "выключает HSTS" in off.details

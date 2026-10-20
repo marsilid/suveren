@@ -401,7 +401,8 @@ def dmarc_check(m: MailFacts) -> Check:
             "домен почту не отправляет, поэтому сразу запретите письма от его имени.",
         )
     reports = (
-        f" Отчёты приходят на {d.rua}."
+        # "mailto:a@b.ru!10m": the tail is a size limit, not part of the address.
+        f" Отчёты приходят на {', '.join(u.strip().split('!')[0] for u in d.rua.split(','))}."
         if d.rua
         else " Адрес для отчётов (rua) не указан: вы не узнаете, кто рассылает письма от "
         "вашего имени."

@@ -30,6 +30,8 @@ _TWO_LABEL_SUFFIXES = frozenset(
         "pp.ru",
         "msk.ru",
         "spb.ru",
+        # Every agency under gov.ru has its own domain and mail (nalog.gov.ru, mvd.gov.ru).
+        "gov.ru",
         "com.by",
     }
 )

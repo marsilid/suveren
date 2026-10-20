@@ -101,6 +101,8 @@ class ComplianceInput:
     # The sign-in page answered with a bot wall: (where, why).
     login_blocked: tuple[str, str] | None = None
     login_external: str | None = None  # the sign-in page redirected to this host
+    # The pages were opened in a browser: a footer added by scripts was seen too.
+    rendered: bool = False
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -121,7 +123,10 @@ def _mark_unverifiable(checks: list[Check], problem: str) -> None:
         if c.title not in _HTML_CHECKS:
             continue
         found_something = c.status is Status.OK and c.link  # e.g. a policy link was found
-        if found_something or (c.status is Status.WARN and c.title != "Уведомление о cookies"):
+        if c.title == "Политика обработки персональных данных":
+            if c.link:  # a policy, maybe inside another document, was found after all
+                continue
+        elif found_something or (c.status is Status.WARN and c.title != "Уведомление о cookies"):
             continue
         c.status = Status.UNKNOWN
         c.details = f"Не проверено: {problem}."
@@ -254,10 +259,16 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             Check(
                 GROUP_152,
                 "Политика обработки персональных данных",
-                # Unproven if the sign-in page, where the link sometimes is, was a bot wall.
-                Status.WARN if data.login_blocked else Status.FAIL,
-                "На проверенных страницах нет ссылки на политику обработки персональных данных. "
-                "Если подвал сайта подгружается скриптом, проверьте вручную."
+                # Unproven if the sign-in page, where the link sometimes is, was a bot wall,
+                # or without a browser: footers added by scripts (mos.ru) are not in the HTML.
+                Status.FAIL if data.rendered and not data.login_blocked else Status.WARN,
+                "На проверенных страницах нет ссылки на политику обработки персональных данных."
+                + (
+                    ""
+                    if data.rendered
+                    else " Без браузера не виден подвал, который подгружается скриптами: "
+                    "перепроверьте в режиме --browser."
+                )
                 + (
                     f" Страница входа ({data.login_blocked[0]}) не открылась: "
                     f"{data.login_blocked[1]}, а ссылка бывает только там."
@@ -660,11 +671,14 @@ async def run_compliance(
     extra_pages: list[FetchedPage] | None = None,
     prefetched: dict[str, FetchedPage] | None = None,
     loaded_urls: list[str] | None = None,
+    rendered: bool = False,
 ) -> list[Check]:
     """``prefetched`` holds pages already opened in the browser (the policy, the sign-in
     page), keyed by URL; ``loaded_urls`` are the home page's requests in the browser."""
     page = parse_page(html)
-    data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
+    data = ComplianceInput(
+        final_url=final_url, page=page, deps=deps, page_problem=page_problem, rendered=rendered
+    )
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     prefetched = prefetched or {}

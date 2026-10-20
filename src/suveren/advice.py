@@ -107,4 +107,16 @@ def overall_scope(report: Report) -> str:
     ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in report.checks)]
     if not ran:
         return "проверены только иностранные зависимости"
-    return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"]))
+    scope = "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"]))
+    gap = unchecked(report)
+    if gap:
+        scope += f"; не удалось проверить {gap[0]} из {gap[1]}, оценка может быть завышена"
+    return scope
+
+
+def unchecked(report: Report) -> tuple[int, int] | None:
+    """(not checked, all) when a quarter or more of the checks could not run: a bot wall
+    or a script-built page hides what was not seen, and the grade looks better than it is."""
+    checks = [c for c in report.checks if not c.id.startswith("SUV-ATK-")]
+    n = sum(1 for c in checks if c.status is Status.UNKNOWN)
+    return (n, len(checks)) if n >= 3 and n * 4 >= len(checks) else None

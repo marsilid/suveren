@@ -136,7 +136,9 @@ def page_problem(status: int | None, html: str, *, rendered: bool = False) -> st
     page = parse_page(html)
     # Stub pages are short; they may still carry a phone number or a few links.
     short = len(page.text) < 1500
-    thin = len(page.links) < 10 and len(page.text) < 600
+    # A small page with no scripts at all is simply small, not built by scripts.
+    scripted = "<script" in html.lower()
+    thin = len(page.links) < 10 and len(page.text) < 600 and (scripted or rendered)
     challenge = short and bool(_CHALLENGE.search(html[:30000]))
     # A browser may pass a challenge that first answered 403/503: judge the content then.
     if status is not None and status >= 400 and (thin or challenge or not rendered):
