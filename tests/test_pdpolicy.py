@@ -240,3 +240,34 @@ def test_separate_documents_in_footer_or_checkboxes_are_not_bundled():
     # One statement in a checkbox label is still found.
     label = "Согласен с условиями оферты и обработкой персональных данных"
     assert bundled_in_text(label) == label
+
+
+def test_policy_against_what_the_site_does():
+    from suveren.checks import Status
+    from suveren.pdpolicy import policy_reality
+
+    text = (
+        "Оператор не передает персональные данные третьим лицам. "
+        "Трансграничная передача персональных данных не осуществляется. "
+        "Сайт не использует файлы cookie."
+    )
+    check = policy_reality(text, ["Google Analytics"], ["Google Analytics"], ["Google Analytics"])
+    assert check.id == "SUV-PD-011" and check.status is Status.WARN
+    assert "«Оператор не передает персональные данные третьим лицам»" in check.details
+    assert "трансграничная" in check.details.lower() and "cookies ставят" in check.details
+    # Nothing on the site that contradicts it.
+    assert policy_reality(text, [], [], []).status is Status.OK
+
+
+def test_conditional_claims_are_not_contradictions():
+    from suveren.checks import Status
+    from suveren.pdpolicy import policy_reality
+
+    text = (
+        "Оператор не передает персональные данные третьим лицам, за исключением случаев, "
+        "предусмотренных законом. Мы не передаем данные третьим лицам без вашего согласия."
+    )
+    assert policy_reality(text, ["Яндекс Метрика"], [], []).status is Status.OK
+    # A purpose narrows the claim (hh.ru): not "no cookies at all".
+    scoped = "Мы не используем файлы cookie для установления вашей личности."
+    assert policy_reality(scoped, [], [], ["Яндекс Метрика"]).status is Status.OK

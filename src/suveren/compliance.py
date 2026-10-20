@@ -7,6 +7,7 @@ They point at likely problems; they are not a legal opinion.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
@@ -35,6 +36,7 @@ from suveren.pdpolicy import (
     consent_doc_link,
     implied_in_document,
     policy_content,
+    policy_reality,
 )
 from suveren.registries import RknOperator, rkn_operator
 from suveren.utils import registrable_domain
@@ -69,6 +71,13 @@ _COOKIE_TEXT = re.compile(r"cookie|куки", re.I)
 _COOKIE_CONTEXT = re.compile(r"соглас|использ|принять|принимаю|accept|продолжая", re.I)
 # Visitor-tracking categories: they set cookies whatever the provider's country.
 _TRACKING = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT})
+# Who receives visitor data as a third party, and who sets cookies, for policy claims.
+_THIRD_PARTIES = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT, Category.SOCIAL})
+_COOKIE_SETTERS = frozenset({Category.ANALYTICS, Category.ADS})
+
+
+def _names(deps: Iterable[Dependency]) -> list[str]:
+    return list(dict.fromkeys(d.service for d in deps))
 
 
 @dataclass(slots=True)
@@ -322,6 +331,14 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
             checks.append(policy_content(policy.text, bool(foreign_visitor)))
+            checks.append(
+                policy_reality(
+                    policy.text,
+                    _names(d for d in data.deps if d.category in _THIRD_PARTIES),
+                    _names(foreign_visitor),
+                    _names(d for d in data.deps if d.category in _COOKIE_SETTERS),
+                )
+            )
 
     # 2. Consent in forms.
     if not forms:
@@ -541,6 +558,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
 LAW_BY_TITLE = {
     "Политика обработки персональных данных": "152-ФЗ, ст. 18.1",
     "Содержание политики": "152-ФЗ, ст. 18.1",
+    "Политика и реальность": "152-ФЗ, ст. 18.1",
     "Согласие на обработку в формах": "152-ФЗ, ст. 9",
     "Отдельное согласие на обработку": "152-ФЗ, ст. 9 ч. 1",
     "Уведомление о cookies": "152-ФЗ, ст. 9",

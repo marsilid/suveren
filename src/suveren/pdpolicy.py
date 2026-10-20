@@ -334,3 +334,68 @@ def consent_check(findings: list[ConsentFinding], separate: str | None, forms: i
             fix,
         )
     return None
+
+
+# --- policy vs reality --------------------------------------------------------------------
+
+REALITY_TITLE = "Политика и реальность"
+# Blanket claims a policy makes, matched on lowercased text with ё as е.
+_NO_THIRD = re.compile(
+    r"не\s+(?:передает|передаем|передают|раскрывает|раскрываем|предоставляет|предоставляем)"
+    r"[^.]{0,80}?треть\w*\s+лиц"
+)
+_NO_CROSS_BORDER = re.compile(
+    r"трансграничн\w*\s+передач\w*[^.]{0,60}?не\s+(?:осуществля\w+|производ\w+|ведет\w*)"
+    r"|не\s+осуществля\w+\s+трансграничн"
+)
+_NO_COOKIES = re.compile(
+    r"не\s+(?:использует|используем|применяет|применяем|собирает|собираем)"
+    r"[^.]{0,30}?(?:cookie|куки)"
+)
+# A sentence with a condition or a purpose is not a blanket claim: "...кроме случаев,
+# предусмотренных законом", "не используем cookie для установления личности" (hh.ru).
+_CONDITION = re.compile(
+    r"исключ|кроме|без\s+(?:\w+\s+){0,2}согласи|если|в\s+случа|предусмотрен|за\s+исключ|"
+    r"иначе|только\s+(?:с|при|в)|(?<!\w)для(?!\w)|чтобы|с\s+цель"
+)
+
+
+def _claim(text: str, rx: re.Pattern[str]) -> str | None:
+    """The first unconditional sentence of the policy that matches ``rx``, as a quote."""
+    for sentence in _SENTENCE.findall(text):
+        low = _norm(sentence)
+        if rx.search(low) and not _CONDITION.search(low):
+            return _quote(sentence, 220)
+    return None
+
+
+def policy_reality(text: str, third: list[str], foreign: list[str], tracking: list[str]) -> Check:
+    """What the policy says against what the page does: each contradiction is the
+    policy's own sentence plus the services that prove it otherwise.
+
+    ``third``: services that receive visitor data (analytics, ads, chats, widgets);
+    ``foreign``: those of them abroad; ``tracking``: analytics and ads, which set cookies.
+    """
+    found = []
+    if third and (quote := _claim(text, _NO_THIRD)):
+        found.append(f"Политика: «{quote}» — а данные посетителей получают {', '.join(third)}.")
+    if foreign and (quote := _claim(text, _NO_CROSS_BORDER)):
+        found.append(f"Политика: «{quote}» — а на сайте иностранные сервисы: {', '.join(foreign)}.")
+    if tracking and (quote := _claim(text, _NO_COOKIES)):
+        found.append(f"Политика: «{quote}» — а cookies ставят {', '.join(tracking)}.")
+    if not found:
+        return Check(
+            GROUP_152,
+            REALITY_TITLE,
+            Status.OK,
+            "Политика не утверждает того, что опровергает сайт: противоречий с найденными "
+            "сервисами нет.",
+        )
+    return Check(
+        GROUP_152,
+        REALITY_TITLE,
+        Status.WARN,
+        " ".join(found) + " Проверка ищет категоричные фразы; если смысл другой, всё в порядке.",
+        "Приведите политику в соответствие с тем, что делает сайт: перечислите сервисы, "
+        "которым передаются данные, и страны (152-ФЗ, ст. 18.1), или уберите эти сервисы.",
+    )
