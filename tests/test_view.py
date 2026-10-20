@@ -197,9 +197,25 @@ def test_report_tiles_and_table_of_contents():
     # The page works without foreign scripts, but foreign DNS or hosting take it all down.
     assert tiles["Без иностранных сервисов"]["value"] == "сайт не откроется"
     nav = navigation(report, has_plan=True)
-    assert [n["title"] for n in nav][:2] == ["Что сделать", "Риски"]
+    assert [n["title"] for n in nav][:2] == ["Что сделать", "Зависимости"]
     assert any(n["title"] == "Персональные данные" and n["fail"] == 1 for n in nav)
     html = render_html(report)
     assert 'class="toc"' in html and 'class="tiles"' in html
     for anchor in ("todo", "risks", "plan", "services"):
         assert f'id="{anchor}"' in html
+
+
+def test_report_links_are_short_and_reasons_lead_to_checks():
+    from suveren.catalog import BY_ID
+    from suveren.report import linkify, render_html
+
+    html = str(linkify("рекомендации РКН: https://www.garant.ru/doc/1/). <b>"))
+    assert '<a href="https://www.garant.ru/doc/1/"' in html and ">garant.ru</a>)." in html
+    assert "&lt;b&gt;" in html  # the rest stays escaped
+    assert "http://" in str(linkify("по адресу http://.")) and "<a" not in str(linkify("http://."))
+
+    report = sample_report()
+    spec = BY_ID["SUV-PD-002"]
+    report.checks.append(Check(spec.group, spec.title, Status.FAIL, "", "Сделайте так."))
+    page = render_html(report)
+    assert f'id="{spec.id}"' in page and f'<a href="#{spec.id}">{spec.title}</a>' in page

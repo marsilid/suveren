@@ -6,13 +6,12 @@
 {% set fines = report.fines %}
   <h2 id="checks-{{ index }}">{{ group }}</h2>
   {% if fines and group.startswith("Персональные") %}
-  <div class="card fines{% if not fines.counted %} calm{% endif %}">
+  {% if fines.counted %}<div class="card fines">{% else %}<details class="card fines calm">{% endif %}
     {% if fines.counted %}
     <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
     <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую.</p>
     {% else %}
-    <h3>Проблем, за которые есть штраф, не найдено</h3>
-    <p class="muted-sum">Есть признаки, за которые штраф возможен в зависимости от обстоятельств.</p>
+    <summary>Штрафов по найденным проблемам нет · возможны в зависимости от обстоятельств: {{ fines.items | length }}</summary>
     {% endif %}
     <div class="table-wrap">
     <table>
@@ -32,19 +31,27 @@
     </table>
     </div>
     <p class="muted-sum">{{ fines_disclaimer }}</p>
-  </div>
+  {% if fines.counted %}</div>{% else %}</details>{% endif %}
   {% endif %}
-  {% if group.startswith("Персональные") or group.startswith("Другие требования") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
   <div class="card checks">
-    {% for c in items %}
-    <div class="check">
+    {% for c in items if c.status.value != "ok" %}
+    <div class="check"{% if c.id %} id="{{ c.id }}"{% endif %}>
       <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
       <h3>{{ c.title }}{% if c.id %} <span class="cid">{{ c.id }}</span>{% endif %}</h3>
-      {% if c.details %}<p>{{ c.details }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
-      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation }}</p>{% endif %}
+      {% if c.details %}<p>{{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
       {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
     </div>
     {% endfor %}
+    {% set passed = items | selectattr("status.value", "equalto", "ok") | list %}
+    {% if passed %}
+    <details class="passed">
+      <summary><span class="st-ok">✓</span> {% if passed | length < items | length %}Ещё в порядке: {{ passed | length }}{% else %}Всё в порядке · проверок: {{ passed | length }}{% endif %}</summary>
+      <ul>
+        {% for c in passed %}<li{% if c.id %} id="{{ c.id }}"{% endif %}><b>{{ c.title }}</b> — {{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
   </div>
   {% if group.startswith("Безопасность") and graph_svg %}
   <div class="card graph-card">
@@ -87,7 +94,7 @@
 
   <div class="tiles">
     {% for tile in tiles %}
-    <a class="tile tone-{{ tile.tone }}" href="{{ tile.href }}"><span class="tile-value">{{ tile.value }}</span><span class="tile-label">{{ tile.label }}</span></a>
+    <a class="tile tone-{{ tile.tone }}" href="{{ tile.href }}"><span class="tile-value{% if not tile.value.isdigit() %} tile-text{% endif %}">{{ tile.value }}</span><span class="tile-label">{{ tile.label }}</span></a>
     {% endfor %}
   </div>
 
@@ -99,7 +106,7 @@
   <h2 id="todo">Что сделать в первую очередь</h2>
   <ol class="card actions">
     {% for a in actions %}
-    <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
+    <li class="sev-{{ a.severity.label }}"><span>{{ a.action | linkify }}</span><small>{% if a.anchor %}<a href="#{{ a.anchor }}">{{ a.reason }}</a>{% else %}{{ a.reason }}{% endif %}</small></li>
     {% endfor %}
   </ol>
   {% endif %}
@@ -109,15 +116,18 @@
 {{ render_group(group, items, 0) }}
   {% endfor %}
 
-  <h2 id="risks">Риски</h2>
+  <h2 id="risks">Иностранные зависимости</h2>
+  {% set seen = namespace(ids=[]) %}
   {% for f in report.sorted_findings() %}
-  <article class="card finding sev-{{ f.severity.label }}">
+  {% set rid = "risk-" ~ f.category.value %}
+  <article class="card finding sev-{{ f.severity.label }}"{% if rid not in seen.ids %} id="{{ rid }}"{% endif %}>
+  {% set seen.ids = seen.ids + [rid] %}
     <div class="head">
       <span class="badge"><span>{{ f.severity.ru }}</span></span>
       <h3>{{ f.title }}</h3>
     </div>
-    <p>{{ f.description }}</p>
-    <p class="fix">{{ f.recommendation }}</p>
+    <p>{{ f.description | linkify }}</p>
+    <p class="fix">{{ f.recommendation | linkify }}</p>
     {% set m = moves.get(f.category) %}
     {% if m %}
     <details class="move">
@@ -182,9 +192,9 @@
 
   {% if report.notes %}
   <h2 id="notes">Замечания</h2>
-  {% for note in report.notes %}
-  <p class="card note">{{ note }}</p>
-  {% endfor %}
+  <ul class="card notes">
+    {% for note in report.notes %}<li>{{ note | linkify }}</li>{% endfor %}
+  </ul>
   {% endif %}
 
   <footer>

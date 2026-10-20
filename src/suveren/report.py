@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from jinja2 import Environment, PackageLoader, select_autoescape
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from suveren import __version__
 from suveren.advice import priorities
@@ -35,6 +37,30 @@ def country_bars(report: Report) -> list[dict[str, object]]:
     return bars
 
 
+# A web address in check texts: a host with a dot, no brackets or quotes, so a link
+# written in parentheses keeps its closing bracket out ("…(см. https://x.ru/doc/).").
+_URL = re.compile(r"https?://[\w-]+(?:\.[\w-]+)+[^\s<>()\"']*")
+
+
+def linkify(text: str | None) -> Markup:
+    """Escaped text with its web addresses turned into short links: the site's name
+    instead of a long address nobody reads."""
+    out, last = [], 0
+    text = text or ""
+    for match in _URL.finditer(text):
+        url = match.group(0).rstrip(".,;:!?")
+        end = match.start() + len(url)
+        host = urlsplit(url).hostname or url
+        label = host.removeprefix("www.")
+        out.append(escape(text[last : match.start()]))
+        out.append(
+            Markup('<a href="{}" target="_blank" rel="noopener">{}</a>').format(url, label)
+        )
+        last = end
+    out.append(escape(text[last:]))
+    return Markup("").join(out)
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=PackageLoader("suveren", "templates"),
@@ -44,6 +70,7 @@ def _environment() -> Environment:
     )
     env.filters["rub"] = rub
     env.filters["span"] = span
+    env.filters["linkify"] = linkify
     env.globals["fines_disclaimer"] = DISCLAIMER
     return env
 
@@ -168,7 +195,7 @@ def navigation(report: Report, has_plan: bool) -> list[dict[str, object]]:
     if scenarios:
         f, w = counts(scenarios)
         nav.append({"href": "#checks-0", "title": "Сценарии атак", "fail": f, "warn": w})
-    nav.append({"href": "#risks", "title": "Риски", "fail": 0, "warn": len(report.findings)})
+    nav.append({"href": "#risks", "title": "Зависимости", "fail": 0, "warn": len(report.findings)})
     for group, _ in report.check_groups:
         if group == scenarios:
             continue

@@ -22,6 +22,7 @@ class Action:
     severity: Severity
     action: str
     reason: str
+    anchor: str = ""  # the report section the reason links to
 
 
 def priorities(report: Report) -> list[Action]:
@@ -30,7 +31,13 @@ def priorities(report: Report) -> list[Action]:
     # scenario that cites it.
     ranked: list[tuple[Action, str, bool]] = [
         (
-            Action(f.severity * 10 + 1, f.severity, first_sentence(f.recommendation), f.title),
+            Action(
+                f.severity * 10 + 1,
+                f.severity,
+                first_sentence(f.recommendation),
+                f.title,
+                f"risk-{f.category.value}",
+            ),
             f"dep:{f.category.value}",
             False,
         )
@@ -39,7 +46,9 @@ def priorities(report: Report) -> list[Action]:
     for c in report.checks:
         if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
-            action = Action(severity * 10, severity, first_sentence(c.recommendation), c.title)
+            action = Action(
+                severity * 10, severity, first_sentence(c.recommendation), c.title, c.id
+            )
             topic = TOPICS.get(c.id) or (c.id[:-1] if c.id.startswith("SUV-MAIL-") else "")
             ranked.append((action, topic or action.action, c.id.startswith("SUV-ATK-")))
     # Several checks say the same thing in different words (the mail verdict, SPF, DMARC
