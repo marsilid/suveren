@@ -17,7 +17,13 @@ Suveren answers six questions:
 1. **What breaks if foreign providers cut you off?** It finds everything running on
    infrastructure outside Russia (DNS, mail, hosting, CDN, site builder, registrar, TLS
    certificate, page scripts and widgets), explains the risk, suggests a Russian alternative and
-   grades independence from **A** to **F**.
+   grades independence from **A** to **F**. Every risk comes with a migration plan (steps,
+   Russian alternatives, effort, a cost hint) and the report ends with a site-wide plan,
+   riskiest and easiest first. With `--cutoff` (or `--profile deep`) it is an experiment, not a
+   guess: the page is opened in a browser normally, with every foreign service refused, and
+   normally again, and the report shows both screenshots and what broke — JavaScript errors,
+   vanished buttons, maps and videos, captcha forms that can no longer be sent, images, fonts —
+   plus the foreign resources in `<head>` that would leave the page blank if they hang.
 2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
    policy (with a checklist of the sections Roskomnadzor recommends), consent in forms and whether
    it is drawn up separately from offers and user agreements (required since 1 September 2025), cookie notice, cross-border transfer, data localisation, the
@@ -35,9 +41,20 @@ Suveren answers six questions:
 4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate
    Transparency logs, checked for CNAMEs to deleted projects or to unregistered domains.
 5. **Whose code runs on the site, and how well are visitors protected?** Third-party scripts,
-   abandoned or compromised script domains, SRI, CSP, HSTS, cookie flags and TLS.
+   abandoned or compromised script domains, SRI, CSP, HSTS, cookie flags and TLS; secrets in the
+   site's own JavaScript (private keys, bot tokens, AWS/Stripe/GitHub/Slack/OpenAI keys, masked
+   in the report); library versions with known CVEs (jQuery, Bootstrap, lodash, Moment.js,
+   AngularJS — only when the version is written out); and, in `--browser` mode, the chains of
+   scripts loaded by other scripts, which the site's owner never chose.
 6. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
    the company and its head against the US (OFAC SDN), EU and UK sanctions lists.
+
+The report opens with **attack scenarios**: findings from different modules joined into what
+an attacker would do (phishing in the company's name, third-party code on every visitor,
+subdomain takeover, interception on the first visit, a leaked key, losing site and mail at
+once), each step citing the check ID and the one fix that breaks the chain. Reports can be
+printed to PDF (`--pdf`) and branded with a studio's name and logo (`--brand-name`,
+`--brand-logo`, `--brand-url`); see [docs/checks.md](docs/checks.md) for every check.
 
 The tool targets Russian businesses, so its interface and reports are in Russian.
 
