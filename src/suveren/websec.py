@@ -30,6 +30,8 @@ from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
 from suveren.subdomains import is_registered
 from suveren.utils import registrable_domain
+from suveren.vulns import TITLE as VULN_TITLE
+from suveren.vulns import detect, vuln_check
 
 GROUP_WEB = "Безопасность сайта"
 
@@ -681,17 +683,28 @@ async def run_web_checks(
     }
     checks = evaluate(w)
     if w.page_problem:
-        leak = Check(GROUP_WEB, LEAK_TITLE, Status.UNKNOWN, f"Не проверено: {w.page_problem}.")
+        why = f"Не проверено: {w.page_problem}."
+        code_checks = [
+            Check(GROUP_WEB, LEAK_TITLE, Status.UNKNOWN, why),
+            Check(GROUP_WEB, VULN_TITLE, Status.UNKNOWN, why),
+        ]
     else:
         own = [
             r.url for r in resources if r.kind == "script" and not is_third_party(r.host, w.domain)
         ]
         pages = [("главная", facts.html)] + [(p.path, p.html) for p in facts.extra_pages]
-        leaks, sources = await scan_scripts(client, list(dict.fromkeys(own)), pages)
-        leak = leak_check(leaks, sources)
+        heads: dict[str, str] = {}
+        leaks, sources = await scan_scripts(client, list(dict.fromkeys(own)), pages, heads)
         data["leaks"] = [x.to_dict() for x in leaks]
+        # Every script the pages load, the browser's requests included: versions are
+        # often in CDN paths (/jquery/3.4.1/).
+        scripts = [r.url for r in resources if r.kind == "script"]
+        scripts += [u for u in facts.loaded_urls if urlsplit(u).path.endswith(".js")]
+        libs = detect(list(dict.fromkeys(scripts)), heads)
+        data["libraries"] = [{"name": x.name, "version": x.version, "where": x.where} for x in libs]
+        code_checks = [leak_check(leaks, sources), vuln_check(libs)]
     # Right after the checks about third-party code, where a reader looks for code risks.
     code = {c.id for c in checks} & {"SUV-WEB-001", "SUV-WEB-002", "SUV-WEB-003"}
     at = max((i + 1 for i, c in enumerate(checks) if c.id in code), default=0)
-    checks.insert(at, leak)
+    checks[at:at] = code_checks
     return checks, data

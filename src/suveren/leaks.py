@@ -31,6 +31,7 @@ TITLE = "Ключи и секреты в коде сайта"
 GROUP_WEB = "Безопасность сайта"
 MAX_SCRIPTS = 15
 MAX_BYTES = 3_000_000
+HEAD_CHARS = 6000  # where a library's banner and version are
 SHOWN = 6
 
 
@@ -102,11 +103,15 @@ def inline_scripts(html: str) -> str:
 
 
 async def scan_scripts(
-    client: httpx.AsyncClient, urls: list[str], pages: list[tuple[str, str]]
+    client: httpx.AsyncClient,
+    urls: list[str],
+    pages: list[tuple[str, str]],
+    heads: dict[str, str] | None = None,
 ) -> tuple[list[Leak], int]:
     """Leaks in the site's own script files (``urls``) and in the scripts written into
     its pages (``pages``: (where, html)). Returns the leaks and how many sources were
-    read."""
+    read. ``heads``, if given, receives the start of each file (for vulns.py: library
+    banners), so the files are downloaded once."""
     leaks: list[Leak] = []
     for where, html in pages:
         leaks += find_leaks(inline_scripts(html), f"код страницы {where}")
@@ -119,7 +124,10 @@ async def scan_scripts(
         if resp.status_code != 200:
             return []
         short = re.sub(r"^https?://", "", url).split("?")[0]
-        return find_leaks(resp.text[:MAX_BYTES], short[:80])
+        text = resp.text[:MAX_BYTES]
+        if heads is not None:
+            heads[url] = text[:HEAD_CHARS]
+        return find_leaks(text, short[:80])
 
     for found in await asyncio.gather(*(one(u) for u in urls[:MAX_SCRIPTS])):
         leaks += found
