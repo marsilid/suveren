@@ -59,11 +59,21 @@ def run_menu(app: typer.Typer, console: Console) -> None:
     def pause() -> None:
         ask("\n[dim]Нажмите Enter, чтобы вернуться в меню[/]")
 
+    def yes(prompt: str) -> bool:
+        return ask(f"{prompt} [д/Н]").lower() in ("д", "да", "y", "yes")
+
     def scan() -> None:
         target = ask("Домен или ссылка")
-        if target:
-            REPORTS.mkdir(exist_ok=True)
-            call("scan", target, "--browser")
+        if not target:
+            return
+        REPORTS.mkdir(exist_ok=True)
+        args = ["scan", target, "--browser"]
+        if yes("Глубокая проверка: что сломается без иностранных сервисов (дольше на минуту)?"):
+            args = ["scan", target, "--profile", "deep"]
+        if yes("Сохранить отчёт ещё и в PDF?"):
+            name = "".join(c if c.isalnum() or c in ".-" else "_" for c in target)
+            args += ["--pdf", str(REPORTS / f"{name}.pdf")]
+        call(*args)
 
     def batch() -> None:
         console.print("  Нужен текстовый файл: по одному сайту в строке.")
