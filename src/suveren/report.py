@@ -13,7 +13,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup, escape
 
 from suveren import __version__
-from suveren.advice import priorities
+from suveren.advice import overall_grade, overall_score, priorities
 from suveren.brand import Brand
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
@@ -42,9 +42,20 @@ def country_bars(report: Report) -> list[dict[str, object]]:
 _URL = re.compile(r"https?://[\w-]+(?:\.[\w-]+)+[^\s<>()\"']*")
 
 
+# Report sections that check texts refer to by name.
+_SECTIONS = {"«Иностранные зависимости»": "#risks"}
+
+
+def _sections(text: str) -> Markup:
+    out = escape(text)
+    for name, href in _SECTIONS.items():
+        out = Markup(out.replace(name, Markup('<a href="{}">{}</a>').format(href, name)))
+    return out
+
+
 def linkify(text: str | None) -> Markup:
     """Escaped text with its web addresses turned into short links: the site's name
-    instead of a long address nobody reads."""
+    instead of a long address nobody reads. Section names link to their sections."""
     out, last = [], 0
     text = text or ""
     for match in _URL.finditer(text):
@@ -52,12 +63,10 @@ def linkify(text: str | None) -> Markup:
         end = match.start() + len(url)
         host = urlsplit(url).hostname or url
         label = host.removeprefix("www.")
-        out.append(escape(text[last : match.start()]))
-        out.append(
-            Markup('<a href="{}" target="_blank" rel="noopener">{}</a>').format(url, label)
-        )
+        out.append(_sections(text[last : match.start()]))
+        out.append(Markup('<a href="{}" target="_blank" rel="noopener">{}</a>').format(url, label))
         last = end
-    out.append(escape(text[last:]))
+    out.append(_sections(text[last:]))
     return Markup("").join(out)
 
 
@@ -94,6 +103,7 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         version=__version__,
         bars=country_bars(report),
         actions=priorities(report)[:5],
+        overall={"score": overall_score(report), "grade": overall_grade(report)},
         groups=[(c, deps) for c, deps in groups if deps],
         shots=shots,
         graph_svg=Markup(graph_svg),

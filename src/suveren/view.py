@@ -19,7 +19,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from suveren.advice import priorities
+from suveren.advice import overall_grade, overall_score, priorities
 from suveren.checks import Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.models import Report, Severity
@@ -127,17 +127,25 @@ def check_counts(checks: Iterable[Check], *, words: bool = False) -> Text:
 
 
 def summary_panel(report: Report) -> Panel:
+    grade, score = overall_grade(report), overall_score(report)
     top = Text.assemble(
+        (f" {grade} ", GRADE_STYLE[grade]),
+        ("  Общая оценка ", "bold"),
+        (f"{score}", "bold"),
+        ("/100", DIM),
+        ("     ", ""),
         (f" {report.grade} ", GRADE_STYLE[report.grade]),
         ("  Независимость ", "bold"),
         (f"{report.score}", "bold"),
         ("/100", DIM),
-        ("    иностранных сервисов ", DIM),
+    )
+    deps = Text.assemble(
+        ("иностранных сервисов ", DIM),
         (str(report.foreign_count), "bold"),
         (" · российских ", DIM),
         (str(report.domestic_count), "bold"),
     )
-    rows: list[object] = [top, country_bar(report)]
+    rows: list[object] = [top, Text(""), deps, country_bar(report)]
     if report.checks:
         rows += [Text(""), check_counts(report.checks, words=True)]
     extra = Text()

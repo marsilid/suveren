@@ -360,6 +360,7 @@ class Report:
         return sorted(self.findings, key=lambda f: f.severity, reverse=True)
 
     def to_dict(self) -> dict[str, Any]:
+        from suveren.advice import overall_score  # advice reads the report
         from suveren.migration import plan as migration_plan  # migration imports models
 
         return {
@@ -369,6 +370,8 @@ class Report:
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "score": self.score,
             "grade": self.grade,
+            "overall_score": overall_score(self),
+            "overall_grade": grade_for(overall_score(self)),
             "countries": dict(self.countries),
             "findings": [f.to_dict() for f in self.sorted_findings()],
             "dependencies": [d.to_dict() for d in self.dependencies],

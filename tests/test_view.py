@@ -219,3 +219,21 @@ def test_report_links_are_short_and_reasons_lead_to_checks():
     report.checks.append(Check(spec.group, spec.title, Status.FAIL, "", "Сделайте так."))
     page = render_html(report)
     assert f'id="{spec.id}"' in page and f'<a href="#{spec.id}">{spec.title}</a>' in page
+
+
+def test_overall_grade_counts_each_problem_once():
+    from suveren.advice import overall_score
+    from suveren.catalog import BY_ID
+
+    report = sample_report()
+    before = overall_score(report)
+    for check_id in ("SUV-MAIL-001", "SUV-MAIL-002", "SUV-MAIL-003"):
+        spec = BY_ID[check_id]
+        title = "Можно ли подделать письмо от имени @example.ru" if spec.pattern else spec.title
+        report.checks.append(Check(spec.group, title, Status.FAIL, "", "Совет."))
+    # Three checks, one problem (the mail records): one penalty, not three.
+    assert before - overall_score(report) == 10
+    data = report.to_dict()
+    assert data["overall_score"] == overall_score(report) and data["overall_grade"] in "ABCDF"
+    html = __import__("suveren.report", fromlist=["render_html"]).render_html(report)
+    assert "Общая оценка" in html and "Независимость" in html

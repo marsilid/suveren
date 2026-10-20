@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from suveren.checks import Status
-from suveren.models import Report, Severity
+from suveren.models import Report, Severity, grade_for
 
 
 def first_sentence(text: str) -> str:
@@ -74,3 +74,17 @@ TOPICS = {
     "SUV-ATK-006": "dep:dns",
     "SUV-CUT-001": "dep:dns",
 }
+
+
+# The overall grade: every distinct problem costs points once, however many checks
+# report it (the mail verdict, SPF and DMARC are one problem).
+OVERALL_PENALTY = {Severity.HIGH: 10, Severity.MEDIUM: 3, Severity.LOW: 1, Severity.INFO: 0}
+
+
+def overall_score(report: Report) -> int:
+    """All sections together: laws, security, mail, blocks and foreign dependencies."""
+    return max(0, 100 - sum(OVERALL_PENALTY[a.severity] for a in priorities(report)))
+
+
+def overall_grade(report: Report) -> str:
+    return grade_for(overall_score(report))

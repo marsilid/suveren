@@ -107,9 +107,9 @@ def _brand(name: str | None, logo: Path | None, url: str | None) -> Brand | None
         raise _fail(str(exc)) from exc
 
 
-def _pdf(html_path: Path, pdf_path: Path) -> bool:
+def _pdf(html_path: Path, pdf_path: Path, *, spin: bool = True) -> bool:
     try:
-        with _spinner("[grey50]Печатаю PDF…[/]"):
+        with _spinner("[grey50]Печатаю PDF…[/]") if spin else contextlib.nullcontext():
             asyncio.run(print_pdf(html_path, pdf_path))
     except SuverenError as exc:
         console.print(f"  [#e6b450]![/] PDF не создан: {exc}")
@@ -414,7 +414,8 @@ def scan(
         write_html(report, html_path, brand)
         if not no_report:
             files.append(("отчёт", html_path))
-        if pdf is not None and _pdf(html_path, pdf):
+        # A recorded session (--export-svg) must not keep the spinner's frames.
+        if pdf is not None and _pdf(html_path, pdf, spin=export_svg is None):
             files.append(("pdf", pdf))
         if no_report:
             html_path.unlink(missing_ok=True)  # only needed to print the PDF

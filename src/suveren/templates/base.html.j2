@@ -62,11 +62,19 @@
   .toc b { font-weight: 700; margin-left: 2px; }
   .toc .c-fail { color: var(--high); } .toc .c-warn { color: var(--medium); }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  .summary { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+  .summary { display: grid; gap: 18px; }
+  .grades { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 28px; }
+  .g { display: flex; gap: 16px; align-items: center; }
+  .g-body { flex: 1; min-width: 0; }
+  .g-body .bar { height: 8px; margin-top: 10px; }
+  .g-body .legend { margin-top: 6px; font-size: 12.5px; }
+  .g-title { font-size: 17px; font-weight: 700; }
+  .g-sub { color: var(--muted); font-size: 13.5px; }
   .grade {
-    width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
-    border: 8px solid currentColor; font-size: 48px; font-weight: 800;
+    flex: none; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center;
+    border: 7px solid currentColor; font-size: 38px; font-weight: 800;
   }
+  .grade.grade-num { font-size: 28px; }
   .grade-A { color: var(--grade-a); } .grade-B { color: var(--grade-b); } .grade-C { color: var(--grade-c); }
   .grade-D { color: var(--grade-d); } .grade-F { color: var(--grade-f); }
   .score { font-size: 15px; color: var(--muted); margin-bottom: 6px; }
@@ -172,9 +180,10 @@
   @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(5, 1fr); } }
   @media screen and (max-width: 860px) { .tile:last-child:nth-child(odd) { grid-column: span 2; } }
   @media (max-width: 560px) {
-    .summary { grid-template-columns: auto 1fr; gap: 16px; padding: 16px; }
-    .grade { width: 72px; height: 72px; border-width: 6px; font-size: 32px; }
-    .score strong { font-size: 19px; }
+    .summary { padding: 16px; }
+    .grades { grid-template-columns: 1fr; }
+    .grade { width: 64px; height: 64px; border-width: 5px; font-size: 28px; }
+    .grade.grade-num { font-size: 22px; }
     td.evidence { display: none; }
   }
   @media print { body { background: #fff; } .card, .check, tr { break-inside: avoid; } h2 { break-after: avoid; } }

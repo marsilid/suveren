@@ -190,7 +190,8 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario(
         "Отключение сайта и почты",
-        when=lambda f: bool(f.foreign(*WHOLE_SITE)),
+        # The cutoff experiment's own verdict (SUV-CUT-001) says the same, with facts.
+        when=lambda f: bool(f.foreign(*WHOLE_SITE)) and "SUV-CUT-001" not in f.status,
         severe=lambda f: bool(f.foreign(Category.MAIL)),
         steps=_cutoff_steps,
         fix=_cutoff_fix,

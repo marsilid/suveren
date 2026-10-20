@@ -81,6 +81,8 @@ def test_cutoff_scenario_from_dependencies():
     only_dns = build([], deps[:1], "a.ru")
     assert titles(only_dns) == {"Отключение сайта и почты": Status.WARN}
     assert build([], [dep(Category.DNS, "Selectel", "RU")], "a.ru") == []
+    # The cutoff experiment ran: its verdict says the same, the scenario would repeat it.
+    assert build([check("SUV-CUT-001", Status.FAIL)], deps, "a.ru") == []
 
 
 def test_nothing_found_means_no_scenarios():
