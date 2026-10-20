@@ -24,11 +24,13 @@ MAIL = "Защита почты от подделки"
 WEB = "Безопасность сайта"
 SUB = "Поддомены"
 CUT = "Отключение иностранных сервисов"
+ATTACK = "Сценарии атак"
 COMPANY = "Проверка компании"
 
 # Modules of `suveren scan`, as switched by --no-152fz, --no-mail and the like;
-# "cutoff" runs with --cutoff or the deep profile; "company" is `suveren company`.
-MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "company")
+# "cutoff" runs with --cutoff or the deep profile; "company" is `suveren company`;
+# "core" needs nothing beyond the dependency scan every run does.
+MODULES = ("core", "compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "company")
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +129,20 @@ CATALOG: tuple[CheckSpec, ...] = (
           "subdomains ct", "Поддомены из журналов Certificate Transparency."),
     _spec("SUV-SUB-002", SUB, "Захват поддоменов", "subdomains", "subdomains takeover",
           "Поддомены, указывающие на удалённые проекты или свободные домены."),
+    # --- attack scenarios (reasoning over the other checks) ----------------------------
+    _spec("SUV-ATK-001", ATTACK, "Фишинг от имени компании", "mail", "scenario mail",
+          "Подделываемая почта + формы или оплата на сайте: фишинг клиентов."),
+    _spec("SUV-ATK-002", ATTACK, "Чужой код у всех посетителей", "security",
+          "scenario scripts supply-chain",
+          "Брошенный домен скрипта или CDN без SRI и CSP: чужой код на сайте."),
+    _spec("SUV-ATK-003", ATTACK, "Захват поддомена", "subdomains", "scenario subdomains",
+          "Поддомен можно занять: фишинг на настоящем адресе, доступ к cookies."),
+    _spec("SUV-ATK-004", ATTACK, "Перехват при первом заходе", "security", "scenario tls",
+          "Нет HSTS + формы с данными: подмена страницы в общественном Wi-Fi."),
+    _spec("SUV-ATK-005", ATTACK, "Утёкший ключ", "security", "scenario secrets",
+          "Секрет в коде сайта: действия от имени компании."),
+    _spec("SUV-ATK-006", ATTACK, "Отключение сайта и почты", "core", "scenario foreign",
+          "Иностранные DNS, хостинг или CDN (и почта): сайт и почта пропадают разом."),
     # --- cutoff experiment (--cutoff) --------------------------------------------------
     _spec("SUV-CUT-001", CUT, "Отключение: сайт и почта целиком", "cutoff", "cutoff foreign",
           "Отключат ли сайт или почту целиком иностранные DNS, хостинг, CDN, почта."),

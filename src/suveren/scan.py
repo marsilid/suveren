@@ -29,6 +29,7 @@ from suveren.mailsec import run_mail_checks
 from suveren.models import Report
 from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
+from suveren.scenarios import build as build_scenarios
 from suveren.subdomains import run_subdomain_checks
 from suveren.websec import run_web_checks
 
@@ -139,6 +140,10 @@ async def run_scan(
         ):
             report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
 
+    # Scenarios join what the modules found; they open the report.
+    report.checks = build_scenarios(report.checks, report.dependencies, facts.domain) + (
+        report.checks
+    )
     if only is not None:
         report.checks = narrow(report.checks, only)
     report.finished_at = datetime.now(timezone.utc)
