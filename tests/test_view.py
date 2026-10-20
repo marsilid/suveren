@@ -239,3 +239,16 @@ def test_overall_grade_counts_each_problem_once():
     assert data["overall_score"] == overall_score(report) and data["overall_grade"] in "ABCDF"
     html = __import__("suveren.report", fromlist=["render_html"]).render_html(report)
     assert "Общая оценка" in html and "Независимость" in html
+
+
+def test_overall_grade_says_what_it_covers():
+    from suveren.advice import overall_scope
+    from suveren.models import Report
+    from suveren.report import render_html
+
+    empty = Report(target="empty.ru")
+    # Nothing but dependencies was checked (--quick): the grade must not claim laws or mail.
+    assert overall_scope(empty) == "проверены только иностранные зависимости"
+    html = render_html(empty)
+    assert "проверены только иностранные зависимости" in html and "Сервисов не найдено" in html
+    assert overall_scope(sample_report()) == "проверено: законы, зависимости"

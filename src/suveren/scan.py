@@ -46,10 +46,9 @@ def _quiet(stage: str, seconds: float | None) -> None:
 async def _stage(progress: Progress, name: str) -> AsyncIterator[None]:
     progress(name, None)
     started = time.perf_counter()
-    try:
-        yield
-    finally:
-        progress(name, time.perf_counter() - started)
+    yield
+    # Only a stage that finished gets its tick; a failed one is told by the error.
+    progress(name, time.perf_counter() - started)
 
 
 async def run_scan(

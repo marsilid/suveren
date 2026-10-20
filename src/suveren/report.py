@@ -13,7 +13,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup, escape
 
 from suveren import __version__
-from suveren.advice import overall_grade, overall_score, priorities
+from suveren.advice import overall_grade, overall_scope, overall_score, priorities
 from suveren.brand import Brand
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
@@ -103,7 +103,11 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         version=__version__,
         bars=country_bars(report),
         actions=priorities(report)[:5],
-        overall={"score": overall_score(report), "grade": overall_grade(report)},
+        overall={
+            "score": overall_score(report),
+            "grade": overall_grade(report),
+            "scope": overall_scope(report),
+        },
         groups=[(c, deps) for c, deps in groups if deps],
         shots=shots,
         graph_svg=Markup(graph_svg),

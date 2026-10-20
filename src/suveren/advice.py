@@ -88,3 +88,23 @@ def overall_score(report: Report) -> int:
 
 def overall_grade(report: Report) -> str:
     return grade_for(overall_score(report))
+
+
+# Section words for what the overall grade covered, by the start of the group name.
+SCOPE = (
+    ("Персональные", "законы"),
+    ("Другие требования", "законы"),
+    ("Блокировки", "блокировки"),
+    ("Защита почты", "почта"),
+    ("Безопасность", "безопасность"),
+    ("Поддомены", "поддомены"),
+    ("Отключение", "отключение"),
+)
+
+
+def overall_scope(report: Report) -> str:
+    """What the overall grade rests on: only sections that ran (--quick runs none)."""
+    ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in report.checks)]
+    if not ran:
+        return "проверены только иностранные зависимости"
+    return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"]))

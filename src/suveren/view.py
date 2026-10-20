@@ -19,7 +19,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from suveren.advice import overall_grade, overall_score, priorities
+from suveren.advice import overall_grade, overall_scope, overall_score, priorities
 from suveren.checks import Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.models import Report, Severity
@@ -139,13 +139,14 @@ def summary_panel(report: Report) -> Panel:
         (f"{report.score}", "bold"),
         ("/100", DIM),
     )
+    scope = Text(f"общая оценка: {overall_scope(report)}", style=DIM)
     deps = Text.assemble(
         ("иностранных сервисов ", DIM),
         (str(report.foreign_count), "bold"),
         (" · российских ", DIM),
         (str(report.domestic_count), "bold"),
     )
-    rows: list[object] = [top, Text(""), deps, country_bar(report)]
+    rows: list[object] = [top, scope, Text(""), deps, country_bar(report)]
     if report.checks:
         rows += [Text(""), check_counts(report.checks, words=True)]
     extra = Text()
