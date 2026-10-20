@@ -113,6 +113,7 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         graph_svg=Markup(graph_svg),
         plan=moves,
         moves={m.category: m for m in moves},
+        risk={f.category: f.severity for f in report.findings},
         tiles=summary_tiles(report),
         nav=navigation(report, bool(moves)),
     )

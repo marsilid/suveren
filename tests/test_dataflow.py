@@ -63,3 +63,25 @@ def test_report_shows_the_flow_and_counts_it_with_cross_border_once():
     assert overall_score(report) == before  # same problem as SUV-PD-006
     html = render_html(report)
     assert 'class="card flow"' in html and "Meta Pixel" in html
+
+
+def test_report_says_cross_border_once():
+    from test_view import sample_report
+
+    from suveren.catalog import BY_ID
+    from suveren.checks import Check
+    from suveren.report import render_html
+
+    report = sample_report()
+    rows = flow(hosts(HostInfo("connect.facebook.net", "Meta Pixel", "US")))
+    report.facts["dataflow"] = rows
+    pd6 = BY_ID["SUV-PD-006"]
+    report.checks += [
+        Check(pd6.group, pd6.title, Status.WARN, "Meta Pixel (США).", "Уведомите Роскомнадзор."),
+        flow_check(rows),
+    ]
+    html = render_html(report)
+    # The row points to the table; the advice is PD-006's alone.
+    assert "в таблице ниже" in html
+    assert html.count("уведомите Роскомнадзор о трансграничной") == 0
+    assert html.count("Уведомите Роскомнадзор.") == 2  # the to-do list and PD-006 itself

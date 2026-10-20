@@ -32,7 +32,7 @@ from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
 from suveren.scenarios import build as build_scenarios
 from suveren.subdomains import run_subdomain_checks
-from suveren.websec import run_web_checks
+from suveren.websec import GROUP_WEB, run_web_checks
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -131,6 +131,16 @@ async def run_scan(
             if svg:
                 report.media["script_graph_svg"] = svg.encode("utf-8")
             report.facts["web_security"] = data
+    elif security:
+        # No page and no headers: say so, or the section silently vanishes (gosuslugi.ru).
+        report.checks.append(
+            Check(
+                GROUP_WEB,
+                "Заголовки безопасности (CSP, HSTS и другие)",
+                Status.UNKNOWN,
+                "Не проверено: главная страница не загрузилась.",
+            )
+        )
 
     if subdomains:
         async with (

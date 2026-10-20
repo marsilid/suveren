@@ -140,11 +140,11 @@ def _cutoff_fix(f: Facts) -> str:
     if f.foreign(Category.DNS):
         what = "сайт и почту" if f.foreign(Category.MAIL) else "сайт"
         return (
-            f"Цепочку рвёт перенос DNS к российскому провайдеру: тогда {what} можно "
-            "переключить за минуты, а не за дни."
+            f"Перенесите DNS к российскому провайдеру: это рвёт цепочку, и тогда {what} "
+            "можно переключить за минуты, а не за дни."
         )
     kinds = ", ".join(dict.fromkeys(d.category.title.lower() for d in f.foreign(*WHOLE_SITE)))
-    return f"Цепочку рвёт перенос к российскому провайдеру: {kinds}."
+    return f"Перенесите к российскому провайдеру {kinds}: это рвёт цепочку."
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -153,8 +153,8 @@ SCENARIOS: tuple[Scenario, ...] = (
         when=lambda f: f.bad("SUV-MAIL-001") and f.collects_data,
         severe=lambda f: f.bad("SUV-MAIL-001", warn=False),
         steps=_phishing_steps,
-        fix="Цепочку рвёт DMARC с p=reject (после проверки по отчётам, что настоящая почта "
-        "проходит): поддельные письма от вашего домена перестанут доходить.",
+        fix="Поставьте DMARC с p=reject, убедившись по отчётам, что настоящая почта проходит: "
+        "поддельные письма от вашего домена перестанут доходить, и цепочка рвётся.",
     ),
     Scenario(
         "Чужой код у всех посетителей",
@@ -164,29 +164,30 @@ SCENARIOS: tuple[Scenario, ...] = (
         ),
         severe=lambda f: f.bad("SUV-WEB-002", warn=False),
         steps=_script_steps,
-        fix="Цепочку рвёт отказ от чужого скрипта: уберите его или разместите копию на своём "
-        "сервере с атрибутом integrity; CSP со списком разрешённых источников — второй рубеж.",
+        fix="Уберите чужой скрипт или разместите его копию на своём сервере с атрибутом "
+        "integrity: это рвёт цепочку; CSP со списком разрешённых источников — второй рубеж.",
     ),
     Scenario(
         "Захват поддомена",
         when=lambda f: f.bad("SUV-SUB-002", warn=False),
         severe=lambda f: True,
         steps=_takeover_steps,
-        fix="Цепочку рвёт удаление DNS-записи поддомена, который указывает на удалённый проект.",
+        fix="Удалите DNS-запись поддомена, который указывает на удалённый проект: это рвёт "
+        "цепочку.",
     ),
     Scenario(
         "Перехват при первом заходе",
         when=lambda f: f.bad("SUV-WEB-005") and f.collects_data,
         severe=lambda f: False,
         steps=_first_visit_steps,
-        fix="Цепочку рвёт заголовок Strict-Transport-Security со сроком от полугода.",
+        fix="Добавьте заголовок Strict-Transport-Security со сроком от полугода: это рвёт цепочку.",
     ),
     Scenario(
         "Утёкший ключ",
         when=lambda f: f.bad("SUV-WEB-009", warn=False),
         severe=lambda f: True,
         steps=_key_steps,
-        fix="Цепочку рвёт отзыв ключа у провайдера; новый храните только на сервере.",
+        fix="Отзовите ключ у провайдера, а новый храните только на сервере: это рвёт цепочку.",
     ),
     Scenario(
         "Отключение сайта и почты",

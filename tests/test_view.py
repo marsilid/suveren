@@ -303,3 +303,38 @@ def test_templates_use_only_defined_colours():
     for template in folder.glob("*.j2"):
         used = set(re.findall(r"var\((--[\w-]+)", template.read_text(encoding="utf-8")))
         assert used <= defined, f"{template.name}: {sorted(used - defined)}"
+
+
+def test_a_section_that_did_not_run_counts_as_all_its_checks():
+    from suveren.advice import overall_scope
+    from suveren.catalog import BY_ID
+    from suveren.models import Report
+
+    # gosuslugi.ru once: the page did not load, so 152-ФЗ and web security were one line
+    # each, and the overall grade looked like an A.
+    report = Report(target="example.ru")
+    for check_id in ("SUV-PD-000", "SUV-WEB-000"):
+        spec = BY_ID[check_id]
+        report.checks.append(Check(spec.group, spec.title, Status.UNKNOWN, "Не проверено."))
+    mail = BY_ID["SUV-MAIL-002"]
+    report.checks.append(Check(mail.group, mail.title, Status.OK, "SPF в порядке."))
+    scope = overall_scope(report)
+    assert "законы" not in scope and "безопасность" not in scope
+    assert "оценка может быть завышена" in scope
+
+
+def test_services_table_gives_the_same_risk_as_the_dependency_card():
+    from suveren.models import Dependency, Finding, Report
+    from suveren.report import render_html
+
+    # skyeng.ru: DNS partly in Russia, so the card said "средний" and the table "высокий".
+    report = Report(target="example.ru")
+    report.dependencies = [
+        Dependency(Category.DNS, "EdgeCenter", "RU", "NS ns1.edgedns.ru"),
+        Dependency(Category.DNS, "EDGEAM", "AM", "NS ns2.edgedns.world", Severity.HIGH),
+    ]
+    report.findings = [
+        Finding(Category.DNS, "DNS-серверы: EDGEAM", Severity.MEDIUM, "Часть в России.", "Да.")
+    ]
+    services = render_html(report).split('id="services"')[1]
+    assert "sev-medium" in services and "sev-high" not in services

@@ -115,19 +115,31 @@ SCOPE = (
 
 def overall_scope(report: Report) -> str:
     """What the overall grade rests on: only sections that ran (--quick runs none)."""
-    ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in report.checks)]
-    if not ran:
-        return "проверены только иностранные зависимости"
-    scope = "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"]))
+    # A section counts only if something in it was actually checked: a section whose
+    # page did not load holds a single "не проверено" line (gosuslugi.ru, PD-000).
+    checked = [c for c in report.checks if c.status is not Status.UNKNOWN]
+    ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in checked)]
     gap = unchecked(report)
-    if gap:
-        scope += f"; не удалось проверить {gap[0]} из {gap[1]}, оценка может быть завышена"
-    return scope
+    note = f"; не удалось проверить {gap[0]} из {gap[1]}, оценка может быть завышена" if gap else ""
+    if not ran:
+        return "проверены только иностранные зависимости" + note
+    return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"])) + note
 
 
 def unchecked(report: Report) -> tuple[int, int] | None:
     """(not checked, all) when a quarter or more of the checks could not run: a bot wall
-    or a script-built page hides what was not seen, and the grade looks better than it is."""
-    checks = [c for c in report.checks if not c.id.startswith("SUV-ATK-")]
-    n = sum(1 for c in checks if c.status is Status.UNKNOWN)
-    return (n, len(checks)) if n >= 3 and n * 4 >= len(checks) else None
+    or a script-built page hides what was not seen, and the grade looks better than it is.
+    A section that did not run at all ("SUV-WEB-000") stands for every check in it."""
+    from suveren.catalog import CATALOG  # the catalogue imports the checks' modules
+
+    n = total = 0
+    for c in report.checks:
+        if c.id.startswith("SUV-ATK-"):
+            continue
+        weight = 1
+        if c.id.endswith("-000") and c.status is Status.UNKNOWN:
+            prefix = c.id[:-3]
+            weight = sum(1 for s in CATALOG if s.id.startswith(prefix) and s.id != c.id) or 1
+        total += weight
+        n += weight if c.status is Status.UNKNOWN else 0
+    return (n, total) if n >= 3 and n * 4 >= total else None

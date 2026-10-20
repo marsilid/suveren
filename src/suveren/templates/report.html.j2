@@ -33,13 +33,18 @@
     <p class="muted-sum">{{ fines_disclaimer }}</p>
   {% if fines.counted %}</div>{% else %}</details>{% endif %}
   {% endif %}
+  {# The data-flow table below lists the countries; cross-border advice is given once. #}
+  {% set has_flow = report.facts.get("dataflow") %}
+  {% set xborder = items | selectattr("id", "equalto", "SUV-PD-006") | selectattr("status.value", "in", ["warn", "fail"]) | list %}
   <div class="card checks">
     {% for c in items if c.status.value != "ok" %}
+    {% set flow_row = c.id == "SUV-PD-010" and has_flow %}
     <div class="check"{% if c.id %} id="{{ c.id }}"{% endif %}>
       <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
       <h3>{{ c.title }}{% if c.id %} <span class="cid">{{ c.id }}</span>{% endif %}</h3>
-      {% if c.details %}<p>{{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
-      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
+      {% if flow_row %}<p>Страны и сервисы, которым уходят IP и cookies посетителя, — в таблице ниже.</p>
+      {% elif c.details %}<p>{{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.recommendation and c.status.value != "ok" and not (flow_row and xborder) %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
       {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
     </div>
     {% endfor %}
@@ -196,10 +201,12 @@
         {% for d in deps %}
         <tr>
           <td>{{ d.service }}</td>
-          <td>{{ d.country_ru }}</td>
+          <td class="country">{{ d.country_ru }}</td>
           <td class="evidence">{{ d.evidence }}</td>
           <td>
-            {% if d.foreign %}<span class="badge sev-{{ d.severity.label }}"><span>{{ d.severity.ru }}</span></span>
+            {# The risk the dependency card above gives (lowered when part is in Russia). #}
+            {% set sev = risk.get(d.category, d.severity) %}
+            {% if d.foreign %}<span class="badge sev-{{ sev.label }}"><span>{{ sev.ru }}</span></span>
             {% elif d.foreign is sameas false %}<span class="badge sev-ok"><span>РФ</span></span>
             {% else %}<span class="empty">—</span>{% endif %}
           </td>
