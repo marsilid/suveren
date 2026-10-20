@@ -81,10 +81,10 @@ def _plural(n: int, forms: tuple[str, str, str]) -> str:
     return forms[2]
 
 
-def score_bar(score: int, grade: str) -> Text:
-    filled = round(BAR_WIDTH * score / 100)
+def score_bar(score: int, grade: str, width: int = BAR_WIDTH) -> Text:
+    filled = round(width * score / 100)
     bar = Text("━" * filled, style=BAR_STYLE[grade])
-    bar.append("━" * (BAR_WIDTH - filled), style="grey23")
+    bar.append("━" * (width - filled), style="grey23")
     return bar
 
 

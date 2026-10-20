@@ -85,7 +85,7 @@ suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail   # CI
 ```
 
 `--sarif` writes SARIF 2.1.0 for GitHub/GitLab code scanning and DefectDojo. Exit codes:
-0 done, 1 scan failed, 2 bad arguments, 3 grade worse than `--fail-under`, 4 checks with
+0 done, 1 scan failed, 2 bad arguments, 3 overall grade worse than `--fail-under`, 4 checks with
 the `--fail-on` status (`fail`, or `warn` and worse).
 
 On Windows you can also run `Suveren.bat`, which installs everything on first launch. A

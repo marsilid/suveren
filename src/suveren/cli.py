@@ -23,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__, unknown
+from suveren.advice import overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
@@ -324,7 +325,9 @@ def scan(
     ] = True,
     fail_under: Annotated[
         str | None,
-        typer.Option("--fail-under", help="Код выхода 3, если оценка хуже указанной (для CI)."),
+        typer.Option(
+            "--fail-under", help="Код выхода 3, если общая оценка хуже указанной (для CI)."
+        ),
     ] = None,
     fail_on: Annotated[
         FailOn | None,
@@ -432,8 +435,9 @@ def scan(
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
 
-    if threshold is not None and GRADE_ORDER.index(report.grade) > GRADE_ORDER.index(threshold):
-        console.print(f"\n[bold #e5534b]✗ Оценка {report.grade} хуже требуемой {threshold}.[/]")
+    grade = overall_grade(report)
+    if threshold is not None and GRADE_ORDER.index(grade) > GRADE_ORDER.index(threshold):
+        console.print(f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]")
         raise typer.Exit(3)
     failing = failing_checks(report, fail_on)
     if failing:
@@ -473,6 +477,8 @@ def batch_row(report: Report) -> dict[str, object]:
         "top_risks": "; ".join(f.title for f in report.sorted_findings()[:3]),
         # New columns go last: summary.csv may be read by position.
         "fines_max": report.fines.total(),
+        "overall_grade": overall_grade(report),
+        "overall_score": overall_score(report),
     }
 
 
@@ -537,7 +543,7 @@ def batch(
         header(
             __version__,
             f"{len(hosts)} сайтов",
-            f"одновременно {jobs} · {plan_label(plan, profile.value)}",
+            f"одновременно {jobs} · {plan_label(plan, 'quick' if quick else profile.value)}",
         )
     )
     console.print()
@@ -562,10 +568,13 @@ def batch(
                 return host, None, reason
             write_html(report, folder / f"{host}.html", brand)
             write_json(report, folder / f"{host}.json")
+            grade = overall_grade(report)
             line = Text("  ")
-            line.append(f" {report.grade} ", style=GRADE_STYLE[report.grade])
-            line.append(f" {host:<32} ")
-            line.append_text(score_bar(report.score, report.grade))
+            line.append(f" {grade} ", style=GRADE_STYLE[grade])
+            line.append(f" {host:<28} ")
+            line.append(f"{overall_score(report):>3}", style="bold")
+            line.append("   независимость ", style="grey50")
+            line.append_text(score_bar(report.score, report.grade, width=12))
             line.append(f" {report.score:>3}", style="bold")
             console.print(line)
             return host, report, None
@@ -584,11 +593,11 @@ def batch(
             fh, fieldnames=list(batch_row(reports[0]).keys()) if reports else ["domain"]
         )
         writer.writeheader()
-        for r in sorted(reports, key=lambda r: r.score):
+        for r in sorted(reports, key=overall_score):
             writer.writerow(batch_row(r))
     index_path = write_batch_html(reports, failed, folder / "index.html", brand)
 
-    grades = Counter(r.grade for r in reports)
+    grades = Counter(overall_grade(r) for r in reports)
     section(console, "Итого")
     line = Text("  ")
     for g in GRADE_ORDER:

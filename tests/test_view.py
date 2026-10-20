@@ -141,11 +141,13 @@ def test_batch_outputs(tmp_path):
     assert row["pd_fail"] == 1
     assert isinstance(row["fines_max"], int)
     # Old columns keep their places in summary.csv; new ones are appended.
-    assert list(row)[-2:] == ["top_risks", "fines_max"]
+    assert list(row)[-4:] == ["top_risks", "fines_max", "overall_grade", "overall_score"]
+    assert list(row)[1:3] == ["grade", "score"]  # independence keeps its place
     index = write_batch_html([report], [("bad.ru", "NXDOMAIN")], tmp_path / "index.html")
     html = index.read_text(encoding="utf-8")
     assert 'href="example.ru.html"' in html
     assert "bad.ru" in html
+    assert "Общая оценка" in html and "Независимость" in html
 
 
 def test_builder_detection():

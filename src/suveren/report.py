@@ -264,13 +264,15 @@ def write_batch_html(
 ) -> Path:
     """Summary page for `batch`: one row per site, linking to its own report."""
     rows = []
-    for r in sorted(reports, key=lambda r: (r.score, r.target)):
+    for r in sorted(reports, key=lambda r: (overall_score(r), r.target)):
         checks = {status: 0 for status in Status}
         for c in r.checks:
             checks[c.status] += 1
         rows.append(
             {
                 "report": r,
+                "grade": overall_grade(r),
+                "score": overall_score(r),
                 "fails": checks[Status.FAIL],
                 "warns": checks[Status.WARN],
                 "blocked": any(
