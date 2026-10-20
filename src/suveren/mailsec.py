@@ -318,7 +318,10 @@ def spf_check(m: MailFacts) -> Check:
             title,
             Status.WARN if m.receives_mail else Status.FAIL,
             "SPF-записи нет: почтовые сервисы не знают, с каких серверов домен отправляет "
-            "письма, и чаще отправляют настоящую почту в спам.",
+            "письма, и чаще отправляют настоящую почту в спам."
+            if m.receives_mail
+            else "SPF-записи нет: домен почту не отправляет, но и не запрещает этого, поэтому "
+            "письмо от его имени может отправить любой сервер.",
             f"Опубликуйте TXT-запись для {m.domain}, например {spf_example(m)}."
             if m.receives_mail
             else f'Опубликуйте для {m.domain} TXT-запись "v=spf1 -all": домен не отправляет почту.',
@@ -390,7 +393,12 @@ def dmarc_check(m: MailFacts) -> Check:
             Status.FAIL,
             "DMARC-записи нет: почтовые сервисы не знают, что делать с письмами, которые "
             "выдают себя за ваш домен, и пропускают их.",
-            _dmarc_hint(m.domain),
+            # A domain without mail has no real letters to watch first: reject at once,
+            # as the verdict says (a gradual p=none start is for domains that send mail).
+            _dmarc_hint(m.domain)
+            if m.receives_mail
+            else f'Добавьте TXT-запись _dmarc.{m.domain} со значением "v=DMARC1; p=reject": '
+            "домен почту не отправляет, поэтому сразу запретите письма от его имени.",
         )
     reports = (
         f" Отчёты приходят на {d.rua}."

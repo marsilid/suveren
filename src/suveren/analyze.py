@@ -11,6 +11,7 @@ from suveren.collect import Facts, HostInfo, NetInfo
 from suveren.models import Category, Dependency, Finding, Report, Severity
 from suveren.page import page_code
 from suveren.services import Service
+from suveren.utils import registrable_domain
 
 # Layers where a domestic server next to a foreign one is real redundancy.
 REDUNDANT_LAYERS = frozenset({Category.DNS, Category.MAIL, Category.HOSTING, Category.CDN})
@@ -105,6 +106,11 @@ def _own(category: Category, net: NetInfo, evidence: str) -> Dependency:
     return dep
 
 
+def _name_domain(host: str) -> str:
+    """ns1.dyna-ns.net -> dyna-ns.net."""
+    return registrable_domain(host.lower().rstrip("."))
+
+
 def _server_deps(
     category: Category,
     hosts: list[HostInfo],
@@ -115,9 +121,18 @@ def _server_deps(
     deps = []
     for h in hosts:
         evidence = f"{label} {h.host}"
-        service = lookup(h.host) or (db.by_network(h.net.asn, h.net.as_name) if h.net else None)
+        service = lookup(h.host)
         if service:
             deps.append(_from_service(category, service, evidence))
+            continue
+        carrier = db.by_network(h.net.asn, h.net.as_name) if h.net else None
+        if carrier:
+            # The server's name is unknown but its network is: the network is only where
+            # it runs. ns1.dyna-ns.net is Dynadot's DNS on Cloudflare's network — calling
+            # it "Cloudflare" would send the reader to the wrong provider.
+            dep = _from_service(category, carrier, evidence)
+            dep.service = f"{_name_domain(h.host)} (на сети {carrier.name})"
+            deps.append(dep)
         elif h.net is not None and own_network(h.net, domain):
             deps.append(_own(category, h.net, evidence))
         else:

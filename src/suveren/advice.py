@@ -26,19 +26,42 @@ class Action:
 
 def priorities(report: Report) -> list[Action]:
     """Most urgent first: high findings and failed checks, then the rest."""
-    actions = [
-        Action(f.severity * 10 + 1, f.severity, first_sentence(f.recommendation), f.title)
+    # (action, topic, is a scenario): one action per topic, a concrete check before the
+    # scenario that cites it.
+    ranked: list[tuple[Action, str, bool]] = [
+        (
+            Action(f.severity * 10 + 1, f.severity, first_sentence(f.recommendation), f.title),
+            f"dep:{f.category.value}",
+            False,
+        )
         for f in report.findings
     ]
     for c in report.checks:
         if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
-            actions.append(
-                Action(severity * 10, severity, first_sentence(c.recommendation), c.title)
-            )
-    # Two checks may give the same advice (the mail verdict and the DMARC check both say
-    # "add DMARC"): keep the more urgent copy only.
+            action = Action(severity * 10, severity, first_sentence(c.recommendation), c.title)
+            topic = TOPICS.get(c.id) or (c.id[:-1] if c.id.startswith("SUV-MAIL-") else "")
+            ranked.append((action, topic or action.action, c.id.startswith("SUV-ATK-")))
+    # Several checks say the same thing in different words (the mail verdict, SPF, DMARC
+    # and the phishing scenario all mean "fix the mail records"): keep the most urgent.
     unique: dict[str, Action] = {}
-    for a in sorted(actions, key=lambda a: -a.weight):
-        unique.setdefault(a.action, a)
+    for action, topic, _ in sorted(ranked, key=lambda r: (-r[0].weight, r[2])):
+        unique.setdefault(topic, action)
     return list(unique.values())
+
+
+# Checks that give the same advice as another one, by topic.
+TOPICS = {
+    "SUV-ATK-001": "SUV-MAIL-00",
+    "SUV-ATK-002": "scripts",
+    "SUV-WEB-002": "scripts",
+    "SUV-WEB-003": "scripts",
+    "SUV-ATK-003": "takeover",
+    "SUV-SUB-002": "takeover",
+    "SUV-ATK-004": "hsts",
+    "SUV-WEB-005": "hsts",
+    "SUV-ATK-005": "secrets",
+    "SUV-WEB-009": "secrets",
+    "SUV-ATK-006": "dep:dns",
+    "SUV-CUT-001": "dep:dns",
+}

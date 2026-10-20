@@ -255,3 +255,15 @@ def test_collect_mail_keeps_mx_hosts_by_priority():
     records = {("example.ru", "MX"): ["20 alt1.aspmx.l.google.com.", "10 aspmx.l.google.com."]}
     m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
     assert m.mx_hosts == ["aspmx.l.google.com", "alt1.aspmx.l.google.com"]
+
+
+def test_a_domain_without_mail_gets_reject_at_once():
+    from suveren.mailsec import dmarc_check
+
+    missing = SpfResult(None, 0, 0, None)
+    spf = spf_check(facts(spf=missing, receives_mail=False))
+    assert "в спам" not in spf.details and "любой сервер" in spf.details
+    dmarc = dmarc_check(facts(receives_mail=False, dmarc=None, dmarc_count=0))
+    assert "p=reject" in dmarc.recommendation and "p=none" not in dmarc.recommendation
+    sending = dmarc_check(facts(dmarc=None, dmarc_count=0))
+    assert "p=none" in sending.recommendation  # a domain with mail starts by watching

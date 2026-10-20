@@ -166,3 +166,16 @@ def test_challenge_page_with_a_few_links_is_detected():
     )
     assert page_problem(401, stub, rendered=True) is not None
     assert page_problem(200, stub, rendered=True) is not None
+
+
+def test_priorities_say_one_thing_once():
+    from suveren.advice import priorities
+    from suveren.catalog import BY_ID
+
+    report = sample_report()
+    for check_id in ("SUV-MAIL-001", "SUV-MAIL-002", "SUV-MAIL-003", "SUV-ATK-001"):
+        spec = BY_ID[check_id]
+        title = "Можно ли подделать письмо от имени @example.ru" if spec.pattern else spec.title
+        report.checks.append(Check(spec.group, title, Status.FAIL, "", f"Совет {check_id}."))
+    mail = [a for a in priorities(report) if a.action.startswith("Совет SUV-")]
+    assert [a.action for a in mail] == ["Совет SUV-MAIL-001."]  # the verdict, not the scenario

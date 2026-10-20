@@ -130,3 +130,13 @@ def test_own_mail_servers_are_a_low_risk_not_a_vendor():
     assert mail.severity is Severity.LOW
     assert "Собственная сеть (Habr Europe OU)" in mail.title
     assert "собственная сеть компании" in mail.description
+
+
+def test_unknown_dns_name_on_a_known_network_names_both():
+    """ns1.dyna-ns.net was reported as Cloudflare: its network, not its operator."""
+    cf = NetInfo("104.16.0.1", 13335, "CLOUDFLARENET", "US")
+    report = analyze(make_facts(ns=[HostInfo("ns1.some-dns.net", cf)]))
+    dns = next(d for d in report.dependencies if d.category is Category.DNS)
+    assert dns.service == "some-dns.net (на сети Cloudflare)" and dns.country == "US"
+    dynadot = analyze(make_facts(ns=[HostInfo("ns1.dyna-ns.net", cf)]))
+    assert [d.service for d in dynadot.dependencies if d.category is Category.DNS] == ["Dynadot"]

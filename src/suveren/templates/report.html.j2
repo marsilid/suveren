@@ -1,75 +1,12 @@
 {% extends "base.html.j2" %}
 {% block title %}{{ brand.name if brand else 'Suveren' }} — {{ report.target }}{% endblock %}
 {% block content %}
-  <header class="top">
-    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren</span>{% endif %}
-    <span class="meta">
-      {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
-    </span>
-  </header>
-  <h1>{{ report.target }}</h1>
-
-  <section class="card summary">
-    <div class="grade grade-{{ report.grade }}">{{ report.grade }}</div>
-    <div>
-      <div class="score"><strong>{{ report.score }}</strong> / 100 — независимость от иностранных сервисов</div>
-      <div class="counts">
-        Иностранных сервисов: <b>{{ report.foreign_count }}</b> · российских: <b>{{ report.domestic_count }}</b>
-      </div>
-      {% if bars %}
-      <div class="bar">
-        {% for b in bars %}<span style="width: {{ b.share }}%; background: {{ b.color }}" title="{{ b.name }} {{ b.share }}%"></span>{% endfor %}
-      </div>
-      <div class="legend">
-        {% for b in bars %}<span><i style="background: {{ b.color }}"></i>{{ b.name }} {{ b.share }}%</span>{% endfor %}
-      </div>
-      {% endif %}
-    </div>
-  </section>
-
-  {% if actions %}
-  <h2>Что сделать в первую очередь</h2>
-  <ol class="card actions">
-    {% for a in actions %}
-    <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
-    {% endfor %}
-  </ol>
-  {% endif %}
-
-  {% if report.notes %}
-  <h2>Замечания</h2>
-  {% for note in report.notes %}
-  <p class="card note">{{ note }}</p>
-  {% endfor %}
-  {% endif %}
-
-  <h2>Риски</h2>
-  {% for f in report.sorted_findings() %}
-  <article class="card finding sev-{{ f.severity.label }}">
-    <div class="head">
-      <span class="badge"><span>{{ f.severity.ru }}</span></span>
-      <h3>{{ f.title }}</h3>
-    </div>
-    <p>{{ f.description }}</p>
-    <p class="fix">{{ f.recommendation }}</p>
-    {% set m = moves.get(f.category) %}
-    {% if m %}
-    <details class="move">
-      <summary>Как переехать · {{ m.difficulty_ru }} · {{ m.cost }}</summary>
-      <ol>{% for s in m.steps %}<li>{{ s }}</li>{% endfor %}</ol>
-      <p class="muted-sum">Российские варианты: {{ m.alternatives | join(", ") }}.</p>
-    </details>
-    {% endif %}
-  </article>
-  {% else %}
-  <p class="empty">Иностранных зависимостей не найдено.</p>
-  {% endfor %}
-
-  {% set fines = report.fines %}
-  {% for group, items in report.check_groups %}
-  <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
+{% set fines = report.fines %}
+{% macro render_group(group, items, index) %}
+{% set fines = report.fines %}
+  <h2 id="checks-{{ index }}">{{ group }}</h2>
   {% if fines and group.startswith("Персональные") %}
-  <div class="card fines">
+  <div class="card fines{% if not fines.counted %} calm{% endif %}">
     {% if fines.counted %}
     <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
     <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую.</p>
@@ -115,12 +52,77 @@
     {{ graph_svg }}
   </div>
   {% endif %}
-  {% if group.startswith("Отключение") and shots.cutoff_before and shots.cutoff_after %}
+  {% if group.startswith("Отключение") and shots.cutoff_before and shots.cutoff_after and report.facts.get("cutoff", {}).get("blocked") %}
   <div class="card cutoff">
     <figure><img src="{{ shots.cutoff_before }}" alt="Сайт как обычно"><figcaption>Как обычно</figcaption></figure>
     <figure><img src="{{ shots.cutoff_after }}" alt="Сайт без иностранных сервисов"><figcaption>Без иностранных сервисов</figcaption></figure>
   </div>
   {% endif %}
+{% endmacro %}
+  <header class="top">
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren</span>{% endif %}
+    <span class="meta">
+      {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
+    </span>
+  </header>
+  <h1>{{ report.target }}</h1>
+
+  <section class="card summary">
+    <div class="grade grade-{{ report.grade }}">{{ report.grade }}</div>
+    <div>
+      <div class="score"><strong>{{ report.score }}</strong> / 100 — независимость от иностранных сервисов</div>
+      <div class="counts">
+        Иностранных сервисов: <b>{{ report.foreign_count }}</b> · российских: <b>{{ report.domestic_count }}</b>
+      </div>
+      {% if bars %}
+      <div class="bar">
+        {% for b in bars %}<span style="width: {{ b.share }}%; background: {{ b.color }}" title="{{ b.name }} {{ b.share }}%"></span>{% endfor %}
+      </div>
+      <div class="legend">
+        {% for b in bars %}<span><i style="background: {{ b.color }}"></i>{{ b.name }} {{ b.share }}%</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if actions %}
+  <h2>Что сделать в первую очередь</h2>
+  <ol class="card actions">
+    {% for a in actions %}
+    <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+
+  {% for group, items in report.check_groups if group.startswith("Сценарии") %}
+{{ render_group(group, items, 0) }}
+  {% endfor %}
+
+  <h2>Риски</h2>
+  {% for f in report.sorted_findings() %}
+  <article class="card finding sev-{{ f.severity.label }}">
+    <div class="head">
+      <span class="badge"><span>{{ f.severity.ru }}</span></span>
+      <h3>{{ f.title }}</h3>
+    </div>
+    <p>{{ f.description }}</p>
+    <p class="fix">{{ f.recommendation }}</p>
+    {% set m = moves.get(f.category) %}
+    {% if m %}
+    <details class="move">
+      <summary>Как переехать · {{ m.difficulty_ru }} · {{ m.cost }}</summary>
+      <ol>{% for s in m.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      <p class="muted-sum">Российские варианты: {{ m.alternatives | join(", ") }}.</p>
+    </details>
+    {% endif %}
+  </article>
+  {% else %}
+  <p class="empty">Иностранных зависимостей не найдено.</p>
+  {% endfor %}
+
+  {% for group, items in report.check_groups if not group.startswith("Сценарии") %}
+{{ render_group(group, items, loop.index) }}
   {% endfor %}
 
   {% if plan %}
@@ -167,6 +169,13 @@
       </tbody>
     </table>
   </div>
+
+  {% if report.notes %}
+  <h2>Замечания</h2>
+  {% for note in report.notes %}
+  <p class="card note">{{ note }}</p>
+  {% endfor %}
+  {% endif %}
 
   <footer>
     {% if brand %}Отчёт подготовил {% if brand.url %}<a href="{{ brand.url }}">{{ brand.name }}</a>{% else %}{{ brand.name }}{% endif %}. Сделано с помощью Suveren v{{ version }}{% else %}Отчёт создан Suveren v{{ version }}{% endif %}. Проверка пассивная: публичные DNS-записи, WHOIS,
