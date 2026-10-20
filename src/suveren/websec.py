@@ -26,6 +26,8 @@ from suveren.checks import Check, Status
 from suveren.collect import Facts
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
+from suveren.leaks import TITLE as LEAK_TITLE
+from suveren.leaks import leak_check, scan_scripts
 from suveren.subdomains import is_registered
 from suveren.utils import registrable_domain
 
@@ -677,4 +679,19 @@ async def run_web_checks(
         },
         "abandoned": w.abandoned,
     }
-    return evaluate(w), data
+    checks = evaluate(w)
+    if w.page_problem:
+        leak = Check(GROUP_WEB, LEAK_TITLE, Status.UNKNOWN, f"Не проверено: {w.page_problem}.")
+    else:
+        own = [
+            r.url for r in resources if r.kind == "script" and not is_third_party(r.host, w.domain)
+        ]
+        pages = [("главная", facts.html)] + [(p.path, p.html) for p in facts.extra_pages]
+        leaks, sources = await scan_scripts(client, list(dict.fromkeys(own)), pages)
+        leak = leak_check(leaks, sources)
+        data["leaks"] = [x.to_dict() for x in leaks]
+    # Right after the checks about third-party code, where a reader looks for code risks.
+    code = {c.id for c in checks} & {"SUV-WEB-001", "SUV-WEB-002", "SUV-WEB-003"}
+    at = max((i + 1 for i, c in enumerate(checks) if c.id in code), default=0)
+    checks.insert(at, leak)
+    return checks, data

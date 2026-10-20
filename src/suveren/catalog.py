@@ -117,6 +117,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "Secure, HttpOnly и SameSite у cookies сайта."),
     _spec("SUV-WEB-008", WEB, "TLS: сертификат и протоколы", "security", "web tls",
           "Версии TLS, срок сертификата, отключены ли TLS 1.0 и 1.1."),
+    _spec("SUV-WEB-009", WEB, "Ключи и секреты в коде сайта", "security",
+          "web secrets scripts",
+          "Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель."),
     # --- subdomains ---------------------------------------------------------------------
     _spec("SUV-SUB-000", SUB, "Поддомены и их захват", "subdomains", "subdomains",
           "Проверка поддоменов не выполнена."),
