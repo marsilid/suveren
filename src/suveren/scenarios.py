@@ -138,8 +138,9 @@ def _cutoff_steps(f: Facts) -> list[str]:
 
 def _cutoff_fix(f: Facts) -> str:
     if f.foreign(Category.DNS):
+        what = "сайт и почту" if f.foreign(Category.MAIL) else "сайт"
         return (
-            "Цепочку рвёт перенос DNS к российскому провайдеру: тогда сайт и почту можно "
+            f"Цепочку рвёт перенос DNS к российскому провайдеру: тогда {what} можно "
             "переключить за минуты, а не за дни."
         )
     kinds = ", ".join(dict.fromkeys(d.category.title.lower() for d in f.foreign(*WHOLE_SITE)))

@@ -5,18 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Suveren{% endblock %}</title>
 <style>
+  /* The terminal's palette (view.py): teal accent, green / amber / red for statuses.
+     Dark uses the terminal's colours as they are; light darkens them for contrast. */
   :root {
-    --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5d6673;
-    --accent: #1971c2; --code-bg: #f0f2f5;
-    --high: #d9480f; --medium: #b7791f; --low: #1c7ed6; --info: #6b7280;
-    --grade-a: #2f9e44; --grade-b: #66a80f; --grade-c: #e8a100; --grade-d: #e8590c; --grade-f: #c92a2a;
+    --bg: #f5f6f7; --surface: #ffffff; --border: #e1e4e8; --text: #1c2024; --muted: #5f6873;
+    --accent: #2b8a8a; --code-bg: #eef1f3;
+    --high: #c93c35; --medium: #a8740f; --low: #2b8a8a; --info: #6b7280;
+    --grade-a: #4f8a3c; --grade-b: #7a9a3a; --grade-c: #b8860b; --grade-d: #c26a1c; --grade-f: #c93c35;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0f1216; --surface: #171b21; --border: #2a3039; --text: #e6e9ee; --muted: #9aa4b2;
-      --accent: #74c0fc; --code-bg: #20262e;
-      --high: #ff922b; --medium: #fcc419; --low: #4dabf7; --info: #9aa4b2;
-      --grade-a: #51cf66;
+      --bg: #17191c; --surface: #1f2226; --border: #30353b; --text: #e6e8eb; --muted: #9aa1aa;
+      --accent: #5fb3b3; --code-bg: #262a2f;
+      --high: #e5534b; --medium: #e6b450; --low: #5fb3b3; --info: #9aa1aa;
+      --grade-a: #7fb069; --grade-b: #a9c46a; --grade-c: #e6b450; --grade-d: #d9822b; --grade-f: #e5534b;
     }
   }
   * { box-sizing: border-box; }
@@ -31,6 +33,30 @@
   .meta { color: var(--muted); font-size: 13px; }
   h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }
   h2 { font-size: 20px; margin: 40px 0 16px; }
+  h2[id] { scroll-margin-top: 64px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0 0; }
+  .tile {
+    display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--tone);
+    text-decoration: none; color: var(--text); --tone: var(--muted);
+  }
+  .tile:hover { border-color: var(--tone); }
+  .tile-value { font-size: 20px; font-weight: 700; color: var(--tone); line-height: 1.25; }
+  .tile-label { font-size: 12.5px; color: var(--muted); }
+  .tone-fail { --tone: var(--high); } .tone-warn { --tone: var(--medium); }
+  .tone-ok { --tone: var(--grade-a); } .tone-muted { --tone: var(--muted); }
+  .toc {
+    position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 2px 4px;
+    margin: 16px -16px 0; padding: 10px 16px; background: var(--bg);
+    border-bottom: 1px solid var(--border); scrollbar-width: thin;
+  }
+  .toc a {
+    flex: none; padding: 5px 10px; border-radius: 999px; font-size: 13px; color: var(--muted);
+    text-decoration: none; white-space: nowrap;
+  }
+  .toc a:hover { background: var(--surface); color: var(--text); }
+  .toc b { font-weight: 700; margin-left: 2px; }
+  .toc .c-fail { color: var(--high); } .toc .c-warn { color: var(--medium); }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .summary { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
   .grade {
@@ -121,6 +147,11 @@
     border: 3px solid currentColor; font-weight: 800; margin-right: 6px; }
   a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
+  @media (max-width: 860px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .toc { flex-wrap: nowrap; overflow-x: auto; }
+  }
+  @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(5, 1fr); } }
   @media (max-width: 560px) {
     .summary { grid-template-columns: 1fr; justify-items: start; }
     td.evidence { display: none; }

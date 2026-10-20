@@ -85,8 +85,18 @@
     </div>
   </section>
 
+  <div class="tiles">
+    {% for tile in tiles %}
+    <a class="tile tone-{{ tile.tone }}" href="{{ tile.href }}"><span class="tile-value">{{ tile.value }}</span><span class="tile-label">{{ tile.label }}</span></a>
+    {% endfor %}
+  </div>
+
+  <nav class="toc" aria-label="Разделы отчёта">
+    {% for n in nav %}<a href="{{ n.href }}">{{ n.title }}{% if n.fail %} <b class="c-fail">{{ n.fail }}</b>{% endif %}{% if n.warn %} <b class="c-warn">{{ n.warn }}</b>{% endif %}</a>{% endfor %}
+  </nav>
+
   {% if actions %}
-  <h2>Что сделать в первую очередь</h2>
+  <h2 id="todo">Что сделать в первую очередь</h2>
   <ol class="card actions">
     {% for a in actions %}
     <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
@@ -99,7 +109,7 @@
 {{ render_group(group, items, 0) }}
   {% endfor %}
 
-  <h2>Риски</h2>
+  <h2 id="risks">Риски</h2>
   {% for f in report.sorted_findings() %}
   <article class="card finding sev-{{ f.severity.label }}">
     <div class="head">
@@ -126,7 +136,7 @@
   {% endfor %}
 
   {% if plan %}
-  <h2>План переезда</h2>
+  <h2 id="plan">План переезда</h2>
   <p class="muted-note">Сначала — то, что опаснее и проще перенести. Стоимость ориентировочная: цены провайдеров меняются.</p>
   <div class="card table-wrap">
     <table>
@@ -146,7 +156,7 @@
   </div>
   {% endif %}
 
-  <h2>Все найденные сервисы</h2>
+  <h2 id="services">Все найденные сервисы</h2>
   <div class="card table-wrap">
     <table>
       <thead><tr><th>Сервис</th><th>Страна</th><th>Где найдено</th><th>Риск</th></tr></thead>
@@ -171,7 +181,7 @@
   </div>
 
   {% if report.notes %}
-  <h2>Замечания</h2>
+  <h2 id="notes">Замечания</h2>
   {% for note in report.notes %}
   <p class="card note">{{ note }}</p>
   {% endfor %}

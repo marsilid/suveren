@@ -179,3 +179,27 @@ def test_priorities_say_one_thing_once():
         report.checks.append(Check(spec.group, title, Status.FAIL, "", f"Совет {check_id}."))
     mail = [a for a in priorities(report) if a.action.startswith("Совет SUV-")]
     assert [a.action for a in mail] == ["Совет SUV-MAIL-001."]  # the verdict, not the scenario
+
+
+def test_report_tiles_and_table_of_contents():
+    from suveren.catalog import BY_ID
+    from suveren.report import navigation, render_html, summary_tiles
+
+    report = sample_report()
+    whole = BY_ID["SUV-CUT-001"]
+    page = BY_ID["SUV-CUT-002"]
+    report.checks += [
+        Check(whole.group, whole.title, Status.FAIL),
+        Check(page.group, page.title, Status.OK),
+    ]
+    tiles = {t["label"]: t for t in summary_tiles(report)}
+    assert tiles["Проблемы"]["value"] == "2" and tiles["Проблемы"]["tone"] == "fail"
+    # The page works without foreign scripts, but foreign DNS or hosting take it all down.
+    assert tiles["Без иностранных сервисов"]["value"] == "сайт не откроется"
+    nav = navigation(report, has_plan=True)
+    assert [n["title"] for n in nav][:2] == ["Что сделать", "Риски"]
+    assert any(n["title"] == "Персональные данные" and n["fail"] == 1 for n in nav)
+    html = render_html(report)
+    assert 'class="toc"' in html and 'class="tiles"' in html
+    for anchor in ("todo", "risks", "plan", "services"):
+        assert f'id="{anchor}"' in html
