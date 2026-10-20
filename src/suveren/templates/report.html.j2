@@ -52,6 +52,14 @@
     </div>
     <p>{{ f.description }}</p>
     <p class="fix">{{ f.recommendation }}</p>
+    {% set m = moves.get(f.category) %}
+    {% if m %}
+    <details class="move">
+      <summary>Как переехать · {{ m.difficulty_ru }} · {{ m.cost }}</summary>
+      <ol>{% for s in m.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      <p class="muted-sum">Российские варианты: {{ m.alternatives | join(", ") }}.</p>
+    </details>
+    {% endif %}
   </article>
   {% else %}
   <p class="empty">Иностранных зависимостей не найдено.</p>
@@ -108,6 +116,27 @@
   </div>
   {% endif %}
   {% endfor %}
+
+  {% if plan %}
+  <h2>План переезда</h2>
+  <p class="muted-note">Сначала — то, что опаснее и проще перенести. Стоимость ориентировочная: цены провайдеров меняются.</p>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Что перенести</th><th>Риск</th><th>Сложность</th><th>Куда</th></tr></thead>
+      <tbody>
+      {% for m in plan %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ m.category.title }}<br><small>{{ m.services | join(", ") }}</small></td>
+          <td><span class="badge sev-{{ m.severity.label }}"><span>{{ m.severity.ru }}</span></span></td>
+          <td>{{ m.difficulty_ru }}<br><small>{{ m.cost }}</small></td>
+          <td>{{ m.alternatives[:3] | join(", ") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 
   <h2>Все найденные сервисы</h2>
   <div class="card table-wrap">

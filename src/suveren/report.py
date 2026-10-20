@@ -14,6 +14,7 @@ from suveren.advice import priorities
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
 from suveren.fines import DISCLAIMER, rub, span
+from suveren.migration import plan as migration_plan
 from suveren.models import Category, Report
 from suveren.sanctions import SOURCE_TITLES
 from suveren.utils import country_name
@@ -50,6 +51,7 @@ def render_html(report: Report) -> str:
         (category, [d for d in report.dependencies if d.category is category])
         for category in Category
     ]
+    moves = migration_plan(report.findings)
     shots = {
         k: "data:image/jpeg;base64," + base64.b64encode(v).decode("ascii")
         for k, v in report.media.items()
@@ -61,6 +63,8 @@ def render_html(report: Report) -> str:
         actions=priorities(report)[:5],
         groups=[(c, deps) for c, deps in groups if deps],
         shots=shots,
+        plan=moves,
+        moves={m.category: m for m in moves},
     )
 
 

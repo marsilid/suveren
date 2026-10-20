@@ -360,6 +360,8 @@ class Report:
         return sorted(self.findings, key=lambda f: f.severity, reverse=True)
 
     def to_dict(self) -> dict[str, Any]:
+        from suveren.migration import plan as migration_plan  # migration imports models
+
         return {
             "tool": "suveren",
             "target": self.target,
@@ -372,6 +374,7 @@ class Report:
             "dependencies": [d.to_dict() for d in self.dependencies],
             "checks": [c.to_dict() for c in self.checks],
             "fines": self.fines.to_dict() if self.fines else None,
+            "migration": [m.to_dict() for m in migration_plan(self.findings)],
             "facts": self.facts,
             "notes": self.notes,
         }
