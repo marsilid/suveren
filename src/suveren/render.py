@@ -40,6 +40,22 @@ class Rendered:
     status: int | None
     html: str
     requests: list[str] = field(default_factory=list)
+    initiators: dict[str, str] = field(default_factory=dict)  # see Facts.initiators
+
+
+def initiator_url(initiator: dict[str, Any]) -> str:
+    """The script that started a request, from a DevTools initiator: the first frame of
+    the call stack (or of a parent stack, for async loads) that has a URL; "" when the
+    page's HTML started it."""
+    if initiator.get("type") != "script":
+        return ""
+    stack = initiator.get("stack")
+    while stack:
+        for frame in stack.get("callFrames", []):
+            if frame.get("url"):
+                return str(frame["url"])
+        stack = stack.get("parent")
+    return str(initiator.get("url") or "")
 
 
 @dataclass(slots=True)
@@ -183,10 +199,26 @@ class BrowserSession:
         with contextlib.suppress(Exception):
             await self._pw_cm.__aexit__(None, None, None)
 
-    async def open(self, url: str, *, settle_ms: int = SETTLE_MS) -> Rendered:
+    async def open(
+        self, url: str, *, settle_ms: int = SETTLE_MS, initiators: bool = False
+    ) -> Rendered:
+        """``initiators``: also record who started each script request (DevTools
+        protocol, Chromium only; silently skipped if unavailable)."""
         page = await self._context.new_page()
         requests: list[str] = []
+        started_by: dict[str, str] = {}
         page.on("request", lambda req: requests.append(req.url))
+        if initiators:
+
+            def on_request(params: dict[str, Any]) -> None:
+                if params.get("type") == "Script":
+                    target = params.get("request", {}).get("url", "")
+                    started_by.setdefault(target, initiator_url(params.get("initiator", {})))
+
+            with contextlib.suppress(Exception):
+                cdp = await self._context.new_cdp_session(page)
+                cdp.on("Network.requestWillBeSent", on_request)
+                await cdp.send("Network.enable")
         try:
             try:
                 response = await page.goto(
@@ -207,6 +239,7 @@ class BrowserSession:
                 status=response.status if response else None,
                 html=await page.content(),
                 requests=list(dict.fromkeys(requests)),
+                initiators=started_by,
             )
         finally:
             with contextlib.suppress(Exception):

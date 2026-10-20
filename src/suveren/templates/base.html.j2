@@ -88,6 +88,12 @@
   td .st-ok { color: var(--grade-a); font-weight: 700; } td .st-warn { color: var(--medium); font-weight: 700; }
   td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
   .check .law { color: var(--muted); font-size: 12.5px; }
+  .graph-card { padding: 12px; margin-top: 10px; overflow-x: auto; }
+  .graph .edge { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: .6; }
+  .graph rect { fill: var(--card, #fff); stroke: var(--muted); stroke-width: 1; }
+  .graph .site rect { stroke: var(--grade-a, #2e9e4f); stroke-width: 2; }
+  .graph .indirect rect { stroke: #c27c0e; stroke-width: 2; }
+  .graph text { font: 12px system-ui, sans-serif; fill: currentColor; }
   .move { margin-top: 10px; }
   .move summary { cursor: pointer; font-weight: 600; font-size: 14px; }
   .move ol { margin: 8px 0 6px 20px; padding: 0; }

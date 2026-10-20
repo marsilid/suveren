@@ -124,6 +124,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель."),
     _spec("SUV-WEB-010", WEB, "Уязвимые версии библиотек", "security", "web scripts cve",
           "jQuery, Bootstrap, lodash и др. с явной версией, у которой есть известные CVE."),
+    _spec("SUV-WEB-011", WEB, "Цепочки сторонних скриптов", "security",
+          "web scripts supply-chain browser",
+          "Код, который подключил не сайт, а чужие скрипты (только в режиме --browser)."),
     # --- subdomains ---------------------------------------------------------------------
     _spec("SUV-SUB-000", SUB, "Поддомены и их захват", "subdomains", "subdomains",
           "Проверка поддоменов не выполнена."),

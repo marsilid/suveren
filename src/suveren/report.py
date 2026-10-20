@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
+from markupsafe import Markup
 
 from suveren import __version__
 from suveren.advice import priorities
@@ -56,7 +57,9 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
     shots = {
         k: "data:image/jpeg;base64," + base64.b64encode(v).decode("ascii")
         for k, v in report.media.items()
+        if k.startswith("cutoff_")
     }
+    graph_svg = report.media.get("script_graph_svg", b"").decode("utf-8")
     return template.render(
         report=report,
         brand=brand,
@@ -65,6 +68,7 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         actions=priorities(report)[:5],
         groups=[(c, deps) for c, deps in groups if deps],
         shots=shots,
+        graph_svg=Markup(graph_svg),
         plan=moves,
         moves={m.category: m for m in moves},
     )

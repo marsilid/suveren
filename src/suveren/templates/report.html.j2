@@ -109,6 +109,12 @@
     </div>
     {% endfor %}
   </div>
+  {% if group.startswith("Безопасность") and graph_svg %}
+  <div class="card graph-card">
+    <p class="muted-sum">Кто подключает сторонний код: слева сайт, правее — то, что подключили уже чужие скрипты (выделено).</p>
+    {{ graph_svg }}
+  </div>
+  {% endif %}
   {% if group.startswith("Отключение") and shots.cutoff_before and shots.cutoff_after %}
   <div class="card cutoff">
     <figure><img src="{{ shots.cutoff_before }}" alt="Сайт как обычно"><figcaption>Как обычно</figcaption></figure>

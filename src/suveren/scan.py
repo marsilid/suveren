@@ -117,6 +117,9 @@ async def run_scan(
             resolver, _ = await create_resolver(dns_mode, timeout, client)
             checks, data = await run_web_checks(facts, resolver, client, timeout)
             report.checks += checks
+            svg = data.pop("script_graph_svg", "")
+            if svg:
+                report.media["script_graph_svg"] = svg.encode("utf-8")
             report.facts["web_security"] = data
 
     if subdomains:
@@ -246,9 +249,10 @@ def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:
 
 async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -> None:
     async with BrowserSession(timeout=timeout) as session:
-        home = await session.open(facts.final_url or f"https://{host}/")
+        home = await session.open(facts.final_url or f"https://{host}/", initiators=True)
         facts.final_url, facts.page_status, facts.html = home.final_url, home.status, home.html
         facts.loaded_urls, facts.rendered = home.requests, True
+        facts.initiators = home.initiators
         if facts.page_problem:
             return
         home_page = parse_page(home.html)

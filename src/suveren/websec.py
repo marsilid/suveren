@@ -28,6 +28,9 @@ from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
+from suveren.scriptgraph import build as build_graph
+from suveren.scriptgraph import graph_check
+from suveren.scriptgraph import svg as graph_svg
 from suveren.subdomains import is_registered
 from suveren.utils import registrable_domain
 from suveren.vulns import TITLE as VULN_TITLE
@@ -703,6 +706,11 @@ async def run_web_checks(
         libs = detect(list(dict.fromkeys(scripts)), heads)
         data["libraries"] = [{"name": x.name, "version": x.version, "where": x.where} for x in libs]
         code_checks = [leak_check(leaks, sources), vuln_check(libs)]
+        if facts.initiators:  # --browser mode only: the browser said who loaded what
+            graph = build_graph(facts.initiators, w.domain)
+            code_checks.append(graph_check(graph))
+            data["script_graph"] = graph.to_dict()
+            data["script_graph_svg"] = graph_svg(graph)
     # Right after the checks about third-party code, where a reader looks for code risks.
     code = {c.id for c in checks} & {"SUV-WEB-001", "SUV-WEB-002", "SUV-WEB-003"}
     at = max((i + 1 for i, c in enumerate(checks) if c.id in code), default=0)

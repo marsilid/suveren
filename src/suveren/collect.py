@@ -84,6 +84,9 @@ class Facts:
     http_problem: str | None = None
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
+    # Who started each script request on the home page (--browser): script URL ->
+    # the URL of the script that loaded it, or "" when the page's own HTML did.
+    initiators: dict[str, str] = field(default_factory=dict)
     rendered: bool = False
     # Internal pages fetched besides the home page (contacts, order forms, ...).
     extra_pages: list[FetchedPage] = field(default_factory=list)
