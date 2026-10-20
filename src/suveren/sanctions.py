@@ -317,7 +317,7 @@ class SanctionsIndex:
 @dataclass(slots=True)
 class Hit:
     entry: Entry
-    how: str  # "id" | "name" | "partial" | "person"
+    how: str  # "id" | "name" | "partial" | "person" | "person_full"
     matched: str
 
     @property
@@ -327,6 +327,7 @@ class Hit:
             "name": "совпадение по названию",
             "partial": "похожее название",
             "person": "возможное совпадение по ФИО",
+            "person_full": "совпадение по фамилии, имени и отчеству",
         }[self.how]
 
     def to_dict(self) -> dict[str, Any]:
@@ -379,19 +380,37 @@ def screen_company(
     return hits
 
 
+def _patronymic(word: str) -> bool:
+    """A Russian patronymic in its soft() form, where "h" became "g": Viktorovich ->
+    viktorovicg, Olegovna, Ilyich -> ilicg, Ilyinichna -> ilinicgna."""
+    return bool(re.search(r"(?:vicg|vna|icg|icgna)$", word))
+
+
 def screen_person(index: SanctionsIndex, full_name: str) -> list[Hit]:
-    """'Фамилия Имя Отчество' — surname and first name must both match."""
+    """'Фамилия Имя Отчество' — surname and first name must both match. When both the
+    head and the list entry have a patronymic, a different one is another person (the
+    lists usually write it: "Sergei Viktorovich IVANOV"); the same one is a full match."""
     words = [w for w in re.findall(r"[^\s]+", full_name) if len(w) >= 2]
     if len(words) < 2:
         return []
     surname, given = soft(words[0]), soft(words[1])
+    patronymic = soft(words[2]) if len(words) > 2 and _patronymic(soft(words[2])) else None
     hits = []
     for entry in index.by_person.get(surname, []):
+        best: str | None = None
         for name in entry.names:
             key = {soft(w) for w in tokens(name)}
-            if surname in key and given in key:
-                hits.append(Hit(entry, "person", full_name))
+            if surname not in key or given not in key:
+                continue
+            others = [w for w in key - {surname, given} if _patronymic(w)]
+            if patronymic and patronymic in key:
+                best = "person_full"
                 break
+            if patronymic and others:
+                continue  # this spelling names another patronymic
+            best = best or "person"
+        if best:
+            hits.append(Hit(entry, best, full_name))
     return hits
 
 

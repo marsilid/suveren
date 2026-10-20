@@ -229,9 +229,14 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                         GROUP,
                         "Руководитель в санкционных списках",
                         Status.WARN,
-                        f"{head}: найдены совпадения по фамилии и имени "
-                        f"({len(report.person_hits)}).",
-                        "Это может быть однофамилец: сверьте дату рождения и должность в списке.",
+                        f"{head}: найдены совпадения "
+                        + (
+                            "по фамилии, имени и отчеству"
+                            if any(h.how == "person_full" for h in report.person_hits)
+                            else "по фамилии и имени"
+                        )
+                        + f" ({len(report.person_hits)}). Записи с другим отчеством не учтены.",
+                        "Это может быть полный тёзка: сверьте дату рождения и должность в списке.",
                     )
                 )
             else:

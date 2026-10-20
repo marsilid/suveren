@@ -118,3 +118,22 @@ def test_screen_person(index):
 
 def test_screen_person_rejects_feminine_namesake(index):
     assert screen_person(index, "Любимов Олег Игоревич") == []
+
+
+def test_screen_person_uses_the_patronymic():
+    from suveren.sanctions import Entry, SanctionsIndex
+
+    index = SanctionsIndex(
+        [
+            Entry("eu", "1", "person", ["Sergei Viktorovich IVANOV"], [], "RUS"),
+            Entry("uk", "2", "person", ["IVANOV, Sergei"], [], "Russia"),
+        ]
+    )
+    # Another patronymic: the EU entry is another man; the UK one has none, so it stays.
+    other = screen_person(index, "Иванов Сергей Петрович")
+    assert [(h.entry.source, h.how) for h in other] == [("uk", "person")]
+    same = screen_person(index, "Иванов Сергей Викторович")
+    assert {(h.entry.source, h.how) for h in same} == {("eu", "person_full"), ("uk", "person")}
+    assert same[0].how_ru
+    # Without a patronymic on our side nothing is ruled out.
+    assert len(screen_person(index, "Иванов Сергей")) == 2
