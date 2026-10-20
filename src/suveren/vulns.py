@@ -26,33 +26,38 @@ NVD = "https://nvd.nist.gov/vuln/detail/"
 
 _V = r"(\d+\.\d+(?:\.\d+)?)"
 # (library, pattern over a script URL); the version is group 1.
+# The library name must not be glued to another word: "ui-bootstrap", "restangular"
+# and "angular-moment" are other projects.
+_B = r"(?<![\w-])"
 _URL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (lib, re.compile(p, re.I))
     for lib, p in (
-        ("jquery-ui", rf"jquery[-.]?ui[-./@]v?{_V}(?:[./-]|$)"),
+        ("jquery-ui", rf"{_B}jquery[-.]?ui[-./@]v?{_V}(?:[./-]|$)"),
         ("jquery-ui", rf"/jqueryui/{_V}/"),
-        ("jquery", rf"(?<![\w-])jquery[-.@]v?{_V}(?:\.min|\.slim)*\.js"),
+        ("jquery", rf"{_B}jquery[-.@]v?{_V}(?:\.min|\.slim)*\.js"),
         ("jquery", rf"/jquery/{_V}/jquery"),
-        ("jquery", rf"jquery@{_V}"),
+        ("jquery", rf"{_B}jquery@{_V}"),
         ("bootstrap", rf"/(?:twitter-)?bootstrap[/@]v?{_V}/"),
-        ("bootstrap", rf"bootstrap[-.]v?{_V}(?:\.min)?\.js"),
+        ("bootstrap", rf"{_B}bootstrap[-.]v?{_V}(?:\.min)?\.js"),
         ("lodash", rf"/lodash(?:\.js)?[/@]{_V}/"),
-        ("lodash", rf"lodash[-.@]{_V}(?:\.min)?\.js"),
+        ("lodash", rf"{_B}lodash[-.@]{_V}(?:\.min)?\.js"),
         ("moment", rf"/moment(?:\.js)?[/@]{_V}/"),
-        ("moment", rf"moment[-.@]{_V}(?:\.min)?\.js"),
+        ("moment", rf"{_B}moment[-.@]{_V}(?:\.min)?\.js"),
         ("angularjs", rf"/angular(?:\.js|js)?[/@]{_V}/angular"),
-        ("angularjs", rf"angular[-.]{_V}(?:\.min)?\.js"),
+        ("angularjs", rf"{_B}angular[-.]{_V}(?:\.min)?\.js"),
     )
 )
-# Banners the libraries put at the top of their files.
+# Banners the libraries put at the start of their files, right after the comment opener:
+# "Requires jQuery v1.7.2" (a plugin) and "Datepicker for Bootstrap v1.9.0" are not them.
+_HEAD = r"(?m)(?:/\*\*?!?|^[ \t]*\*)[ \t]*(?:@license[ \t]+)?"
 _BANNERS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("jquery-ui", re.compile(rf"jQuery UI\s*-\s*v{_V}")),
-    ("jquery", re.compile(rf"jQuery(?: JavaScript Library)? v{_V}")),
-    ("bootstrap", re.compile(rf"Bootstrap v{_V}")),
+    ("jquery-ui", re.compile(rf"{_HEAD}jQuery UI\s*-\s*v{_V}")),
+    ("jquery", re.compile(rf"{_HEAD}jQuery(?: JavaScript Library)? v{_V}")),
+    ("bootstrap", re.compile(rf"{_HEAD}Bootstrap v{_V}")),
     # lodash writes its version as a variable; the file must also name lodash.
     ("lodash", re.compile(rf"(?s)lodash\.com.{{0,3000}}?\bVERSION\s*=\s*['\"]{_V}['\"]")),
-    ("moment", re.compile(rf"//! version : {_V}")),
-    ("angularjs", re.compile(rf"AngularJS v{_V}")),
+    ("moment", re.compile(rf"//! moment\.js\s*\n//! version : {_V}")),
+    ("angularjs", re.compile(rf"{_HEAD}AngularJS v{_V}")),
 )  # fmt: skip
 NAMES = {
     "jquery": "jQuery",
@@ -98,7 +103,8 @@ def detect(urls: list[str], heads: dict[str, str]) -> list[Library]:
         libs: dict[str, str] = {}
         for lib, rx in _URL_PATTERNS:
             m = rx.search(url)
-            if m:
+            # npm scope: "/@fullcalendar/moment@6.1.8/" is a plugin, not Moment.js.
+            if m and not url[: m.start()].rsplit("/", 1)[-1].startswith("@"):
                 libs.setdefault(lib, m.group(1))
         head = heads.get(url, "")
         for lib, rx in _BANNERS:

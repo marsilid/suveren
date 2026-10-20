@@ -7,6 +7,7 @@ import contextlib
 import csv
 import json
 import sys
+import tempfile
 import webbrowser
 from collections import Counter
 from datetime import datetime
@@ -380,7 +381,10 @@ def scan(
 
     console.print()
     if not no_report or pdf is not None:
-        html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
+        if no_report:  # only needed to print the PDF: never touch the user's --output
+            html_path = Path(tempfile.gettempdir()) / f"suveren-{host}-{_stamp()}.html"
+        else:
+            html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
         write_html(report, html_path, brand)
         if not no_report:
             console.print(f"[bold]Отчёт:[/] {html_path}")
@@ -802,7 +806,11 @@ def company(
     html_path = None
     if not no_report or pdf is not None:
         slug = report.inn or report.ogrn or report.domain or "company"
-        html_path = output or Path("reports") / f"company-{slug}-{_stamp()}.html"
+        html_path = (
+            Path(tempfile.gettempdir()) / f"suveren-company-{slug}-{_stamp()}.html"
+            if no_report
+            else output or Path("reports") / f"company-{slug}-{_stamp()}.html"
+        )
     write_company(report, html_path, json_path, brand)
     if html_path is not None:
         if pdf is not None:

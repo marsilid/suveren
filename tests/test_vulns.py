@@ -57,3 +57,40 @@ def test_known_issues_and_check():
     assert "CVE-2020-11022" in check.details and "Bootstrap 5.3.3" in check.details
     assert vuln_check([Library("jquery", "3.7.1", "x")]).status is Status.OK
     assert vuln_check([]).status is Status.OK
+
+
+def test_plugins_and_lookalike_projects_are_not_the_library():
+    urls = [
+        "https://site.ru/js/ui-bootstrap-2.5.0.min.js",  # angular-ui-bootstrap
+        "https://site.ru/js/restangular-1.6.1.min.js",
+        "https://site.ru/js/angular-moment-1.3.0.min.js",
+        "https://cdn.jsdelivr.net/npm/@fullcalendar/moment@6.1.8/index.global.min.js",
+        "https://site.ru/js/form.js",
+        "https://site.ru/js/datepicker.js",
+        "https://site.ru/js/tz.js",
+    ]
+    heads = {
+        "https://site.ru/js/form.js": (
+            "/*!\n * jQuery Form Plugin\n * Requires jQuery v1.7.2 or later\n"
+        ),
+        "https://site.ru/js/datepicker.js": "/*!\n * Datepicker for Bootstrap v1.9.0\n",
+        "https://site.ru/js/tz.js": "//! moment-timezone.js\n//! version : 0.5.34\n",
+    }
+    assert detect(urls, heads) == []
+
+
+def test_real_banners_still_found():
+    heads = {
+        "a": "/*!\n * jQuery JavaScript Library v3.4.1\n",
+        "b": "/*!\n  * Bootstrap v4.1.1 (https://getbootstrap.com/)\n",
+        "c": "//! moment.js\n//! version : 2.24.0\n",
+        "d": "/**\n * @license AngularJS v1.8.2\n",
+        "e": "/*! jQuery UI - v1.12.1 - 2016-09-14\n",
+    }
+    assert names(detect(list(heads), heads)) == {
+        ("jquery", "3.4.1"),
+        ("bootstrap", "4.1.1"),
+        ("moment", "2.24.0"),
+        ("angularjs", "1.8.2"),
+        ("jquery-ui", "1.12.1"),
+    }

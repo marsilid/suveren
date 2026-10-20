@@ -46,7 +46,7 @@ def brand_from(
 ) -> Brand | None:
     """The brand from options, falling back to SUVEREN_BRAND_* variables; None if no
     name is given anywhere."""
-    name = name or os.environ.get("SUVEREN_BRAND_NAME")
+    name = (name or os.environ.get("SUVEREN_BRAND_NAME") or "").strip()
     if not name:
         if logo or url:
             raise SuverenError("для --brand-logo и --brand-url нужно ещё --brand-name")
@@ -54,6 +54,6 @@ def brand_from(
     env_logo = os.environ.get("SUVEREN_BRAND_LOGO")
     logo = logo or (Path(env_logo) if env_logo else None)
     url = url or os.environ.get("SUVEREN_BRAND_URL")
-    if url and not url.startswith(("http://", "https://")):
+    if url and not url.lower().startswith(("http://", "https://")):
         url = "https://" + url
-    return Brand(name.strip(), _logo(logo) if logo else None, url)
+    return Brand(name, _logo(logo) if logo else None, url)

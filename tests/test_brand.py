@@ -51,3 +51,8 @@ def test_pdf_prints_when_a_browser_is_available(tmp_path):
         pytest.skip(f"no browser: {exc}")
     data = pdf.read_bytes()
     assert data.startswith(b"%PDF") and len(data) > 5000
+
+
+def test_brand_url_case_and_blank_name():
+    assert brand_from("Студия", url="HTTPS://studio.ru").url == "HTTPS://studio.ru"
+    assert brand_from("   ") is None
