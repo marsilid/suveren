@@ -644,9 +644,15 @@ async def run_web_checks(
         return [], {}
     resources, csp_meta = gather_resources(facts)
     https = (facts.final_url or "").startswith("https://")
-    cookies = [c for c in (parse_set_cookie(line) for line in facts.set_cookies) if c]
-    w = WebFacts(facts.domain, https, facts.headers, resources, csp_meta, cookies, None)
-    w.page_problem, w.http_problem = facts.page_problem, facts.http_problem
+    headers, set_cookies, http_problem = facts.headers, facts.set_cookies, facts.http_problem
+    if http_problem and facts.browser_headers and not facts.page_problem:
+        # Plain HTTP got a bot wall, the browser got the site: its headers are the site's.
+        headers = {k: v for k, v in facts.browser_headers.items() if k != "set-cookie"}
+        set_cookies = facts.browser_headers.get("set-cookie", "").split("\n")
+        http_problem = None
+    cookies = [c for c in (parse_set_cookie(line) for line in set_cookies if line) if c]
+    w = WebFacts(facts.domain, https, headers, resources, csp_meta, cookies, None)
+    w.page_problem, w.http_problem = facts.page_problem, http_problem
     final_host = urlsplit(facts.final_url or "").hostname or ""
     if final_host and registrable_domain(final_host) != facts.domain and not w.http_problem:
         w.http_problem = f"сайт перенаправил на другой домен, {final_host}"

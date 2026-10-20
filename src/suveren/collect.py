@@ -87,6 +87,9 @@ class Facts:
     # Who started each script request on the home page (--browser): script URL ->
     # the URL of the script that loaded it, or "" when the page's own HTML did.
     initiators: dict[str, str] = field(default_factory=dict)
+    # The home page's response headers as the browser got them (--browser): used when
+    # plain HTTP met a bot wall but the browser got through to the site.
+    browser_headers: dict[str, str] = field(default_factory=dict)
     rendered: bool = False
     # Internal pages fetched besides the home page (contacts, order forms, ...).
     extra_pages: list[FetchedPage] = field(default_factory=list)

@@ -41,6 +41,7 @@ class Rendered:
     html: str
     requests: list[str] = field(default_factory=list)
     initiators: dict[str, str] = field(default_factory=dict)  # see Facts.initiators
+    headers: dict[str, str] = field(default_factory=dict)  # the page's response headers
 
 
 def initiator_url(initiator: dict[str, Any]) -> str:
@@ -234,12 +235,17 @@ class BrowserSession:
             with contextlib.suppress(self._error):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await page.wait_for_load_state("networkidle", timeout=SCROLL_SETTLE_MS)
+            headers: dict[str, str] = {}
+            if response is not None:
+                with contextlib.suppress(self._error):
+                    headers = {k.lower(): v for k, v in (await response.all_headers()).items()}
             return Rendered(
                 final_url=page.url,
                 status=response.status if response else None,
                 html=await page.content(),
                 requests=list(dict.fromkeys(requests)),
                 initiators=started_by,
+                headers=headers,
             )
         finally:
             with contextlib.suppress(Exception):

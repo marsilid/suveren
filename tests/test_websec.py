@@ -325,3 +325,39 @@ def test_advice_names_only_what_is_missing():
     assert frames_ok.recommendation == "Добавьте заголовок X-Content-Type-Options: nosniff."
     both = headers_check(web())
     assert both.recommendation.startswith("Добавьте заголовки X-Frame-Options")
+
+
+def test_browser_headers_stand_in_for_a_bot_wall():
+    import asyncio
+
+    import httpx
+
+    from suveren.collect import Facts
+    from suveren.websec import run_web_checks
+
+    facts = Facts(
+        host="example.ru",
+        domain="example.ru",
+        final_url="http://example.ru/",  # http: no TLS probe in the test
+        page_status=200,
+        html="<html><body>" + "<p>текст</p>" * 200 + "</body></html>",
+        headers={"server": "ddos-guard"},
+        http_problem="сайт показал страницу защиты от ботов",
+        browser_headers={
+            "x-frame-options": "DENY",
+            "x-content-type-options": "nosniff",
+            "set-cookie": "sid=1; Secure; HttpOnly; SameSite=Lax\nlang=ru",
+        },
+        rendered=True,
+    )
+
+    async def go():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda r: httpx.Response(404))
+        ) as c:
+            return await run_web_checks(facts, None, c, 5)
+
+    checks, _ = asyncio.run(go())
+    by_id = {c.id: c for c in checks}
+    assert by_id["SUV-WEB-006"].status.value == "ok"  # protective headers seen
+    assert by_id["SUV-WEB-004"].status.value != "unknown"  # CSP judged, not "not checked"

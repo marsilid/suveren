@@ -253,6 +253,7 @@ async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -
         facts.final_url, facts.page_status, facts.html = home.final_url, home.status, home.html
         facts.loaded_urls, facts.rendered = home.requests, True
         facts.initiators = home.initiators
+        facts.browser_headers = home.headers
         if facts.page_problem:
             return
         home_page = parse_page(home.html)
