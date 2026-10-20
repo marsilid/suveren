@@ -100,8 +100,15 @@ async def run_scan(
                     report.checks += await _compliance(client, facts, report)
             if blocklist:
                 async with _stage(progress, "Реестр блокировок"):
+                    readable = bool(facts.html) and not facts.page_problem
                     checks, notes = await run_blocklist(
-                        client, host, [n.ip for n in facts.web], refresh=refresh
+                        client,
+                        host,
+                        [n.ip for n in facts.web],
+                        refresh=refresh,
+                        third_party=unknown.third_party_hosts(_page_urls(facts, host), host)
+                        if readable
+                        else None,
                     )
                 report.checks += checks
                 report.notes += notes
@@ -233,13 +240,18 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
 
 
 def _unknown_domains(facts: Facts, host: str) -> set[str]:
+    return unknown.unknown_domains(_page_urls(facts, host), host)
+
+
+def _page_urls(facts: Facts, host: str) -> list[str]:
+    """Everything the pages embed or (in the browser) requested."""
     urls: list[str] = []
     if facts.html and not facts.page_problem:
         urls += unknown.resource_urls(facts.html, facts.final_url or f"https://{host}/")
         urls += facts.loaded_urls
     for page in facts.extra_pages:
         urls += unknown.resource_urls(page.html, page.url) + page.loaded_urls
-    return unknown.unknown_domains(urls, host)
+    return urls
 
 
 def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:

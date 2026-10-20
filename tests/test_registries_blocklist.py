@@ -75,3 +75,26 @@ def test_find_blocked_ips():
         "1.2.3.4": "1.2.3.4",
         "10.1.2.3": "10.0.0.0/8",
     }
+
+
+def test_third_party_hosts_blocked_in_russia():
+    from suveren.blocklist import blocked_hosts, third_party_check
+    from suveren.checks import Status
+    from suveren.unknown import third_party_hosts
+
+    urls = [
+        "https://example.ru/app.js",
+        "https://cdn.example.ru/x.css",
+        "https://connect.facebook.net/en_US/fbevents.js",
+        "https://platform.twitter.com/widgets.js",
+        "https://mc.yandex.ru/metrika/tag.js",
+    ]
+    hosts = third_party_hosts(urls, "www.example.ru")
+    assert hosts == {"connect.facebook.net", "platform.twitter.com", "mc.yandex.ru"}
+    register = ["*.facebook.net\n", "twitter.com\n", "other.ru\n"]
+    hits = blocked_hosts(register, hosts)
+    assert hits == {"connect.facebook.net": "facebook.net", "platform.twitter.com": "twitter.com"}
+    check = third_party_check(hits, len(hosts))
+    assert check.id == "SUV-BLK-003" and check.status is Status.WARN
+    assert "facebook.net (connect.facebook.net)" in check.details
+    assert third_party_check({}, 3).status is Status.OK

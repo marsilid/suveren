@@ -78,9 +78,56 @@ async def ensure_lists(
     return sizes, notes
 
 
+def blocked_hosts(lines: Iterable[str], hosts: Iterable[str]) -> dict[str, str]:
+    """Map of host -> register entry that blocks it (the host or a parent domain)."""
+    candidates = {h: domain_candidates(h) for h in hosts}
+    entries = find_blocked_domains(lines, {c for cs in candidates.values() for c in cs})
+    return {
+        h: next(c for c in cs if c in entries)
+        for h, cs in candidates.items()
+        if any(c in entries for c in cs)
+    }
+
+
+def third_party_check(hits: dict[str, str], checked: int) -> Check:
+    """Third-party hosts the page loads that are in the register: for visitors in
+    Russia without a VPN they do not load today, whatever the site does."""
+    title = "Сторонние сервисы в реестре блокировок"
+    if not hits:
+        return Check(
+            GROUP_BLOCK,
+            title,
+            Status.OK,
+            f"Ни один из сторонних доменов, с которых грузится сайт ({checked}), не заблокирован.",
+        )
+    by_entry: dict[str, list[str]] = {}
+    for host, entry in sorted(hits.items()):
+        by_entry.setdefault(entry, []).append(host)
+    shown = "; ".join(
+        entry if hosts == [entry] else f"{entry} ({', '.join(hosts[:3])})"
+        for entry, hosts in by_entry.items()
+    )
+    return Check(
+        GROUP_BLOCK,
+        title,
+        Status.WARN,
+        f"Сайт подключает заблокированные в России домены: {shown}. У посетителей из России "
+        "без VPN эти скрипты, виджеты и картинки уже сейчас не загружаются, а страница может "
+        "ждать их и открываться медленнее.",
+        "Уберите эти подключения или замените сервисы на доступные в России.",
+        link="https://blocklist.rkn.gov.ru/",
+    )
+
+
 async def run_blocklist(
-    client: httpx.AsyncClient, host: str, ips: list[str], *, refresh: bool = False
+    client: httpx.AsyncClient,
+    host: str,
+    ips: list[str],
+    *,
+    refresh: bool = False,
+    third_party: Iterable[str] | None = None,
 ) -> tuple[list[Check], list[str]]:
+    """``third_party``: hosts the page loads from; None when the page was not read."""
     try:
         _, notes = await ensure_lists(client, refresh=refresh)
     except ModuleError as exc:
@@ -89,7 +136,10 @@ async def run_blocklist(
     ip_paths = [cache_dir() / f"blocklist-{name}" for name in IP_LISTS]
 
     checks: list[Check] = []
-    blocked = find_blocked_domains(_lines(domains_path), domain_candidates(host))
+    others = sorted(set(third_party or ()))
+    # One pass over the register for the site and every third-party host.
+    found = blocked_hosts(_lines(domains_path), [host, *others])
+    blocked = {found[host]} if host in found else set()
     if blocked:
         checks.append(
             Check(
@@ -129,4 +179,6 @@ async def run_blocklist(
         checks.append(
             Check(GROUP_BLOCK, "IP-адреса сайта", Status.OK, "IP сайта не заблокированы.")
         )
+    if third_party is not None:
+        checks.append(third_party_check({h: found[h] for h in others if h in found}, len(others)))
     return checks, notes
