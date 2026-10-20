@@ -127,7 +127,8 @@
   .move { margin-top: 10px; }
   .move summary { cursor: pointer; font-weight: 500; font-size: 13.5px; color: var(--muted); }
   .move summary:hover { color: var(--accent); }
-  .move ol { margin: 8px 0 6px 20px; padding: 0; }
+  .move ol { margin: 8px 0 6px 20px; padding: 0; color: var(--text); }
+  .move .muted-sum { color: var(--muted); }
   .move li { margin: 3px 0; }
   @media print { details > *:not(summary) { display: block; } }
   .muted-note { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
@@ -169,8 +170,11 @@
     .toc { flex-wrap: nowrap; overflow-x: auto; }
   }
   @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(5, 1fr); } }
+  @media screen and (max-width: 860px) { .tile:last-child:nth-child(odd) { grid-column: span 2; } }
   @media (max-width: 560px) {
-    .summary { grid-template-columns: 1fr; justify-items: start; }
+    .summary { grid-template-columns: auto 1fr; gap: 16px; padding: 16px; }
+    .grade { width: 72px; height: 72px; border-width: 6px; font-size: 32px; }
+    .score strong { font-size: 19px; }
     td.evidence { display: none; }
   }
   @media print { body { background: #fff; } .card, .check, tr { break-inside: avoid; } h2 { break-after: avoid; } }
