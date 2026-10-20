@@ -127,6 +127,16 @@
   td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
   .check .law { color: var(--muted); font-size: 12.5px; }
   .graph-card { padding: 12px; margin-top: 10px; overflow-x: auto; }
+  .flow { margin-top: 10px; padding: 16px 18px; }
+  .flow h3 { margin: 0 0 2px; font-size: 15px; }
+  .flow-row { display: grid; grid-template-columns: 170px 1fr 28px; gap: 2px 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); }
+  .flow-name { font-weight: 600; }
+  .flow-bar { height: 8px; border-radius: 4px; background: var(--code-bg); overflow: hidden; }
+  .flow-bar i { display: block; height: 100%; background: var(--grade-a); }
+  .flow-row.foreign .flow-bar i { background: var(--medium); }
+  .flow-n { text-align: right; color: var(--muted); font-size: 13px; }
+  .flow-list { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+  @media (max-width: 560px) { .flow-row { grid-template-columns: 110px 1fr 24px; } }
   .graph .edge { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: .6; }
   .graph rect { fill: var(--card, #fff); stroke: var(--muted); stroke-width: 1; }
   .graph .site rect { stroke: var(--grade-a, #2e9e4f); stroke-width: 2; }

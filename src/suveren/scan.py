@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TypeVar
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -22,6 +22,7 @@ from suveren.collect import Collector, Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
 from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
 from suveren.cutoff import GROUP_CUT, PAGE_TITLE, infra_check, run_cutoff
+from suveren.dataflow import run_dataflow
 from suveren.dnsutil import ResolverMode, create_resolver
 from suveren.errors import ModuleError
 from suveren.logins import find_login_page
@@ -98,6 +99,9 @@ async def run_scan(
             if compliance:
                 async with _stage(progress, "Персональные данные (152-ФЗ)"):
                     report.checks += await _compliance(client, facts, report)
+                    report.checks.append(
+                        await _dataflow(client, facts, report, host, dns_mode, timeout)
+                    )
             if blocklist:
                 async with _stage(progress, "Реестр блокировок"):
                     readable = bool(facts.html) and not facts.page_problem
@@ -237,6 +241,37 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         loaded_urls=facts.loaded_urls,
         rendered=facts.rendered,
     )
+
+
+async def _dataflow(
+    client: httpx.AsyncClient,
+    facts: Facts,
+    report: Report,
+    host: str,
+    dns_mode: ResolverMode,
+    timeout: float,
+) -> Check:
+    """SUV-PD-010: the countries the visitor's data goes to (report.facts["dataflow"])."""
+    # What a browser requested did reach those servers even if the page looks empty
+    # (2gis.ru); without a browser a bot wall's resources are the wall's, not the site's.
+    urls = _page_urls(facts, host)
+    if facts.rendered and facts.page_problem:
+        base = facts.final_url or f"https://{host}/"
+        urls += unknown.resource_urls(facts.html, base) + facts.loaded_urls
+    if not facts.html or (facts.page_problem and (not facts.rendered or not urls)):
+        return Check(
+            GROUP_152,
+            "Куда уходят данные посетителя",
+            Status.UNKNOWN,
+            f"Не проверено: {facts.page_problem or 'главная страница не загрузилась'}.",
+        )
+    resolver, _ = await create_resolver(dns_mode, timeout, client)
+    landed = urlsplit(facts.final_url or "").hostname
+    check, rows = await run_dataflow(
+        urls, host, Collector(resolver, client, timeout), landed, report.dependencies
+    )
+    report.facts["dataflow"] = rows
+    return check
 
 
 def _unknown_domains(facts: Facts, host: str) -> set[str]:

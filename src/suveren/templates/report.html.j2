@@ -53,6 +53,22 @@
     </details>
     {% endif %}
   </div>
+  {% set flow = report.facts.get("dataflow") %}
+  {% if group.startswith("Персональные") and flow %}
+  {% set most = flow | map(attribute="services") | map("length") | max %}
+  <div class="card flow">
+    <h3>Куда уходят данные посетителя</h3>
+    <p class="muted-sum">Каждый, кто открывает сайт, передаёт свой IP-адрес и cookies этим сервисам. Страна — юрисдикция владельца сервиса или сети, где стоит сервер.</p>
+    {% for row in flow %}
+    <div class="flow-row{% if row.foreign %} foreign{% endif %}">
+      <span class="flow-name">{{ row.name }}</span>
+      <span class="flow-bar"><i style="width: {{ (row.services | length) * 100 // most }}%"></i></span>
+      <span class="flow-n">{{ row.services | length }}</span>
+      <span class="flow-list">{{ row.services | join(", ") }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if group.startswith("Безопасность") and graph_svg %}
   <div class="card graph-card">
     <p class="muted-sum">Кто подключает сторонний код: слева сайт, правее — то, что подключили уже чужие скрипты (выделено).</p>

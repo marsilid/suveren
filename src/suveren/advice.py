@@ -73,6 +73,9 @@ TOPICS = {
     "SUV-WEB-009": "secrets",
     "SUV-ATK-006": "dep:dns",
     "SUV-CUT-001": "dep:dns",
+    # The data-flow map is the evidence for cross-border transfer: one problem.
+    "SUV-PD-006": "xborder",
+    "SUV-PD-010": "xborder",
 }
 
 
