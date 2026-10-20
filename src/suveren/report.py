@@ -11,6 +11,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from suveren import __version__
 from suveren.advice import priorities
+from suveren.brand import Brand
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
 from suveren.fines import DISCLAIMER, rub, span
@@ -45,7 +46,7 @@ def _environment() -> Environment:
     return env
 
 
-def render_html(report: Report) -> str:
+def render_html(report: Report, brand: Brand | None = None) -> str:
     template = _environment().get_template("report.html.j2")
     groups = [
         (category, [d for d in report.dependencies if d.category is category])
@@ -58,6 +59,7 @@ def render_html(report: Report) -> str:
     }
     return template.render(
         report=report,
+        brand=brand,
         version=__version__,
         bars=country_bars(report),
         actions=priorities(report)[:5],
@@ -68,9 +70,9 @@ def render_html(report: Report) -> str:
     )
 
 
-def write_html(report: Report, path: Path) -> Path:
+def write_html(report: Report, path: Path, brand: Brand | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_html(report), encoding="utf-8")
+    path.write_text(render_html(report, brand), encoding="utf-8")
     return path
 
 
@@ -82,15 +84,20 @@ def write_json(report: Report, path: Path) -> Path:
     return path
 
 
-def render_company_html(report: CompanyReport) -> str:
+def render_company_html(report: CompanyReport, brand: Brand | None = None) -> str:
     template = _environment().get_template("company.html.j2")
-    return template.render(report=report, version=__version__, sources=SOURCE_TITLES)
+    return template.render(report=report, version=__version__, sources=SOURCE_TITLES, brand=brand)
 
 
-def write_company(report: CompanyReport, html_path: Path | None, json_path: Path | None) -> None:
+def write_company(
+    report: CompanyReport,
+    html_path: Path | None,
+    json_path: Path | None,
+    brand: Brand | None = None,
+) -> None:
     if html_path is not None:
         html_path.parent.mkdir(parents=True, exist_ok=True)
-        html_path.write_text(render_company_html(report), encoding="utf-8")
+        html_path.write_text(render_company_html(report, brand), encoding="utf-8")
     if json_path is not None:
         json_path.parent.mkdir(parents=True, exist_ok=True)
         json_path.write_text(
@@ -100,7 +107,10 @@ def write_company(report: CompanyReport, html_path: Path | None, json_path: Path
 
 
 def write_batch_html(
-    reports: list[Report], failed: list[tuple[str, str | None]], path: Path
+    reports: list[Report],
+    failed: list[tuple[str, str | None]],
+    path: Path,
+    brand: Brand | None = None,
 ) -> Path:
     """Summary page for `batch`: one row per site, linking to its own report."""
     rows = []
@@ -122,7 +132,9 @@ def write_batch_html(
     template = _environment().get_template("batch.html.j2")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        template.render(rows=rows, failed=failed, version=__version__, generated=datetime.now()),
+        template.render(
+            rows=rows, failed=failed, version=__version__, generated=datetime.now(), brand=brand
+        ),
         encoding="utf-8",
     )
     return path

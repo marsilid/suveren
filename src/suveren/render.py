@@ -15,6 +15,7 @@ import contextlib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from suveren.errors import ModuleError
@@ -286,6 +287,30 @@ class BrowserSession:
 
         results = await asyncio.gather(*(one(u) for u in urls))
         return [r for r in results if r is not None]
+
+
+async def print_pdf(html_path: Path, pdf_path: Path, *, timeout: float = 30.0) -> Path:
+    """Print an HTML report to an A4 PDF in the same browser as --browser mode, with the
+    "Как переехать" blocks open (a printed page cannot be clicked)."""
+    async with BrowserSession(timeout=timeout) as session:
+        page = await session._context.new_page()
+        try:
+            await page.goto(html_path.resolve().as_uri(), wait_until="load")
+            await page.evaluate("document.querySelectorAll('details').forEach(d => d.open = true)")
+            await page.emulate_media(media="print")
+            pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            await page.pdf(
+                path=str(pdf_path),
+                format="A4",
+                print_background=True,
+                margin={"top": "12mm", "bottom": "12mm", "left": "10mm", "right": "10mm"},
+            )
+        except session._error as exc:
+            raise ModuleError(f"не удалось напечатать PDF ({str(exc).splitlines()[0]})") from exc
+        finally:
+            with contextlib.suppress(Exception):
+                await page.close()
+    return pdf_path
 
 
 async def render(url: str, *, timeout: float = 25.0) -> Rendered:

@@ -272,6 +272,20 @@ suveren company example.ru      # ИНН будет найден на сайте
 Списки (около 110 МБ) скачиваются при первой проверке и обновляются раз в сутки. Кэш хранится в
 `%LOCALAPPDATA%\suveren\cache` на Windows и в `~/.cache/suveren` на Linux и macOS.
 
+## PDF и отчёты под брендом студии
+
+```bash
+suveren scan example.ru --pdf example.pdf --brand-name "Студия Север" --brand-logo logo.png --brand-url sever.ru
+suveren company 7707083893 --pdf company.pdf --brand-name "Студия Север"
+```
+
+`--pdf` печатает отчёт в PDF (A4) тем же браузером, что и `--browser` (нужен Playwright),
+блоки «Как переехать» в нём раскрыты. `--brand-name`, `--brand-logo` (PNG, JPEG или SVG до 512 КБ,
+встраивается в отчёт) и `--brand-url` ставят в шапку и подвал вашу студию вместо Suveren; строка
+«Сделано с помощью Suveren» остаётся. Работает в `scan`, `batch` и `company`. Чтобы не повторять
+параметры, задайте переменные окружения `SUVEREN_BRAND_NAME`, `SUVEREN_BRAND_LOGO`,
+`SUVEREN_BRAND_URL`.
+
 ## Массовая проверка
 
 Для веб-студий и аудита нескольких сайтов: файл со списком, по одному домену в строке.

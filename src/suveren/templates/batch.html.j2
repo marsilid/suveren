@@ -1,8 +1,8 @@
 {% extends "base.html.j2" %}
-{% block title %}Suveren — сводка по {{ rows | length }} сайтам{% endblock %}
+{% block title %}{{ brand.name if brand else 'Suveren' }} — сводка по {{ rows | length }} сайтам{% endblock %}
 {% block content %}
   <header class="top">
-    <span class="brand">Suveren · массовая проверка</span>
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren · массовая проверка</span>{% endif %}
     <span class="meta">{{ generated.strftime("%d.%m.%Y %H:%M") }}</span>
   </header>
   <h1>Проверено сайтов: {{ rows | length }}</h1>
@@ -39,7 +39,7 @@
   {% endif %}
 
   <footer>
-    Отчёт создан Suveren v{{ version }}. Подробности по каждому сайту открываются по ссылке.
+    {% if brand %}Отчёт подготовил {% if brand.url %}<a href="{{ brand.url }}">{{ brand.name }}</a>{% else %}{{ brand.name }}{% endif %}. Сделано с помощью Suveren v{{ version }}{% else %}Отчёт создан Suveren v{{ version }}{% endif %}. Подробности по каждому сайту открываются по ссылке.
     Оценка помогает расставить приоритеты и не является юридическим заключением.
   </footer>
 {% endblock %}

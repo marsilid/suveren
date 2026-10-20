@@ -27,6 +27,7 @@
   .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
   header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
   .brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+  .brand-logo { height: 28px; max-width: 160px; vertical-align: middle; margin-right: 10px; object-fit: contain; }
   .meta { color: var(--muted); font-size: 13px; }
   h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }
   h2 { font-size: 20px; margin: 40px 0 16px; }
@@ -117,7 +118,7 @@
     .summary { grid-template-columns: 1fr; justify-items: start; }
     td.evidence { display: none; }
   }
-  @media print { body { background: #fff; } }
+  @media print { body { background: #fff; } .card, .check, tr { break-inside: avoid; } h2 { break-after: avoid; } }
 </style>
 </head>
 <body>

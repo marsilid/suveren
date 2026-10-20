@@ -1,8 +1,8 @@
 {% extends "base.html.j2" %}
-{% block title %}Suveren — {{ report.target }}{% endblock %}
+{% block title %}{{ brand.name if brand else 'Suveren' }} — {{ report.target }}{% endblock %}
 {% block content %}
   <header class="top">
-    <span class="brand">Suveren</span>
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren</span>{% endif %}
     <span class="meta">
       {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
     </span>
@@ -163,7 +163,7 @@
   </div>
 
   <footer>
-    Отчёт создан Suveren v{{ version }}. Проверка пассивная: публичные DNS-записи, WHOIS,
+    {% if brand %}Отчёт подготовил {% if brand.url %}<a href="{{ brand.url }}">{{ brand.name }}</a>{% else %}{{ brand.name }}{% endif %}. Сделано с помощью Suveren v{{ version }}{% else %}Отчёт создан Suveren v{{ version }}{% endif %}. Проверка пассивная: публичные DNS-записи, WHOIS,
     SSL-сертификат, код главной страницы и открытые реестры. Страна сервиса — юрисдикция компании-владельца.
     Оценка помогает расставить приоритеты и не является юридическим заключением.
   </footer>

@@ -22,6 +22,7 @@ from rich.text import Text
 
 from suveren import __version__, unknown
 from suveren.blocklist import ensure_lists
+from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
 from suveren.catalog import BY_ID, CATALOG, SelectionError, all_tags, select
 from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
@@ -33,6 +34,7 @@ from suveren.errors import TIMEOUTS, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, make_plan
+from suveren.render import print_pdf
 from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
 from suveren.sanctions import SOURCES as SANCTION_SOURCES
@@ -72,6 +74,41 @@ class DnsChoice(str, Enum):
     system = "system"
     ru = "ru"
     doh = "doh"
+
+
+BrandName = Annotated[
+    str | None,
+    typer.Option(
+        "--brand-name",
+        help="Название студии в шапке отчёта вместо Suveren (или SUVEREN_BRAND_NAME).",
+    ),
+]
+BrandLogo = Annotated[
+    Path | None,
+    typer.Option("--brand-logo", help="Логотип студии: PNG, JPEG или SVG до 512 КБ."),
+]
+BrandUrl = Annotated[str | None, typer.Option("--brand-url", help="Сайт студии в подвале.")]
+PdfPath = Annotated[
+    Path | None,
+    typer.Option("--pdf", help="Сохранить отчёт в PDF (нужен playwright, как для --browser)."),
+]
+
+
+def _brand(name: str | None, logo: Path | None, url: str | None) -> Brand | None:
+    try:
+        return brand_from(name, logo, url)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+
+
+def _pdf(html_path: Path, pdf_path: Path) -> None:
+    try:
+        with _spinner("[dim]Печатаю PDF…[/]"):
+            asyncio.run(print_pdf(html_path, pdf_path))
+    except SuverenError as exc:
+        console.print(f"[yellow]![/] PDF не создан: {exc}")
+        return
+    console.print(f"[bold]PDF:[/]   {pdf_path}")
 
 
 class FailOn(str, Enum):
@@ -289,8 +326,13 @@ def scan(
     export_svg: Annotated[
         Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
     ] = None,
+    pdf: PdfPath = None,
+    brand_name: BrandName = None,
+    brand_logo: BrandLogo = None,
+    brand_url: BrandUrl = None,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
+    brand = _brand(brand_name, brand_logo, brand_url)
     try:
         host = normalize_domain(target)
         threshold = _validate_grade(fail_under)
@@ -336,11 +378,16 @@ def scan(
     print_scan(console, report, details=details)
 
     console.print()
-    if not no_report:
+    if not no_report or pdf is not None:
         html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
-        write_html(report, html_path)
-        console.print(f"[bold]Отчёт:[/] {html_path}")
-        if open_report:
+        write_html(report, html_path, brand)
+        if not no_report:
+            console.print(f"[bold]Отчёт:[/] {html_path}")
+        if pdf is not None:
+            _pdf(html_path, pdf)
+        if no_report:
+            html_path.unlink(missing_ok=True)  # only needed to print the PDF
+        elif open_report:
             _open(html_path)
     if json_path is not None:
         write_json(report, json_path)
@@ -434,8 +481,12 @@ def batch(
     ] = DEFAULT_PAGES,
     timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
+    brand_name: BrandName = None,
+    brand_logo: BrandLogo = None,
+    brand_url: BrandUrl = None,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
+    brand = _brand(brand_name, brand_logo, brand_url)
     try:
         hosts = read_targets(file)
     except (OSError, SuverenError) as exc:
@@ -470,7 +521,7 @@ def batch(
                 reason = str(exc) or f"не уложилась в {SITE_DEADLINE // 60} мин"
                 console.print(f"  [red]✗[/] {host:<32} [dim]{reason}[/]")
                 return host, None, reason
-            write_html(report, folder / f"{host}.html")
+            write_html(report, folder / f"{host}.html", brand)
             write_json(report, folder / f"{host}.json")
             line = Text("  ")
             line.append(f" {report.grade} ", style=GRADE_STYLE[report.grade])
@@ -496,7 +547,7 @@ def batch(
         writer.writeheader()
         for r in sorted(reports, key=lambda r: r.score):
             writer.writerow(batch_row(r))
-    index_path = write_batch_html(reports, failed, folder / "index.html")
+    index_path = write_batch_html(reports, failed, folder / "index.html", brand)
 
     grades = Counter(r.grade for r in reports)
     section(console, "Итого")
@@ -668,8 +719,13 @@ def company(
     timeout: Annotated[
         float, typer.Option("--timeout", "-t", min=1.0, help="Сетевой таймаут, секунды.")
     ] = 15.0,
+    pdf: PdfPath = None,
+    brand_name: BrandName = None,
+    brand_logo: BrandLogo = None,
+    brand_url: BrandUrl = None,
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
+    brand = _brand(brand_name, brand_logo, brand_url)
     console.print(BANNER.format(version=__version__))
     console.print(f"  Проверяю [bold]{target}[/]\n")
     try:
@@ -737,14 +793,19 @@ def company(
 
     console.print()
     html_path = None
-    if not no_report:
+    if not no_report or pdf is not None:
         slug = report.inn or report.ogrn or report.domain or "company"
         html_path = output or Path("reports") / f"company-{slug}-{_stamp()}.html"
-    write_company(report, html_path, json_path)
+    write_company(report, html_path, json_path, brand)
     if html_path is not None:
-        console.print(f"[bold]Отчёт:[/] {html_path}")
-        if open_report:
-            _open(html_path)
+        if pdf is not None:
+            _pdf(html_path, pdf)
+        if no_report:
+            html_path.unlink(missing_ok=True)  # only needed to print the PDF
+        else:
+            console.print(f"[bold]Отчёт:[/] {html_path}")
+            if open_report:
+                _open(html_path)
     if json_path is not None:
         console.print(f"[bold]JSON:[/]  {json_path}")
 
