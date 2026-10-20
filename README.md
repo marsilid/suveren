@@ -96,6 +96,8 @@ suveren scan example.ru --checks SUV-LAW-001,SUV-PD
 Иностранные зависимости тоже имеют ID по категории: `SUV-DEP-HOSTING`, `SUV-DEP-DNS`,
 `SUV-DEP-MAIL`…
 
+Описание всех проверок с ID, модулями и тегами — в [docs/checks.md](docs/checks.md).
+
 ## 1. Иностранные зависимости
 
 ![HTML-отчёт](docs/report-screenshot.png)

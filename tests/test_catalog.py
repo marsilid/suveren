@@ -104,3 +104,11 @@ def test_select_by_id_prefix_tag_and_module():
     with pytest.raises(SelectionError):
         select("nmap")
     assert all(i in BY_ID for i in select("law"))
+
+
+def test_docs_checks_md_is_up_to_date():
+    from suveren.catalog import markdown
+
+    path = SRC.parent.parent / "docs" / "checks.md"
+    on_disk = path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    assert on_disk == markdown().strip(), "run: suveren checks --markdown > docs/checks.md"

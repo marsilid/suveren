@@ -224,5 +224,52 @@ def modules_for(ids: set[str]) -> set[str]:
     return {m for i in ids for m in REQUIRES.get(i, {BY_ID[i].module})}
 
 
+MODULE_RU = {
+    "core": "основная проверка (запускается всегда)",
+    "compliance": "152-ФЗ и законы (`--no-152fz` отключает)",
+    "blocklist": "реестр блокировок (`--no-blocklist`)",
+    "mail": "защита почты (`--no-mail`)",
+    "security": "безопасность сайта (`--no-security`)",
+    "subdomains": "поддомены (`--no-subdomains`)",
+    "cutoff": "эксперимент `--cutoff` или `--profile deep`",
+    "company": "`suveren company`",
+}
+
+
+def markdown() -> str:
+    """docs/checks.md: every check with its ID, like the NSE script pages of Nmap.
+    Generated from this catalogue; a test keeps the file in step."""
+    lines = [
+        "# Проверки Suveren",
+        "",
+        "Файл создаётся командой `suveren checks --markdown > docs/checks.md` из каталога "
+        "`src/suveren/catalog.py`. ID проверки не меняется между версиями: на него можно "
+        "ссылаться в отчётах, задачах и правилах CI (`suveren scan сайт --checks ID`).",
+        "",
+        "Статусы: **проблема** — нарушение или уязвимость найдены; **внимание** — возможная "
+        "проблема, нужна ручная проверка; **не проверено** — данных не хватило (это лучше "
+        "ложной тревоги); **в порядке**.",
+    ]
+    group = None
+    for s in CATALOG:
+        if s.group != group:
+            group = s.group
+            lines += ["", f"## {group}", ""]
+            lines += ["| ID | Проверка | Что проверяет | Модуль | Теги |", "|---|---|---|---|---|"]
+        title = s.summary if s.pattern else s.title
+        tags = ", ".join(f"`{t}`" for t in s.tags)
+        lines.append(f"| `{s.id}` | {title} | {s.summary} | {MODULE_RU[s.module]} | {tags} |")
+    lines += [
+        "",
+        "## Иностранные зависимости",
+        "",
+        "Находки об иностранных сервисах имеют ID по категории: `SUV-DEP-DNS`, "
+        "`SUV-DEP-HOSTING`, `SUV-DEP-MAIL`, `SUV-DEP-CDN`, `SUV-DEP-ANALYTICS` и т. д. "
+        "(`SUV-DEP-` и название категории). Они есть в JSON (`findings[].id`) и SARIF.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def all_tags() -> list[str]:
     return sorted({t for s in CATALOG for t in s.tags})

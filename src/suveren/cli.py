@@ -25,6 +25,7 @@ from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
 from suveren.catalog import BY_ID, CATALOG, SelectionError, all_tags, select
+from suveren.catalog import markdown as catalog_markdown
 from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
 from suveren.collect import make_client
 from suveren.company import run_company
@@ -655,8 +656,14 @@ def list_checks(
         str | None,
         typer.Argument(help="ID (SUV-MAIL-003), префикс (SUV-WEB) или тег (mail, law)."),
     ] = None,
+    as_markdown: Annotated[
+        bool, typer.Option("--markdown", help="Вывести документацию в Markdown (docs/checks.md).")
+    ] = False,
 ) -> None:
     """Показать все проверки: ID, раздел, теги. Их можно выбрать в scan --checks."""
+    if as_markdown:
+        sys.stdout.write(catalog_markdown() + "\n")
+        return
     try:
         ids = select(query) if query else set(BY_ID)
     except SelectionError as exc:
