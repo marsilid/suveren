@@ -48,9 +48,13 @@ def third_party_hosts(urls: Iterable[str], site: str) -> set[str]:
     hosts = set()
     for url in urls:
         host = (urlsplit(url).hostname or "").lower().rstrip(".")
-        if host and "." in host and not host.replace(".", "").isdigit():
-            if registrable_domain(host) != own:
-                hosts.add(host)
+        if (
+            host
+            and "." in host
+            and not host.replace(".", "").isdigit()
+            and registrable_domain(host) != own
+        ):
+            hosts.add(host)
     return hosts
 
 
