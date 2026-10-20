@@ -93,6 +93,10 @@ def third_party_check(hits: dict[str, str], checked: int) -> Check:
     """Third-party hosts the page loads that are in the register: for visitors in
     Russia without a VPN they do not load today, whatever the site does."""
     title = "Сторонние сервисы в реестре блокировок"
+    if not checked:
+        return Check(
+            GROUP_BLOCK, title, Status.OK, "Сторонних доменов на проверенных страницах нет."
+        )
     if not hits:
         return Check(
             GROUP_BLOCK,
