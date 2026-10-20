@@ -292,3 +292,25 @@ def test_ct_error_names_both_sources():
     checks, _ = run(go())
     assert "crt.sh: HTTP 502" in checks[0].details
     assert "Cert Spotter: слишком много запросов" in checks[0].details
+
+
+def test_takeover_data_file_is_valid():
+    """data/takeover.json is edited by hand: every entry must load and make sense."""
+    import json
+    import re
+    from importlib.resources import files
+
+    raw = json.loads(files("suveren").joinpath("data/takeover.json").read_text("utf-8"))
+    assert raw["source"].startswith("https://github.com/EdOverflow/") and raw["checked"]
+    allowed = {"service", "cnames", "fingerprints", "nxdomain", "vulnerable", "added", "seen",
+               "comment"}  # fmt: skip
+    names = set()
+    for d in raw["signatures"]:
+        assert set(d) <= allowed, d["service"]
+        assert d["service"] not in names
+        names.add(d["service"])
+        assert d["cnames"] and (d.get("fingerprints") or d.get("nxdomain")), d["service"]
+        for fp in d.get("fingerprints", ()):
+            if not fp.startswith("HTTP_STATUS="):
+                re.compile(fp)
+        assert set(d.get("seen", ())) <= set(d.get("fingerprints", ())), d["service"]
