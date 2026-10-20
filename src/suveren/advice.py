@@ -46,6 +46,8 @@ def priorities(report: Report) -> list[Action]:
     for c in report.checks:
         if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
+            if c.id in SECOND_ORDER:
+                severity = Severity.LOW
             action = Action(
                 severity * 10, severity, first_sentence(c.recommendation), c.title, c.id
             )
@@ -59,10 +61,16 @@ def priorities(report: Report) -> list[Action]:
     return list(unique.values())
 
 
+# Warnings the checks themselves call second-order ("редкая атака"): low urgency.
+SECOND_ORDER = frozenset({"SUV-MAIL-005"})
+
 # Checks that give the same advice as another one, by topic.
 TOPICS = {
     "SUV-ATK-001": "SUV-MAIL-00",
     "SUV-ATK-002": "scripts",
+    # Encrypted inbound mail is its own topic, not "fix the mail records" (SPF, DMARC).
+    "SUV-MAIL-005": "mta-sts",
+    "SUV-WEB-001": "scripts",
     "SUV-WEB-002": "scripts",
     "SUV-WEB-003": "scripts",
     "SUV-ATK-003": "takeover",

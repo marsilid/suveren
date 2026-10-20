@@ -289,3 +289,17 @@ def test_overall_scope_warns_when_much_was_not_checked():
         spec = BY_ID[check_id]
         report.checks.append(Check(spec.group, spec.title, Status.UNKNOWN, "Не проверено."))
     assert "не удалось проверить 3 из 5" in overall_scope(report)
+
+
+def test_templates_use_only_defined_colours():
+    # An undefined variable falls back silently: the script graph had white boxes with
+    # light text in the dark theme because --card did not exist.
+    import re
+    from pathlib import Path
+
+    folder = Path(__file__).parent.parent / "src" / "suveren" / "templates"
+    css = (folder / "base.html.j2").read_text(encoding="utf-8")
+    defined = set(re.findall(r"(--[\w-]+)\s*:", css))
+    for template in folder.glob("*.j2"):
+        used = set(re.findall(r"var\((--[\w-]+)", template.read_text(encoding="utf-8")))
+        assert used <= defined, f"{template.name}: {sorted(used - defined)}"

@@ -277,3 +277,16 @@ def test_dmarc_report_address_without_size_limit():
     assert (
         "mailto:a@example.ru, mailto:b@example.ru." in check.details and "!10m" not in check.details
     )
+
+
+def test_mta_sts_warning_has_advice_and_comes_last():
+    from suveren.advice import priorities
+    from suveren.mailsec import transport_check
+    from suveren.models import Report, Severity
+
+    check = transport_check(facts(mta_sts=None))
+    assert check.status is Status.WARN and "_mta-sts.example.ru" in check.recommendation
+    report = Report(target="example.ru")
+    report.checks = [check]
+    # "Редкая атака, исправлять во вторую очередь": low urgency, its own topic.
+    assert priorities(report)[0].severity is Severity.LOW

@@ -469,18 +469,17 @@ def transport_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.WARN,
-            "MTA-STS в режиме testing: шифрование не обязательно."
-            + rpt
-            + " Когда отчёты покажут, что всё в порядке, поставьте mode: enforce.",
+            "MTA-STS в режиме testing: шифрование не обязательно." + rpt,
+            "Когда отчёты TLS-RPT покажут, что почта доходит, поставьте в политике mode: enforce.",
         )
     return Check(
         GROUP_MAIL,
         title,
         Status.WARN,
         "MTA-STS не настроен: письма к вам можно перехватить, понизив соединение до "
-        "незашифрованного. Это редкая атака, исправлять во вторую очередь: опубликуйте "
-        f"TXT _mta-sts.{m.domain} и файл политики на https://mta-sts.{m.domain}/.well-known/"
-        "mta-sts.txt." + rpt,
+        "незашифрованного. Это редкая атака, исправлять во вторую очередь." + rpt,
+        f"Опубликуйте TXT-запись _mta-sts.{m.domain} и файл политики на "
+        f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt.",
     )
 
 

@@ -68,6 +68,9 @@ COMPROMISED = {
 }
 
 HSTS_MIN_AGE = 180 * 24 * 3600  # what the HSTS preload list asks for at least
+# Third-party script domains from which the inventory becomes a warning: each can run
+# any code on the page, and a dozen is a dozen ways in.
+MANY_SCRIPT_DOMAINS = 10
 CERT_FAIL_DAYS = 14
 CERT_WARN_DAYS = 30
 # Names that look like a login session. CSRF tokens are left out on purpose: they are
@@ -345,16 +348,24 @@ def scripts_inventory(w: WebFacts) -> Check:
             Status.OK,
             "Сторонних скриптов в коде страниц не найдено.",
         )
-    return Check(
-        GROUP_WEB,
-        "Сторонний код на сайте",
-        Status.OK,
+    found = (
         f"Страницы загружают скрипты с {len(hosts)} "
         f"{plural(len(hosts), 'стороннего адреса', 'сторонних адресов', 'сторонних адресов')} "
         f"({len(companies)} {plural(len(companies), 'домен', 'домена', 'доменов')}): "
-        f"{_list(hosts)}. Каждый из них может выполнить на сайте любой код: "
-        "прочитать введённые данные, подменить реквизиты для оплаты. Уберите то, чем не "
-        "пользуетесь.",
+        f"{_list(hosts)}."
+    )
+    if len(companies) < MANY_SCRIPT_DOMAINS:
+        return Check(GROUP_WEB, "Сторонний код на сайте", Status.OK, found)
+    # Every one of them can run any code on the page: the more there are, the more ways in.
+    return Check(
+        GROUP_WEB,
+        "Сторонний код на сайте",
+        Status.WARN,
+        found + " Каждый из них может выполнить на сайте любой код: прочитать введённые "
+        "данные, подменить реквизиты для оплаты, и взлом любого из этих сервисов становится "
+        "взломом сайта.",
+        "Уберите скрипты, которыми не пользуетесь, а нужные по возможности разместите на "
+        "своём сервере.",
     )
 
 

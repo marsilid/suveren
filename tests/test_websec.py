@@ -369,3 +369,15 @@ def test_hsts_under_a_day_is_not_zero_days():
     assert "300 с" in hsts_check(web(headers={"strict-transport-security": "max-age=300"})).details
     off = hsts_check(web(headers={"strict-transport-security": "max-age=0"}))
     assert off.status is Status.WARN and "выключает HSTS" in off.details
+
+
+def test_script_inventory_warns_only_when_many_domains_can_run_code():
+    few = web(
+        "".join(f'<script src="https://cdn{i}.vendor{i}.ru/a.js"></script>' for i in range(3))
+    )
+    check = websec.scripts_inventory(few)
+    # A short list is information, not an alarm: no "может выполнить любой код" in "в порядке".
+    assert check.status is Status.OK and "любой код" not in check.details
+    many = web("".join(f'<script src="https://cdn.vendor{i}.ru/a.js"></script>' for i in range(10)))
+    check = websec.scripts_inventory(many)
+    assert check.status is Status.WARN and "любой код" in check.details and check.recommendation

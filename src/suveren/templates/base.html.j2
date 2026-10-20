@@ -137,11 +137,12 @@
   .flow-n { text-align: right; color: var(--muted); font-size: 13px; }
   .flow-list { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
   @media (max-width: 560px) { .flow-row { grid-template-columns: 110px 1fr 24px; } }
+  /* The graph takes every colour from the report palette, so both themes read. */
   .graph .edge { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: .6; }
-  .graph rect { fill: var(--card, #fff); stroke: var(--muted); stroke-width: 1; }
-  .graph .site rect { stroke: var(--grade-a, #2e9e4f); stroke-width: 2; }
-  .graph .indirect rect { stroke: #c27c0e; stroke-width: 2; }
-  .graph text { font: 12px system-ui, sans-serif; fill: currentColor; }
+  .graph rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.2; }
+  .graph .site rect { stroke: var(--grade-a); stroke-width: 2; }
+  .graph .indirect rect { stroke: var(--medium); stroke-width: 2; }
+  .graph text { font: 12px system-ui, sans-serif; fill: var(--text); }
   .move { margin-top: 10px; }
   .move summary { cursor: pointer; font-weight: 500; font-size: 13.5px; color: var(--muted); }
   .move summary:hover { color: var(--accent); }
@@ -152,7 +153,7 @@
   .muted-note { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
   .cutoff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; margin-top: 10px; }
   .cutoff figure { margin: 0; }
-  .cutoff img { width: 100%; border: 1px solid var(--line, #ddd); border-radius: 6px; display: block; }
+  .cutoff img { width: 100%; border: 1px solid var(--border); border-radius: 6px; display: block; }
   .cutoff figcaption { color: var(--muted); font-size: 13px; text-align: center; margin-top: 6px; }
   @media (max-width: 700px) { .cutoff { grid-template-columns: 1fr; } }
   .fines { padding: 16px 18px; margin-bottom: 16px; border-left: 4px solid var(--grade-f); }
