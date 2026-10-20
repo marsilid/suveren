@@ -48,7 +48,8 @@ def _sig(name: str, pattern: str, secret: bool = True) -> Signature:
 
 SIGNATURES = (
     _sig("приватный ключ", r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"),
-    _sig("ключ доступа AWS", r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    # Real key IDs always hold digits: "ASIAPACIFICSOUTHEAST" is a region name.
+    _sig("ключ доступа AWS", r"\b(?:AKIA|ASIA)(?=[0-9A-Z]{0,15}\d)[0-9A-Z]{16}\b"),
     _sig("секретный ключ Stripe", r"\b[sr]k_live_[0-9a-zA-Z]{24,}\b"),
     _sig("токен GitHub", r"\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,})\b"),
     _sig("токен Slack", r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b"),
@@ -60,7 +61,7 @@ SIGNATURES = (
     _sig("ключ SendGrid", r"\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b"),
     _sig("OAuth-токен Яндекса", r"\by0_[A-Za-z0-9_-]{55,}"),
     _sig("API-ключ Yandex Cloud", r"\bAQVN[A-Za-z0-9_-]{35,}"),
-    _sig("ключ Google API", r"\bAIza[0-9A-Za-z_-]{35}\b", secret=False),
+    _sig("ключ Google API", r"\bAIza[0-9A-Za-z_-]{35}(?![\w-])", secret=False),
 )  # fmt: skip
 
 _PLACEHOLDER = re.compile(r"x{5,}|X{5,}|example|your|dummy|placeholder|sample|0{10,}", re.I)

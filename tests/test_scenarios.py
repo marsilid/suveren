@@ -86,3 +86,20 @@ def test_cutoff_scenario_from_dependencies():
 def test_nothing_found_means_no_scenarios():
     ok = [check(i, Status.OK) for i in ("SUV-MAIL-001", "SUV-WEB-002", "SUV-SUB-002")]
     assert build(ok, [], "a.ru") == []
+
+
+def test_cutoff_scenario_names_only_what_is_foreign():
+    cdn_only = build(
+        [], [dep(Category.CDN, "Cloudflare"), dep(Category.DNS, "Selectel", "RU")], "a.ru"
+    )
+    assert "почтой" not in cdn_only[0].details and "DNS" not in cdn_only[0].recommendation
+    assert "cdn" in cdn_only[0].recommendation.lower()
+    builder = build([], [dep(Category.BUILDER, "Wix")], "a.ru")
+    assert titles(builder) == {"Отключение сайта и почты": Status.WARN}
+
+
+def test_choosing_a_scenario_runs_the_modules_it_needs():
+    from suveren.catalog import modules_for, select
+
+    assert modules_for(select("SUV-ATK-001")) == {"mail", "compliance"}
+    assert "cutoff" not in modules_for(select("scenario"))

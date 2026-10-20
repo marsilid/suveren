@@ -69,8 +69,8 @@ def test_new_js_errors_and_vanished_frames():
 
 
 def test_captcha_forms_text_drop_and_visual_change_beyond_noise():
-    base = dom(forms=[{"fields": 3, "captcha": True}], text=10000)
-    cut = dom(forms=[{"fields": 3, "captcha": True}], text=6000)
+    base = dom(forms=[{"fields": 3, "captcha": "recaptcha"}], text=10000)
+    cut = dom(forms=[{"fields": 3, "captcha": "recaptcha"}], text=6000)
     r = run(base, base, cut, {"www.google.com"}, noise=0.04, change=0.34)
     assert r.captcha_forms == 1
     assert round(r.text_drop, 2) == 0.4
@@ -144,3 +144,34 @@ def test_cutoff_runs_on_request_or_in_deep_profile():
     assert "cutoff" in make_plan(cutoff=True).modules
     assert "cutoff" in make_plan(Profile.deep).modules
     assert make_plan(checks="cutoff").modules == frozenset({"cutoff"})
+
+
+def test_captcha_counts_only_when_its_own_provider_is_blocked():
+    own = dom(forms=[{"fields": 3, "captcha": ""}])  # the site's own or Yandex captcha
+    assert run(own, own, own, {"fonts.googleapis.com", "www.google.com"}).captcha_forms == 0
+    google = dom(forms=[{"fields": 3, "captcha": "recaptcha"}])
+    # Fonts from Google say nothing about reCAPTCHA.
+    assert run(google, google, google, {"fonts.googleapis.com"}).captcha_forms == 0
+    assert run(google, google, google, {"www.gstatic.com"}).captcha_forms == 1
+
+
+def test_print_stylesheets_are_not_render_blocking():
+    html = (
+        '<head><link rel="stylesheet" href="https://fonts.googleapis.com/a.css" media="print" '
+        'onload="this.media=\'all\'"><link rel="stylesheet" media="all" '
+        'href="https://fonts.googleapis.com/b.css"></head>'
+    )
+    assert render_blocking(html, "https://site.ru/", {"fonts.googleapis.com"}) == [
+        "fonts.googleapis.com"
+    ]
+    only_print = html.split('<link rel="stylesheet" media="all"')[0] + "</head>"
+    assert render_blocking(only_print, "https://site.ru/", {"fonts.googleapis.com"}) == []
+
+
+def test_a_domain_the_site_redirected_to_is_its_own():
+    urls = ["https://example.ru/a.js", "https://cdn.example.ru/b.js", "https://x.io/c.js"]
+    assert third_party_hosts(urls, "example.com", ("www.example.ru",)) == ["x.io"]
+
+
+def test_foreign_tag_does_not_start_the_browser_experiment():
+    assert "cutoff" not in make_plan(checks="foreign").modules

@@ -146,10 +146,10 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-ATK-006", ATTACK, "Отключение сайта и почты", "core", "scenario foreign",
           "Иностранные DNS, хостинг или CDN (и почта): сайт и почта пропадают разом."),
     # --- cutoff experiment (--cutoff) --------------------------------------------------
-    _spec("SUV-CUT-001", CUT, "Отключение: сайт и почта целиком", "cutoff", "cutoff foreign",
+    _spec("SUV-CUT-001", CUT, "Отключение: сайт и почта целиком", "cutoff", "cutoff",
           "Отключат ли сайт или почту целиком иностранные DNS, хостинг, CDN, почта."),
     _spec("SUV-CUT-002", CUT, "Отключение: что перестанет работать на странице", "cutoff",
-          "cutoff foreign browser",
+          "cutoff browser",
           "Эксперимент в браузере: страница без иностранных сервисов — что пропало и сломалось."),
     # --- company (`suveren company`) ----------------------------------------------------
     _spec("SUV-CO-001", COMPANY, "ЕГРЮЛ / ЕГРИП", "company", "company egrul",
@@ -210,8 +210,18 @@ def select(expr: str) -> set[str]:
     return chosen
 
 
+# Scenarios read checks from several modules; choosing one runs what it needs.
+REQUIRES = {
+    "SUV-ATK-001": {"mail", "compliance"},
+    "SUV-ATK-002": {"security", "compliance"},
+    "SUV-ATK-003": {"subdomains", "security"},
+    "SUV-ATK-004": {"security", "compliance"},
+    "SUV-ATK-005": {"security"},
+}
+
+
 def modules_for(ids: set[str]) -> set[str]:
-    return {BY_ID[i].module for i in ids}
+    return {m for i in ids for m in REQUIRES.get(i, {BY_ID[i].module})}
 
 
 def all_tags() -> list[str]:

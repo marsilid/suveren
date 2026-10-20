@@ -93,7 +93,11 @@ _DOM_FEATURES = """() => {
     const html = f.innerHTML.toLowerCase();
     forms.push({
       fields: f.querySelectorAll('input:not([type=hidden]), textarea, select').length,
-      captcha: /recaptcha|hcaptcha|turnstile|smartcaptcha|captcha/.test(html),
+      // Only foreign captcha providers: the site's own captcha and Yandex SmartCaptcha
+      // keep working when foreign services are cut off.
+      captcha: /g-recaptcha|recaptcha/.test(html) ? 'recaptcha'
+        : /h-captcha|hcaptcha/.test(html) ? 'hcaptcha'
+        : /cf-turnstile|turnstile/.test(html) ? 'turnstile' : '',
     });
   });
   const fonts = [];
@@ -238,12 +242,15 @@ class BrowserSession:
             with contextlib.suppress(self._error):
                 await page.wait_for_load_state("networkidle", timeout=settle_ms)
             probe.final_url = page.url
-            probe.html = await page.content()
+            with contextlib.suppress(self._error):
+                probe.html = await page.content()
             with contextlib.suppress(self._error):
                 probe.dom = await page.evaluate(_DOM_FEATURES)
             with contextlib.suppress(self._error):
                 probe.screenshot = await page.screenshot(type="jpeg", quality=55)
             return probe
+        except self._error as exc:  # e.g. the page navigated away mid-measurement
+            raise ModuleError(f"браузер не измерил {url} ({str(exc).splitlines()[0]})") from exc
         finally:
             with contextlib.suppress(Exception):
                 await page.close()

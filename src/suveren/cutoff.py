@@ -36,6 +36,13 @@ WHOLE_SITE = (Category.DNS, Category.HOSTING, Category.CDN, Category.BUILDER)
 MAX_HOSTS = 40
 SHOWN = 8
 
+# Where foreign captchas load from (render._DOM_FEATURES names the provider per form).
+CAPTCHA_HOSTS = {
+    "recaptcha": ("google.com", "gstatic.com", "recaptcha.net"),
+    "hcaptcha": ("hcaptcha.com",),
+    "turnstile": ("challenges.cloudflare.com",),
+}
+
 # Thresholds of a "problem": what a visitor clearly notices.
 CONTROLS_GONE = 3  # buttons and links that vanished
 TEXT_DROP = 0.3  # share of the page text that vanished
@@ -61,15 +68,17 @@ class HostInfo:
         return f"{self.service} ({country})" if country else self.service
 
 
-def third_party_hosts(urls: list[str], site: str) -> list[str]:
-    own = registrable_domain(site)
+def third_party_hosts(urls: list[str], site: str, also: tuple[str, ...] = ()) -> list[str]:
+    """Hosts outside the site's registrable domain (and ``also``: a domain the site
+    redirected to, which is the same owner's)."""
+    own = {registrable_domain(site), *(registrable_domain(a) for a in also)}
     hosts: list[str] = []
     for url in urls:
         parts = urlsplit(url)
         host = (parts.hostname or "").lower()
         if parts.scheme not in ("http", "https") or not host or host in hosts:
             continue
-        if registrable_domain(host) != own:
+        if registrable_domain(host) not in own:
             hosts.append(host)
     return hosts[:MAX_HOSTS]
 
@@ -83,7 +92,9 @@ def known_service(url: str) -> HostInfo | None:
     return HostInfo((urlsplit(url).hostname or "").lower(), service.name, service.country)
 
 
-async def classify(urls: list[str], site: str, collector: Any) -> dict[str, HostInfo]:
+async def classify(
+    urls: list[str], site: str, collector: Any, also: tuple[str, ...] = ()
+) -> dict[str, HostInfo]:
     """host -> owner and country, for every third-party host the page loaded."""
     first_url: dict[str, str] = {}
     for url in urls:
@@ -91,7 +102,7 @@ async def classify(urls: list[str], site: str, collector: Any) -> dict[str, Host
         first_url.setdefault(host, url)
     result: dict[str, HostInfo] = {}
     unknown: list[str] = []
-    for host in third_party_hosts(urls, site):
+    for host in third_party_hosts(urls, site, also):
         info = known_service(first_url[host]) or known_service(f"https://{host}/")
         if info:
             result[host] = HostInfo(host, info.service, info.country)
@@ -253,13 +264,15 @@ def compare(
     fonts_stable = set(base1.get("fonts", [])) & set(base2.get("fonts", []))
     result.lost_fonts = sorted(fonts_stable - set(cut.get("fonts", [])))
 
-    captcha_before = sum(1 for f in base1.get("forms", []) if f.get("captcha"))
-    captcha_after = sum(1 for f in cut.get("forms", []) if f.get("captcha"))
-    captcha_blocked = any(
-        re.search(r"recaptcha|google|hcaptcha|cloudflare|turnstile", h) for h in blocked_hosts
+    # A form counts when its captcha provider's own hosts were blocked: a blocked
+    # fonts.googleapis.com says nothing about reCAPTCHA.
+    def provider_blocked(provider: str) -> bool:
+        suffixes = CAPTCHA_HOSTS.get(provider, ())
+        return any(h == s or h.endswith("." + s) for h in blocked_hosts for s in suffixes)
+
+    result.captcha_forms = sum(
+        1 for f in base1.get("forms", []) if f.get("captcha") and provider_blocked(f["captcha"])
     )
-    if captcha_blocked:
-        result.captcha_forms = max(captcha_before, captcha_after)
 
     text = min(base1.get("text", 0), base2.get("text", 0))
     if text > 200:
@@ -273,6 +286,12 @@ _HEAD = re.compile(r"<head\b.*?</head>", re.I | re.S)
 _STYLESHEET = re.compile(r"<link\b[^>]*rel=[\"']?stylesheet[^>]*>", re.I)
 _SCRIPT = re.compile(r"<script\b[^>]*\bsrc=[^>]*>", re.I)
 _HREF = re.compile(r"\b(?:href|src)=[\"']?([^\"'\s>]+)", re.I)
+_MEDIA = re.compile(r"\bmedia=[\"']?([^\"'>]+)", re.I)
+
+
+def _media(tag: str) -> str:
+    m = _MEDIA.search(tag)
+    return m.group(1).strip().lower() if m else ""
 
 
 def render_blocking(html: str, base_url: str, foreign: set[str]) -> list[str]:
@@ -283,7 +302,9 @@ def render_blocking(html: str, base_url: str, foreign: set[str]) -> list[str]:
     if not head:
         return []
     found: list[str] = []
-    tags = _STYLESHEET.findall(head.group(0)) + [
+    # media="print" with onload is the known trick to load a stylesheet without blocking.
+    styles = [t for t in _STYLESHEET.findall(head.group(0)) if _media(t) in ("", "all", "screen")]
+    tags = styles + [
         t for t in _SCRIPT.findall(head.group(0))
         if not re.search(r"\b(?:async|defer)\b|type=[\"']?module", t, re.I)
     ]  # fmt: skip
@@ -387,15 +408,23 @@ def _advice(r: PageCutoff) -> str:
 
 
 async def run_cutoff(
-    url: str, site: str, collector: Any, *, timeout: float = 25.0
+    url: str,
+    site: str,
+    collector: Any,
+    *,
+    timeout: float = 25.0,
+    raw_html: str | None = None,
 ) -> tuple[Check, PageCutoff, dict[str, bytes]]:
     """Open ``url`` three times (twice as usual, once with foreign hosts refused) and
-    compare. Returns the check, the details and two screenshots (before, after)."""
+    compare. Returns the check, the details and two screenshots (before, after).
+    ``raw_html`` is the page as the server sent it, for render-blocking resources:
+    the browser's HTML also holds the scripts that loaders added later."""
     from suveren.render import BrowserSession
 
     async with BrowserSession(timeout=timeout) as session:
         base1 = await session.probe(url)
-        hosts = await classify(base1.requests, site, collector)
+        landed = (urlsplit(base1.final_url).hostname or "").lower()
+        hosts = await classify(base1.requests, site, collector, (landed,) if landed else ())
         foreign = {h for h, i in hosts.items() if i.foreign}
 
         def block(request_url: str) -> bool:
@@ -409,6 +438,17 @@ async def run_cutoff(
         if base1.screenshot and base2.screenshot and cut.screenshot:
             noise = await session.image_diff(base1.screenshot, base2.screenshot)
             change = await session.image_diff(base1.screenshot, cut.screenshot)
+    if not (base1.dom and base2.dom and cut.dom):
+        # One load could not be read (the page navigated away mid-measurement):
+        # comparing with nothing would report everything as gone.
+        unread = Check(
+            GROUP_CUT,
+            PAGE_TITLE,
+            Status.UNKNOWN,
+            "Не проверено: в одной из загрузок страницу не удалось прочитать "
+            "(она перезагрузилась или ушла на другой адрес).",
+        )
+        return unread, PageCutoff(), {}
     blocked = {(urlsplit(u).hostname or "").lower() for u in cut.blocked}
     result = compare(
         base1.dom,
@@ -422,7 +462,8 @@ async def run_cutoff(
         noise=noise,
         change=change,
     )
-    result.render_blocking = render_blocking(base1.html, base1.final_url, foreign)
+    if raw_html:
+        result.render_blocking = render_blocking(raw_html, base1.final_url, foreign)
     result.slower_ms = max(0, cut.ready_ms - max(base1.ready_ms, base2.ready_ms))
     shots = {"before": base1.screenshot, "after": cut.screenshot}
     return page_check(result, hosts), result, shots

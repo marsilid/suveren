@@ -176,9 +176,12 @@ async def _cutoff(
             host,
             Collector(resolver, client, timeout),
             timeout=max(timeout, 25.0),
+            # The HTML as the server sent it; in --browser mode it is already rendered.
+            raw_html=None if facts.rendered else facts.html,
         )
-    except ModuleError as exc:
-        checks.append(Check(GROUP_CUT, PAGE_TITLE, Status.UNKNOWN, f"Не проверено: {exc}."))
+    except Exception as exc:  # the experiment must never take the whole scan down
+        reason = str(exc) if isinstance(exc, ModuleError) else f"ошибка браузера ({exc!r:.120})"
+        checks.append(Check(GROUP_CUT, PAGE_TITLE, Status.UNKNOWN, f"Не проверено: {reason}."))
         return checks
     report.facts["cutoff"] = result.to_dict()
     report.media.update({f"cutoff_{k}": v for k, v in shots.items() if v})

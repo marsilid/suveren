@@ -50,7 +50,7 @@ class Scenario:
     when: Callable[[Facts], bool]
     severe: Callable[[Facts], bool]
     steps: Callable[[Facts], list[str]]
-    fix: str
+    fix: str | Callable[[Facts], str]
 
 
 def _phishing_steps(f: Facts) -> list[str]:
@@ -113,8 +113,11 @@ def _key_steps(f: Facts) -> list[str]:
     ]
 
 
+WHOLE_SITE = (Category.DNS, Category.HOSTING, Category.CDN, Category.BUILDER)
+
+
 def _cutoff_steps(f: Facts) -> list[str]:
-    infra = f.foreign(Category.DNS, Category.HOSTING, Category.CDN)
+    infra = f.foreign(*WHOLE_SITE)
     mail = f.foreign(Category.MAIL)
     by_category: dict[str, list[str]] = {}
     for d in infra:
@@ -128,8 +131,19 @@ def _cutoff_steps(f: Facts) -> list[str]:
             f"Почта домена тоже у иностранного провайдера ({mail[0].service}): при отключении "
             "не придут письма для восстановления паролей от других сервисов компании."
         )
-    steps.append("Одно решение провайдера — и сайт с почтой пропадают, а перенос займёт дни.")
+    what = "сайт с почтой пропадают" if mail else "сайт пропадает"
+    steps.append(f"Одно решение провайдера — и {what}, а перенос займёт дни.")
     return steps
+
+
+def _cutoff_fix(f: Facts) -> str:
+    if f.foreign(Category.DNS):
+        return (
+            "Цепочку рвёт перенос DNS к российскому провайдеру: тогда сайт и почту можно "
+            "переключить за минуты, а не за дни."
+        )
+    kinds = ", ".join(dict.fromkeys(d.category.title.lower() for d in f.foreign(*WHOLE_SITE)))
+    return f"Цепочку рвёт перенос к российскому провайдеру: {kinds}."
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -175,11 +189,10 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario(
         "Отключение сайта и почты",
-        when=lambda f: bool(f.foreign(Category.DNS, Category.HOSTING, Category.CDN)),
+        when=lambda f: bool(f.foreign(*WHOLE_SITE)),
         severe=lambda f: bool(f.foreign(Category.MAIL)),
         steps=_cutoff_steps,
-        fix="Цепочку рвёт перенос DNS к российскому провайдеру: это быстро и даёт возможность "
-        "переключить сайт и почту за минуты, а не за дни.",
+        fix=_cutoff_fix,
     ),
 )
 
@@ -204,7 +217,7 @@ def build(checks: list[Check], deps: list[Dependency], domain: str) -> list[Chec
                 s.title,
                 Status.FAIL if s.severe(f) else Status.WARN,
                 text,
-                s.fix,
+                s.fix(f) if callable(s.fix) else s.fix,
             )
         )
     return found

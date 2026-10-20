@@ -73,3 +73,9 @@ def test_scan_reads_own_scripts_and_pages():
         ("ключ доступа AWS", "site.ru/static/app.js"),
         ("токен Telegram-бота", "код страницы главная"),
     }
+
+
+def test_region_names_and_trailing_dash():
+    assert find_leaks(k("ASIA", "PACIFICSOUTHEAST"), "/x.js") == []
+    dashed = k("AI", "za", "SyB7dE3fG5hJ8kL1mN4pQ6rT9vW2xZ0aC3-")
+    assert [x.kind for x in find_leaks(f'k="{dashed}"', "/x.js")] == ["ключ Google API"]
