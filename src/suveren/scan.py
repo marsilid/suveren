@@ -18,9 +18,10 @@ from suveren.analyze import analyze
 from suveren.blocklist import run_blocklist
 from suveren.catalog import BY_ID
 from suveren.checks import GROUP_152, Check, Status
-from suveren.collect import Facts, collect, make_client, page_problem
+from suveren.collect import Collector, Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
 from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
+from suveren.cutoff import GROUP_CUT, PAGE_TITLE, infra_check, run_cutoff
 from suveren.dnsutil import ResolverMode, create_resolver
 from suveren.errors import ModuleError
 from suveren.logins import find_login_page
@@ -65,6 +66,7 @@ async def run_scan(
     pages: int = DEFAULT_PAGES,
     progress: Progress | None = None,
     only: frozenset[str] | set[str] | None = None,
+    cutoff: bool = False,
 ) -> Report:
     """``only``: IDs of the checks to report (from ``--checks``); None reports all."""
     progress = progress or _quiet
@@ -130,10 +132,52 @@ async def run_scan(
             report.checks += checks
             report.facts["subdomains"] = data
 
+    if cutoff:
+        async with (
+            _stage(progress, "Отключение иностранных сервисов (3 загрузки)"),
+            make_client(timeout) as client,
+        ):
+            report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
+
     if only is not None:
         report.checks = narrow(report.checks, only)
     report.finished_at = datetime.now(timezone.utc)
     return report
+
+
+async def _cutoff(
+    client: httpx.AsyncClient,
+    facts: Facts,
+    report: Report,
+    host: str,
+    dns_mode: ResolverMode,
+    timeout: float,
+) -> list[Check]:
+    checks = [infra_check(report.dependencies)]
+    if not facts.html or facts.page_problem:
+        checks.append(
+            Check(
+                GROUP_CUT,
+                PAGE_TITLE,
+                Status.UNKNOWN,
+                f"Не проверено: {facts.page_problem or 'главная не загрузилась'}.",
+            )
+        )
+        return checks
+    resolver, _ = await create_resolver(dns_mode, timeout, client)
+    try:
+        check, result, shots = await run_cutoff(
+            facts.final_url or f"https://{host}/",
+            host,
+            Collector(resolver, client, timeout),
+            timeout=max(timeout, 25.0),
+        )
+    except ModuleError as exc:
+        checks.append(Check(GROUP_CUT, PAGE_TITLE, Status.UNKNOWN, f"Не проверено: {exc}."))
+        return checks
+    report.facts["cutoff"] = result.to_dict()
+    report.media.update({f"cutoff_{k}": v for k, v in shots.items() if v})
+    return [*checks, check]
 
 
 def narrow(checks: list[Check], only: frozenset[str] | set[str]) -> list[Check]:

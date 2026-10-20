@@ -88,6 +88,11 @@
   td .st-fail { color: var(--grade-f); font-weight: 700; margin-right: 8px; }
   .check .law { color: var(--muted); font-size: 12.5px; }
   .muted-note { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
+  .cutoff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; margin-top: 10px; }
+  .cutoff figure { margin: 0; }
+  .cutoff img { width: 100%; border: 1px solid var(--line, #ddd); border-radius: 6px; display: block; }
+  .cutoff figcaption { color: var(--muted); font-size: 13px; text-align: center; margin-top: 6px; }
+  @media (max-width: 700px) { .cutoff { grid-template-columns: 1fr; } }
   .fines { padding: 16px 18px; margin-bottom: 16px; border-left: 4px solid var(--grade-f); }
   .fines h3 { margin: 0 0 4px; font-size: 17px; }
   .fines .muted-sum { color: var(--muted); font-size: 13px; margin: 6px 0; }

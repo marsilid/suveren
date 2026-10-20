@@ -23,11 +23,12 @@ BLOCK = "Блокировки в России"
 MAIL = "Защита почты от подделки"
 WEB = "Безопасность сайта"
 SUB = "Поддомены"
+CUT = "Отключение иностранных сервисов"
 COMPANY = "Проверка компании"
 
 # Modules of `suveren scan`, as switched by --no-152fz, --no-mail and the like;
-# "company" is `suveren company`.
-MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "company")
+# "cutoff" runs with --cutoff or the deep profile; "company" is `suveren company`.
+MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "company")
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +124,12 @@ CATALOG: tuple[CheckSpec, ...] = (
           "subdomains ct", "Поддомены из журналов Certificate Transparency."),
     _spec("SUV-SUB-002", SUB, "Захват поддоменов", "subdomains", "subdomains takeover",
           "Поддомены, указывающие на удалённые проекты или свободные домены."),
+    # --- cutoff experiment (--cutoff) --------------------------------------------------
+    _spec("SUV-CUT-001", CUT, "Отключение: сайт и почта целиком", "cutoff", "cutoff foreign",
+          "Отключат ли сайт или почту целиком иностранные DNS, хостинг, CDN, почта."),
+    _spec("SUV-CUT-002", CUT, "Отключение: что перестанет работать на странице", "cutoff",
+          "cutoff foreign browser",
+          "Эксперимент в браузере: страница без иностранных сервисов — что пропало и сломалось."),
     # --- company (`suveren company`) ----------------------------------------------------
     _spec("SUV-CO-001", COMPANY, "ЕГРЮЛ / ЕГРИП", "company", "company egrul",
           "Статус организации в ЕГРЮЛ/ЕГРИП: действует или ликвидирована."),

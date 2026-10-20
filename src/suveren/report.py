@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import datetime
 from pathlib import Path
@@ -49,12 +50,17 @@ def render_html(report: Report) -> str:
         (category, [d for d in report.dependencies if d.category is category])
         for category in Category
     ]
+    shots = {
+        k: "data:image/jpeg;base64," + base64.b64encode(v).decode("ascii")
+        for k, v in report.media.items()
+    }
     return template.render(
         report=report,
         version=__version__,
         bars=country_bars(report),
         actions=priorities(report)[:5],
         groups=[(c, deps) for c, deps in groups if deps],
+        shots=shots,
     )
 
 

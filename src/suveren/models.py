@@ -309,6 +309,8 @@ class Report:
     facts: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
     checks: list[Check] = field(default_factory=list)
+    # Images for the HTML report (the cutoff experiment's screenshots); not in JSON.
+    media: dict[str, bytes] = field(default_factory=dict)
 
     @property
     def check_groups(self) -> list[tuple[str, list[Check]]]:

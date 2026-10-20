@@ -209,6 +209,14 @@ def scan(
             "headers, law) через запятую. Список: suveren checks.",
         ),
     ] = None,
+    cutoff: Annotated[
+        bool,
+        typer.Option(
+            "--cutoff",
+            help="Эксперимент: открыть сайт в браузере без иностранных сервисов и показать, "
+            "что сломается (ещё 3 загрузки, нужен playwright).",
+        ),
+    ] = False,
     no_152fz: Annotated[
         bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
     ] = False,
@@ -291,6 +299,7 @@ def scan(
             checks,
             browser=browser,
             pages=pages,
+            cutoff=cutoff,
             skip={
                 name
                 for name, off in (

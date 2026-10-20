@@ -101,6 +101,12 @@
     </div>
     {% endfor %}
   </div>
+  {% if group.startswith("Отключение") and shots.cutoff_before and shots.cutoff_after %}
+  <div class="card cutoff">
+    <figure><img src="{{ shots.cutoff_before }}" alt="Сайт как обычно"><figcaption>Как обычно</figcaption></figure>
+    <figure><img src="{{ shots.cutoff_after }}" alt="Сайт без иностранных сервисов"><figcaption>Без иностранных сервисов</figcaption></figure>
+  </div>
+  {% endif %}
   {% endfor %}
 
   <h2>Все найденные сервисы</h2>
