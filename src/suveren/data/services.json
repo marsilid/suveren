@@ -1174,7 +1174,8 @@
    "country": "RU",
    "category": "analytics",
    "page": [
-    "mc\\.yandex\\.(?:ru|com)"
+    "mc\\.yandex\\.(?:ru|com)",
+    "webvisor\\.org"
    ]
   },
   {
@@ -1267,7 +1268,7 @@
    "country": "RU",
    "category": "ads",
    "page": [
-    "ads\\.adfox\\.ru"
+    "(?<![\\w.-])(?:[\\w-]+\\.)*adfox\\.ru"
    ]
   },
   {
@@ -1870,6 +1871,46 @@
    "category": "social",
    "page": [
     "connect\\.ok\\.ru"
+   ]
+  },
+  {
+   "name": "Hybrid",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "(?<![\\w.-])(?:[\\w-]+\\.)*hybrid\\.ai"
+   ]
+  },
+  {
+   "name": "Aidata",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "(?<![\\w.-])(?:[\\w-]+\\.)*aidata\\.(?:io|me)"
+   ]
+  },
+  {
+   "name": "UXFeedback",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "uxfeedback\\.ru"
+   ]
+  },
+  {
+   "name": "Mediascope (счётчик)",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "tns-counter\\.ru"
+   ]
+  },
+  {
+   "name": "СберМаркетинг",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "sbermarketing\\.ru"
    ]
   }
  ]
