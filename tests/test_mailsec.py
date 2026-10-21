@@ -298,8 +298,8 @@ def test_spf_include_with_a_mailbox_gets_exact_advice():
         parse_spf(record), 1, 2, "-", problems=["academyautoru@tbank.ru: нет SPF-записи"]
     )
     check = spf_check(facts(spf=spf))
-    # auto.ru once: a warning with nothing to do.
-    assert check.status is Status.WARN
+    # auto.ru once: an include of a mailbox is a permerror (RFC 7208, section 5.2).
+    assert check.status is Status.FAIL
     assert "include:tbank.ru" in check.recommendation and "адрес почты" in check.recommendation
     other = SpfResult(parse_spf(record), 1, 2, "-", problems=["spf.old.ru: нет SPF-записи"])
     assert "своя SPF-запись" in spf_check(facts(spf=other)).recommendation
@@ -341,3 +341,10 @@ def test_spf_ptr_is_a_warning():
     check = spf_check(facts(spf=result))
     assert check.status is Status.WARN
     assert "ptr" in check.recommendation
+
+
+def test_spf_include_dns_timeout_is_only_a_warning():
+    spf = SpfResult(
+        parse_spf("v=spf1 include:a.ru -all"), 1, 1, "-", problems=["a.ru: DNS не ответил"]
+    )
+    assert spf_check(facts(spf=spf)).status is Status.WARN

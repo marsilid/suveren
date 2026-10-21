@@ -382,8 +382,17 @@ def spf_check(m: MailFacts) -> Check:
             f"{recommendation} Замените ptr на ip4:/ip6: или a: с адресами ваших серверов."
         ).strip()
     if r.problems:
-        status = max(status, Status.WARN, key=_rank)
+        # An include or redirect without exactly one SPF record is a permerror for the whole
+        # check (RFC 7208, sections 5.2 and 6.1); a DNS timeout is only our failure to look.
+        broken = any(not p.endswith("DNS не ответил") for p in r.problems)
+        status = max(status, Status.FAIL if broken else Status.WARN, key=_rank)
         details.append("Не удалось разобрать: " + "; ".join(r.problems[:3]) + ".")
+        if broken:
+            details.append(
+                "По стандарту (RFC 7208, раздел 5.2) такая запись даёт ошибку проверки "
+                "(permerror): письма с серверов, которые не перечислены до этого места, "
+                "не проходят SPF."
+            )
         # auto.ru: "include:academyautoru@tbank.ru", a mailbox where a domain belongs.
         mailbox = next((p.split(":", 1)[0] for p in r.problems if "@" in p.split(":", 1)[0]), None)
         fix = (
