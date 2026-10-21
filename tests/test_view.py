@@ -320,7 +320,7 @@ def test_a_section_that_did_not_run_counts_as_all_its_checks():
     report.checks.append(Check(mail.group, mail.title, Status.OK, "SPF в порядке."))
     scope = overall_scope(report)
     assert "законы" not in scope and "безопасность" not in scope
-    assert "оценка может быть завышена" in scope
+    assert "оценка не выше B" in scope
 
 
 def test_services_table_gives_the_same_risk_as_the_dependency_card():
@@ -338,3 +338,19 @@ def test_services_table_gives_the_same_risk_as_the_dependency_card():
     ]
     services = render_html(report).split('id="services"')[1]
     assert "sev-medium" in services and "sev-high" not in services
+
+
+def test_a_needs_the_checks_to_have_run():
+    from suveren.advice import overall_grade, overall_score
+    from suveren.catalog import BY_ID
+    from suveren.models import Report
+
+    # A clean site behind a bot wall: nothing failed because little was seen.
+    report = Report(target="example.ru")
+    for check_id in ("SUV-PD-001", "SUV-PD-003", "SUV-PD-006", "SUV-WEB-001"):
+        spec = BY_ID[check_id]
+        report.checks.append(Check(spec.group, spec.title, Status.UNKNOWN, "Не проверено."))
+    for check_id in ("SUV-MAIL-002", "SUV-MAIL-003"):
+        spec = BY_ID[check_id]
+        report.checks.append(Check(spec.group, spec.title, Status.OK, "В порядке."))
+    assert overall_score(report) == 89 and overall_grade(report) == "B"

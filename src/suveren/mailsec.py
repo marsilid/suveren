@@ -367,6 +367,16 @@ def spf_check(m: MailFacts) -> Check:
     if r.problems:
         status = max(status, Status.WARN, key=_rank)
         details.append("Не удалось разобрать: " + "; ".join(r.problems[:3]) + ".")
+        # auto.ru: "include:academyautoru@tbank.ru", a mailbox where a domain belongs.
+        mailbox = next((p.split(":", 1)[0] for p in r.problems if "@" in p.split(":", 1)[0]), None)
+        fix = (
+            f"В include указан адрес почты ({mailbox}), а нужен домен, например "
+            f"include:{mailbox.split('@', 1)[1]}; исправьте или уберите его."
+            if mailbox
+            else "Проверьте include из списка выше: у домена должна быть своя SPF-запись, "
+            "иначе уберите его."
+        )
+        recommendation = f"{recommendation} {fix}".strip()
     return Check(GROUP_MAIL, title, status, " ".join(details), recommendation)
 
 

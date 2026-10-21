@@ -290,3 +290,16 @@ def test_mta_sts_warning_has_advice_and_comes_last():
     report.checks = [check]
     # "Редкая атака, исправлять во вторую очередь": low urgency, its own topic.
     assert priorities(report)[0].severity is Severity.LOW
+
+
+def test_spf_include_with_a_mailbox_gets_exact_advice():
+    record = "v=spf1 include:_spf.yandex.net include:academyautoru@tbank.ru -all"
+    spf = SpfResult(
+        parse_spf(record), 1, 2, "-", problems=["academyautoru@tbank.ru: нет SPF-записи"]
+    )
+    check = spf_check(facts(spf=spf))
+    # auto.ru once: a warning with nothing to do.
+    assert check.status is Status.WARN
+    assert "include:tbank.ru" in check.recommendation and "адрес почты" in check.recommendation
+    other = SpfResult(parse_spf(record), 1, 2, "-", problems=["spf.old.ru: нет SPF-записи"])
+    assert "своя SPF-запись" in spf_check(facts(spf=other)).recommendation

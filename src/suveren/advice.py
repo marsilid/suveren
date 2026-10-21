@@ -92,9 +92,15 @@ TOPICS = {
 OVERALL_PENALTY = {Severity.HIGH: 10, Severity.MEDIUM: 3, Severity.LOW: 1, Severity.INFO: 0}
 
 
+# A means "checked and clean". On 98 sites (nightly run, 2026-10-21) 19 of 22 A grades
+# came from sites whose bot wall hid a quarter of the checks: unseen is not clean.
+UNCHECKED_CAP = 89  # the top of B
+
+
 def overall_score(report: Report) -> int:
     """All sections together: laws, security, mail, blocks and foreign dependencies."""
-    return max(0, 100 - sum(OVERALL_PENALTY[a.severity] for a in priorities(report)))
+    score = max(0, 100 - sum(OVERALL_PENALTY[a.severity] for a in priorities(report)))
+    return min(score, UNCHECKED_CAP) if unchecked(report) else score
 
 
 def overall_grade(report: Report) -> str:
@@ -120,7 +126,7 @@ def overall_scope(report: Report) -> str:
     checked = [c for c in report.checks if c.status is not Status.UNKNOWN]
     ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in checked)]
     gap = unchecked(report)
-    note = f"; не удалось проверить {gap[0]} из {gap[1]}, оценка может быть завышена" if gap else ""
+    note = f"; не удалось проверить {gap[0]} из {gap[1]}, поэтому оценка не выше B" if gap else ""
     if not ran:
         return "проверены только иностранные зависимости" + note
     return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"])) + note

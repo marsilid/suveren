@@ -314,3 +314,14 @@ def test_takeover_data_file_is_valid():
             if not fp.startswith("HTTP_STATUS="):
                 re.compile(fp)
         assert set(d.get("seen", ())) <= set(d.get("fingerprints", ())), d["service"]
+
+
+def test_a_slow_stage_gives_up_on_its_own_section_only(monkeypatch):
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(subdomains, "scan_subdomains", slow)
+    monkeypatch.setattr(subdomains, "STAGE_BUDGET", 0.05)
+    checks, data = asyncio.run(subdomains.run_subdomain_checks(None, None, None, "a.ru"))
+    # alfabank.ru once lost its whole report in a batch; now only this section is unknown.
+    assert checks[0].status is Status.UNKNOWN and "дольше" in checks[0].details and data == {}

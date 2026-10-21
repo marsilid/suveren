@@ -36,6 +36,10 @@ CERTSPOTTER_URL = "https://api.certspotter.com/v1/issuances"
 CRTSH_ATTEMPTS = 2
 CRTSH_RETRY_DELAY = 3.0
 CERTSPOTTER_PAGES = 5
+# The whole stage: certificate logs can take a minute per attempt, and in a batch the
+# stage once pushed alfabank.ru and sovcombank.ru past the per-site deadline, losing
+# the whole report for want of one section.
+STAGE_BUDGET = 120.0
 MAX_SUBDOMAINS = 300
 MAX_CNAME_HOPS = 4
 DNS_CONCURRENCY = 20
@@ -388,7 +392,20 @@ async def run_subdomain_checks(
 ) -> tuple[list[Check], dict[str, Any]]:
     """Checks for the report and raw data for the JSON facts."""
     try:
-        scan = await scan_subdomains(resolver, client, page_client, domain, refresh=refresh)
+        scan = await asyncio.wait_for(
+            scan_subdomains(resolver, client, page_client, domain, refresh=refresh),
+            STAGE_BUDGET,
+        )
+    except TIMEOUTS:
+        return [
+            Check(
+                GROUP_SUB,
+                "Поддомены и их захват",
+                Status.UNKNOWN,
+                f"Не проверено: журналы сертификатов отвечали дольше {STAGE_BUDGET:.0f} с, "
+                "попробуйте позже.",
+            )
+        ], {}
     except ModuleError as exc:
         return [
             Check(GROUP_SUB, "Поддомены и их захват", Status.UNKNOWN, f"Не проверено: {exc}.")
