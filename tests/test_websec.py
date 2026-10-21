@@ -386,3 +386,32 @@ def test_script_inventory_warns_only_when_many_domains_can_run_code():
     )
     check = websec.scripts_inventory(many)
     assert check.status is Status.WARN and "любой код" in check.details and check.recommendation
+
+
+def test_tls_certificate_browsers_reject_is_a_fail():
+    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    bad = TlsInfo("example.ru", "TLSv1.3", exp, {}, "Hostname mismatch, certificate is not valid")
+    check = tls_check(web(tls=bad))
+    assert check is not None and check.status is Status.FAIL
+    assert "на другое имя" in check.details
+    ru = TlsInfo(
+        "example.ru",
+        "TLSv1.3",
+        exp,
+        {},
+        "self-signed certificate in certificate chain",
+        "CN=Russian Trusted Sub CA,O=The Ministry of Digital Development,C=RU",
+    )
+    check = tls_check(web(tls=ru))
+    assert check is not None and check.status is Status.WARN
+    assert "Минцифры" in check.details
+
+
+def test_x_frame_options_allow_from_does_not_protect():
+    headers = {
+        "x-frame-options": "ALLOW-FROM https://example.ru",
+        "x-content-type-options": "nosniff",
+    }
+    assert headers_check(web(headers=headers)).status is Status.WARN
+    headers["x-frame-options"] = "SAMEORIGIN"
+    assert headers_check(web(headers=headers)).status is Status.OK

@@ -74,6 +74,7 @@ HSTS_MIN_AGE = 180 * 24 * 3600  # what the HSTS preload list asks for at least
 MANY_SCRIPT_DOMAINS = 15
 CERT_FAIL_DAYS = 14
 CERT_WARN_DAYS = 30
+TLS_CHECK_TITLE = "TLS: сертификат и протоколы"
 # Names that look like a login session. CSRF tokens are left out on purpose: they are
 # meant to be read by the page's own scripts, so HttpOnly would break them.
 _SESSION_COOKIE = re.compile(
@@ -189,6 +190,9 @@ class TlsInfo:
     version: str | None = None  # negotiated by default
     expires: datetime | None = None
     legacy: dict[str, bool | None] = field(default_factory=dict)  # "TLS 1.0": accepted?
+    # Why a browser would reject the certificate (OpenSSL's message), None if it is fine.
+    verify_error: str | None = None
+    issuer: str = ""
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -245,9 +249,18 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
     with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
         info.version, der = await _handshake(host, _context(), timeout)
         if der:
-            info.expires = x509.load_der_x509_certificate(der).not_valid_after_utc
+            cert = x509.load_der_x509_certificate(der)
+            info.expires = cert.not_valid_after_utc
+            info.issuer = cert.issuer.rfc4514_string()
     if info.version is None:
         return info
+    # The same check a browser makes: chain to a trusted root, host name, dates.
+    try:
+        await _handshake(host, ssl.create_default_context(), timeout)
+    except ssl.SSLCertVerificationError as exc:
+        info.verify_error = exc.verify_message or str(exc)
+    except (OSError, *TIMEOUTS, ssl.SSLError, ValueError):
+        pass
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         versions = {"TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1}
@@ -496,7 +509,9 @@ def headers_check(w: WebFacts) -> Check:
     missing = []
     fixes = []
     csp = parse_csp(w.headers.get("content-security-policy", ""))
-    if "x-frame-options" not in w.headers and "frame-ancestors" not in csp:
+    # ALLOW-FROM and other values are ignored by current browsers (OWASP Secure Headers).
+    xfo = w.headers.get("x-frame-options", "").strip().lower()
+    if xfo not in ("deny", "sameorigin") and "frame-ancestors" not in csp:
         missing.append(
             "X-Frame-Options или frame-ancestors (сайт можно встроить в чужую страницу и "
             "обманом заставить нажать кнопку — кликджекинг)"
@@ -554,13 +569,17 @@ def tls_check(w: WebFacts) -> Check | None:
     t = w.tls
     if t is None or t.version is None:
         return None
-    title = "TLS: сертификат и протоколы"
+    title = TLS_CHECK_TITLE
     status = Status.OK
     details = [f"Сервер {t.host}, соединение {t.version.replace('TLSv', 'TLS ')}."]
     recommendation = ""
     if t.expires:
         days = (t.expires - w.now).days
-        details.append(f"Сертификат действует ещё {days} дн. (до {t.expires:%d.%m.%Y}).")
+        details.append(
+            f"Сертификат действует ещё {days} дн. (до {t.expires:%d.%m.%Y})."
+            if days >= 0
+            else f"Срок действия сертификата истёк {t.expires:%d.%m.%Y}."
+        )
         if days < CERT_FAIL_DAYS:
             status = Status.FAIL
             recommendation = "Срочно продлите сертификат и включите автоматическое продление."
@@ -569,13 +588,31 @@ def tls_check(w: WebFacts) -> Check | None:
             recommendation = (
                 "Продлите сертификат и проверьте, что автоматическое продление работает."
             )
+    # An expired certificate is already a FAIL above, with its date.
+    if t.verify_error and _cert_reason(t.verify_error) != "срок действия истёк":
+        mintsifry = "russian trusted" in t.issuer.lower()
+        status = Status.WARN if mintsifry else Status.FAIL
+        details.append(
+            "Сертификат выпущен НУЦ Минцифры: браузеры без российского корневого сертификата "
+            "покажут посетителям ошибку."
+            if mintsifry
+            else f"Браузеры не примут сертификат ({_cert_reason(t.verify_error)}) и покажут "
+            "посетителям ошибку."
+        )
+        recommendation = (
+            "Поставьте второй сертификат от общепризнанного центра (например, Let's Encrypt) "
+            "для посетителей без российского корневого сертификата."
+            if mintsifry
+            else "Выпустите сертификат у общепризнанного центра (например, Let's Encrypt) на "
+            "это имя сайта и установите полную цепочку."
+        )
     old = [name for name, ok in t.legacy.items() if ok]
     unknown = [name for name, ok in t.legacy.items() if ok is None]
     if old:
         status = max(status, Status.WARN, key=_rank)
         details.append(
             f"Сервер соглашается на устаревшие {', '.join(old)}: они уязвимы и запрещены "
-            "современными требованиями (PCI DSS, NIST)."
+            "стандартом RFC 8996 (2021), PCI DSS и NIST SP 800-52."
         )
         recommendation = recommendation or "Отключите TLS 1.0 и 1.1 в настройках веб-сервера."
     elif unknown:
@@ -583,6 +620,25 @@ def tls_check(w: WebFacts) -> Check | None:
     else:
         details.append("TLS 1.0 и 1.1 отключены.")
     return Check(GROUP_WEB, title, status, " ".join(details), recommendation)
+
+
+def _cert_reason(message: str) -> str:
+    low = message.lower()
+    if "hostname mismatch" in low or "ip address mismatch" in low:
+        return "он выписан на другое имя"
+    if "in certificate chain" in low:
+        return "цепочка ведёт к недоверенному корневому сертификату"
+    if "self-signed" in low or "self signed" in low:
+        return "он самоподписанный"
+    if "expired" in low:
+        return "срок действия истёк"
+    if "not yet valid" in low:
+        return "срок действия ещё не начался"
+    if "local issuer" in low or "unable to get issuer" in low:
+        return "цепочка не ведёт к доверенному корневому сертификату"
+    if "revoked" in low:
+        return "он отозван"
+    return message
 
 
 def _rank(status: Status) -> int:

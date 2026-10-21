@@ -14,7 +14,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from suveren import unknown
-from suveren.analyze import analyze
+from suveren.analyze import TLS_UNTRUSTED_NOTE, analyze
 from suveren.blocklist import run_blocklist
 from suveren.catalog import BY_ID
 from suveren.checks import GROUP_152, Check, Status
@@ -32,7 +32,7 @@ from suveren.page import parse_page
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
 from suveren.scenarios import build as build_scenarios
 from suveren.subdomains import run_subdomain_checks
-from suveren.websec import GROUP_WEB, run_web_checks
+from suveren.websec import GROUP_WEB, TLS_CHECK_TITLE, run_web_checks
 
 # progress(stage, seconds): seconds is None when the stage starts, then its duration.
 Progress = Callable[[str, float | None], None]
@@ -127,6 +127,8 @@ async def run_scan(
             resolver, _ = await create_resolver(dns_mode, timeout, client)
             checks, data = await run_web_checks(facts, resolver, client, timeout)
             report.checks += checks
+            if any(c.title == TLS_CHECK_TITLE for c in checks):
+                report.notes = [n for n in report.notes if n != TLS_UNTRUSTED_NOTE]
             svg = data.pop("script_graph_svg", "")
             if svg:
                 report.media["script_graph_svg"] = svg.encode("utf-8")

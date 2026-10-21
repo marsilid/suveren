@@ -14,6 +14,12 @@ from suveren.services import Service
 from suveren.utils import registrable_domain
 
 # Layers where a domestic server next to a foreign one is real redundancy.
+# Shown when the security stage did not run: its TLS check (SUV-WEB-008) says it better.
+TLS_UNTRUSTED_NOTE = (
+    "SSL-сертификату сайта не доверяет стандартный набор корневых сертификатов. "
+    "Если он выпущен НУЦ Минцифры, браузеры без российского корневого сертификата "
+    "(Chrome, Firefox, Safari по умолчанию) покажут посетителям ошибку."
+)
 REDUNDANT_LAYERS = frozenset({Category.DNS, Category.MAIL, Category.HOSTING, Category.CDN})
 
 # Words that open many network names; a site called cloud.ru doesn't own CLOUD.DOG OU.
@@ -282,10 +288,6 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
             )
         report.notes.append(f"{where}. {how}")
     if facts.tls_trusted is False:
-        report.notes.append(
-            "SSL-сертификату сайта не доверяет стандартный набор корневых сертификатов. "
-            "Если он выпущен НУЦ Минцифры, браузеры без российского корневого сертификата "
-            "(Chrome, Firefox, Safari по умолчанию) покажут посетителям ошибку."
-        )
+        report.notes.append(TLS_UNTRUSTED_NOTE)
     report.finished_at = datetime.now(timezone.utc)
     return report
