@@ -591,11 +591,16 @@ def tls_check(w: WebFacts) -> Check | None:
     # An expired certificate is already a FAIL above, with its date.
     if t.verify_error and _cert_reason(t.verify_error) != "срок действия истёк":
         mintsifry = "russian trusted" in t.issuer.lower()
-        status = Status.WARN if mintsifry else Status.FAIL
+        # Desktop Chrome fetches a missing intermediate itself; apps and some browsers don't.
+        incomplete = "local issuer" in t.verify_error.lower()
+        status = Status.WARN if mintsifry or incomplete else Status.FAIL
         details.append(
             "Сертификат выпущен НУЦ Минцифры: браузеры без российского корневого сертификата "
             "покажут посетителям ошибку."
             if mintsifry
+            else "Сервер не отдаёт промежуточный сертификат, или корневой сертификат неизвестен: "
+            "часть браузеров, мобильные приложения и почтовые клиенты покажут ошибку."
+            if incomplete
             else f"Браузеры не примут сертификат ({_cert_reason(t.verify_error)}) и покажут "
             "посетителям ошибку."
         )
@@ -603,6 +608,9 @@ def tls_check(w: WebFacts) -> Check | None:
             "Поставьте второй сертификат от общепризнанного центра (например, Let's Encrypt) "
             "для посетителей без российского корневого сертификата."
             if mintsifry
+            else "Установите на сервер полную цепочку: сертификат сайта вместе с "
+            "промежуточными (обычно файл fullchain.pem)."
+            if incomplete
             else "Выпустите сертификат у общепризнанного центра (например, Let's Encrypt) на "
             "это имя сайта и установите полную цепочку."
         )

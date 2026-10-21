@@ -415,3 +415,11 @@ def test_x_frame_options_allow_from_does_not_protect():
     assert headers_check(web(headers=headers)).status is Status.WARN
     headers["x-frame-options"] = "SAMEORIGIN"
     assert headers_check(web(headers=headers)).status is Status.OK
+
+
+def test_tls_incomplete_chain_is_a_warning():
+    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    t = TlsInfo("example.ru", "TLSv1.3", exp, {}, "unable to get local issuer certificate")
+    check = tls_check(web(tls=t))
+    assert check is not None and check.status is Status.WARN
+    assert "fullchain" in check.recommendation
