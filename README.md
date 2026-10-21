@@ -66,6 +66,7 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
 | `suveren batch sites.txt` | проверка списка сайтов: сводная таблица, CSV и отчёт по каждому сайту |
 | `suveren company <ИНН, ОГРН или домен>` | ЕГРЮЛ, санкционные списки, реестр операторов ПДн |
 | `suveren diff old.json new.json` | что изменилось между двумя проверками |
+| `suveren audit reports/` | не противоречат ли отчёты сами себе (код выхода 5, если да) |
 | `suveren services [фильтр]` | база распознаваемых сервисов |
 | `suveren checks [ID или тег]` | все проверки с их ID и тегами; с ID — описание одной проверки |
 | `suveren update` | скачать свежие санкционные списки и реестр блокировок |
@@ -344,6 +345,7 @@ suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
 | 2 | неверные параметры |
 | 3 | `--fail-under C`: общая оценка хуже C |
 | 4 | `--fail-on fail`: есть проверки со статусом «проблема»; `--fail-on warn` — ещё и «внимание» |
+| 5 | `suveren audit`: в отчётах есть противоречия |
 
 ## Режим `--browser`
 

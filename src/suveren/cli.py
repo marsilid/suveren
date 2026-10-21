@@ -661,6 +661,41 @@ def diff(
         console.print("  [grey50]Ничего не изменилось.[/]")
 
 
+# --- audit ----------------------------------------------------------------------------
+
+
+@app.command("audit")
+def audit_reports(
+    paths: Annotated[
+        list[Path], typer.Argument(help="JSON-отчёты (scan --json) или папки с ними (batch).")
+    ],
+) -> None:
+    """Проверить отчёты на противоречия: код выхода 5, если они есть."""
+    from suveren.audit import audit
+
+    files = [f for p in paths for f in (sorted(p.glob("*.json")) if p.is_dir() else [p])]
+    found = 0
+    for f in files:
+        try:
+            report = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            console.print(f"  [#e6b450]![/] {f}: не прочитать ({exc})")
+            continue
+        if not isinstance(report, dict) or "checks" not in report:
+            continue  # summary.csv neighbours, other JSON
+        for issue in audit(report):
+            found += 1
+            where = f" {issue.check}" if issue.check else ""
+            console.print(
+                f"  [#e5534b]✗[/] {report.get('target', f.name)}{where} "
+                f"[grey50]{issue.rule}[/]: {issue.text}"
+            )
+    if found:
+        console.print(f"\n[bold #e5534b]Противоречий: {found}[/] в {len(files)} файлах.")
+        raise typer.Exit(5)
+    console.print(f"[#7fb069]✓[/] Противоречий нет ({len(files)} файлов).")
+
+
 # --- services -------------------------------------------------------------------------
 
 

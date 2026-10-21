@@ -71,6 +71,21 @@ def summarize(checks) -> list[list[str]]:
 
 
 async def replay(host: str) -> list[list[str]]:
+    return summarize(await replay_checks(host))
+
+
+_REPLAYED: dict[str, list] = {}
+
+
+async def replay_checks(host: str):
+    """The 152-ФЗ checks for a recorded site, replayed offline (once per test run: the
+    regression test and the self-audit read the same result)."""
+    if host not in _REPLAYED:
+        _REPLAYED[host] = await _replay_checks(host)
+    return _REPLAYED[host]
+
+
+async def _replay_checks(host: str):
     from suveren.compliance import run_compliance
     from suveren.crawl import FetchedPage
 
@@ -96,7 +111,7 @@ async def replay(host: str) -> list[list[str]]:
             page_problem=meta.get("page_problem"),
             extra_pages=[FetchedPage(u, s, h) for u, s, h in meta["extra"]],
         )
-    return summarize(checks)
+    return checks
 
 
 def expected(host: str) -> list[list[str]] | None:
