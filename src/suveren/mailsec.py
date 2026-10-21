@@ -188,6 +188,7 @@ class MailFacts:
     mta_sts: str | None = None  # policy mode: enforce / testing / none
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
+    mta_sts_mx: list[str] = field(default_factory=list)  # "mx:" patterns of the policy
 
 
 # What each mail provider asks to put in SPF; every name was checked to publish an SPF
@@ -463,9 +464,31 @@ def dkim_check(m: MailFacts) -> Check:
     )
 
 
+def mx_matches(host: str, pattern: str) -> bool:
+    """RFC 8461, section 4.1: "*." stands for exactly one leftmost label."""
+    host, pattern = host.lower().rstrip("."), pattern.lower().rstrip(".")
+    if pattern.startswith("*."):
+        label, _, rest = host.partition(".")
+        return bool(label) and rest == pattern[2:]
+    return host == pattern
+
+
 def transport_check(m: MailFacts) -> Check:
     title = "Шифрование входящей почты (MTA-STS)"
     rpt = " Отчёты TLS-RPT настроены." if m.tls_rpt else ""
+    unmatched = [h for h in m.mx_hosts if not any(mx_matches(h, p) for p in m.mta_sts_mx)]
+    if m.mta_sts == "enforce" and unmatched:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.FAIL,
+            "MTA-STS в режиме enforce, но MX-серверы "
+            + ", ".join(unmatched)
+            + " не перечислены в строках mx: политики. Отправители, которые соблюдают "
+            "MTA-STS (например, Gmail), не доставят на них письма (RFC 8461, раздел 4.1)." + rpt,
+            f"Добавьте эти серверы в строки mx: файла https://mta-sts.{m.domain}/.well-known/"
+            "mta-sts.txt и смените id= в TXT-записи _mta-sts.",
+        )
     if m.mta_sts == "enforce":
         return Check(
             GROUP_MAIL,
@@ -508,6 +531,10 @@ def parse_mta_sts_mode(policy: str) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def parse_mta_sts_mx(policy: str) -> list[str]:
+    return [m.lower() for m in re.findall(r"(?im)^\s*mx\s*:\s*(\S+)\s*$", policy)]
+
+
 async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
     async def has_key(selector: str) -> bool:
         try:
@@ -521,17 +548,23 @@ async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
     return [s for s, ok in zip(DKIM_SELECTORS, found, strict=True) if ok]
 
 
-async def _mta_sts(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> str | None:
+async def _mta_sts(
+    resolver: DnsResolver, client: httpx.AsyncClient, domain: str
+) -> tuple[str | None, list[str]]:
+    """Policy mode and its mx patterns, fetched the way a sending server does."""
     txt = await _txt(resolver, f"_mta-sts.{domain}")
     if not any(t.lower().startswith("v=stsv1") for t in txt):
-        return None
+        return None, []
     try:
-        resp = await client.get(f"https://mta-sts.{domain}/.well-known/mta-sts.txt")
+        # Senders must not follow redirects for the policy (RFC 8461, section 3.3).
+        resp = await client.get(
+            f"https://mta-sts.{domain}/.well-known/mta-sts.txt", follow_redirects=False
+        )
     except (httpx.HTTPError, *TIMEOUTS):
-        return "none"
+        return "none", []
     if resp.status_code != 200:
-        return "none"
-    return parse_mta_sts_mode(resp.text) or "none"
+        return "none", []
+    return parse_mta_sts_mode(resp.text) or "none", parse_mta_sts_mx(resp.text)
 
 
 async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> MailFacts:
@@ -551,7 +584,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     )
     if receives:
         facts.dkim = await _dkim(resolver, domain)
-        facts.mta_sts = await _mta_sts(resolver, client, domain)
+        facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain)
         rpt = await _txt(resolver, f"_smtp._tls.{domain}")
         facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
     return facts

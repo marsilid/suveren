@@ -303,3 +303,28 @@ def test_spf_include_with_a_mailbox_gets_exact_advice():
     assert "include:tbank.ru" in check.recommendation and "адрес почты" in check.recommendation
     other = SpfResult(parse_spf(record), 1, 2, "-", problems=["spf.old.ru: нет SPF-записи"])
     assert "своя SPF-запись" in spf_check(facts(spf=other)).recommendation
+
+
+def test_mx_matches_follows_rfc8461_wildcards():
+    from suveren.mailsec import mx_matches, parse_mta_sts_mx
+
+    assert mx_matches("mx.yandex.net.", "mx.yandex.net")
+    assert mx_matches("mx1.example.ru", "*.example.ru")
+    assert not mx_matches("a.mx1.example.ru", "*.example.ru")  # one label only
+    assert not mx_matches("example.ru", "*.example.ru")
+    policy = "version: STSv1\r\nmode: enforce\r\nmx: mx.yandex.net\r\nmx: *.Example.ru\r\n"
+    assert parse_mta_sts_mx(policy) == ["mx.yandex.net", "*.example.ru"]
+
+
+def test_mta_sts_enforce_with_unlisted_mx_fails():
+    from suveren.mailsec import transport_check
+
+    check = transport_check(
+        facts(mta_sts="enforce", mx_hosts=["mx.yandex.net"], mta_sts_mx=["mx.example.ru"])
+    )
+    assert check.status is Status.FAIL
+    assert "mx.yandex.net" in check.details
+    ok = transport_check(
+        facts(mta_sts="enforce", mx_hosts=["mx.yandex.net"], mta_sts_mx=["mx.yandex.net"])
+    )
+    assert ok.status is Status.OK
