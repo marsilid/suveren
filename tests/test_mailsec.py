@@ -348,3 +348,12 @@ def test_spf_include_dns_timeout_is_only_a_warning():
         parse_spf("v=spf1 include:a.ru -all"), 1, 1, "-", problems=["a.ru: DNS не ответил"]
     )
     assert spf_check(facts(spf=spf)).status is Status.WARN
+
+
+def test_mta_sts_txt_without_id_or_doubled_is_no_policy():
+    import suveren.mailsec as mailsec
+
+    for txt in (["v=STSv1;"], ["v=STSv1; id=1", "v=STSv1; id=2"]):
+        records = {("_mta-sts.example.ru", "TXT"): txt}
+        mode = asyncio.run(mailsec._mta_sts(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+        assert mode == ("none", [])

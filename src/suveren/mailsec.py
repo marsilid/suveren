@@ -578,8 +578,12 @@ async def _mta_sts(
 ) -> tuple[str | None, list[str]]:
     """Policy mode and its mx patterns, fetched the way a sending server does."""
     txt = await _txt(resolver, f"_mta-sts.{domain}")
-    if not any(t.lower().startswith("v=stsv1") for t in txt):
+    sts = [t for t in txt if t.lower().startswith("v=stsv1")]
+    if not sts:
         return None, []
+    # Several records, or one without an id, mean "no policy" to senders (RFC 8461, 3.1).
+    if len(sts) > 1 or not re.search(r"(?i);\s*id\s*=\s*[a-z0-9]{1,32}\s*(;|$)", sts[0]):
+        return "none", []
     try:
         # Senders must not follow redirects for the policy (RFC 8461, section 3.3).
         resp = await client.get(
