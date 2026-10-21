@@ -59,6 +59,7 @@ class Spf:
     redirect: str | None = None
     includes: list[str] = field(default_factory=list)
     lookups: int = 0  # DNS-querying terms in this record alone
+    uses_ptr: bool = False  # "ptr" SHOULD NOT be used (RFC 7208, section 5.5)
 
 
 def spf_records(txt: list[str]) -> list[str]:
@@ -83,8 +84,14 @@ def parse_spf(record: str) -> Spf:
             spf.all = qualifier
         elif name == "include" and value:
             spf.includes.append(value.rstrip("."))
+        elif name == "ptr":
+            spf.uses_ptr = True
         if name in _SPF_LOOKUP_TERMS:
             spf.lookups += 1
+    if spf.all is not None and spf.redirect:
+        # With an "all" mechanism the redirect is never evaluated (RFC 7208, section 6.1).
+        spf.redirect = None
+        spf.lookups -= 1
     return spf
 
 
@@ -365,6 +372,15 @@ def spf_check(m: MailFacts) -> Check:
             else "Стоит ?all: про остальные серверы SPF ничего не говорит."
         )
         recommendation = recommendation or "Завершите запись на ~all (или -all)."
+    if r.spf.uses_ptr:
+        status = max(status, Status.WARN, key=_rank)
+        details.append(
+            "Есть механизм ptr: стандарт не рекомендует его (RFC 7208, раздел 5.5), он медленный, "
+            "а часть почтовых сервисов его не учитывает, и письма с этих серверов не пройдут SPF."
+        )
+        recommendation = (
+            f"{recommendation} Замените ptr на ip4:/ip6: или a: с адресами ваших серверов."
+        ).strip()
     if r.problems:
         status = max(status, Status.WARN, key=_rank)
         details.append("Не удалось разобрать: " + "; ".join(r.problems[:3]) + ".")

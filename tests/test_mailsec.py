@@ -328,3 +328,16 @@ def test_mta_sts_enforce_with_unlisted_mx_fails():
         facts(mta_sts="enforce", mx_hosts=["mx.yandex.net"], mta_sts_mx=["mx.yandex.net"])
     )
     assert ok.status is Status.OK
+
+
+def test_spf_redirect_is_ignored_next_to_all():
+    spf = parse_spf("v=spf1 include:_spf.yandex.net redirect=_spf.example.ru ~all")
+    assert spf.redirect is None and spf.lookups == 1
+    assert parse_spf("v=spf1 redirect=_spf.example.ru").redirect == "_spf.example.ru"
+
+
+def test_spf_ptr_is_a_warning():
+    result = SpfResult(parse_spf("v=spf1 ptr ~all"), 1, 1, "~")
+    check = spf_check(facts(spf=result))
+    assert check.status is Status.WARN
+    assert "ptr" in check.recommendation
