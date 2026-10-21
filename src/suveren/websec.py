@@ -69,8 +69,9 @@ COMPROMISED = {
 
 HSTS_MIN_AGE = 180 * 24 * 3600  # what the HSTS preload list asks for at least
 # Third-party script domains from which the inventory becomes a warning: each can run
-# any code on the page, and a dozen is a dozen ways in.
-MANY_SCRIPT_DOMAINS = 10
+# any code on the page. Calibrated in the browser on 17 sites (2026-10-21): 2 to 32
+# domains, median 11; 10 warned on most of them, 15 marks the heavier 40%.
+MANY_SCRIPT_DOMAINS = 15
 CERT_FAIL_DAYS = 14
 CERT_WARN_DAYS = 30
 # Names that look like a login session. CSRF tokens are left out on purpose: they are

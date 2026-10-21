@@ -378,6 +378,11 @@ def test_script_inventory_warns_only_when_many_domains_can_run_code():
     check = websec.scripts_inventory(few)
     # A short list is information, not an alarm: no "может выполнить любой код" in "в порядке".
     assert check.status is Status.OK and "любой код" not in check.details
-    many = web("".join(f'<script src="https://cdn.vendor{i}.ru/a.js"></script>' for i in range(10)))
+    many = web(
+        "".join(
+            f'<script src="https://cdn.vendor{i}.ru/a.js"></script>'
+            for i in range(websec.MANY_SCRIPT_DOMAINS)
+        )
+    )
     check = websec.scripts_inventory(many)
     assert check.status is Status.WARN and "любой код" in check.details and check.recommendation
