@@ -76,7 +76,7 @@ def test_form_bundles_consent_with_offer():
     assert "условия публичной оферты" in bundled_in_form(form)
     check = find(run(html), CONSENT_TITLE)
     assert check.status is Status.WARN
-    assert "вместе с принятием другого документа" in check.details
+    assert "вместе с другим документом или согласием" in check.details
     assert check.law == "152-ФЗ, ст. 9 ч. 1"
 
 

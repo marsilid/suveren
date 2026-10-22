@@ -742,6 +742,18 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-consent-with-ads",
+        "согласие на обработку одной фразой с согласием на рекламную рассылку",
+        {"SUV-PD-004": "warn"},
+        html=page(
+            '<form action="/lead"><input name="name" placeholder="Ваше имя">'
+            '<input type="tel" name="phone"><label><input type="checkbox" name="agree" '
+            "required> Даю согласие на обработку персональных данных и на получение "
+            "рекламной рассылки</label><button>Отправить</button></form>"
+        ),
+        files=site_files(),
+    ),
+    Case(
         "lab-cookie-footer-link",
         "Google Analytics, а про cookies только ссылка в подвале на документ",
         {"SUV-PD-005": "warn"},
