@@ -209,6 +209,8 @@ class TlsInfo:
     verify_error: str | None = None
     issuer: str = ""
     verified: bool = True  # False when the verifying handshake itself failed (a timeout)
+    # The server omits an intermediate that the AIA link supplies: browsers cope, apps not.
+    chain_incomplete: bool = False
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -260,8 +262,37 @@ async def legacy_accepted(host: str, version: ssl.TLSVersion, timeout: float) ->
         return None
 
 
+async def _issuer_from_aia(cert: x509.Certificate, timeout: float) -> str | None:
+    """The issuing certificate (PEM) from the certificate's AIA link, as browsers fetch a
+    missing intermediate."""
+    try:
+        aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    except x509.ExtensionNotFound:
+        return None
+    urls = [
+        d.access_location.value
+        for d in aia
+        if d.access_method == x509.oid.AuthorityInformationAccessOID.CA_ISSUERS
+        and str(d.access_location.value).startswith("http")
+    ]
+    if not urls:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(urls[0])
+        if resp.status_code != 200:
+            return None
+        body = resp.content
+        if b"-----BEGIN CERTIFICATE-----" in body:
+            return body.decode("ascii", "replace")
+        return ssl.DER_cert_to_PEM_cert(body)
+    except (httpx.HTTPError, ValueError, *TIMEOUTS):
+        return None
+
+
 async def probe_tls(host: str, timeout: float) -> TlsInfo:
     info = TlsInfo(host)
+    cert = None
     with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
         info.version, der = await _handshake(host, _context(), timeout)
         if der:
@@ -277,6 +308,17 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
         info.verify_error = exc.verify_message or str(exc)
     except (OSError, *TIMEOUTS, ssl.SSLError, ValueError):
         info.verified = False
+    if info.verify_error and "local issuer" in info.verify_error.lower() and cert is not None:
+        # "unable to get local issuer" is either a missing intermediate, which browsers
+        # fetch by the AIA link, or a root nobody trusts (a private CA): try as they do.
+        pem = await _issuer_from_aia(cert, timeout)
+        if pem:
+            ctx = browser_trust()
+            with contextlib.suppress(ssl.SSLError, ValueError):
+                ctx.load_verify_locations(cadata=pem)
+                with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
+                    await _handshake(host, ctx, timeout)
+                    info.chain_incomplete = True
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         versions = {"TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1}
@@ -628,14 +670,14 @@ def tls_check(w: WebFacts) -> Check | None:
     if t.verify_error and _cert_reason(t.verify_error) != "срок действия истёк":
         mintsifry = "russian trusted" in t.issuer.lower()
         # Desktop Chrome fetches a missing intermediate itself; apps and some browsers don't.
-        incomplete = "local issuer" in t.verify_error.lower()
+        incomplete = t.chain_incomplete
         status = Status.WARN if mintsifry or incomplete else Status.FAIL
         details.append(
             "Сертификат выпущен НУЦ Минцифры: браузеры без российского корневого сертификата "
             "покажут посетителям ошибку."
             if mintsifry
-            else "Сервер не отдаёт промежуточный сертификат, или корневой сертификат неизвестен: "
-            "часть браузеров, мобильные приложения и почтовые клиенты покажут ошибку."
+            else "Сервер не отдаёт промежуточный сертификат: браузеры обычно скачивают его "
+            "сами, а мобильные приложения, почтовые клиенты и часть браузеров покажут ошибку."
             if incomplete
             else f"Браузеры не примут сертификат ({_cert_reason(t.verify_error)}) и покажут "
             "посетителям ошибку."

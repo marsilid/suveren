@@ -420,9 +420,14 @@ def test_x_frame_options_allow_from_does_not_protect():
 def test_tls_incomplete_chain_is_a_warning():
     exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
     t = TlsInfo("example.ru", "TLSv1.3", exp, {}, "unable to get local issuer certificate")
+    t.chain_incomplete = True  # the AIA link supplied the missing intermediate
     check = tls_check(web(tls=t))
     assert check is not None and check.status is Status.WARN
     assert "fullchain" in check.recommendation
+    # The same message for a private CA's root, which no browser trusts: a problem.
+    t.chain_incomplete = False
+    check = tls_check(web(tls=t))
+    assert check is not None and check.status is Status.FAIL
 
 
 def test_tls_unverified_certificate_is_said_not_hidden():
