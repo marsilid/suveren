@@ -656,6 +656,15 @@ def batch(
         writer.writeheader()
         for r in sorted(reports, key=overall_score):
             writer.writerow(batch_row(r))
+    # The same, one JSON object per line (for jq and databases), with every check's
+    # status by ID; sites that could not be checked say why.
+    jsonl_path = folder / "summary.jsonl"
+    with jsonl_path.open("w", encoding="utf-8") as fh:
+        for r in sorted(reports, key=overall_score):
+            row = {**batch_row(r), "checks": {c.id: c.status.value for c in r.checks if c.id}}
+            fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+        for host, err in failed:
+            fh.write(json.dumps({"domain": host, "error": err}, ensure_ascii=False) + "\n")
     index_path = write_batch_html(reports, failed, folder / "index.html", brand)
 
     grades = Counter(overall_grade(r) for r in reports)
@@ -668,7 +677,10 @@ def batch(
     console.print(line)
     if failed:
         console.print(f"  [#e5534b]Не проверены: {len(failed)}[/]")
-    console.print(f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}")
+    console.print(
+        f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}"
+        f"\n[bold]JSONL:[/]  {jsonl_path}"
+    )
     if open_report:
         _open(index_path)
 

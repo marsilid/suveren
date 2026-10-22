@@ -157,6 +157,10 @@ def test_batch_then_diff_then_audit(offline, tmp_path):
     written = {p.name for p in out.iterdir()}
     assert {"lab-good.ru.json", "lab-no-hsts.ru.json", "lab-good.ru.html"} <= written
     assert any(name.endswith(".csv") for name in written)
+    rows = [json.loads(line) for line in (out / "summary.jsonl").read_text("utf-8").splitlines()]
+    assert {r["domain"] for r in rows} == {"lab-good.ru", "lab-no-hsts.ru"}
+    no_hsts = next(r for r in rows if r["domain"] == "lab-no-hsts.ru")
+    assert no_hsts["checks"]["SUV-WEB-005"] == "warn"
 
     # The site that lost HSTS, compared with the reference one.
     diff = CliRunner().invoke(
