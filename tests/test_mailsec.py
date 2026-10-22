@@ -11,6 +11,7 @@ from suveren.mailsec import (
     check_spf,
     collect_mail,
     dkim_check,
+    dmarc_check,
     evaluate,
     parse_dmarc,
     parse_mta_sts_mode,
@@ -226,6 +227,36 @@ def test_dkim_without_node_stays_unknown():
     m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
     assert not m.dkim_node
     assert dkim_check(m).status is Status.UNKNOWN
+
+
+def test_dmarc_reports_to_outside_domain_need_its_consent():
+    # RFC 7489, section 7.1: the outside domain publishes <domain>._report._dmarc.<dest>.
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("_dmarc.example.ru", "TXT"): [
+            "v=DMARC1; p=reject; rua=mailto:d@reports.example.com,mailto:d@ok.example.net!10m;"
+            " ruf=mailto:f@mail.example.ru"
+        ],
+        ("example.ru._report._dmarc.ok.example.net", "TXT"): ["v=DMARC1;"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dmarc is not None
+    assert m.dmarc.report_domains() == ["reports.example.com", "ok.example.net", "mail.example.ru"]
+    assert m.dmarc_unauthorized == ["reports.example.com"]
+    check = dmarc_check(m)
+    assert check.status is Status.WARN
+    assert "example.ru._report._dmarc.reports.example.com" in check.recommendation
+    assert "RFC 7489, раздел 7.1" in check.details
+
+
+def test_dmarc_reports_to_own_domain_need_no_consent():
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("_dmarc.example.ru", "TXT"): ["v=DMARC1; p=reject; rua=mailto:d@example.ru"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dmarc_unauthorized == []
+    assert dmarc_check(m).status is Status.OK
 
 
 def test_null_mx_means_no_incoming_mail():

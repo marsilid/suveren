@@ -883,6 +883,31 @@ CASES: list[Case] = [
         files=site_files(),
         mta_sts="mode: enforce\nmx: mx.yandex.net\n",
     ),
+    Case(
+        "lab-dmarc-rua-outside",
+        "отчёты DMARC на чужой домен без его TXT-записи _report._dmarc (RFC 7489, 7.1)",
+        {"SUV-MAIL-001": "ok", "SUV-MAIL-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_dmarc.lab-dmarc-rua-outside.ru", "TXT"): [
+                "v=DMARC1; p=reject; rua=mailto:dmarc@reports.example"
+            ]
+        },
+    ),
+    Case(
+        "lab-dmarc-rua-outside-ok",
+        "отчёты DMARC на чужой домен, который их принимает: запись в порядке",
+        {"SUV-MAIL-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_dmarc.lab-dmarc-rua-outside-ok.ru", "TXT"): [
+                "v=DMARC1; p=reject; rua=mailto:dmarc@reports.example"
+            ],
+            ("lab-dmarc-rua-outside-ok.ru._report._dmarc.reports.example", "TXT"): ["v=DMARC1"],
+        },
+    ),
     # --- DKIM without a known selector (RFC 2308: an empty non-terminal is NOERROR) ---
     Case(
         "lab-dkim-odd-selector",

@@ -24,6 +24,7 @@ from suveren.checks import Check, Status
 from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS
+from suveren.utils import registrable_domain
 
 GROUP_MAIL = "Защита почты от подделки"
 
@@ -183,6 +184,19 @@ class Dmarc:
     subdomain_policy: str | None
     pct: int = 100
     rua: str | None = None
+    ruf: str | None = None
+
+    def report_domains(self) -> list[str]:
+        """Domains of the mailto: addresses in rua= and ruf=, in order, once each."""
+        found: list[str] = []
+        for uri in f"{self.rua or ''},{self.ruf or ''}".split(","):
+            # "mailto:a@b.ru!10m": the tail is a size limit, not part of the address.
+            address = uri.strip().split("!")[0]
+            if address.lower().startswith("mailto:") and "@" in address:
+                domain = address.rpartition("@")[2].lower().rstrip(".")
+                if domain and domain not in found:
+                    found.append(domain)
+        return found
 
 
 def parse_dmarc(record: str) -> Dmarc:
@@ -201,7 +215,7 @@ def parse_dmarc(record: str) -> Dmarc:
         pct = max(0, min(100, int(tags.get("pct", "100"))))
     except ValueError:
         pct = 100
-    return Dmarc(record.strip(), policy, sub, pct, tags.get("rua") or None)
+    return Dmarc(record.strip(), policy, sub, pct, tags.get("rua") or None, tags.get("ruf") or None)
 
 
 def dmarc_records(txt: list[str]) -> list[str]:
@@ -223,6 +237,8 @@ class MailFacts:
     # some record sits under _domainkey, so a key is probably published with a selector
     # we did not guess (the test internet.nl uses).
     dkim_node: bool = False
+    # Outside domains in rua=/ruf= that did not agree to take reports for this domain.
+    dmarc_unauthorized: list[str] = field(default_factory=list)
     mta_sts: str | None = None  # policy mode: enforce / testing / none
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
@@ -484,6 +500,24 @@ def _rank(status: Status) -> int:
 
 
 def dmarc_check(m: MailFacts) -> Check:
+    check = _dmarc_policy_check(m)
+    if m.dmarc_unauthorized and check.status is not Status.FAIL:
+        names = ", ".join(m.dmarc_unauthorized)
+        records = ", ".join(f"{m.domain}._report._dmarc.{d}" for d in m.dmarc_unauthorized)
+        check.status = Status.WARN
+        check.details += (
+            f" Но отчёты адресованы чужому домену ({names}), а он не подтвердил, что "
+            f"принимает их за {m.domain}: нет TXT-записи {records}. Почтовые сервисы, "
+            "которые следуют стандарту, такие отчёты не отправят (RFC 7489, раздел 7.1)."
+        )
+        check.recommendation = (
+            f"{check.recommendation} Опубликуйте в зоне {names} TXT-запись {records} "
+            'со значением "v=DMARC1".'
+        ).strip()
+    return check
+
+
+def _dmarc_policy_check(m: MailFacts) -> Check:
     title = "DMARC: что делать с поддельными письмами"
     if m.dmarc_count > 1:
         return Check(
@@ -511,7 +545,7 @@ def dmarc_check(m: MailFacts) -> Check:
         )
     reports = (
         # "mailto:a@b.ru!10m": the tail is a size limit, not part of the address.
-        f" Отчёты приходят на {', '.join(u.strip().split('!')[0] for u in d.rua.split(','))}."
+        f" Адрес для отчётов: {', '.join(u.strip().split('!')[0] for u in d.rua.split(','))}."
         if d.rua
         else " Адрес для отчётов (rua) не указан: вы не узнаете, кто рассылает письма от "
         "вашего имени."
@@ -666,6 +700,23 @@ async def _dkim_node(resolver: DnsResolver, domain: str) -> bool:
     return node is True and random is False
 
 
+async def _dmarc_unauthorized(resolver: DnsResolver, domain: str, dmarc: Dmarc) -> list[str]:
+    """Report domains outside the organisation without the <domain>._report._dmarc.<dest>
+    record that says they take the reports (RFC 7489, section 7.1)."""
+    own = registrable_domain(domain)
+    outside = [d for d in dmarc.report_domains() if registrable_domain(d) != own]
+
+    async def agreed(dest: str) -> bool:
+        try:
+            txt = await _txt(resolver, f"{domain}._report._dmarc.{dest}")
+        except DnsLookupError:
+            return True  # no answer is no proof of a mistake
+        return bool(dmarc_records(txt))
+
+    found = await asyncio.gather(*(agreed(d) for d in outside))
+    return [d for d, ok in zip(outside, found, strict=True) if not ok]
+
+
 async def _mta_sts(
     resolver: DnsResolver, client: httpx.AsyncClient, domain: str
 ) -> tuple[str | None, list[str]]:
@@ -713,6 +764,8 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         dkim=[],
         mx_hosts=parse_mx(mx),
     )
+    if facts.dmarc:
+        facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
     if receives:
         facts.dkim = await _dkim(resolver, domain)
         if not facts.dkim:
