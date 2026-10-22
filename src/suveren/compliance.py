@@ -58,8 +58,12 @@ _PD_FIELD = re.compile(
     re.I,
 )
 _CONSENT_TEXT = re.compile(r"соглас|персональн|политик|privacy|consent", re.I)
+# A statement the visitor makes ("нажимая кнопку, вы соглашаетесь с политикой", "даю
+# согласие на обработку"), not the title of a document linked in the footer.
 _CONSENT_NEARBY = re.compile(
-    r"соглас\w*\s+(?:на|с)\s+(?:обработк|политик|условиям)|обработк\w* (?:моих )?персональных",
+    r"(?:соглаша\w*|согласен|согласна|согласны|(?:даю|да[её]те|да[её]м)\s+(?:сво[её]\s+)?"
+    r"согласие)(?:\s+[\w-]+){0,3}?\s+(?:на|с|со)\s+(?:обработк|политик|услови|правил)|"
+    r"обработк\w* моих персональных",
     re.I,
 )
 _COOKIE_WIDGETS = re.compile(
@@ -91,6 +95,7 @@ class PolicyInfo:
     indirect_label: str | None = None
     # The link works but the text could not be read (bot wall, JS shell).
     unreadable: str | None = None
+    scripted: bool = True  # the page has scripts that may draw the text
 
 
 @dataclass(slots=True)
@@ -215,8 +220,12 @@ def pd_forms(page: Page) -> list[Form]:
 # (vkusvill.ru's cart: <input type="tel" name="GIFT_CARD">). Only the field's name is
 # read: CSS classes say "card" for an e-mail field in a card layout (banki.ru) and
 # "SignInBySms" for a phone (citilink.ru).
+# "name" and "tel" also sit in the names of things: tutu.ru's ticket search has
+# city_name_from, a hotel search has hotel_name.
 _NOT_PD_FIELD = re.compile(
-    r"card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|amount|qty|quantity", re.I
+    r"card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|amount|qty|quantity|"
+    r"city|town|station|airport|country|region|hotel|product|goods|item|file",
+    re.I,
 )
 _FIRST_STEP = re.compile(
     r"(?<!\w)(?:продолжить|далее|получить код|отправить код|выбрать станцию|next|continue)(?!\w)",
@@ -308,7 +317,9 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Политика обработки персональных данных",
                 Status.WARN,
                 f"Ссылка на политику есть, но страница не открылась: {policy.error}.",
-                "Проверьте, что ссылка рабочая.",
+                "Опубликуйте политику по этому адресу или исправьте ссылку (152-ФЗ, ст. 18.1 ч. 2)."
+                if policy.error.startswith("такой страницы нет")
+                else "Проверьте, что ссылка рабочая.",
                 link=policy.url,
             )
         )
@@ -330,7 +341,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
-            checks.append(policy_content(policy.text, bool(foreign_visitor)))
+            checks.append(policy_content(policy.text, bool(foreign_visitor), policy.scripted))
             checks.append(
                 policy_reality(
                     policy.text,
@@ -669,6 +680,10 @@ async def fetch_policy(
             return info
         status, html = resp.status_code, resp.text[:3_000_000]
         content_type = resp.headers.get("content-type", "")
+        if status in (404, 410):
+            # The link leads nowhere: no policy is published, whatever the link says.
+            info.error = f"такой страницы нет (код {status})"
+            return info
     info.fetched = True
     if "pdf" in content_type:
         info.is_pdf = True
@@ -679,6 +694,7 @@ async def fetch_policy(
         info.unreadable = problem
     else:
         info.text = parse_page(html).text
+        info.scripted = "<script" in html.lower()
     return info
 
 

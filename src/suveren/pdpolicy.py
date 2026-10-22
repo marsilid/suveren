@@ -107,11 +107,13 @@ def missing_sections(text: str, foreign: bool = False) -> list[str]:
     return missing
 
 
-def policy_content(text: str, foreign: bool) -> Check:
+def policy_content(text: str, foreign: bool, scripted: bool = True) -> Check:
+    """``scripted``: the policy page has scripts, so its text may be drawn by them."""
     low = _norm(text)
-    if len(re.findall(r"персональн", low)) < 3:
+    if len(re.findall(r"персональн", low)) < 3 and scripted:
         # The link answered with the site's shell (menu, footer) and the policy itself
-        # is drawn by a script, or this is not the policy at all.
+        # is drawn by a script, or this is not the policy at all. A page without scripts
+        # shows all it has: a stub "we respect your privacy" is judged as it is.
         return Check(
             GROUP_152,
             "Содержание политики",
@@ -122,7 +124,7 @@ def policy_content(text: str, foreign: bool) -> Check:
         )
     missing = missing_sections(text, foreign)
     mentions = len(re.findall(r"персональн", low))
-    if len(missing) >= 7 and mentions * 1500 < len(low):
+    if len(missing) >= 7 and mentions * 1500 < len(low) and len(low) >= _SHORT_POLICY:
         # A long page that hardly speaks of personal data and has none of the sections:
         # a page that links to the policy (often a PDF), not the policy (banki.ru).
         return Check(
