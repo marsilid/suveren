@@ -1,0 +1,91 @@
+"""`suveren company` end to end offline: site -> ИНН -> ЕГРЮЛ -> registers -> report."""
+
+import json
+from datetime import date
+
+import httpx
+import pytest
+from test_company import record
+from typer.testing import CliRunner
+
+import suveren.company as company_module
+from suveren.cli import app
+from suveren.errors import ModuleError
+from suveren.registries import RknOperator
+from suveren.sanctions import Entry, SanctionsIndex
+
+SITE = (
+    "<html><body><h1>Ромашка</h1><p>"
+    + "Цветы с доставкой по Москве. " * 40
+    + '</p><footer>ООО "Ромашка", ИНН 7707083893, ОГРН 1027700132195</footer></body></html>'
+)
+
+
+@pytest.fixture
+def offline(monkeypatch):
+    def handler(request):
+        if request.url.host == "romashka.ru":
+            return httpx.Response(200, text=SITE, headers={"content-type": "text/html"})
+        raise AssertionError(f"a real request to {request.url}")
+
+    def make_client(timeout, *, verify=True):
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+    async def whois_raw(domain, timeout):
+        return "domain: ROMASHKA.RU\norg: ООО Ромашка\nregistrar: RU-CENTER-RU\n"
+
+    async def egrul_search(client, query):
+        return [record()]
+
+    async def rkn_operator(client, inn):
+        return RknOperator("77-15-000001", "ООО Ромашка", inn, "", date(2016, 1, 1), None)
+
+    async def load_index(client, *, refresh=False):
+        person = Entry("us", "1", "person", ["IVANOV, Ivan Ivanovich"], [], "RUSSIA-EO14024")
+        return SanctionsIndex([person])
+
+    for name, fake in {
+        "make_client": make_client,
+        "whois_raw": whois_raw,
+        "egrul_search": egrul_search,
+        "rkn_operator": rkn_operator,
+        "load_index": load_index,
+    }.items():
+        monkeypatch.setattr(company_module, name, fake)
+
+
+def test_company_from_a_domain(offline, tmp_path):
+    out = tmp_path / "c.json"
+    result = CliRunner().invoke(
+        app,
+        ["company", "romashka.ru", "--json", str(out), "-o", str(tmp_path / "c.html"), "--no-open"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out.read_text(encoding="utf-8"))
+    checks = {c["id"]: c for c in data["checks"]}
+    assert data["inn"] == "7707083893"
+    assert checks["SUV-CO-001"]["status"] == "ok"  # active in ЕГРЮЛ
+    assert checks["SUV-CO-006"]["status"] == "ok"  # in the operators' register
+    assert checks["SUV-CO-006"]["law"] == "152-ФЗ, ст. 22"
+    # The director's name matches a sanctioned person: a lead to check, not a verdict.
+    assert checks["SUV-CO-004"]["status"] in ("warn", "fail")
+    assert (tmp_path / "c.html").read_text(encoding="utf-8").count("7707083893") >= 1
+
+
+def test_company_by_inn_when_egrul_is_down(offline, monkeypatch, tmp_path):
+    async def egrul_down(client, query):
+        raise ModuleError("ФНС не ответила")
+
+    monkeypatch.setattr(company_module, "egrul_search", egrul_down)
+    out = tmp_path / "c.json"
+    result = CliRunner().invoke(
+        app,
+        ["company", "7707083893", "--no-sanctions", "--json", str(out), "--no-report"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert any("ЕГРЮЛ: ФНС не ответила" in n for n in data["notes"])
+    statuses = {c["id"]: c["status"] for c in data["checks"]}
+    assert statuses["SUV-CO-001"] != "ok"
