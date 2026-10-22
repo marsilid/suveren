@@ -277,7 +277,16 @@ def test_missing_policy_is_a_problem_only_when_the_browser_saw_the_page():
 
     # Without a browser a footer added by scripts is unseen (mos.ru): a warning to recheck.
     assert policy(False).status is Status.WARN and "--browser" in policy(False).details
-    assert policy(True).status is Status.FAIL
+    # RICH_PAGE collects nothing: the duty to publish the policy on the site is for an
+    # operator collecting data through it (152-ФЗ, ст. 18.1 ч. 2).
+    assert policy(True).status is Status.WARN and "не обязательно" in policy(True).details
+    form = '<form><input type="tel" name="phone"><button>Позвоните мне</button></form>'
+    html = RICH_PAGE.replace("</body>", form + "</body>")
+    data = ComplianceInput(
+        final_url="https://example.ru/", page=parse_page(html), deps=[], rendered=True
+    )
+    checks = {c.title: c for c in evaluate(data, html)}
+    assert checks["Политика обработки персональных данных"].status is Status.FAIL
 
 
 def test_overall_scope_warns_when_much_was_not_checked():

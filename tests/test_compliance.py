@@ -102,8 +102,13 @@ def test_foreign_hosting_with_forms_fails_localisation():
 
 
 def test_http_site_fails_encryption():
-    checks = run("<p>x</p>", final_url="http://example.ru/")
+    form = '<form><input type="tel" name="phone"><button>Позвоните мне</button></form>'
+    checks = run(form, final_url="http://example.ru/")
     assert status(checks, "Защищённое соединение") is Status.FAIL
+    # No form to send in the clear: a warning, and no false "data from forms" sentence.
+    checks = run("<p>x</p>", final_url="http://example.ru/")
+    check = next(c for c in checks if c.title == "Защищённое соединение")
+    assert check.status is Status.WARN and "форм на проверенных страницах нет" in check.details
 
 
 def test_policy_content_missing_sections():

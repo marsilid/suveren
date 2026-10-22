@@ -57,7 +57,13 @@ _PD_FIELD = re.compile(
     r"phone|tel|e-?mail|mail|name|fio|фио|имя|телефон|почт|фамили|contact|whatsapp|telegram",
     re.I,
 )
-_CONSENT_TEXT = re.compile(r"соглас|персональн|политик|privacy|consent", re.I)
+# What a consent checkbox is about: processing, the policy. "Согласен получать рассылку"
+# is a newsletter opt-in, not consent to processing.
+_CONSENT_TEXT = re.compile(
+    r"обработк|персональн|политик\w* конфиденциальн|политик\w* обработк|privacy|consent", re.I
+)
+# A checkbox for news or ads: ticked in advance, it is not the consent to processing.
+_MARKETING_BOX = re.compile(r"news|subscri|mailing|promo|advert|реклам|рассыл|новост", re.I)
 # A statement the visitor makes ("нажимая кнопку, вы соглашаетесь с политикой", "даю
 # согласие на обработку"), not the title of a document linked in the footer.
 _CONSENT_NEARBY = re.compile(
@@ -72,7 +78,10 @@ _COOKIE_WIDGETS = re.compile(
     re.I,
 )
 _COOKIE_TEXT = re.compile(r"cookie|куки", re.I)
-_COOKIE_CONTEXT = re.compile(r"соглас|использ|принять|принимаю|accept|продолжая", re.I)
+# Verbs of a notice ("мы используем cookie", "вы соглашаетесь", "принять"), not the nouns
+# of a document title: a footer link "Политика использования файлов cookie" next to
+# "Пользовательское соглашение" is no notice.
+_COOKIE_CONTEXT = re.compile(r"соглаша|согласн|использу|принять|принимаю|accept|продолжая", re.I)
 # Visitor-tracking categories: they set cookies whatever the provider's country.
 _TRACKING = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT})
 # Who receives visitor data as a third party, and who sets cookies, for policy claims.
@@ -279,8 +288,20 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Политика обработки персональных данных",
                 # Unproven if the sign-in page, where the link sometimes is, was a bot wall,
                 # or without a browser: footers added by scripts (mos.ru) are not in the HTML.
-                Status.FAIL if data.rendered and not data.login_blocked else Status.WARN,
+                # The duty to publish it on the site is for an operator collecting data
+                # through the site (152-ФЗ, ст. 18.1 ч. 2): with no form or counter seen,
+                # that is not proven either.
+                Status.FAIL
+                if data.rendered and not data.login_blocked and (forms or tracking)
+                else Status.WARN,
                 "На проверенных страницах нет ссылки на политику обработки персональных данных."
+                + (
+                    ""
+                    if forms or tracking
+                    else " Форм и счётчиков, собирающих данные, на них тоже нет: если сайт "
+                    "совсем не собирает данные посетителей, публиковать политику на нём не "
+                    "обязательно."
+                )
                 + (
                     ""
                     if data.rendered
@@ -378,7 +399,16 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         steps = [(p, f) for p, f in unseen if _FIRST_STEP.search(f.text)]
         hard = [x for x in unseen if x not in steps]
         soft = [(p, f) for p, f in missing if (p, f) not in unseen]
-        prechecked = [f for f in forms if any(i.type == "checkbox" and i.checked for i in f.inputs)]
+        prechecked = [
+            f
+            for f in forms
+            if any(
+                i.type == "checkbox"
+                and i.checked
+                and not _MARKETING_BOX.search(f"{i.name} {i.hint}")
+                for i in f.inputs
+            )
+        ]
         if steps and not hard:
             where = ", ".join(dict.fromkeys(p for p, _ in steps))
             checks.append(
@@ -538,8 +568,12 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             Check(
                 GROUP_152,
                 "Защищённое соединение",
-                Status.FAIL,
-                "Сайт открывается без HTTPS: данные из форм передаются в открытом виде.",
+                Status.FAIL if forms else Status.WARN,
+                "Сайт открывается без HTTPS: данные из форм передаются в открытом виде."
+                if forms
+                else "Сайт открывается без HTTPS: форм на проверенных страницах нет, но адрес "
+                "посетителя, cookies и всё, что он введёт на других страницах, передаются в "
+                "открытом виде.",
                 "Включите HTTPS и перенаправление с HTTP.",
             )
         )
@@ -585,7 +619,9 @@ LAW_BY_TITLE = {
 def _form_has_consent(form: Form) -> bool:
     if any(i.type == "checkbox" for i in form.inputs) and _CONSENT_TEXT.search(form.text):
         return True
-    return bool(re.search(r"персональн\w* данн|соглас\w* на обработк", form.text, re.I))
+    # A statement ("нажимая кнопку, вы соглашаетесь с политикой"), not any mention of
+    # personal data: "мы не храним ваши персональные данные" is no consent.
+    return bool(_CONSENT_NEARBY.search(form.text))
 
 
 def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Check | None:

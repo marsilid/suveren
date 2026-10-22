@@ -190,6 +190,7 @@ class Case:
     tls: TlsInfo | None = None  # None: a good certificate
     dns: dict[tuple[str, str], list[str]] | None = None  # changes over good_dns
     mta_sts: str | None = MTA_STS_OK
+    http: bool = False  # the site answers over plain HTTP
 
     @property
     def host(self) -> str:
@@ -717,6 +718,48 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-newsletter-box",
+        "в форме только галочка «согласен получать рассылку»: это не согласие на обработку",
+        {"SUV-PD-003": "fail"},
+        html=page(
+            '<form action="/lead"><input name="name" placeholder="Ваше имя">'
+            '<input type="tel" name="phone"><label><input type="checkbox" name="news"> '
+            "Согласен получать рассылку</label><button>Отправить</button></form>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-marketing-prechecked",
+        "согласие на обработку без галочки, а заранее отмечена подписка на новости",
+        {"SUV-PD-003": "ok"},
+        html=page(
+            '<form action="/lead"><input name="name" placeholder="Ваше имя">'
+            '<input type="tel" name="phone"><label><input type="checkbox" name="agree" '
+            "required> Я даю согласие на обработку персональных данных</label>"
+            '<label><input type="checkbox" name="newsletter" checked> Хочу получать новости'
+            "</label><button>Отправить</button></form>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-cookie-footer-link",
+        "Google Analytics, а про cookies только ссылка в подвале на документ",
+        {"SUV-PD-005": "warn"},
+        html=page(
+            FORM_OK + GA + '<p><a href="/cookies">Политика использования файлов cookie</a> '
+            '<a href="/terms">Пользовательское соглашение</a></p>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-http-no-forms",
+        "сайт-визитка без HTTPS и без форм: данных из форм нет, но соединение открытое",
+        {"SUV-PD-008": "warn"},
+        html=page("<p>Звоните: +7 495 000-00-00</p>"),
+        files=site_files(),
+        http=True,
+    ),
+    Case(
         "lab-spf-too-many",
         "SPF требует 11 DNS-запросов при лимите 10 (RFC 7208, 4.6.4)",
         {"SUV-MAIL-002": "fail"},
@@ -823,7 +866,7 @@ class FakeResolver:
 
 
 def _transport(case: Case) -> httpx.MockTransport:
-    base = f"https://{case.host}"
+    base = f"{'http' if case.http else 'https'}://{case.host}"
     bodies = {(k if "://" in k else base + k): v for k, v in case.files.items()}
     if case.mta_sts is not None:
         bodies[f"https://mta-sts.{case.host}/.well-known/mta-sts.txt"] = case.mta_sts
@@ -843,7 +886,7 @@ def _transport(case: Case) -> httpx.MockTransport:
 
 async def run_case(case: Case) -> dict[str, Check]:
     host = case.host
-    final_url = f"https://{host}/"
+    final_url = f"{'http' if case.http else 'https'}://{host}/"
     facts = Facts(
         host,
         host,
