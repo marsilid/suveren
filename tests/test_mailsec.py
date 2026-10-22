@@ -10,6 +10,7 @@ from suveren.mailsec import (
     SpfResult,
     check_spf,
     collect_mail,
+    dkim_check,
     evaluate,
     parse_dmarc,
     parse_mta_sts_mode,
@@ -31,6 +32,12 @@ class FakeResolver:
         if value == ["SERVFAIL"]:
             raise DnsLookupError("SERVFAIL")
         return value
+
+    async def node_exists(self, name: str) -> bool | None:
+        names = {n for n, _ in self.records}
+        if "*." + name.partition(".")[2] in names:
+            return True
+        return any(n == name or n.endswith("." + name) for n in names)
 
 
 def facts(**kwargs) -> MailFacts:
@@ -188,6 +195,37 @@ def test_collect_mail_reads_every_record():
     assert m.dkim == ["mail"]
     assert m.mta_sts is None
     assert m.tls_rpt
+
+
+def test_dkim_node_with_unknown_selector_is_probably_configured():
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("s2026._domainkey.example.ru", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEB"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dkim == [] and m.dkim_node
+    check = dkim_check(m)
+    assert check.status is Status.OK
+    assert "вероятно, настроен, селектор неизвестен" in check.details
+
+
+def test_dkim_node_ignored_when_every_name_answers():
+    # A wildcard (or a resolver that answers NOERROR to everything) makes _domainkey
+    # exist too, so the sign proves nothing.
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("*.example.ru", "TXT"): ["v=spf1 -all"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert not m.dkim_node
+    assert dkim_check(m).status is Status.UNKNOWN
+
+
+def test_dkim_without_node_stays_unknown():
+    records = {("example.ru", "MX"): ["10 mx.example.ru."]}
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert not m.dkim_node
+    assert dkim_check(m).status is Status.UNKNOWN
 
 
 def test_null_mx_means_no_incoming_mail():

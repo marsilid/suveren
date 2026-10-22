@@ -883,6 +883,39 @@ CASES: list[Case] = [
         files=site_files(),
         mta_sts="mode: enforce\nmx: mx.yandex.net\n",
     ),
+    # --- DKIM without a known selector (RFC 2308: an empty non-terminal is NOERROR) ---
+    Case(
+        "lab-dkim-odd-selector",
+        "ключ DKIM под редким селектором: узел _domainkey есть, DKIM, вероятно, настроен",
+        {"SUV-MAIL-004": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-odd-selector.ru", "TXT"): [],
+            ("k2026q4._domainkey.lab-dkim-odd-selector.ru", "TXT"): [
+                "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GN"
+            ],
+        },
+    ),
+    Case(
+        "lab-dkim-none",
+        "под _domainkey ничего нет: про DKIM ничего сказать нельзя",
+        {"SUV-MAIL-004": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("mail._domainkey.lab-dkim-none.ru", "TXT"): []},
+    ),
+    Case(
+        "lab-dkim-wildcard",
+        "в зоне *-запись: на любое имя NOERROR, узел _domainkey ничего не доказывает",
+        {"SUV-MAIL-004": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-wildcard.ru", "TXT"): [],
+            ("*.lab-dkim-wildcard.ru", "TXT"): ["v=spf1 -all"],
+        },
+    ),
 ]
 
 # Expected and actual differ here for a stated reason; the table counts them as misses.
@@ -903,6 +936,14 @@ class FakeResolver:
 
     async def exists(self, domain: str) -> bool:
         return True
+
+    async def node_exists(self, name: str) -> bool | None:
+        # A name exists when it, or a name under it, holds records (RFC 2308), or a
+        # wildcard covers it.
+        names = {n for (n, _), v in self.records.items() if v}
+        if "*." + name.partition(".")[2] in names:
+            return True
+        return any(n == name or n.endswith("." + name) for n in names)
 
 
 def _transport(case: Case) -> httpx.MockTransport:

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+import secrets
 from dataclasses import dataclass, field
 
 import httpx
@@ -218,6 +219,10 @@ class MailFacts:
     dmarc: Dmarc | None
     dmarc_count: int
     dkim: list[str]  # selectors with a published key
+    # _domainkey.<domain> answers NOERROR while a random name under the domain is NXDOMAIN:
+    # some record sits under _domainkey, so a key is probably published with a selector
+    # we did not guess (the test internet.nl uses).
+    dkim_node: bool = False
     mta_sts: str | None = None  # policy mode: enforce / testing / none
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
@@ -422,11 +427,12 @@ def spf_check(m: MailFacts) -> Check:
         recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
     elif r.void:
         status = max(status, Status.WARN, key=_rank)
+        one = len(r.void) == 1
         details.append(
-            f"{'Имя' if len(r.void) == 1 else 'Имена'} {', '.join(r.void)} не "
-            f"{'отвечает' if len(r.void) == 1 else 'отвечают'} в DNS: с адресов, которые "
-            "за ними стояли, письма уже не проходят SPF, а больше двух таких имён — ошибка "
-            "проверки всей записи (RFC 7208, раздел 4.6.4)."
+            f"{'Имя' if one else 'Имена'} {', '.join(r.void)} не "
+            f"{'отвечает' if one else 'отвечают'} в DNS: с адресов, которые "
+            f"за {'ним' if one else 'ними'} стояли, письма уже не проходят SPF, а больше двух "
+            "таких имён — ошибка проверки всей записи (RFC 7208, раздел 4.6.4)."
         )
         recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
     if r.spf.uses_ptr:
@@ -546,6 +552,16 @@ def dkim_check(m: MailFacts) -> Check:
             Status.OK,
             "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + ".",
         )
+    if m.dkim_node:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.OK,
+            f"DKIM, вероятно, настроен, селектор неизвестен: узел _domainkey.{m.domain} "
+            "есть в DNS, значит, под ним опубликованы записи, но среди распространённых "
+            "селекторов ключа нет. Чтобы убедиться, посмотрите заголовок DKIM-Signature (s=) "
+            "в любом письме от компании.",
+        )
     return Check(
         GROUP_MAIL,
         title,
@@ -640,6 +656,16 @@ async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
     return [s for s, ok in zip(DKIM_SELECTORS, found, strict=True) if ok]
 
 
+async def _dkim_node(resolver: DnsResolver, domain: str) -> bool:
+    """_domainkey exists as a node, and the zone (or the resolver) doesn't answer NOERROR
+    for any name: a random label must come back NXDOMAIN, or the sign means nothing."""
+    node, random = await asyncio.gather(
+        resolver.node_exists(f"_domainkey.{domain}"),
+        resolver.node_exists(f"suveren-{secrets.token_hex(6)}.{domain}"),
+    )
+    return node is True and random is False
+
+
 async def _mta_sts(
     resolver: DnsResolver, client: httpx.AsyncClient, domain: str
 ) -> tuple[str | None, list[str]]:
@@ -689,6 +715,8 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     )
     if receives:
         facts.dkim = await _dkim(resolver, domain)
+        if not facts.dkim:
+            facts.dkim_node = await _dkim_node(resolver, domain)
         facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain)
         rpt = await _txt(resolver, f"_smtp._tls.{domain}")
         facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)

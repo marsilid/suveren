@@ -149,3 +149,34 @@ def test_system_resolver_maps_dnspython_outcomes():
     assert asyncio.run(r.exists("gone.example")) is False
     assert asyncio.run(r.exists("slow.example")) is True  # no proof it is missing
     assert asyncio.run(r.is_healthy()) is True
+    assert asyncio.run(r.node_exists("example.ru")) is True
+    assert asyncio.run(r.node_exists("gone.example")) is False
+    assert asyncio.run(r.node_exists("slow.example")) is None
+
+
+def test_node_exists_tells_empty_node_from_missing_name():
+    import dns.resolver
+    import httpx
+
+    from suveren.dnsutil import SystemResolver
+
+    class Fake:
+        async def resolve(self, name, rtype):
+            raise dns.resolver.NoAnswer  # NOERROR with no records: an empty non-terminal
+
+    r = SystemResolver(2.0)
+    r._resolver = Fake()
+    assert asyncio.run(r.node_exists("_domainkey.example.ru")) is True
+
+    def handler(request):
+        name = request.url.params["name"]
+        status = {"_domainkey.example.ru": 0, "gone.example.ru": 3}.get(name, 2)
+        return httpx.Response(200, json={"Status": status})
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            doh = DohResolver(client)
+            names = ("_domainkey.example.ru", "gone.example.ru", "servfail.example.ru")
+            return [await doh.node_exists(n) for n in names]
+
+    assert asyncio.run(go()) == [True, False, None]

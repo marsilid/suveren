@@ -77,6 +77,11 @@ class DnsResolver(ABC):
     async def exists(self, domain: str) -> bool:
         """False only on a definitive NXDOMAIN."""
 
+    async def node_exists(self, name: str) -> bool | None:
+        """True on NOERROR, even with no records (an empty non-terminal, RFC 2308);
+        False on NXDOMAIN; None when the answer can't be trusted."""
+        return None
+
     async def is_healthy(self) -> bool:
         async def probe(name: str, rtype: str) -> bool:
             try:
@@ -125,6 +130,17 @@ class SystemResolver(DnsResolver):
             return False
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
             return True
+        return True
+
+    async def node_exists(self, name: str) -> bool | None:
+        try:
+            await self._resolver.resolve(name, "TXT")
+        except dns.resolver.NXDOMAIN:
+            return False
+        except dns.resolver.NoAnswer:
+            return True
+        except dns.exception.DNSException:
+            return None
         return True
 
 
@@ -193,6 +209,15 @@ class DohResolver(DnsResolver):
         except DnsLookupError:
             return True
         return payload.get("Status") != 3
+
+    async def node_exists(self, name: str) -> bool | None:
+        try:
+            status = (await self._query(name, "TXT")).get("Status")
+        except DnsLookupError:
+            return None
+        if status == 0:
+            return True
+        return False if status == 3 else None
 
 
 NOTE_DOT = (

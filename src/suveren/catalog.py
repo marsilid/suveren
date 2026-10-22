@@ -102,7 +102,7 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-MAIL-003", MAIL, "DMARC: что делать с поддельными письмами", "mail",
           "mail dmarc", "Политика DMARC: none, quarantine или reject, pct и отчёты."),
     _spec("SUV-MAIL-004", MAIL, "DKIM: цифровая подпись писем", "mail", "mail dkim",
-          "Ключи DKIM среди распространённых селекторов."),
+          "Ключи DKIM среди распространённых селекторов, иначе узел _domainkey в DNS."),
     _spec("SUV-MAIL-005", MAIL, "Шифрование входящей почты (MTA-STS)", "mail",
           "mail tls", "MTA-STS и TLS-RPT: защита входящей почты от понижения до открытого текста."),
     # --- web security -------------------------------------------------------------------
