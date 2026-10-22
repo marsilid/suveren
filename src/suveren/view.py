@@ -8,11 +8,11 @@ colours every number ("152-ФЗ", dates in paths) and makes the output look rand
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from rich import box
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -146,7 +146,7 @@ def summary_panel(report: Report) -> Panel:
         (" · российских ", DIM),
         (str(report.domestic_count), "bold"),
     )
-    rows: list[object] = [top, scope, Text(""), deps, country_bar(report)]
+    rows: list[RenderableType] = [top, scope, Text(""), deps, country_bar(report)]
     if report.checks:
         rows += [Text(""), check_counts(report.checks, words=True)]
     extra = Text()
@@ -270,7 +270,7 @@ def print_checks(console: Console, checks: list[Check], *, verbose: bool = False
 
 
 def print_footer(
-    console: Console, report: Report | None, files: list[tuple[str, Path | str]]
+    console: Console, report: Report | None, files: Sequence[tuple[str, Path | str]]
 ) -> None:
     """Where the files are and what to do first: the last thing the eye lands on."""
     console.print()

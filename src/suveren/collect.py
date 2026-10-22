@@ -534,7 +534,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             "registrar": "регистратора",
             "tls": "SSL-сертификат",
         }
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        results: list[Any] = await asyncio.gather(*tasks.values(), return_exceptions=True)
         await c.aclose()
 
     for key, value in zip(tasks, results, strict=True):

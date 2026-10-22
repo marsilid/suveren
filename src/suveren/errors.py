@@ -21,4 +21,7 @@ class ModuleError(SuverenError):
 
 # asyncio.wait_for raises asyncio.TimeoutError, which only became the built-in
 # TimeoutError in Python 3.11; catch both so 3.10 behaves the same.
-TIMEOUTS: tuple[type[BaseException], ...] = (TimeoutError, asyncio.TimeoutError)
+TIMEOUTS: tuple[type[TimeoutError], type[asyncio.TimeoutError]] = (
+    TimeoutError,
+    asyncio.TimeoutError,
+)

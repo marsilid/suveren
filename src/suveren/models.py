@@ -68,7 +68,7 @@ class Category(str, Enum):
         return CATEGORIES[self]
 
     @property
-    def title(self) -> str:
+    def title(self) -> str:  # type: ignore[override]  # the category's name, not str.title()
         return CATEGORIES[self].title
 
     @property

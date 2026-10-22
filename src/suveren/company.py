@@ -207,16 +207,20 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             )
         head = (rec.name_full if rec.individual else rec.head_name) if rec else None
         if head and rec and rec.head_is_org:
-            strong = any(h.how in ("id", "name") for h in report.person_hits)
+            person_strong = any(h.how in ("id", "name") for h in report.person_hits)
             title = "Управляющая организация в санкционных списках"
             if report.person_hits:
                 checks.append(
                     Check(
                         GROUP,
                         title,
-                        Status.FAIL if strong else Status.WARN,
+                        Status.FAIL if person_strong else Status.WARN,
                         f"{head}: "
-                        + ("найдена в санкционных списках." if strong else "похожие названия."),
+                        + (
+                            "найдена в санкционных списках."
+                            if person_strong
+                            else "похожие названия."
+                        ),
                         "Подробности в таблице ниже.",
                     )
                 )
@@ -400,7 +404,7 @@ async def run_company(
             try:
                 rows = await egrul_search(client, query)
                 exact = [r for r in rows if query in (r.inn, r.ogrn)]
-                report.egrul = (exact or rows or [None])[0]
+                report.egrul = next(iter(exact or rows), None)
             except ModuleError as exc:
                 report.notes.append(f"ЕГРЮЛ: {exc}.")
             if report.egrul:

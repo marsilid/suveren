@@ -766,7 +766,7 @@ async def run_compliance(
             target = (via_hub, None)
     if target and target[1] is None:
         data.policy = await fetch_policy(client, target[0], prefetched.get(target[0]))
-    elif target:
+    elif target and target[1] is not None:
         doc = await fetch_policy(client, target[0], prefetched.get(target[0]))
         if doc.fetched and "персональн" in doc.text.lower():
             doc.indirect_label = target[1][:60]

@@ -36,6 +36,8 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: Types
+        run: mypy
       - name: Test
         run: pytest -q
       - name: CLI smoke test

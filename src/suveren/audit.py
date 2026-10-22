@@ -68,7 +68,7 @@ def audit(report: dict[str, Any]) -> list[Issue]:
             )
         )
     web1 = by_id.get("SUV-WEB-001")
-    scripts = bool(web1) and "Страницы загружают скрипты" in (web1.get("details") or "")
+    scripts = "Страницы загружают скрипты" in ((web1 or {}).get("details") or "")
     if scripts and pd10 and pd10["details"].startswith("Сторонних сервисов"):
         issues.append(Issue("scripts-disagree", "SUV-PD-010", "WEB-001 нашёл сторонние скрипты"))
     blk3 = by_id.get("SUV-BLK-003")

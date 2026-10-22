@@ -49,7 +49,7 @@ def open_path(path: Path) -> None:
     """Open a file or folder in the system's default application."""
     with contextlib.suppress(Exception):
         if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
+            os.startfile(path)  # type: ignore[attr-defined,unused-ignore]  # Windows only
         elif sys.platform == "darwin":
             subprocess.run(["open", str(path)], check=False)
         else:

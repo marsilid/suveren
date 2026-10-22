@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import csv
+import functools
+import io
 import json
 import sys
 import tempfile
@@ -60,8 +62,9 @@ from suveren.view import (
 # The output uses box-drawing and Cyrillic. A legacy Windows console (cp1251/cp866)
 # can't encode some of it and would crash, so force UTF-8 output.
 for _stream in (sys.stdout, sys.stderr):
-    with contextlib.suppress(Exception):
-        _stream.reconfigure(encoding="utf-8")
+    if isinstance(_stream, io.TextIOWrapper):
+        with contextlib.suppress(Exception):
+            _stream.reconfigure(encoding="utf-8")
 
 app = typer.Typer(
     add_completion=False,
@@ -440,7 +443,7 @@ def scan(
         console.print(f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]")
         raise typer.Exit(3)
     failing = failing_checks(report, fail_on)
-    if failing:
+    if failing and fail_on is not None:
         ids = ", ".join(dict.fromkeys(c.id for c in failing))
         console.print(f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]")
         raise typer.Exit(4)
@@ -579,7 +582,7 @@ def batch(
             console.print(line)
             return host, report, None
 
-        return await gather_limited([lambda h=h: one(h) for h in hosts], jobs)
+        return await gather_limited([functools.partial(one, h) for h in hosts], jobs)
 
     with _spinner("[grey50]Проверка…[/]"):
         results = asyncio.run(run_all())
