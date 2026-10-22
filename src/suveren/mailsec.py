@@ -12,6 +12,7 @@ verdict is built on DMARC and SPF/DKIM are reported as supporting checks.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 from dataclasses import dataclass, field
 
@@ -60,6 +61,7 @@ class Spf:
     includes: list[str] = field(default_factory=list)
     lookups: int = 0  # DNS-querying terms in this record alone
     uses_ptr: bool = False  # "ptr" SHOULD NOT be used (RFC 7208, section 5.5)
+    targets: list[tuple[str, str]] = field(default_factory=list)  # ("A", host) for a:host
 
 
 def spf_records(txt: list[str]) -> list[str]:
@@ -86,6 +88,8 @@ def parse_spf(record: str) -> Spf:
             spf.includes.append(value.rstrip("."))
         elif name == "ptr":
             spf.uses_ptr = True
+        elif name in ("a", "mx") and value and "%{" not in value:
+            spf.targets.append((name.upper(), value.split("/", 1)[0].rstrip(".")))
         if name in _SPF_LOOKUP_TERMS:
             spf.lookups += 1
     if spf.all is not None and spf.redirect:
@@ -102,6 +106,7 @@ class SpfResult:
     lookups: int = 0  # total across includes and redirects
     effective_all: str | None = None
     problems: list[str] = field(default_factory=list)
+    void: list[str] = field(default_factory=list)  # a:/mx: names with an empty answer
 
 
 async def _txt(resolver: DnsResolver, name: str) -> list[str]:
@@ -140,6 +145,12 @@ async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
         twice counts twice (RFC 7208, section 4.6.4); a redirect hands over its target's
         "all", however long the chain (section 6.1)."""
         total, effective = record.lookups, record.all
+        for rtype, host in record.targets:
+            # A name with no answer is a "void lookup"; more than two in one evaluation
+            # are a permerror (RFC 7208, section 4.6.4).
+            with contextlib.suppress(DnsLookupError):
+                if not await resolver.resolve(host, rtype) and host not in result.void:
+                    result.void.append(host)
         targets = [(n, False) for n in record.includes]
         targets += [(record.redirect, True)] if record.redirect else []
         for target, is_redirect in targets:
@@ -401,6 +412,23 @@ def spf_check(m: MailFacts) -> Check:
             else "Стоит ?all: про остальные серверы SPF ничего не говорит."
         )
         recommendation = recommendation or "Завершите запись на ~all (или -all)."
+    if len(r.void) > 2:
+        status = Status.FAIL
+        details.append(
+            f"Имена {', '.join(r.void[:5])} не отвечают в DNS: больше двух таких запросов — "
+            "ошибка проверки SPF (permerror, RFC 7208, раздел 4.6.4), и SPF не проходят даже "
+            "настоящие письма."
+        )
+        recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
+    elif r.void:
+        status = max(status, Status.WARN, key=_rank)
+        details.append(
+            f"{'Имя' if len(r.void) == 1 else 'Имена'} {', '.join(r.void)} не "
+            f"{'отвечает' if len(r.void) == 1 else 'отвечают'} в DNS: с адресов, которые "
+            "за ними стояли, письма уже не проходят SPF, а больше двух таких имён — ошибка "
+            "проверки всей записи (RFC 7208, раздел 4.6.4)."
+        )
+        recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
     if r.spf.uses_ptr:
         status = max(status, Status.WARN, key=_rank)
         details.append(

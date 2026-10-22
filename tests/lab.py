@@ -828,6 +828,19 @@ CASES: list[Case] = [
         },
     ),
     Case(
+        "lab-spf-void",
+        "в SPF три имени a: без адресов: больше двух пустых ответов — permerror (4.6.4)",
+        {"SUV-MAIL-002": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-void.ru", "TXT"): [
+                "v=spf1 a:old1.lab.example a:old2.lab.example a:old3.lab.example "
+                "include:_spf.yandex.net -all"
+            ]
+        },
+    ),
+    Case(
         "lab-spf-redirect-chain",
         "redirect ведёт на redirect, в конце -all: запись в порядке",
         {"SUV-MAIL-002": "ok"},
