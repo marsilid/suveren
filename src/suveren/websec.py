@@ -527,9 +527,30 @@ def csp_check(w: WebFacts) -> Check:
         title,
         Status.WARN,
         "CSP задана, но слабая: " + "; ".join(problems) + ".",
-        "Уберите 'unsafe-inline' и 'unsafe-eval' из script-src (используйте nonce или "
-        "хэши), перечислите конкретные домены и добавьте object-src 'none'.",
+        _csp_fix(problems),
     )
+
+
+def _csp_fix(problems: list[str]) -> str:
+    """Advice for exactly the weaknesses found (skillbox.ru has no script-src at all,
+    so "remove 'unsafe-inline'" would be advice about something it doesn't have)."""
+    fixes = []
+    for problem in problems:
+        if problem.startswith("нет script-src"):
+            fixes.append(
+                "добавьте script-src со своими источниками ('self' и нужные домены, для "
+                "встроенных скриптов — nonce)"
+            )
+        elif problem.startswith("'unsafe-inline'"):
+            fixes.append("уберите 'unsafe-inline' из script-src (используйте nonce или хэши)")
+        elif problem.startswith("'unsafe-eval'"):
+            fixes.append("уберите 'unsafe-eval'")
+        elif "в script-src разрешает" in problem:
+            fixes.append("перечислите конкретные домены вместо *, http: и https:")
+        elif problem.startswith("нет object-src"):
+            fixes.append("добавьте object-src 'none'")
+    text = ", ".join(fixes) or "ограничьте источники скриптов"
+    return text[0].upper() + text[1:] + "."
 
 
 def hsts_check(w: WebFacts) -> Check | None:

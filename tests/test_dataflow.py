@@ -25,7 +25,9 @@ def test_flow_groups_by_country_foreign_first():
     check = flow_check(rows)
     assert check.id == "SUV-PD-010" and check.status is Status.WARN
     assert "США — Google Analytics, Meta Pixel" in check.details
-    assert "2 страны" in check.recommendation and check.law == "152-ФЗ, ст. 12"
+    assert "1 страна: США" in check.recommendation and check.law == "152-ФЗ, ст. 12"
+    # Leaseweb is only the network of an unknown host: its owner may be Russian.
+    assert "Ещё в стране «Нидерланды»" in check.recommendation
 
 
 def test_flow_inside_russia_only_or_nothing_is_ok():
@@ -95,6 +97,6 @@ def test_unknown_host_on_a_foreign_network_is_not_called_a_transfer():
     )
     check = flow_check(rows)
     assert check.status is Status.WARN
-    assert "не известно" in check.recommendation and "ст. 18 ч. 5" in check.recommendation
+    assert "не известны" in check.recommendation and "ст. 18 ч. 5" in check.recommendation
     rows = flow({"g": HostInfo("www.googletagmanager.com", "Google Analytics", "US")})
     assert "иностранным компаниям" in flow_check(rows).recommendation

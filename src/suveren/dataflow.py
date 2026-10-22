@@ -68,24 +68,33 @@ def flow_check(rows: list[dict[str, Any]]) -> Check:
     )
     if not foreign:
         return Check(GROUP_152, TITLE, Status.OK, text, law="152-ФЗ, ст. 12")
-    countries = len(foreign)
-    if any(r.get("known_owner", True) for r in foreign):
+    known = [r for r in foreign if r.get("known_owner", True)]
+    # Hosts unknown to the base, on foreign networks only: the owner may be Russian.
+    networks = [r for r in foreign if not r.get("known_owner", True)]
+    advice = ""
+    if known:
         advice = (
-            f"Данные уходят иностранным компаниям ({_countries(countries)}): IP-адрес по "
-            "позиции Роскомнадзора — персональные данные, а передача иностранному "
-            "получателю — трансграничная (152-ФЗ, ст. 3 п. 11). Укажите эти страны и "
-            "сервисы в политике и уведомите Роскомнадзор о трансграничной передаче "
-            "(ст. 12) или замените сервисы российскими."
+            f"Данные уходят иностранным компаниям ({_countries(len(known))}: "
+            f"{', '.join(r['name'] for r in known)}): IP-адрес по позиции Роскомнадзора — "
+            "персональные данные, а передача иностранному получателю — трансграничная "
+            "(152-ФЗ, ст. 3 п. 11). Укажите эти страны и сервисы в политике и уведомите "
+            "Роскомнадзор о трансграничной передаче (ст. 12) или замените сервисы "
+            "российскими."
         )
-    else:
-        # Only hosts unknown to the base, on foreign networks: the owner may be Russian.
-        advice = (
-            f"Серверы этих сервисов стоят за рубежом ({_countries(countries)}), но чьи они, "
-            "не известно. Если сервис принадлежит иностранной компании, это трансграничная "
-            "передача (152-ФЗ, ст. 3 п. 11): уведомите Роскомнадзор (ст. 12). Если это ваш "
-            "сервер или российской компании, речь о хранении данных в России (ст. 18 ч. 5)."
+    if networks:
+        where = ", ".join(r["name"] for r in networks)
+        advice += (
+            f" {'Ещё в' if known else 'В'} стране «{where}» стоят серверы сервисов, чьи "
+            "владельцы не известны. Если сервис принадлежит иностранной компании, это тоже "
+            "трансграничная передача; если это ваш сервер или российской компании — вопрос "
+            "хранения данных в России (ст. 18 ч. 5)."
+            if len(networks) == 1
+            else f" {'Ещё в' if known else 'В'} странах ({where}) стоят серверы сервисов, чьи "
+            "владельцы не известны. Если сервис принадлежит иностранной компании, это тоже "
+            "трансграничная передача; если это ваш сервер или российской компании — вопрос "
+            "хранения данных в России (ст. 18 ч. 5)."
         )
-    return Check(GROUP_152, TITLE, Status.WARN, text, advice, law="152-ФЗ, ст. 12")
+    return Check(GROUP_152, TITLE, Status.WARN, text, advice.strip(), law="152-ФЗ, ст. 12")
 
 
 def _countries(n: int) -> str:
