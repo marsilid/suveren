@@ -15,6 +15,7 @@ import ssl
 from dataclasses import dataclass, field
 from typing import Any
 
+import certifi
 import httpx
 
 from suveren import __version__
@@ -386,7 +387,7 @@ class Collector:
             return None, None
 
     async def _issuer(self, host: str, *, verify: bool) -> str | None:
-        context = ssl.create_default_context()
+        context = browser_trust()
         if not verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
@@ -447,6 +448,15 @@ async def whois_raw(domain: str, timeout: float) -> str | None:
         return await whois_query(server, domain, timeout) if server else None
     except (OSError, *TIMEOUTS):
         return None
+
+
+def browser_trust() -> ssl.SSLContext:
+    """Verify against Mozilla's root list, as httpx does, not the Windows store.
+
+    Windows adds a root only when something first needs it, so the store often lacks
+    newer roots (vk.com's SSL.com 2022, dzen.ru's HARICA 2021) and real chains fail.
+    """
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:

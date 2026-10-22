@@ -423,3 +423,11 @@ def test_tls_incomplete_chain_is_a_warning():
     check = tls_check(web(tls=t))
     assert check is not None and check.status is Status.WARN
     assert "fullchain" in check.recommendation
+
+
+def test_tls_unverified_certificate_is_said_not_hidden():
+    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    t = TlsInfo("example.ru", "TLSv1.3", exp, {})
+    t.verified = False
+    check = tls_check(web(tls=t))
+    assert check is not None and "проверить не удалось" in check.details

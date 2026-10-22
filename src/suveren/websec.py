@@ -23,7 +23,7 @@ import httpx
 from cryptography import x509
 
 from suveren.checks import Check, Status
-from suveren.collect import Facts
+from suveren.collect import Facts, browser_trust
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
@@ -193,6 +193,7 @@ class TlsInfo:
     # Why a browser would reject the certificate (OpenSSL's message), None if it is fine.
     verify_error: str | None = None
     issuer: str = ""
+    verified: bool = True  # False when the verifying handshake itself failed (a timeout)
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -256,11 +257,11 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
         return info
     # The same check a browser makes: chain to a trusted root, host name, dates.
     try:
-        await _handshake(host, ssl.create_default_context(), timeout)
+        await _handshake(host, browser_trust(), timeout)
     except ssl.SSLCertVerificationError as exc:
         info.verify_error = exc.verify_message or str(exc)
     except (OSError, *TIMEOUTS, ssl.SSLError, ValueError):
-        pass
+        info.verified = False
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         versions = {"TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1}
@@ -614,6 +615,8 @@ def tls_check(w: WebFacts) -> Check | None:
             else "Выпустите сертификат у общепризнанного центра (например, Let's Encrypt) на "
             "это имя сайта и установите полную цепочку."
         )
+    if not t.verified:
+        details.append("Доверие браузеров к сертификату проверить не удалось: сервер не ответил.")
     old = [name for name, ok in t.legacy.items() if ok]
     unknown = [name for name, ok in t.legacy.items() if ok is None]
     if old:
