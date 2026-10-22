@@ -302,7 +302,18 @@ def test_spf_include_with_a_mailbox_gets_exact_advice():
     assert check.status is Status.FAIL
     assert "include:tbank.ru" in check.recommendation and "адрес почты" in check.recommendation
     other = SpfResult(parse_spf(record), 1, 2, "-", problems=["spf.old.ru: нет SPF-записи"])
-    assert "своя SPF-запись" in spf_check(facts(spf=other)).recommendation
+    assert "нет своей SPF-записи" in spf_check(facts(spf=other)).recommendation
+
+
+def test_spf_redirect_with_a_broken_target():
+    # positive.com: the whole record is a redirect to a name with two SPF records.
+    spf = parse_spf("v=spf1 redirect=_spf.ptsecurity.com")
+    result = SpfResult(spf, 1, 1, None, problems=["_spf.ptsecurity.com: несколько SPF"])
+    check = spf_check(facts(spf=result))
+    assert check.status is Status.FAIL
+    assert "-all" not in check.details and "~all" not in check.recommendation
+    assert "из redirect" in check.recommendation and "объедините" in check.recommendation
+    assert "include" not in check.recommendation
 
 
 def test_mx_matches_follows_rfc8461_wildcards():

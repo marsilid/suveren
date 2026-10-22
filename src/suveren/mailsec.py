@@ -359,12 +359,16 @@ def spf_check(m: MailFacts) -> Check:
             "замените include на конкретные IP-адреса (ip4:)."
         )
     else:
-        details.append(f"DNS-запросов при проверке: {r.lookups} из {SPF_LOOKUP_LIMIT}.")
+        unread = " (без записей, которые не удалось прочитать)" if r.problems else ""
+        details.append(f"DNS-запросов при проверке: {r.lookups} из {SPF_LOOKUP_LIMIT}{unread}.")
+    redirect = (r.spf.redirect or "").lower()
+    # positive.com: "redirect=" with a broken target; its "all" is unknown, not missing.
+    redirect_broken = bool(redirect) and any(p.split(":", 1)[0] == redirect for p in r.problems)
     if r.effective_all == "+":
         status = Status.FAIL
         details.append("Стоит +all: отправлять почту от имени домена разрешено кому угодно.")
         recommendation = recommendation or "Замените +all на ~all или -all."
-    elif r.effective_all in ("?", None):
+    elif r.effective_all in ("?", None) and not redirect_broken:
         status = max(status, Status.WARN, key=_rank)
         details.append(
             "В конце нет -all или ~all: про остальные серверы SPF ничего не говорит."
@@ -389,20 +393,30 @@ def spf_check(m: MailFacts) -> Check:
         details.append("Не удалось разобрать: " + "; ".join(r.problems[:3]) + ".")
         if broken:
             details.append(
-                "По стандарту (RFC 7208, раздел 5.2) такая запись даёт ошибку проверки "
-                "(permerror): письма с серверов, которые не перечислены до этого места, "
-                "не проходят SPF."
+                "По стандарту (RFC 7208, разделы 5.2 и 6.1) такая запись даёт ошибку проверки "
+                "(permerror): SPF не проходят даже письма с настоящих серверов, если они не "
+                "перечислены в записи раньше."
             )
-        # auto.ru: "include:academyautoru@tbank.ru", a mailbox where a domain belongs.
-        mailbox = next((p.split(":", 1)[0] for p in r.problems if "@" in p.split(":", 1)[0]), None)
-        fix = (
-            f"В include указан адрес почты ({mailbox}), а нужен домен, например "
-            f"include:{mailbox.split('@', 1)[1]}; исправьте или уберите его."
-            if mailbox
-            else "Проверьте include из списка выше: у домена должна быть своя SPF-запись, "
-            "иначе уберите его."
-        )
-        recommendation = f"{recommendation} {fix}".strip()
+        fixes = []
+        for problem in r.problems[:3]:
+            name, _, what = problem.partition(": ")
+            term = "redirect" if name == redirect else "include"
+            if "@" in name:
+                # auto.ru: "include:academyautoru@tbank.ru", a mailbox where a domain belongs.
+                fixes.append(
+                    f"В {term} указан адрес почты ({name}), а нужен домен, например "
+                    f"{term}:{name.split('@', 1)[1]}; исправьте или уберите его."
+                )
+            elif what == "несколько SPF":
+                fixes.append(f"У {name} (из {term}) несколько SPF-записей: объедините их в одну.")
+            elif what == "нет SPF-записи":
+                fixes.append(
+                    f"У {name} (из {term}) нет своей SPF-записи: опубликуйте её или уберите "
+                    f"этот {term}."
+                )
+            else:
+                fixes.append(f"Проверьте {name} позже: DNS не ответил.")
+        recommendation = " ".join([recommendation, *dict.fromkeys(fixes)]).strip()
     return Check(GROUP_MAIL, title, status, " ".join(details), recommendation)
 
 
