@@ -11,6 +11,7 @@ from typing import Any
 from suveren import __version__
 from suveren.checks import Check
 from suveren.fines import FineEstimate, estimate
+from suveren.history import Changes
 from suveren.utils import country_name
 
 
@@ -293,7 +294,7 @@ class Finding:
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
 # The format of to_dict(), described by data/report.schema.json: the minor number grows
 # with new fields, the major one when a field is removed or renamed.
-SCHEMA_VERSION = "1.1"  # 1.1: checks from plugins, with their own ID prefix
+SCHEMA_VERSION = "1.2"  # 1.1: plugin checks; 1.2: "history" (scan --since)
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
@@ -317,6 +318,8 @@ class Report:
     checks: list[Check] = field(default_factory=list)
     # Images for the HTML report (the cutoff experiment's screenshots); not in JSON.
     media: dict[str, bytes] = field(default_factory=dict)
+    # What changed since an earlier report of the site (scan --since).
+    history: Changes | None = None
 
     @property
     def check_groups(self) -> list[tuple[str, list[Check]]]:
@@ -388,4 +391,5 @@ class Report:
             "migration": [m.to_dict() for m in migration_plan(self.findings)],
             "facts": self.facts,
             "notes": self.notes,
+            **({"history": self.history.to_dict()} if self.history else {}),
         }

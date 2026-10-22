@@ -127,6 +127,18 @@
     {% for n in nav %}<a href="{{ n.href }}">{{ n.title }}{% if n.fail %} <b class="c-fail">{{ n.fail }}</b>{% endif %}{% if n.warn %} <b class="c-warn">{{ n.warn }}</b>{% endif %}</a>{% endfor %}
   </nav>
 
+  {% if history %}
+  <h2 id="since">С прошлой проверки</h2>
+  <div class="card">
+    <p class="muted-note">Сравнение с отчётом от {{ history.since[:16] | replace("T", " ") }} UTC.</p>
+    {% if history.empty %}<p>Ничего не изменилось.</p>{% else %}<ul>
+      {% for cat, service, foreign in history.removed %}<li>− убран: {{ cat }} — {{ service }}</li>{% endfor %}
+      {% for cat, service, foreign in history.added %}<li>+ добавлен: {{ cat }} — {{ service }}{% if foreign %} (иностранный){% endif %}</li>{% endfor %}
+      {% for c in history.checks %}<li>{{ "✓" if c.better else "✗" }} {{ c.title }}: {{ c.before }} → {{ c.after }}</li>{% endfor %}
+    </ul>{% endif %}
+  </div>
+  {% endif %}
+
   {% if actions %}
   <h2 id="todo">Что сделать в первую очередь</h2>
   <ol class="card actions">

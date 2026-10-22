@@ -42,7 +42,30 @@
     "rendered": {"type": "boolean"}
    }
   },
-  "notes": {"type": "array", "items": {"type": "string"}}
+  "notes": {"type": "array", "items": {"type": "string"}},
+  "history": {
+   "type": "object",
+   "description": "С 1.2, только при scan --since: что изменилось с прошлого отчёта этого сайта.",
+   "required": ["since", "grade", "overall_grade", "removed", "added", "checks"],
+   "properties": {
+    "since": {"type": "string"},
+    "grade": {"type": "array"},
+    "overall_grade": {"type": "array"},
+    "removed": {"type": "array", "items": {"type": "object"}},
+    "added": {"type": "array", "items": {"type": "object"}},
+    "checks": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": ["id", "title", "before", "after"],
+      "properties": {
+       "before": {"enum": ["ok", "warn", "fail", "unknown"]},
+       "after": {"enum": ["ok", "warn", "fail", "unknown"]}
+      }
+     }
+    }
+   }
+  }
  },
  "$defs": {
   "grade": {"enum": ["A", "B", "C", "D", "F"]},

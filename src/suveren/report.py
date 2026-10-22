@@ -121,6 +121,7 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         groups=[(c, deps) for c, deps in groups if deps],
         shots=shots,
         graph_svg=Markup(graph_svg),
+        history=report.history,
         plan=moves,
         moves={m.category: m for m in moves},
         risk={f.category: f.severity for f in report.findings},

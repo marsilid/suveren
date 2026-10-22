@@ -238,3 +238,48 @@ def test_cutoff_that_breaks_is_not_checked_not_a_crash(offline, monkeypatch, tmp
     assert checks["SUV-CUT-001"]["status"] in ("ok", "warn", "fail")  # the infrastructure part
     assert checks["SUV-CUT-002"]["status"] == "unknown"
     assert "браузер упал" in checks["SUV-CUT-002"]["details"]
+
+
+def test_since_shows_what_changed(offline, tmp_path):
+    case = offline("lab-ga-no-banner")
+    old = tmp_path / "old.json"
+    assert (
+        run_cli(tmp_path, case.host, "--json", str(old), "-o", str(tmp_path / "a.html")).exit_code
+        == 0
+    )
+    # Pretend that last time HSTS was fine and Google Analytics was not there yet.
+    data = json.loads(old.read_text(encoding="utf-8"))
+    data["dependencies"] = [d for d in data["dependencies"] if "Google" not in d["service"]]
+    for c in data["checks"]:
+        if c["id"] == "SUV-PD-005":
+            c["status"] = "ok"
+    old.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    new, html = tmp_path / "new.json", tmp_path / "b.html"
+    result = run_cli(tmp_path, case.host, "--since", str(old), "--json", str(new), "-o", str(html))
+    assert result.exit_code == 0, result.output
+    assert "С прошлой проверки" in result.output and "SUV-PD-005" in result.output
+    report = json.loads(new.read_text(encoding="utf-8"))
+    assert errors(report, SCHEMA) == []
+    hist = report["history"]
+    assert any(a["service"].startswith("Google") and a["foreign"] for a in hist["added"])
+    assert {"id": "SUV-PD-005", "before": "ok", "after": "warn"}.items() <= next(
+        c for c in hist["checks"] if c["id"] == "SUV-PD-005"
+    ).items()
+    assert "С прошлой проверки" in html.read_text(encoding="utf-8")
+
+
+def test_history_matches_old_reports_by_title():
+    from suveren.history import compare
+
+    old = {"checks": [{"title": "Принудительный HTTPS (HSTS)", "status": "warn"}]}
+    new = {
+        "checks": [{"id": "SUV-WEB-005", "title": "Принудительный HTTPS (HSTS)", "status": "ok"}]
+    }
+    (change,) = compare(old, new).checks
+    assert (change.id, change.before, change.after, change.better) == (
+        "SUV-WEB-005",
+        "warn",
+        "ok",
+        True,
+    )

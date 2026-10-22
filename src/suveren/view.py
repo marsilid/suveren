@@ -22,6 +22,7 @@ from rich.text import Text
 from suveren.advice import overall_grade, overall_scope, overall_score, priorities
 from suveren.checks import Check, Status
 from suveren.fines import FineEstimate, rub
+from suveren.history import Changes
 from suveren.models import Report, Severity
 from suveren.utils import country_name
 
@@ -294,3 +295,19 @@ def print_footer(
             body.append(f"\n{a.reason}", style=DIM)
             todo.add_row(Text(f"{i}", style=SEVERITY_STYLE[a.severity]), body)
         console.print(todo)
+
+
+def print_changes(console: Console, changes: Changes) -> None:
+    """Services and verdicts that changed since an earlier report (diff, scan --since)."""
+    for category, service, foreign in changes.removed:
+        style = "green" if foreign else "yellow"
+        console.print(f"  [{style}]− убран   [/] {category}: {service}")
+    for category, service, foreign in changes.added:
+        style = "red" if foreign else "green"
+        console.print(f"  [{style}]+ добавлен[/] {category}: {service}")
+    for c in changes.checks:
+        style = "green" if c.better else "red"
+        mark = "✓" if c.better else "✗"
+        console.print(f"  [{style}]{mark} {c.title}[/] [grey50]{c.id}[/]: {c.before} → {c.after}")
+    if changes.empty:
+        console.print("  [grey50]Ничего не изменилось.[/]")

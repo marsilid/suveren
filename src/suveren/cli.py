@@ -37,6 +37,7 @@ from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, ModuleError, SuverenError
+from suveren.history import compare as compare_reports
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
@@ -53,6 +54,7 @@ from suveren.view import (
     ACCENT,
     GRADE_STYLE,
     header,
+    print_changes,
     print_checks,
     print_footer,
     print_scan,
@@ -329,6 +331,13 @@ def scan(
             help="Сохранить результат в SARIF 2.1.0 (GitHub/GitLab code scanning, DefectDojo).",
         ),
     ] = None,
+    since: Annotated[
+        Path | None,
+        typer.Option(
+            "--since",
+            help="Прошлый JSON-отчёт этого сайта (из --json): показать, что изменилось.",
+        ),
+    ] = None,
     no_report: Annotated[
         bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.")
     ] = False,
@@ -425,7 +434,17 @@ def scan(
         raise _fail(str(exc), code=1) from exc
 
     console.print()
+    if since is not None:
+        try:
+            report.history = compare_reports(
+                json.loads(since.read_text(encoding="utf-8")), report.to_dict()
+            )
+        except (OSError, ValueError) as exc:
+            console.print(f"  [#e6b450]![/] Прошлый отчёт не прочитан: {exc}")
     print_scan(console, report, details=details)
+    if report.history is not None:
+        section(console, "С прошлой проверки")
+        print_changes(console, report.history)
 
     files: list[tuple[str, Path]] = []
     if not no_report or pdf is not None:
@@ -640,10 +659,6 @@ def batch(
 # --- diff -----------------------------------------------------------------------------
 
 
-def _dep_key(dep: dict) -> tuple[str, str]:
-    return dep.get("category_title", dep.get("category", "?")), dep.get("service", "?")
-
-
 @app.command()
 def diff(
     old: Annotated[Path, typer.Argument(help="Ранний JSON-отчёт (из scan --json).")],
@@ -656,34 +671,11 @@ def diff(
     except (OSError, ValueError) as exc:
         raise _fail(f"не удалось прочитать отчёты: {exc}") from exc
 
-    a_deps = {_dep_key(d): d for d in a.get("dependencies", [])}
-    b_deps = {_dep_key(d): d for d in b.get("dependencies", [])}
     console.print(
         f"\n[bold]{b.get('target', '?')}[/]: независимость {a.get('grade')} → {b.get('grade')}, "
         f"{a.get('score')} → {b.get('score')} из 100\n"
     )
-    changed = False
-    for key in sorted(a_deps.keys() - b_deps.keys()):
-        changed = True
-        style = "green" if a_deps[key].get("foreign") else "yellow"
-        console.print(f"  [{style}]− убран   [/] {key[0]}: {key[1]}")
-    for key in sorted(b_deps.keys() - a_deps.keys()):
-        changed = True
-        style = "red" if b_deps[key].get("foreign") else "green"
-        console.print(f"  [{style}]+ добавлен[/] {key[0]}: {key[1]}")
-
-    a_checks = {c["title"]: c["status"] for c in a.get("checks", [])}
-    for c in b.get("checks", []):
-        before = a_checks.get(c["title"])
-        if before and before != c["status"]:
-            changed = True
-            good = c["status"] == "ok"
-            style = "green" if good else "red"
-            console.print(
-                f"  [{style}]{'✓' if good else '✗'} {c['title']}[/]: {before} → {c['status']}"
-            )
-    if not changed:
-        console.print("  [grey50]Ничего не изменилось.[/]")
+    print_changes(console, compare_reports(a, b))
 
 
 # --- audit ----------------------------------------------------------------------------
