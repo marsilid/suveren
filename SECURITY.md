@@ -10,6 +10,18 @@
 
 Поддерживается последняя выпущенная версия.
 
+## Как проверить скачанный релиз
+
+В каждом релизе есть `SHA256SUMS.txt`, SBOM (`suveren-sbom.cdx.json`, CycloneDX —
+список всех компонентов и версий) и подписанное через Sigstore происхождение сборки.
+Подпись подтверждает, что файл собран сценарием `.github/workflows/release.yml`
+из этого репозитория:
+
+```bash
+gh attestation verify Suveren.exe --repo marsilid/suveren
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
 ## Модель угроз
 
 Suveren открывает чужие сайты и показывает их содержимое в отчётах. Поэтому

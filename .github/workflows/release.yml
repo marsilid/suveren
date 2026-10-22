@@ -1,7 +1,12 @@
 name: Release
 
-# Pushing a tag like v1.0.0 builds Suveren.exe on Windows and attaches it to a
-# GitHub release, so people without Python can just download and run it.
+# Pushing a tag like v1.0.0 builds Suveren.exe on Windows plus the wheel and sdist,
+# and attaches them to a GitHub release, so people without Python can just download
+# and run it. Each release also carries:
+# - suveren-sbom.cdx.json: the CycloneDX SBOM of a clean install (runtime only);
+# - SHA256SUMS.txt: checksums of every file;
+# - build provenance signed with Sigstore (GitHub attestations), checkable with
+#   `gh attestation verify Suveren.exe --repo marsilid/suveren`.
 on:
   push:
     tags: ["v*"]
@@ -9,6 +14,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write # Sigstore signing of the provenance
+  attestations: write
 
 jobs:
   windows-exe:
@@ -22,7 +29,7 @@ jobs:
           python-version: "3.13"
           cache: pip
       - name: Install
-        run: pip install ".[browser]" pyinstaller
+        run: pip install ".[browser]" pyinstaller build cyclonedx-bom
       - name: Build
         run: >-
           pyinstaller --noconfirm --onefile --name Suveren
@@ -32,13 +39,35 @@ jobs:
         run: |
           dist\Suveren.exe --version
           dist\Suveren.exe services
+      - name: Wheel and sdist
+        run: python -m build --outdir dist
+      - name: SBOM of a clean install
+        run: |
+          python -m venv sbomenv
+          sbomenv\Scripts\python.exe -m pip install --quiet .
+          cyclonedx-py environment --of JSON -o dist/suveren-sbom.cdx.json sbomenv\Scripts\python.exe
+      - name: Checksums
+        run: >-
+          python -c "import hashlib, pathlib;
+          files = sorted(p for p in pathlib.Path('dist').iterdir() if p.is_file());
+          pathlib.Path('dist/SHA256SUMS.txt').write_text(''.join(
+          f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files))"
+      - name: Sign build provenance
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/Suveren.exe
+            dist/*.whl
+            dist/*.tar.gz
+            dist/suveren-sbom.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Suveren-windows
-          path: dist/Suveren.exe
+          path: dist/*
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: dist/Suveren.exe
+          files: dist/*
           generate_release_notes: true
