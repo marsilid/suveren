@@ -123,3 +123,47 @@ def test_doctor_reports_every_source(monkeypatch):
     # The command prints them and fails because the sanctions lists are down.
     result = CliRunner().invoke(app, ["doctor"])
     assert result.exit_code != 0 and "Санкции" in result.output
+
+
+def test_update_downloads_every_list(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    import suveren.cli as cli_module
+
+    fixtures = Path(__file__).parent / "fixtures"
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+
+    def handler(request):
+        host = request.url.host
+        if "ofac" in host:
+            return httpx.Response(200, content=(fixtures / "sdn_sample.xml").read_bytes())
+        if "europa" in host:
+            return httpx.Response(200, content=(fixtures / "eu_sample.csv").read_bytes())
+        if "fcdo" in host:
+            return httpx.Response(200, content=(fixtures / "uk_sample.csv").read_bytes())
+        if "antifilter" in host:
+            return httpx.Response(200, text="blocked.example\n")
+        raise AssertionError(f"a real request to {request.url}")
+
+    monkeypatch.setattr(
+        cli_module,
+        "make_client",
+        lambda timeout, *, verify=True: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    result = CliRunner().invoke(app, ["update"])
+    assert result.exit_code == 0, result.output
+    assert "Реестр блокировок РКН" in result.output and "записей" in result.output
+    assert (tmp_path / f"blocklist-{DOMAINS}").read_text("utf-8") == "blocked.example\n"
+
+
+def test_unknown_domains_list_and_clear(tmp_path, monkeypatch):
+    from suveren import unknown
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    assert "Пока пусто" in CliRunner().invoke(app, ["unknown"]).output
+    unknown.record(["widget.example", "cdn.example"], "a.ru")
+    unknown.record(["widget.example"], "b.ru")
+    shown = CliRunner().invoke(app, ["unknown"]).output
+    assert shown.index("widget.example") < shown.index("cdn.example")  # most sites first
+    assert "Список очищен" in CliRunner().invoke(app, ["unknown", "--clear"]).output
+    assert unknown.load() == {}

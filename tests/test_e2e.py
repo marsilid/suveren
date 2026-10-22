@@ -166,3 +166,58 @@ def test_batch_then_diff_then_audit(offline, tmp_path):
 
     audited = CliRunner().invoke(app, ["audit", str(out)])
     assert audited.exit_code == 0, audited.output
+
+
+class FakeBrowser:
+    """A BrowserSession that 'renders' lab pages: the HTML as served, the requests a
+    browser would make for Google Analytics, and who started each of them."""
+
+    GA = "https://www.googletagmanager.com/gtag/js?id=G-LAB1234"
+    COLLECT = "https://www.google-analytics.com/g/collect?v=2"
+
+    def __init__(self, *, timeout=25.0):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def open(self, url, *, initiators=False, settle_ms=None):
+        from urllib.parse import urlsplit
+
+        from suveren.render import Rendered
+
+        host = urlsplit(url).hostname
+        case = next(c for c in lab.CASES if host and host.endswith(c.host))
+        resp = lab._transport(case).handler(httpx.Request("GET", url))
+        requests = [self.GA, self.COLLECT] if "googletagmanager" in case.html else []
+        return Rendered(
+            url,
+            resp.status_code,
+            resp.text,
+            requests,
+            {self.COLLECT: self.GA} if initiators and requests else {},
+            {k.lower(): v for k, v in resp.headers.items()},
+        )
+
+    async def open_many(self, urls, *, concurrency=3):
+        return [await self.open(u) for u in urls]
+
+
+def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, tmp_path):
+    monkeypatch.setattr(scan_module, "BrowserSession", FakeBrowser)
+    case = offline("lab-ga-no-banner")
+    out_json = tmp_path / "r.json"
+    result = run_cli(
+        tmp_path, case.host, "--browser", "--json", str(out_json), "-o", str(tmp_path / "r.html")
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out_json.read_text(encoding="utf-8"))
+    assert data["facts"]["rendered"] is True
+    statuses = {c["id"]: c["status"] for c in data["checks"]}
+    assert "SUV-WEB-011" in statuses  # the script graph exists only in the browser
+    for check_id, want in case.expect.items():
+        assert statuses.get(check_id) == want, check_id
+    assert audit(data) == []
