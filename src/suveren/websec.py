@@ -21,6 +21,8 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509 import ocsp
 
 from suveren.checks import Check, Status
 from suveren.collect import Facts, browser_trust
@@ -211,6 +213,7 @@ class TlsInfo:
     verified: bool = True  # False when the verifying handshake itself failed (a timeout)
     # The server omits an intermediate that the AIA link supplies: browsers cope, apps not.
     chain_incomplete: bool = False
+    revoked: datetime | None = None  # when the CA revoked it, by its OCSP responder
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -226,9 +229,10 @@ def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
 
 
 async def _handshake(
-    host: str, ctx: ssl.SSLContext, timeout: float
+    host: str, ctx: ssl.SSLContext, timeout: float, chain: list[bytes] | None = None
 ) -> tuple[str | None, bytes | None]:
-    """(protocol version, certificate DER), read before the connection is closed."""
+    """(protocol version, certificate DER), read before the connection is closed. The
+    certificates the server sent go to ``chain`` (DER), when asked."""
     _, writer = await asyncio.wait_for(
         asyncio.open_connection(host, 443, ssl=ctx, server_hostname=host), timeout
     )
@@ -236,6 +240,8 @@ async def _handshake(
         sslobj = writer.get_extra_info("ssl_object")
         if sslobj is None:
             return None, None
+        if chain is not None and hasattr(sslobj, "get_unverified_chain"):  # Python 3.13+
+            chain.extend(c for c in sslobj.get_unverified_chain() or [] if isinstance(c, bytes))
         return sslobj.version(), sslobj.getpeercert(binary_form=True)
     finally:
         writer.close()
@@ -290,17 +296,124 @@ async def _issuer_from_aia(cert: x509.Certificate, timeout: float) -> str | None
         return None
 
 
+def _ocsp_url(cert: x509.Certificate) -> str | None:
+    try:
+        aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    except x509.ExtensionNotFound:
+        return None
+    for d in aia:
+        url = str(d.access_location.value)
+        if d.access_method == x509.oid.AuthorityInformationAccessOID.OCSP and url.startswith(
+            "http"
+        ):
+            return url
+    return None
+
+
+async def ocsp_revoked(
+    cert: x509.Certificate, issuer: x509.Certificate, timeout: float
+) -> datetime | None:
+    """When the certificate authority's OCSP responder says the certificate was revoked,
+    or None: not revoked, no responder (Let's Encrypt dropped OCSP in 2025) or no answer.
+    The request goes to the CA, not to the site."""
+    url = _ocsp_url(cert)
+    if url is None:
+        return None
+    request = (
+        ocsp.OCSPRequestBuilder()
+        .add_certificate(cert, issuer, hashes.SHA1())  # SHA-1 is what responders accept
+        .build()
+        .public_bytes(serialization.Encoding.DER)
+    )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                url, content=request, headers={"Content-Type": "application/ocsp-request"}
+            )
+        if resp.status_code != 200:
+            return None
+        answer = ocsp.load_der_ocsp_response(resp.content)
+    except (httpx.HTTPError, ValueError, *TIMEOUTS):
+        return None
+    if answer.response_status != ocsp.OCSPResponseStatus.SUCCESSFUL:
+        return None
+    if answer.serial_number != cert.serial_number:
+        return None
+    if answer.certificate_status == ocsp.OCSPCertStatus.REVOKED:
+        return answer.revocation_time_utc
+    return None
+
+
+CRL_MAX_BYTES = 10_000_000  # Let's Encrypt shards its lists; a bigger one is not worth it
+
+
+async def crl_revoked(
+    cert: x509.Certificate, issuer: x509.Certificate, timeout: float
+) -> datetime | None:
+    """The same from the CA's revocation list (CRL), for CAs without OCSP. The list
+    must be signed by the issuer, or it proves nothing."""
+    try:
+        points = cert.extensions.get_extension_for_class(x509.CRLDistributionPoints).value
+    except x509.ExtensionNotFound:
+        return None
+    urls = [
+        str(name.value)
+        for point in points
+        for name in point.full_name or []
+        if isinstance(name, x509.UniformResourceIdentifier) and str(name.value).startswith("http")
+    ]
+    if not urls:
+        return None
+    try:
+        async with (
+            httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client,
+            client.stream("GET", urls[0]) as resp,
+        ):
+            if resp.status_code != 200:
+                return None
+            body = b""
+            async for chunk in resp.aiter_bytes():
+                body += chunk
+                if len(body) > CRL_MAX_BYTES:
+                    return None
+        crl = (
+            x509.load_pem_x509_crl(body)
+            if body.lstrip().startswith(b"-----")
+            else x509.load_der_x509_crl(body)
+        )
+        if crl.issuer != issuer.subject or not crl.is_signature_valid(
+            issuer.public_key()  # type: ignore[arg-type]
+        ):
+            return None
+    except (httpx.HTTPError, ValueError, TypeError, *TIMEOUTS):
+        return None
+    entry = crl.get_revoked_certificate_by_serial_number(cert.serial_number)
+    return entry.revocation_date_utc if entry is not None else None
+
+
 async def probe_tls(host: str, timeout: float) -> TlsInfo:
     info = TlsInfo(host)
     cert = None
+    chain: list[bytes] = []
     with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
-        info.version, der = await _handshake(host, _context(), timeout)
+        info.version, der = await _handshake(host, _context(), timeout, chain)
         if der:
             cert = x509.load_der_x509_certificate(der)
             info.expires = cert.not_valid_after_utc
             info.issuer = cert.issuer.rfc4514_string()
     if info.version is None:
         return info
+    if cert is not None:
+        issuer = None
+        with contextlib.suppress(ValueError):
+            issuer = next(
+                (c for c in map(x509.load_der_x509_certificate, chain[1:])
+                 if c.subject == cert.issuer),
+                None,
+            )  # fmt: skip
+        if issuer is not None:
+            check = ocsp_revoked if _ocsp_url(cert) else crl_revoked
+            info.revoked = await check(cert, issuer, timeout)
     # The same check a browser makes: chain to a trusted root, host name, dates.
     try:
         await _handshake(host, browser_trust(), timeout)
@@ -675,7 +788,10 @@ def tls_check(w: WebFacts) -> Check | None:
     if t.expires:
         days = (t.expires - w.now).days
         details.append(
-            f"Сертификат действует ещё {days} дн. (до {t.expires:%d.%m.%Y})."
+            # A revoked certificate is not valid, whatever its dates say.
+            f"Срок сертификата — до {t.expires:%d.%m.%Y}."
+            if t.revoked is not None and days >= 0
+            else f"Сертификат действует ещё {days} дн. (до {t.expires:%d.%m.%Y})."
             if days >= 0
             else f"Срок действия сертификата истёк {t.expires:%d.%m.%Y}."
         )
@@ -712,6 +828,16 @@ def tls_check(w: WebFacts) -> Check | None:
             if incomplete
             else "Выпустите сертификат у общепризнанного центра (например, Let's Encrypt) на "
             "это имя сайта и установите полную цепочку."
+        )
+    if t.revoked is not None:
+        status = Status.FAIL
+        details.append(
+            f"Удостоверяющий центр отозвал сертификат {t.revoked:%d.%m.%Y} (по его "
+            "OCSP-серверу или списку отзыва): так делают, когда ключ мог утечь или "
+            "сертификат выпущен ошибочно. Браузеры, которые проверяют отзыв, покажут ошибку."
+        )
+        recommendation = (
+            "Выпустите новый сертификат с новым ключом и замените отозванный на сервере."
         )
     if not t.verified:
         details.append("Доверие браузеров к сертификату проверить не удалось: сервер не ответил.")

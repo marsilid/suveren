@@ -444,3 +444,158 @@ def test_repeated_hsts_header_is_a_warning():
     check = hsts_check(web(headers={"strict-transport-security": value}))
     assert check is not None and check.status is Status.WARN
     assert "4 раза" in check.details and "RFC 6797" in check.details
+
+
+# --- OCSP -----------------------------------------------------------------------------
+
+_REAL_CLIENT = httpx.AsyncClient
+
+
+def _ca_and_leaf(ocsp_url: str | None = "http://ocsp.ca.example"):
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import AuthorityInformationAccessOID, NameOID
+
+    def name(cn):
+        return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+
+    now = datetime.now(timezone.utc)
+    ca_key, leaf_key = (
+        ec.generate_private_key(ec.SECP256R1()),
+        ec.generate_private_key(ec.SECP256R1()),
+    )
+    ca = (
+        x509.CertificateBuilder().subject_name(name("Test CA")).issuer_name(name("Test CA"))
+        .public_key(ca_key.public_key()).serial_number(1)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+        .sign(ca_key, hashes.SHA256())
+    )  # fmt: skip
+    builder = (
+        x509.CertificateBuilder().subject_name(name("site.ru")).issuer_name(ca.subject)
+        .public_key(leaf_key.public_key()).serial_number(2)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+    )  # fmt: skip
+    if ocsp_url:
+        builder = builder.add_extension(
+            x509.AuthorityInformationAccess(
+                [x509.AccessDescription(AuthorityInformationAccessOID.OCSP,
+                                        x509.UniformResourceIdentifier(ocsp_url))]
+            ),
+            critical=False,
+        )  # fmt: skip
+    return ca, ca_key, builder.sign(ca_key, hashes.SHA256())
+
+
+def _responder(monkeypatch, ca, ca_key, leaf, status, calls):
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.x509 import ocsp
+
+    now = datetime.now(timezone.utc)
+
+    def handler(request):
+        calls.append(str(request.url))
+        assert request.headers["content-type"] == "application/ocsp-request"
+        ocsp.load_der_ocsp_request(request.content)  # a well-formed request
+        revoked = status is ocsp.OCSPCertStatus.REVOKED
+        answer = (
+            ocsp.OCSPResponseBuilder()
+            .add_response(
+                cert=leaf, issuer=ca, algorithm=hashes.SHA1(), cert_status=status,
+                this_update=now, next_update=now + timedelta(days=1),
+                revocation_time=now - timedelta(days=2) if revoked else None,
+                revocation_reason=None,
+            )
+            .responder_id(ocsp.OCSPResponderEncoding.HASH, ca)
+            .sign(ca_key, hashes.SHA256())
+        )  # fmt: skip
+        return httpx.Response(200, content=answer.public_bytes(serialization.Encoding.DER))
+
+    real = _REAL_CLIENT  # not the one a previous call patched in
+    monkeypatch.setattr(
+        websec.httpx,
+        "AsyncClient",
+        lambda **kw: real(transport=httpx.MockTransport(handler), **kw),
+    )
+
+
+def test_ocsp_revoked_and_good(monkeypatch):
+    from cryptography.x509 import ocsp
+
+    ca, ca_key, leaf = _ca_and_leaf()
+    calls: list[str] = []
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.REVOKED, calls)
+    when = asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0))
+    assert when is not None and calls == ["http://ocsp.ca.example"]
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.GOOD, calls)
+    assert asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0)) is None
+
+
+def test_no_ocsp_responder_means_no_request(monkeypatch):
+    from cryptography.x509 import ocsp
+
+    ca, ca_key, leaf = _ca_and_leaf(None)  # like Let's Encrypt since 2025
+    calls: list[str] = []
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.REVOKED, calls)
+    assert asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0)) is None and calls == []
+
+
+def test_revoked_certificate_is_a_failure():
+    info = websec.TlsInfo(
+        "site.ru", "TLSv1.3", datetime.now(timezone.utc) + timedelta(days=200),
+        {"TLS 1.0": False, "TLS 1.1": False},
+        revoked=datetime(2026, 10, 1, tzinfo=timezone.utc),
+    )  # fmt: skip
+    facts = websec.WebFacts("site.ru", True, {}, [], [], [], info)
+    check = websec.tls_check(facts)
+    assert check is not None and check.status is Status.FAIL
+    assert "отозвал сертификат 01.10.2026" in check.details
+    assert "действует ещё" not in check.details
+    assert "новым ключом" in check.recommendation
+
+
+def test_crl_used_when_there_is_no_ocsp(monkeypatch):
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    ca, ca_key, _ = _ca_and_leaf(None)
+    now = datetime.now(timezone.utc)
+    leaf = (
+        x509.CertificateBuilder().subject_name(ca.subject).issuer_name(ca.subject)
+        .public_key(ec.generate_private_key(ec.SECP256R1()).public_key()).serial_number(7)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+        .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+            [x509.UniformResourceIdentifier("http://crl.ca.example/1.crl")], None, None, None
+        )]), critical=False)
+        .sign(ca_key, hashes.SHA256())
+    )  # fmt: skip
+
+    def crl(serials, key):
+        builder = (
+            x509.CertificateRevocationListBuilder().issuer_name(ca.subject)
+            .last_update(now).next_update(now + timedelta(days=1))
+        )  # fmt: skip
+        for s in serials:
+            builder = builder.add_revoked_certificate(
+                x509.RevokedCertificateBuilder().serial_number(s)
+                .revocation_date(now - timedelta(days=2)).build()
+            )  # fmt: skip
+        return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
+
+    def serve(body):
+        monkeypatch.setattr(
+            websec.httpx,
+            "AsyncClient",
+            lambda **kw: _REAL_CLIENT(
+                transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body)), **kw
+            ),
+        )
+
+    serve(crl([7], ca_key))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is not None
+    serve(crl([8], ca_key))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is None
+    # A list signed by someone else proves nothing.
+    serve(crl([7], ec.generate_private_key(ec.SECP256R1())))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is None

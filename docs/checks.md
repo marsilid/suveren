@@ -58,7 +58,7 @@
 | `SUV-WEB-005` | Принудительный HTTPS (HSTS) | Заголовок Strict-Transport-Security и его срок. | безопасность сайта (`--no-security`) | `web`, `headers`, `tls` |
 | `SUV-WEB-006` | Защитные заголовки | X-Frame-Options или frame-ancestors, X-Content-Type-Options. | безопасность сайта (`--no-security`) | `web`, `headers` |
 | `SUV-WEB-007` | Флаги cookies | Secure, HttpOnly и SameSite у cookies сайта. | безопасность сайта (`--no-security`) | `web`, `cookies` |
-| `SUV-WEB-008` | TLS: сертификат и протоколы | Версии TLS, срок сертификата, отключены ли TLS 1.0 и 1.1. | безопасность сайта (`--no-security`) | `web`, `tls` |
+| `SUV-WEB-008` | TLS: сертификат и протоколы | Версии TLS, срок и отзыв сертификата (OCSP, CRL), отключены ли TLS 1.0 и 1.1. | безопасность сайта (`--no-security`) | `web`, `tls` |
 | `SUV-WEB-009` | Ключи и секреты в коде сайта | Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель. | безопасность сайта (`--no-security`) | `web`, `secrets`, `scripts` |
 | `SUV-WEB-010` | Уязвимые версии библиотек | jQuery, Bootstrap, lodash и др. с явной версией, у которой есть известные CVE. | безопасность сайта (`--no-security`) | `web`, `scripts`, `cve` |
 | `SUV-WEB-011` | Цепочки сторонних скриптов | Код, который подключил не сайт, а чужие скрипты (только в режиме --browser). | безопасность сайта (`--no-security`) | `web`, `scripts`, `supply-chain`, `browser` |

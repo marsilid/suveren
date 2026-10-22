@@ -415,6 +415,20 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-tls-revoked",
+        "OCSP-сервер удостоверяющего центра отвечает, что сертификат отозван (RFC 6960)",
+        {"SUV-WEB-008": "fail"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.3",
+            NOW + timedelta(days=200),
+            {"TLS 1.0": False, "TLS 1.1": False},
+            revoked=NOW - timedelta(days=3),
+        ),
+        files=site_files(),
+    ),
+    Case(
         "lab-tls-wrong-host",
         "сертификат выписан на другое имя",
         {"SUV-WEB-008": "fail"},
