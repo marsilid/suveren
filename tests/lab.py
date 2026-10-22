@@ -754,6 +754,52 @@ CASES: list[Case] = [
         files=site_files(),
         mta_sts="version: STSv1\nmode: testing\nmx: mx.yandex.net\nmax_age: 86400\n",
     ),
+    # --- found by the fresh-eyes review --------------------------------------------
+    Case(
+        "lab-spf-shared-include",
+        "два include ведут к одной большой записи: она вычисляется дважды, 14 запросов",
+        {"SUV-MAIL-002": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-shared-include.ru", "TXT"): [
+                "v=spf1 include:a.lab.example include:b.lab.example -all"
+            ],
+            ("a.lab.example", "TXT"): ["v=spf1 include:big.lab.example -all"],
+            ("b.lab.example", "TXT"): ["v=spf1 include:big.lab.example -all"],
+            ("big.lab.example", "TXT"): [
+                "v=spf1 " + " ".join(f"a:m{i}.lab.example" for i in range(5)) + " -all"
+            ],
+        },
+    ),
+    Case(
+        "lab-spf-redirect-chain",
+        "redirect ведёт на redirect, в конце -all: запись в порядке",
+        {"SUV-MAIL-002": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-redirect-chain.ru", "TXT"): ["v=spf1 redirect=_spf.lab.example"],
+            ("_spf.lab.example", "TXT"): ["v=spf1 redirect=_spf2.lab.example"],
+            ("_spf2.lab.example", "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
+        },
+    ),
+    Case(
+        "lab-dmarc-pct-zero",
+        "DMARC p=quarantine; pct=0: политика не применяется ни к одному письму",
+        {"SUV-MAIL-001": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_dmarc.lab-dmarc-pct-zero.ru", "TXT"): ["v=DMARC1; p=quarantine; pct=0"]},
+    ),
+    Case(
+        "lab-mta-sts-incomplete",
+        "файл MTA-STS без version и max_age: отправители его игнорируют",
+        {"SUV-MAIL-005": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        mta_sts="mode: enforce\nmx: mx.yandex.net\n",
+    ),
 ]
 
 # Expected and actual differ here for a stated reason; the table counts them as misses.

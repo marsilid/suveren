@@ -113,36 +113,51 @@ async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
     if len(records) != 1:
         return SpfResult(None, len(records))
     spf = parse_spf(records[0])
-    result = SpfResult(spf, 1, effective_all=spf.all)
+    result = SpfResult(spf, 1)
+    loaded: dict[str, Spf | None] = {}
+    budget = [_MAX_SPF_RECORDS]  # records evaluated, a guard against huge trees
 
-    seen = {domain.lower()}
-    queue = [*spf.includes, *([spf.redirect] if spf.redirect else [])]
-    total = spf.lookups
-    fetched = 0
-    while queue and fetched < _MAX_SPF_RECORDS:
-        name = queue.pop(0).lower()
-        if name in seen or "%{" in name:  # macros can't be expanded without a sender
-            continue
-        seen.add(name)
-        fetched += 1
-        try:
-            found = spf_records(await _txt(resolver, name))
-        except DnsLookupError:
-            result.problems.append(f"{name}: DNS не ответил")
-            continue
-        if len(found) != 1:
-            result.problems.append(
-                f"{name}: нет SPF-записи" if not found else f"{name}: несколько SPF"
-            )
-            continue
-        inner = parse_spf(found[0])
-        total += inner.lookups
-        queue += inner.includes
-        if inner.redirect:
-            queue.append(inner.redirect)
-        if name == (spf.redirect or "").lower() and spf.all is None:
-            result.effective_all = inner.all
-    result.lookups = total
+    async def load(name: str) -> Spf | None:
+        if name not in loaded:
+            loaded[name] = None
+            try:
+                found = spf_records(await _txt(resolver, name))
+            except DnsLookupError:
+                result.problems.append(f"{name}: DNS не ответил")
+                return None
+            if len(found) != 1:
+                result.problems.append(
+                    f"{name}: нет SPF-записи" if not found else f"{name}: несколько SPF"
+                )
+                return None
+            loaded[name] = parse_spf(found[0])
+        return loaded[name]
+
+    async def walk(record: Spf, path: tuple[str, ...]) -> tuple[int, str | None]:
+        """DNS lookups an evaluation of ``record`` makes, and its effective "all".
+
+        A receiver evaluates an include each time it is reached, so a record included
+        twice counts twice (RFC 7208, section 4.6.4); a redirect hands over its target's
+        "all", however long the chain (section 6.1)."""
+        total, effective = record.lookups, record.all
+        targets = [(n, False) for n in record.includes]
+        targets += [(record.redirect, True)] if record.redirect else []
+        for target, is_redirect in targets:
+            name = target.lower()
+            # Macros can't be expanded without a sender; a loop is the record's own error.
+            if "%{" in name or name in path or budget[0] <= 0:
+                continue
+            budget[0] -= 1
+            inner = await load(name)
+            if inner is None:
+                continue
+            lookups, inner_all = await walk(inner, (*path, name))
+            total += lookups
+            if is_redirect:
+                effective = inner_all
+        return total, effective
+
+    result.lookups, result.effective_all = await walk(spf, (domain.lower(),))
     return result
 
 
@@ -253,7 +268,12 @@ def verdict(m: MailFacts) -> Check:
     title = f"Можно ли подделать письмо от имени @{m.domain}"
     d = m.dmarc
     weak_sub = d is not None and d.subdomain_policy == "none"
-    if d is not None and m.dmarc_count == 1 and d.policy == "reject" and d.pct == 100:
+    # Mail outside pct gets the next lower policy (RFC 7489, section 6.6.4): at pct=0
+    # reject works as quarantine and quarantine as none.
+    policy = d.policy if d is not None else None
+    if d is not None and d.pct == 0:
+        policy = {"reject": "quarantine", "quarantine": "none"}.get(policy or "", policy)
+    if d is not None and m.dmarc_count == 1 and policy == "reject" and d.pct == 100:
         if weak_sub:
             return Check(
                 GROUP_MAIL,
@@ -271,12 +291,15 @@ def verdict(m: MailFacts) -> Check:
             "Нет. DMARC с политикой reject: Gmail, Яндекс, Mail.ru и другие отклонят письмо "
             "с поддельным адресом отправителя.",
         )
-    if d is not None and m.dmarc_count == 1 and d.policy in ("quarantine", "reject"):
-        how = (
-            "попадут в спам, а не будут отклонены"
-            if d.policy == "quarantine"
-            else f"будут отклонены только в {d.pct}% случаев (pct={d.pct})"
-        )
+    if d is not None and m.dmarc_count == 1 and policy in ("quarantine", "reject"):
+        if policy == "reject":
+            how = f"будут отклонены в {d.pct}% случаев (pct={d.pct}), остальные попадут в спам"
+        elif d.pct == 100:
+            how = "попадут в спам, а не будут отклонены"
+        elif d.pct == 0:  # p=reject; pct=0
+            how = "попадут в спам (pct=0 смягчает reject до quarantine), а не будут отклонены"
+        else:
+            how = f"попадут в спам только в {d.pct}% случаев (pct={d.pct}), остальные дойдут"
         return Check(
             GROUP_MAIL,
             title,
@@ -285,7 +308,9 @@ def verdict(m: MailFacts) -> Check:
             "Когда убедитесь по отчётам DMARC, что настоящая почта проходит проверку, "
             "поставьте p=reject и уберите pct.",
         )
-    if d is not None and m.dmarc_count == 1 and d.policy == "none":
+    if d is not None and m.dmarc_count == 1 and d.policy == "quarantine" and policy == "none":
+        reason = "в DMARC стоит pct=0: политика quarantine не применяется ни к одному письму"
+    elif d is not None and m.dmarc_count == 1 and d.policy == "none":
         reason = "DMARC стоит в режиме наблюдения (p=none): почтовые сервисы не отклоняют письма"
     elif m.dmarc_count > 1:
         reason = "DMARC-записей несколько, и почтовые сервисы игнорируют их все"
@@ -607,7 +632,16 @@ async def _mta_sts(
         return "none", []
     if resp.status_code != 200:
         return "none", []
-    return parse_mta_sts_mode(resp.text) or "none", parse_mta_sts_mx(resp.text)
+    mode, mx = parse_mta_sts_mode(resp.text), parse_mta_sts_mx(resp.text)
+    # Senders ignore a policy that is not text/plain or lacks a required field
+    # (RFC 8461, sections 3.2 and 3.3): for them the domain has no MTA-STS.
+    complete = re.search(r"(?im)^\s*version\s*:\s*STSv1\s*$", resp.text) and re.search(
+        r"(?im)^\s*max_age\s*:\s*\d+\s*$", resp.text
+    )
+    plain = resp.headers.get("content-type", "text/plain").lower().startswith("text/plain")
+    if not (mode and complete and plain) or (mode != "none" and not mx):
+        return "none", []
+    return mode, mx
 
 
 async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> MailFacts:
