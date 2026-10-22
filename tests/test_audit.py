@@ -59,3 +59,10 @@ def test_corpus_reports_do_not_contradict_themselves(host):
     checks = asyncio.run(corpus.replay_checks(host))
     report = {"checks": [c.to_dict() for c in checks]}
     assert audit(report) == [], host
+
+
+def test_quoted_names_and_word_parts_are_not_alarms():
+    # bi.zone: the operator's legal name holds "опасн" inside "БЕЗОПАСНАЯ".
+    text = 'ООО "БЕЗОПАСНАЯ ИНФОРМАЦИОННАЯ ЗОНА" (ИНН 9701036178) в реестре.'
+    assert "ok-but-alarming" not in rules({"checks": [check("SUV-PD-009", "ok", text)]})
+    assert "ok-but-alarming" not in rules({"checks": [check("SUV-PD-009", "ok", "Безопасность.")]})

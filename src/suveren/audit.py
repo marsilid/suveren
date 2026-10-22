@@ -15,9 +15,11 @@ from typing import Any
 
 # Words that mean "do something" or "this is dangerous": out of place in an OK check.
 _ALARM = re.compile(
-    r"уберите|опасн|может (?:выполнить|украсть|перехват)|исправьте|замените|перенесите",
+    r"\b(?:уберите|опасн|может (?:выполнить|украсть|перехват)|исправьте|замените|перенесите)",
     re.I,
 )
+# Names quoted from registers: "БЕЗОПАСНАЯ ИНФОРМАЦИОННАЯ ЗОНА" is bi.zone's legal name.
+_QUOTED = re.compile(r'"[^"]*"|«[^»]*»')
 # A whole text that reassures: out of place in a problem or a warning.
 _CALM = re.compile(
     r"^(?:таких \w+ не найдено|замечаний нет|всё в порядке|противоречий[^.]* нет)|"
@@ -46,9 +48,10 @@ def audit(report: dict[str, Any]) -> list[Issue]:
             issues.append(Issue("no-id", "", f"проверка без ID: {c.get('title')}"))
         if not details:
             issues.append(Issue("empty-text", cid, "пустой текст"))
-        if status == "ok" and _ALARM.search(details):
+        words = _QUOTED.sub("", details)
+        if status == "ok" and _ALARM.search(words):
             issues.append(Issue("ok-but-alarming", cid, details[:140]))
-        if status in ("warn", "fail") and _CALM.search(details) and not _ALARM.search(details):
+        if status in ("warn", "fail") and _CALM.search(details) and not _ALARM.search(words):
             issues.append(Issue("problem-but-calm", cid, details[:140]))
         if status in ("warn", "fail") and not (c.get("recommendation") or "").strip():
             issues.append(Issue("problem-without-advice", cid, "нет совета, что делать"))
