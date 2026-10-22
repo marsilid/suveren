@@ -25,6 +25,7 @@ from urllib.parse import urlsplit
 
 from suveren.checks import Check, Status
 from suveren.models import Category, Dependency
+from suveren.render import HANG_WAIT_MS
 from suveren.services import by_network, scan_page
 from suveren.utils import country_name, registrable_domain
 
@@ -183,6 +184,17 @@ class PageCutoff:
     visual_change: float | None = None
     render_blocking: list[str] = field(default_factory=list)
     slower_ms: int = 0
+    # Hang mode (foreign requests get no answer), None when not measured: the page did
+    # not finish loading in HANG_WAIT_MS / the browser painted nothing by then.
+    hang_stuck: bool | None = None
+    hang_blank: bool | None = None
+
+    @property
+    def hang_hurts(self) -> bool:
+        """What a hang does, measured if possible, else predicted from <head>."""
+        if self.hang_stuck is None:
+            return bool(self.render_blocking)
+        return bool(self.hang_stuck or self.hang_blank)
 
     @property
     def visible(self) -> bool:
@@ -210,6 +222,8 @@ class PageCutoff:
             "text_drop": round(self.text_drop, 3),
             "visual_change": None if self.visual_change is None else round(self.visual_change, 3),
             "render_blocking": self.render_blocking,
+            "hang": None if self.hang_stuck is None
+                    else {"stuck": self.hang_stuck, "blank": bool(self.hang_blank)},
         }  # fmt: skip
 
 
@@ -280,6 +294,12 @@ def compare(
     if change is not None:
         result.visual_change = max(0.0, change - (noise or 0.0))
     return result
+
+
+def hang_outcome(stuck: bool, painted: bool | None) -> tuple[bool, bool]:
+    """(not loaded in time, blank): blank when the browser painted no content at all
+    while foreign requests hang. Unknown paint proves nothing."""
+    return stuck, painted is False
 
 
 _HEAD = re.compile(r"<head\b.*?</head>", re.I | re.S)
@@ -359,20 +379,42 @@ def page_check(r: PageCutoff, hosts: dict[str, HostInfo]) -> Check:
         lines.append(f"Пропало {round(r.text_drop * 100)}% текста страницы.")
     if r.visual_change is not None and r.visual_change >= 0.05:
         lines.append(f"Первый экран изменился на {round(r.visual_change * 100)}%.")
-    if r.render_blocking:
+    # Not "эти сервисы": one blocked host is common, and the sentence must fit both.
+    hang = "Если иностранные сервисы не откажут, а зависнут (так блокировка часто и выглядит)"
+    head = f" из <head> ({', '.join(r.render_blocking)})" if r.render_blocking else ""
+    if r.hang_blank:
+        lines.append(
+            f"{hang}, посетитель и через {HANG_WAIT_MS // 1000} секунд видит пустую "
+            f"страницу: браузер ничего не рисует, пока ждёт ответа{head}. Проверено в "
+            "браузере."
+        )
+    elif r.hang_stuck:
+        lines.append(
+            f"{hang}, страница за {HANG_WAIT_MS // 1000} секунд не загружается до конца: "
+            f"текст виден, но скрипты сайта ждут ответа{head}, и кнопки могут не работать. "
+            "Проверено в браузере."
+        )
+    elif r.hang_stuck is False:
+        lines.append(f"{hang}, страница всё равно открывается: проверено в браузере.")
+    elif r.render_blocking:
         lines.append(
             "Если эти сервисы не откажут, а зависнут, страница останется белой, пока браузер "
             f"их ждёт: в <head> они грузятся до показа страницы ({', '.join(r.render_blocking)})."
         )
     severe = bool(
-        r.captcha_forms
+        r.hang_blank
+        or r.captcha_forms
         or (r.new_errors and (len(r.gone_controls) >= CONTROLS_GONE or r.text_drop >= TEXT_DROP))
         or r.text_drop >= TEXT_DROP
         or (r.visual_change or 0) >= VISUAL_CHANGE
     )
     if not r.visible and not r.new_errors:
-        lines.append("Заметных изменений нет: страница работает и без них.")
-        status = Status.WARN if r.render_blocking else Status.OK
+        lines.append(
+            "Если они сразу отказывают, заметных изменений нет: страница работает и без них."
+            if r.hang_hurts
+            else "Заметных изменений нет: страница работает и без них."
+        )
+        status = Status.FAIL if r.hang_blank else Status.WARN if r.hang_hurts else Status.OK
     else:
         status = Status.FAIL if severe else Status.WARN
     if r.unknown:
@@ -402,7 +444,7 @@ def _advice(r: PageCutoff) -> str:
     if r.gone_controls and not steps:
         steps.append("кнопки и блоки, которые пропали, — перенесите на свой сервер")
     text = "Перенесите то, без чего страница ломается: " + "; ".join(steps) + "." if steps else ""
-    if r.render_blocking:
+    if r.hang_hurts:
         text += " Скрипты и стили из <head> подключайте с async/defer или со своего сервера."
     return text.strip() or "Перенесите эти сервисы на свой сервер или к российским провайдерам."
 
@@ -434,6 +476,8 @@ async def run_cutoff(
         # (a news feed, "5 минут назад") differs between the two normal loads.
         cut = await session.probe(url, block=block)
         base2 = await session.probe(url)
+        # Last, so held requests can't slow the other loads.
+        hung = await session.probe(url, block=block, hang=True) if foreign else None
         noise = change = None
         if base1.screenshot and base2.screenshot and cut.screenshot:
             noise = await session.image_diff(base1.screenshot, base2.screenshot)
@@ -465,5 +509,7 @@ async def run_cutoff(
     if raw_html:
         result.render_blocking = render_blocking(raw_html, base1.final_url, foreign)
     result.slower_ms = max(0, cut.ready_ms - max(base1.ready_ms, base2.ready_ms))
+    if hung is not None and hung.blocked:
+        result.hang_stuck, result.hang_blank = hang_outcome(hung.stuck, hung.painted)
     shots = {"before": base1.screenshot, "after": cut.screenshot}
     return page_check(result, hosts), result, shots

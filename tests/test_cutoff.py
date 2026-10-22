@@ -2,6 +2,7 @@ from suveren.checks import Status
 from suveren.cutoff import (
     HostInfo,
     compare,
+    hang_outcome,
     infra_check,
     known_service,
     page_check,
@@ -110,6 +111,34 @@ def test_render_blocking_alone_is_a_warning():
     r.render_blocking = ["fonts.googleapis.com"]
     check = page_check(r, {})
     assert check.status is Status.WARN and "останется белой" in check.details
+
+
+def test_measured_hang_replaces_the_prediction():
+    base = dom(["Купить"])
+
+    def measured(stuck: bool, painted: bool | None):
+        r = run(base, base, base, {"fonts.googleapis.com"})
+        r.render_blocking = ["fonts.googleapis.com"]
+        r.hang_stuck, r.hang_blank = hang_outcome(stuck, painted)
+        return r, page_check(r, {})
+
+    # Nothing painted after the wait: the visitor sees a blank page, the worst case.
+    r, check = measured(True, False)
+    assert r.hang_blank and check.status is Status.FAIL
+    assert "пустую" in check.details and "останется белой" not in check.details
+    assert "async/defer" in check.recommendation
+    # Painted, but the page never finished loading.
+    r, check = measured(True, True)
+    assert not r.hang_blank and check.status is Status.WARN
+    assert "не загружается до конца" in check.details
+    # Measured fine: the <head> guess is not repeated, nothing to fix.
+    r, check = measured(False, True)
+    assert check.status is Status.OK and "всё равно открывается" in check.details
+    assert r.to_dict()["hang"] == {"stuck": False, "blank": False}
+
+
+def test_unknown_paint_is_not_called_blank():
+    assert hang_outcome(True, None) == (True, False)
 
 
 def test_labels_and_hosts():

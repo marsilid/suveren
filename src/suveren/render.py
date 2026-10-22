@@ -73,6 +73,17 @@ class Probe:
     dom: dict[str, Any] = field(default_factory=dict)  # see _DOM_FEATURES
     screenshot: bytes = b""
     ready_ms: int = 0  # until DOMContentLoaded
+    stuck: bool = False  # hang mode: DOMContentLoaded did not come within HANG_WAIT_MS
+    # Hang mode: the browser painted any content (first-contentful-paint), None if unknown.
+    # Read before anything else touches the page: innerText is empty while rendering is
+    # blocked, and a screenshot may force a frame the visitor would not get.
+    painted: bool | None = None
+
+
+# Hang mode of the cutoff: a block often drops packets instead of refusing, so the
+# browser waits. Requests are held this long, past the moment the page is measured.
+HANG_WAIT_MS = 10000
+HANG_HOLD_S = HANG_WAIT_MS / 1000 + 8
 
 
 # What a visitor can see and use, collected in the page. Only visible elements count:
@@ -130,6 +141,9 @@ _DOM_FEATURES = """() => {
     height: document.documentElement.scrollHeight,
   };
 }"""
+
+_PAINTED = """() => performance.getEntriesByType('paint')
+    .some(e => e.name === 'first-contentful-paint')"""
 
 _IMAGE_DIFF = """async ([a, b]) => {
   const load = (src) => new Promise((ok, fail) => {
@@ -252,10 +266,16 @@ class BrowserSession:
                 await page.close()
 
     async def probe(
-        self, url: str, *, block: Callable[[str], bool] | None = None, settle_ms: int = SETTLE_MS
+        self,
+        url: str,
+        *,
+        block: Callable[[str], bool] | None = None,
+        settle_ms: int = SETTLE_MS,
+        hang: bool = False,
     ) -> Probe:
         """Open ``url`` once for the cutoff experiment (cutoff.py): requests that ``block``
-        refuses fail as if the service were cut off; returns what the visitor sees."""
+        refuses fail as if the service were cut off, or, with ``hang``, get no answer at
+        all while the page is measured; returns what the visitor sees."""
         page = await self._context.new_page()
         probe = Probe(url)
         page.on("request", lambda req: probe.requests.append(req.url))
@@ -264,7 +284,10 @@ class BrowserSession:
         async def route(r: Any) -> None:
             if block is not None and block(r.request.url):
                 probe.blocked.append(r.request.url)
-                await r.abort("connectionrefused")
+                if hang:
+                    await asyncio.sleep(HANG_HOLD_S)
+                with contextlib.suppress(Exception):  # the page may be closed by now
+                    await r.abort("timedout" if hang else "connectionrefused")
             else:
                 await r.continue_()
 
@@ -273,14 +296,26 @@ class BrowserSession:
             started = time.monotonic()
             try:
                 response = await page.goto(
-                    url, wait_until="domcontentloaded", timeout=self.timeout * 1000
+                    url,
+                    wait_until="commit" if hang else "domcontentloaded",
+                    timeout=self.timeout * 1000,
                 )
             except self._error as exc:
                 raise ModuleError(f"браузер не открыл {url} ({str(exc).splitlines()[0]})") from exc
+            if hang:
+                try:
+                    await page.wait_for_load_state("domcontentloaded", timeout=HANG_WAIT_MS)
+                except self._error:
+                    probe.stuck = True
+                with contextlib.suppress(self._error):
+                    probe.painted = await page.evaluate(_PAINTED)
             probe.ready_ms = int((time.monotonic() - started) * 1000)
             probe.status = response.status if response else None
             with contextlib.suppress(self._error):
-                await page.wait_for_load_state("networkidle", timeout=settle_ms)
+                # Hung requests never let the network go idle: look after a short pause.
+                await page.wait_for_load_state(
+                    "networkidle", timeout=min(settle_ms, 2000) if hang else settle_ms
+                )
             probe.final_url = page.url
             with contextlib.suppress(self._error):
                 probe.html = await page.content()
