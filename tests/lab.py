@@ -42,6 +42,7 @@ POSITIVE = {Status.WARN.value, Status.FAIL.value}
 
 # Keys are put together at run time, so that no scanner takes this file for a leak.
 AWS_KEY = "AKIA" + "Z7QX4M2KD9WPL3T8"
+AWS_SECRET = "wJalr" + "XUtnFEMI/K7MDENG/bPxRfiCY" + "Zq3x8LmN9p"
 GOOGLE_KEY = "AIza" + "SyD3x9Kq7Lm2Pn8Rt4Vw6Yz1Ab5Cd0Ef7Gh"
 
 # --- Building blocks ------------------------------------------------------------------
@@ -336,6 +337,42 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-headers-twice",
+        "X-Frame-Options и X-Content-Type-Options отдаются дважды (склеиваются через запятую)",
+        {"SUV-WEB-006": "ok"},
+        html=page(FORM_OK),
+        headers={
+            **GOOD_HEADERS,
+            "content-security-policy": "default-src 'self'; script-src 'self'; object-src 'none'",
+            "x-frame-options": "SAMEORIGIN, SAMEORIGIN",
+            "x-content-type-options": "nosniff, nosniff",
+        },
+        files=site_files(),
+    ),
+    Case(
+        "lab-frame-ancestors-any",
+        "CSP frame-ancestors * без X-Frame-Options: встроить сайт может кто угодно",
+        {"SUV-WEB-006": "warn"},
+        html=page(FORM_OK),
+        headers={
+            **{k: v for k, v in GOOD_HEADERS.items() if k != "x-frame-options"},
+            "content-security-policy": "default-src 'self'; object-src 'none'; frame-ancestors *",
+        },
+        files=site_files(),
+    ),
+    Case(
+        "lab-csp-two-policies",
+        "две CSP: строгая script-src и отдельная frame-ancestors (браузер применяет обе)",
+        {"SUV-WEB-004": "ok", "SUV-WEB-006": "ok"},
+        html=page(FORM_OK),
+        headers={
+            **{k: v for k, v in GOOD_HEADERS.items() if k != "x-frame-options"},
+            "content-security-policy": "script-src 'self'; object-src 'none', "
+            "frame-ancestors 'self'",
+        },
+        files=site_files(),
+    ),
+    Case(
         "lab-no-nosniff",
         "нет X-Content-Type-Options",
         {"SUV-WEB-006": "warn"},
@@ -393,11 +430,33 @@ CASES: list[Case] = [
     # --- code: secrets and libraries --------------------------------------------------
     Case(
         "lab-leak-aws",
-        "ключ доступа AWS в собственном скрипте сайта",
+        "ключ AWS с секретной частью в собственном скрипте сайта",
         {"SUV-WEB-009": "fail"},
         html=page(FORM_OK + '<script src="/static/app.js"></script>'),
         files=site_files(
-            {"/static/app.js": f"const s3 = new S3({{accessKeyId: '{AWS_KEY}', region: 'eu'}});"}
+            {
+                "/static/app.js": f"const s3 = new S3({{accessKeyId: '{AWS_KEY}', "
+                f"secretAccessKey: '{AWS_SECRET}', region: 'eu'}});"
+            }
+        ),
+    ),
+    Case(
+        "lab-leak-aws-id",
+        "только идентификатор ключа AWS, без секретной части: сам по себе ничего не открывает",
+        {"SUV-WEB-009": "warn"},
+        html=page(FORM_OK + '<script src="/static/app.js"></script>'),
+        files=site_files({"/static/app.js": f"const bucketOwner = '{AWS_KEY}';"}),
+    ),
+    Case(
+        "lab-pem-header",
+        "библиотека шифрования (как JSEncrypt) со строкой заголовка PEM, но без ключа",
+        {"SUV-WEB-009": "ok"},
+        html=page(FORM_OK + '<script src="/static/jsencrypt.js"></script>'),
+        files=site_files(
+            {
+                "/static/jsencrypt.js": 'var h="-----BEGIN RSA PRIVATE KEY-----\n";'
+                'function pem(b){return h+b+"\n-----END RSA PRIVATE KEY-----";}'
+            }
         ),
     ),
     Case(

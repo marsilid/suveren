@@ -100,7 +100,7 @@ def _takeover_steps(f: Facts) -> list[str]:
 
 def _first_visit_steps(f: Facts) -> list[str]:
     return [
-        "Нет HSTS (SUV-WEB-005): первый заход по http:// можно перехватить в общественном Wi-Fi.",
+        "Нет HSTS (SUV-WEB-005): заход по http:// можно перехватить в общественном Wi-Fi.",
         "Посетитель видит подменённую страницу на вашем адресе и вводит данные в форму.",
     ]
 

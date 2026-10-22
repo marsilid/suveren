@@ -154,6 +154,21 @@ def parse_csp(policy: str) -> dict[str, list[str]]:
     return directives
 
 
+def csp_policies(header: str) -> list[str]:
+    """A repeated CSP header arrives joined by commas: each part is a policy of its own,
+    and the browser enforces all of them (CSP Level 3, section 3.1)."""
+    return [p for p in header.split(",") if p.strip()]
+
+
+def frame_protected(policies: list[str]) -> bool:
+    """frame-ancestors that limits who may frame the page: not *, http: or https:."""
+    for policy in policies:
+        sources = parse_csp(policy).get("frame-ancestors")
+        if sources is not None and not any(s in ("*", "http:", "https:") for s in sources):
+            return True
+    return False
+
+
 def csp_weaknesses(policy: str) -> list[str]:
     """What makes the policy useless against injected scripts, in plain words."""
     d = parse_csp(policy)
@@ -440,9 +455,9 @@ def sri_check(w: WebFacts) -> Check | None:
 
 def csp_check(w: WebFacts) -> Check:
     title = "Политика безопасности контента (CSP)"
-    policy = w.headers.get("content-security-policy") or "; ".join(w.csp_meta)
+    policies = csp_policies(w.headers.get("content-security-policy", "")) or w.csp_meta
     report_only = w.headers.get("content-security-policy-report-only")
-    if not policy:
+    if not policies:
         how = (
             " Есть только режим наблюдения (Report-Only), он ничего не блокирует."
             if report_only
@@ -461,7 +476,8 @@ def csp_check(w: WebFacts) -> Check:
             else "Начните с Content-Security-Policy-Report-Only, соберите список источников и "
             "включите политику со script-src без 'unsafe-inline' и object-src 'none'.",
         )
-    problems = csp_weaknesses(policy)
+    # Every policy is enforced, so the strictest one decides.
+    problems = min((csp_weaknesses(p) for p in policies), key=len)
     if not problems:
         return Check(GROUP_WEB, title, Status.OK, "CSP задана и ограничивает источники скриптов.")
     return Check(
@@ -484,7 +500,8 @@ def hsts_check(w: WebFacts) -> Check | None:
             GROUP_WEB,
             title,
             Status.WARN,
-            "Заголовка Strict-Transport-Security нет: первое открытие сайта по http:// можно "
+            "Заголовка Strict-Transport-Security нет: браузер не запоминает, что сайт работает "
+            "только по HTTPS, и любой заход по http:// (старая ссылка, адрес без https) можно "
             "перехватить в общественном Wi-Fi и подменить страницу.",
             "Добавьте заголовок Strict-Transport-Security: max-age=31536000; includeSubDomains.",
         )
@@ -511,7 +528,7 @@ def hsts_check(w: WebFacts) -> Check | None:
             Status.WARN,
             # max-age=0 tells browsers to forget HSTS: it is switched off, not short.
             "Заголовок Strict-Transport-Security есть, но с max-age=0: он выключает HSTS, "
-            "и первое открытие по http:// можно перехватить."
+            "и заход по http:// можно перехватить."
             if age == 0
             else f"HSTS включён, но на {_duration(age)}: этого мало, защита быстро истекает.",
             "Поставьте max-age не меньше 15552000 (180 дней), лучше 31536000.",
@@ -523,16 +540,20 @@ def headers_check(w: WebFacts) -> Check:
     title = "Защитные заголовки"
     missing = []
     fixes = []
-    csp = parse_csp(w.headers.get("content-security-policy", ""))
-    # ALLOW-FROM and other values are ignored by current browsers (OWASP Secure Headers).
-    xfo = w.headers.get("x-frame-options", "").strip().lower()
-    if xfo not in ("deny", "sameorigin") and "frame-ancestors" not in csp:
+    # ALLOW-FROM and other values are ignored by current browsers (OWASP Secure Headers);
+    # a repeated header arrives joined, and the HTML Standard reads its values as a set.
+    xfo = {v.strip().lower() for v in w.headers.get("x-frame-options", "").split(",")} - {""}
+    framed = bool(xfo) and xfo <= {"deny", "sameorigin"}
+    if not framed and not frame_protected(
+        csp_policies(w.headers.get("content-security-policy", ""))
+    ):
         missing.append(
             "X-Frame-Options или frame-ancestors (сайт можно встроить в чужую страницу и "
             "обманом заставить нажать кнопку — кликджекинг)"
         )
         fixes.append("X-Frame-Options: SAMEORIGIN (или CSP frame-ancestors 'self')")
-    if w.headers.get("x-content-type-options", "").lower() != "nosniff":
+    # Fetch's "determine nosniff" reads the first value of a repeated header.
+    if w.headers.get("x-content-type-options", "").split(",")[0].strip().lower() != "nosniff":
         missing.append("X-Content-Type-Options: nosniff (браузер может принять файл за скрипт)")
         fixes.append("X-Content-Type-Options: nosniff")
     if not missing:

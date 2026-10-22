@@ -47,7 +47,13 @@ def _sig(name: str, pattern: str, secret: bool = True) -> Signature:
 
 
 SIGNATURES = (
-    _sig("приватный ключ", r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"),
+    # The whole key, not its header: JSEncrypt and node-forge carry the header line as a
+    # constant of their PEM writer.
+    _sig(
+        "приватный ключ",
+        r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"
+        r"(?:[A-Za-z0-9+/=\s]|\\[rn]){100,}?-----END",
+    ),
     # Real key IDs always hold digits: "ASIAPACIFICSOUTHEAST" is a region name.
     _sig("ключ доступа AWS", r"\b(?:AKIA|ASIA)(?=[0-9A-Z]{0,15}\d)[0-9A-Z]{16}\b"),
     _sig("секретный ключ Stripe", r"\b[sr]k_live_[0-9a-zA-Z]{24,}\b"),
@@ -64,6 +70,8 @@ SIGNATURES = (
     _sig("ключ Google API", r"\bAIza[0-9A-Za-z_-]{35}(?![\w-])", secret=False),
 )  # fmt: skip
 
+AWS_ID = "ключ доступа AWS"
+_AWS_SECRET = re.compile(r"(?<![A-Za-z0-9/+])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])")
 _PLACEHOLDER = re.compile(r"x{5,}|X{5,}|example|your|dummy|placeholder|sample|0{10,}", re.I)
 _INLINE = re.compile(r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\s*>", re.I | re.S)
 
@@ -82,7 +90,7 @@ class Leak:
 def mask(value: str) -> str:
     """Enough to find the key in the code, not enough to use it."""
     if value.startswith("-----BEGIN"):
-        return value
+        return value.split("-----")[1].join(("-----", "-----"))
     return f"{value[:4]}…{value[-2:]}" if len(value) > 10 else "…"
 
 
@@ -95,6 +103,12 @@ def find_leaks(text: str, where: str) -> list[Leak]:
             if value in seen or _PLACEHOLDER.search(value):
                 continue
             seen.add(value)
+            if sig.name == AWS_ID and not _AWS_SECRET.search(
+                text, max(0, m.start() - 300), m.end() + 300
+            ):
+                # The key ID alone opens nothing: the secret access key is needed too.
+                found.append(Leak(f"{AWS_ID} без секретной части", mask(value), where, False))
+                continue
             found.append(Leak(sig.name, mask(value), where, sig.secret))
     return found
 
@@ -163,10 +177,12 @@ def leak_check(leaks: list[Leak], sources: int) -> Check:
             TITLE,
             Status.WARN,
             f"В коде сайта есть ключи, которые видит любой посетитель: {listed(public)}. "
-            "Такие ключи бывают публичными по задумке, но без ограничений их можно "
-            "использовать с чужих сайтов за ваш счёт.",
-            "Ограничьте ключ в консоли провайдера: только ваши домены (HTTP referrer) и "
-            "только нужные API.",
+            "Это не секреты: такие ключи публичны по задумке или ничего не открывают без "
+            "секретной части. Но публичный ключ без ограничений можно использовать с чужих "
+            "сайтов за ваш счёт, а идентификатор подсказывает, какой секрет искать.",
+            "Ограничьте публичный ключ в консоли провайдера: только ваши домены (HTTP "
+            "referrer) и только нужные API. Идентификатор без секретной части уберите из "
+            "кода, если браузеру он не нужен.",
         )
     return Check(
         GROUP_WEB,

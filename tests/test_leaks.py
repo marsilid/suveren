@@ -14,13 +14,14 @@ def k(*parts):
 
 
 AWS = k("AK", "IA", "Q3EGRT7ZPNWM2K4D")
+AWS_SECRET = k("wJalr", "XUtnFEMI/K7MDENG/bPxRfiCY", "Zq3x8LmN9p")  # 40 characters
 TELEGRAM = k("6123456789", ":", "AA", "Hq9vXr2Lm8Tz0Kd3Wn5Pb7Yc1Js4Fg6Ue")
 GOOGLE = k("AI", "za", "SyB7dE3fG5hJ8kL1mN4pQ6rT9vW2xZ0aC3e")
 STRIPE = k("sk", "_live_", "51Hq9vXr2Lm8Tz0Kd3Wn5Pb7")
 
 
 def test_secrets_are_found_and_masked():
-    js = f'const a="{AWS}";fetch("https://api.telegram.org/bot{TELEGRAM}/send");s="{STRIPE}"'
+    js = f'const a="{AWS}",b="{AWS_SECRET}";fetch("https://api.telegram.org/bot{TELEGRAM}/send");s="{STRIPE}"'
     leaks = find_leaks(js, "/app.js")
     kinds = {x.kind for x in leaks}
     assert kinds == {"ключ доступа AWS", "токен Telegram-бота", "секретный ключ Stripe"}
@@ -41,7 +42,7 @@ def test_public_google_key_is_a_warning_and_a_secret_a_problem():
     check = leak_check(public, 3)
     assert check.status is Status.WARN and check.id == "SUV-WEB-009"
     assert GOOGLE not in check.details and "AIza…" in check.details
-    secret = find_leaks(AWS, "код страницы главная")
+    secret = find_leaks(f"{AWS} {AWS_SECRET}", "код страницы главная")
     check = leak_check(secret + public, 3)
     assert check.status is Status.FAIL
     assert "отзовите" in check.recommendation
@@ -56,7 +57,7 @@ def test_inline_scripts_only_without_src():
 def test_scan_reads_own_scripts_and_pages():
     def handler(request):
         if request.url.path == "/static/app.js":
-            return httpx.Response(200, text=f'var k="{AWS}"')
+            return httpx.Response(200, text=f'var k="{AWS}", s="{AWS_SECRET}"')
         return httpx.Response(404)
 
     async def go():
@@ -79,3 +80,19 @@ def test_region_names_and_trailing_dash():
     assert find_leaks(k("ASIA", "PACIFICSOUTHEAST"), "/x.js") == []
     dashed = k("AI", "za", "SyB7dE3fG5hJ8kL1mN4pQ6rT9vW2xZ0aC3-")
     assert [x.kind for x in find_leaks(f'k="{dashed}"', "/x.js")] == ["ключ Google API"]
+
+
+def test_aws_key_id_without_its_secret_is_only_a_warning():
+    leaks = find_leaks(f'var id = "{AWS}";', "/app.js")
+    assert [(x.kind, x.secret) for x in leaks] == [("ключ доступа AWS без секретной части", False)]
+    assert leak_check(leaks, 1).status is Status.WARN
+
+
+def test_pem_header_alone_is_not_a_private_key():
+    # JSEncrypt carries the header as a constant of its PEM writer.
+    assert find_leaks('var h = "-----BEGIN RSA PRIVATE KEY-----\n";', "/jsencrypt.js") == []
+    body = "MIIEowIBAAKCAQEA" + "q8Vh3Lm9Tz0Kd2Wn5Pb7Yc1Js4Fg6Ue" * 5
+    pem = f'"-----BEGIN RSA PRIVATE KEY-----\n{body}\n-----END RSA PRIVATE KEY-----"'
+    leaks = find_leaks(pem, "/app.js")
+    assert [x.kind for x in leaks] == ["приватный ключ"]
+    assert leaks[0].masked == "-----BEGIN RSA PRIVATE KEY-----"
