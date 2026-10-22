@@ -149,11 +149,12 @@ def svg(g: Graph) -> str:
             parts.append(f'<path d="M{x1},{y1} C{mid},{y1} {mid},{y2} {x2},{y2}" class="edge"/>')
     indirect = set(g.indirect)
     for n, (x, y) in pos.items():
-        label = html.escape(g.nodes[n] if n != SITE else g.nodes[SITE])
+        # Cut, then escape: cutting "&amp;" in half would leave a broken entity.
+        label = html.escape((g.nodes[n] if n != SITE else g.nodes[SITE])[:30])
         cls = "site" if n == SITE else "indirect" if n in indirect else "direct"
         parts.append(
             f'<g class="node {cls}"><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6"/>'
-            f'<text x="{x + 8}" y="{y + 18}">{label[:30]}</text></g>'
+            f'<text x="{x + 8}" y="{y + 18}">{label}</text></g>'
         )
     parts.append("</svg>")
     return "".join(parts)

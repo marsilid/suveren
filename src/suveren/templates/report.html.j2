@@ -43,7 +43,7 @@
       <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
       <h3>{{ c.title }}{% if c.id %} <span class="cid">{{ c.id }}</span>{% endif %}</h3>
       {% if flow_row %}<p>Страны и сервисы, которым уходят IP и cookies посетителя, — в таблице ниже.</p>
-      {% elif c.details %}<p>{{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% elif c.details %}<p>{{ c.details | linkify }}{% if c.link | web_url %} <a href="{{ c.link | web_url }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
       {% if c.recommendation and c.status.value != "ok" and not (flow_row and xborder) %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
       {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
     </div>
@@ -53,7 +53,7 @@
     <details class="passed">
       <summary><span class="st-ok">✓</span> {% if passed | length < items | length %}Ещё в порядке: {{ passed | length }}{% else %}Всё в порядке · проверок: {{ passed | length }}{% endif %}</summary>
       <ul>
-        {% for c in passed %}<li{% if c.id %} id="{{ c.id }}"{% endif %}><b>{{ c.title }}</b> — {{ c.details | linkify }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</li>{% endfor %}
+        {% for c in passed %}<li{% if c.id %} id="{{ c.id }}"{% endif %}><b>{{ c.title }}</b> — {{ c.details | linkify }}{% if c.link | web_url %} <a href="{{ c.link | web_url }}" target="_blank" rel="noopener">открыть</a>{% endif %}</li>{% endfor %}
       </ul>
     </details>
     {% endif %}

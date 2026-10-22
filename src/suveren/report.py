@@ -53,6 +53,15 @@ def _sections(text: str) -> Markup:
     return out
 
 
+def web_url(url: str | None) -> str | None:
+    """The address if it is http(s), else None. A check's link can come from the
+    scanned page (the policy link): a "javascript:" href there would run in the
+    reader's browser on click, and escaping does not stop that."""
+    if url and urlsplit(url.strip()).scheme.lower() in ("http", "https"):
+        return url.strip()
+    return None
+
+
 def linkify(text: str | None) -> Markup:
     """Escaped text with its web addresses turned into short links: the site's name
     instead of a long address nobody reads. Section names link to their sections."""
@@ -80,6 +89,7 @@ def _environment() -> Environment:
     env.filters["rub"] = rub
     env.filters["span"] = span
     env.filters["linkify"] = linkify
+    env.filters["web_url"] = web_url
     env.globals["fines_disclaimer"] = DISCLAIMER
     return env
 
