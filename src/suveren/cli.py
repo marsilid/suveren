@@ -36,7 +36,7 @@ from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
-from suveren.errors import TIMEOUTS, SuverenError
+from suveren.errors import TIMEOUTS, ModuleError, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
@@ -555,8 +555,14 @@ def batch(
 
     async def run_all() -> list[tuple[str, Report | None, str | None]]:
         if "blocklist" in plan.modules:
-            async with make_client(30.0) as client:
-                await ensure_lists(client, refresh=refresh)
+            # Fetched once for the whole list. If the source is down and nothing is
+            # cached, each site says "not checked" for the block list instead of the
+            # whole batch failing (it took the nightly run down with it).
+            try:
+                async with make_client(30.0) as client:
+                    await ensure_lists(client, refresh=refresh)
+            except ModuleError as exc:
+                console.print(f"[yellow]Реестр блокировок недоступен: {exc}.[/]")
 
         async def one(host: str) -> tuple[str, Report | None, str | None]:
             try:
