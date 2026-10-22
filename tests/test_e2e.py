@@ -283,3 +283,24 @@ def test_history_matches_old_reports_by_title():
         "ok",
         True,
     )
+
+
+def test_quiet_prints_nothing_but_keeps_files_and_exit_codes(offline, tmp_path):
+    case = offline("lab-tls-wrong-host")
+    out = tmp_path / "r.json"
+    result = CliRunner().invoke(
+        app,
+        ["scan", case.host, "-q", "--fail-on", "fail", "--json", str(out), "--no-report"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 4
+    assert result.stdout == ""  # the failure is on stderr
+    assert "SUV-WEB-008" in result.stderr
+    assert json.loads(out.read_text(encoding="utf-8"))["target"] == case.host
+    # The next command in the same process is not silenced.
+    assert "Ничего не изменилось" in CliRunner().invoke(app, ["diff", str(out), str(out)]).output
+
+
+def test_shell_completion_is_offered():
+    result = CliRunner().invoke(app, ["--help"])
+    assert "--install-completion" in result.output

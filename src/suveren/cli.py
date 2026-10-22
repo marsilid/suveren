@@ -70,7 +70,7 @@ for _stream in (sys.stdout, sys.stderr):
             _stream.reconfigure(encoding="utf-8")
 
 app = typer.Typer(
-    add_completion=False,
+    add_completion=True,  # --install-completion for bash, zsh, fish and PowerShell
     no_args_is_help=True,
     rich_markup_mode="rich",
     help="[bold]Suveren[/] — аудит сайта и компании: иностранные сервисы, 152-ФЗ, "
@@ -78,6 +78,7 @@ app = typer.Typer(
 )
 # No automatic highlighting: it colours every number ("152-ФЗ", dates) at random.
 console = Console(record=True, highlight=False)
+errors_console = Console(stderr=True, highlight=False)
 GRADE_ORDER = ("A", "B", "C", "D", "F")
 SITE_DEADLINE = 300  # seconds per site in batch
 
@@ -155,10 +156,12 @@ def main(
     ] = False,
 ) -> None:
     """Подробнее о команде: `suveren КОМАНДА --help`."""
+    console.quiet = False  # scan -q sets it for its own run only
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
-    console.print(f"[bold #e5534b]✗[/] {message}")
+    # In quiet mode the error still has to be seen: it goes to stderr.
+    (errors_console if console.quiet else console).print(f"[bold #e5534b]✗[/] {message}")
     return typer.Exit(code)
 
 
@@ -247,6 +250,14 @@ def scan(
     ] = False,
     details: Annotated[
         bool, typer.Option("--details", "-d", help="Показать все найденные сервисы.")
+    ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet",
+            "-q",
+            help="Ничего не печатать: для CI, вместе с --json, --fail-on и --fail-under.",
+        ),
     ] = False,
     pages: Annotated[
         int,
@@ -410,6 +421,8 @@ def scan(
     except SuverenError as exc:
         raise _fail(str(exc)) from exc
 
+    # Errors still reach stderr through _fail; only the report view is silenced.
+    console.quiet = quiet
     meta = plan_label(plan, "quick" if quick else profile.value)
     if plugins:
         meta += " · плагины: " + ", ".join(p.name for p in plugins)
@@ -475,12 +488,16 @@ def scan(
 
     grade = overall_grade(report)
     if threshold is not None and GRADE_ORDER.index(grade) > GRADE_ORDER.index(threshold):
-        console.print(f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]")
+        (errors_console if console.quiet else console).print(
+            f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]"
+        )
         raise typer.Exit(3)
     failing = failing_checks(report, fail_on)
     if failing and fail_on is not None:
         ids = ", ".join(dict.fromkeys(c.id for c in failing))
-        console.print(f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]")
+        (errors_console if console.quiet else console).print(
+            f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]"
+        )
         raise typer.Exit(4)
 
 
