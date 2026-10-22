@@ -2,8 +2,10 @@
 country of its owner (a known service) or of the network it sits in (an unknown one).
 
 Opening the page sends the visitor's IP address, and often cookies, to each of them;
-by Роскомнадзор's position that is personal data, so foreign hosts are cross-border
-transfer under 152-ФЗ, ст. 12. Nothing is probed: the hosts are those the page itself
+by Роскомнадзор's position that is personal data. Cross-border transfer is defined by
+the recipient, a foreign company or state (152-ФЗ, ст. 3 п. 11), so a known foreign
+service is a transfer under ст. 12, while an unknown host on a foreign network only
+shows where its server is. Nothing is probed: the hosts are those the page itself
 loads, and the lookups are DNS only.
 """
 
@@ -23,17 +25,20 @@ UNKNOWN_COUNTRY = "??"
 def flow(hosts: dict[str, HostInfo]) -> list[dict[str, Any]]:
     """Countries with their services, foreign first, most services first."""
     by_country: dict[str, list[str]] = {}
+    known: dict[str, bool] = {}  # a service whose owner is known, in this country
     for info in hosts.values():
         code = (info.country or UNKNOWN_COUNTRY).upper()
         name = info.service or info.host
         names = by_country.setdefault(code, [])
         if name not in names:
             names.append(name)
+        known[code] = known.get(code, False) or bool(info.service and not info.via_network)
     rows = [
         {
             "country": code,
             "name": "страна не определена" if code == UNKNOWN_COUNTRY else country_name(code),
             "foreign": code not in ("RU", UNKNOWN_COUNTRY),
+            "known_owner": known[code],
             "services": sorted(names),
         }
         for code, names in by_country.items()
@@ -64,17 +69,23 @@ def flow_check(rows: list[dict[str, Any]]) -> Check:
     if not foreign:
         return Check(GROUP_152, TITLE, Status.OK, text, law="152-ФЗ, ст. 12")
     countries = len(foreign)
-    return Check(
-        GROUP_152,
-        TITLE,
-        Status.WARN,
-        text,
-        f"Данные уходят за рубеж ({_countries(countries)}): по позиции Роскомнадзора это "
-        "трансграничная передача персональных данных. Укажите эти страны и сервисы в "
-        "политике и уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12) "
-        "или замените сервисы российскими.",
-        law="152-ФЗ, ст. 12",
-    )
+    if any(r.get("known_owner", True) for r in foreign):
+        advice = (
+            f"Данные уходят иностранным компаниям ({_countries(countries)}): IP-адрес по "
+            "позиции Роскомнадзора — персональные данные, а передача иностранному "
+            "получателю — трансграничная (152-ФЗ, ст. 3 п. 11). Укажите эти страны и "
+            "сервисы в политике и уведомите Роскомнадзор о трансграничной передаче "
+            "(ст. 12) или замените сервисы российскими."
+        )
+    else:
+        # Only hosts unknown to the base, on foreign networks: the owner may be Russian.
+        advice = (
+            f"Серверы этих сервисов стоят за рубежом ({_countries(countries)}), но чьи они, "
+            "не известно. Если сервис принадлежит иностранной компании, это трансграничная "
+            "передача (152-ФЗ, ст. 3 п. 11): уведомите Роскомнадзор (ст. 12). Если это ваш "
+            "сервер или российской компании, речь о хранении данных в России (ст. 18 ч. 5)."
+        )
+    return Check(GROUP_152, TITLE, Status.WARN, text, advice, law="152-ФЗ, ст. 12")
 
 
 def _countries(n: int) -> str:

@@ -53,9 +53,21 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+# An ad label under 38-ФЗ names the advertiser: "Реклама. ООО «X», ИНН …, erid: …".
+# That ИНН is someone else's, not the site owner's.
+_AD_LABEL = re.compile(r"\berid\b", re.I)
+
+
 def find_inns(text: str) -> list[str]:
-    """Valid ИНН mentioned in the text, most frequent first."""
-    counts = Counter(m for m in _INN_RE.findall(_clean(text)) if is_valid_inn(m))
+    """Valid ИНН mentioned in the text, most frequent first; advertisers' ИНН from ad
+    labels are left out."""
+    clean = _clean(text)
+    counts = Counter(
+        m.group(1)
+        for m in _INN_RE.finditer(clean)
+        if is_valid_inn(m.group(1))
+        and not _AD_LABEL.search(clean, max(0, m.start() - 40), m.end() + 80)
+    )
     return [inn for inn, _ in counts.most_common()]
 
 

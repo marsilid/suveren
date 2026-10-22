@@ -35,3 +35,14 @@ def test_find_inns_in_markup():
 
 def test_find_inns_ignores_bad_checksum():
     assert find_inns("ИНН: 1234567890") == []
+
+
+def test_advertiser_inn_in_an_ad_label_is_not_the_site_owner():
+    from suveren.inn import find_inns
+
+    html = (
+        "<div>Реклама. ООО «Рекламодатель», ИНН 7736207543. erid: 2SDnjeL1abc</div>"
+        "<p>Каталог курсов, отзывы студентов и расписание занятий.</p>"
+        "<footer>ООО «Сайт», ИНН 7707083893</footer>"
+    )
+    assert find_inns(html) == ["7707083893"]

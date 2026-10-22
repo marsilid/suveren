@@ -85,3 +85,16 @@ def test_report_says_cross_border_once():
     assert "в таблице ниже" in html
     assert html.count("уведомите Роскомнадзор о трансграничной") == 0
     assert html.count("Уведомите Роскомнадзор.") == 2  # the to-do list and PD-006 itself
+
+
+def test_unknown_host_on_a_foreign_network_is_not_called_a_transfer():
+    # Cross-border transfer is defined by the recipient (152-ФЗ, ст. 3 п. 11): a host the
+    # base doesn't know, on a Hetzner network, may well belong to a Russian company.
+    rows = flow(
+        {"x": HostInfo("api.shop-ru.example", "Hetzner Online GmbH", "DE", via_network=True)}
+    )
+    check = flow_check(rows)
+    assert check.status is Status.WARN
+    assert "не известно" in check.recommendation and "ст. 18 ч. 5" in check.recommendation
+    rows = flow({"g": HostInfo("www.googletagmanager.com", "Google Analytics", "US")})
+    assert "иностранным компаниям" in flow_check(rows).recommendation
