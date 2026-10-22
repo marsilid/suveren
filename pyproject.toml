@@ -65,5 +65,9 @@ warn_unused_ignores = true
 [tool.coverage.run]
 source = ["src/suveren"]
 
+[tool.coverage.report]
+# The offline end-to-end tests (tests/test_e2e.py and others) keep it above this.
+fail_under = 90
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

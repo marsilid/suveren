@@ -221,3 +221,20 @@ def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, t
     for check_id, want in case.expect.items():
         assert statuses.get(check_id) == want, check_id
     assert audit(data) == []
+
+
+def test_cutoff_that_breaks_is_not_checked_not_a_crash(offline, monkeypatch, tmp_path):
+    async def broken(*args, **kwargs):
+        raise RuntimeError("браузер упал")
+
+    monkeypatch.setattr(scan_module, "run_cutoff", broken)
+    case = offline("lab-ga-no-banner")
+    out_json = tmp_path / "r.json"
+    result = run_cli(
+        tmp_path, case.host, "--cutoff", "--json", str(out_json), "-o", str(tmp_path / "r.html")
+    )
+    assert result.exit_code == 0, result.output
+    checks = {c["id"]: c for c in json.loads(out_json.read_text(encoding="utf-8"))["checks"]}
+    assert checks["SUV-CUT-001"]["status"] in ("ok", "warn", "fail")  # the infrastructure part
+    assert checks["SUV-CUT-002"]["status"] == "unknown"
+    assert "браузер упал" in checks["SUV-CUT-002"]["details"]
