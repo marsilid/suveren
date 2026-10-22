@@ -38,6 +38,8 @@ jobs:
           ruff format --check .
       - name: Types
         run: mypy
+      - name: Vulnerable dependencies
+        run: pip-audit --skip-editable
       - name: Test
         run: pytest -q
       - name: CLI smoke test
