@@ -197,6 +197,8 @@
     .grade { width: 64px; height: 64px; border-width: 5px; font-size: 28px; }
     .grade.grade-num { font-size: 22px; }
     td.evidence { display: none; }
+    /* Wide tables scroll sideways instead of squeezing a column to a word per line. */
+    .table-wrap table { min-width: 560px; }
   }
   @media print { body { background: #fff; } .card, .check, tr { break-inside: avoid; } h2 { break-after: avoid; } }
 </style>
