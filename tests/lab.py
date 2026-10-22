@@ -253,6 +253,18 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-hsts-repeated",
+        "HSTS отдаётся несколько раз (после сверки с Mozilla Observatory на bi.zone)",
+        {"SUV-WEB-005": "warn"},
+        html=page(FORM_OK),
+        headers={
+            **GOOD_HEADERS,
+            # httpx joins repeated headers with ", ", as the browser's network stack does.
+            "strict-transport-security": "max-age=15552000;, max-age=31536000, max-age=7200",
+        },
+        files=site_files(),
+    ),
+    Case(
         "lab-no-csp",
         "нет Content-Security-Policy, защита от фреймов через X-Frame-Options",
         {"SUV-WEB-004": "warn", "SUV-WEB-006": "ok"},

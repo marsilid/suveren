@@ -124,3 +124,22 @@ def test_host_without_address_is_kept():
     collector = Collector(_RotatingResolver(), None, 5.0)  # type: ignore[arg-type]
     hosts = asyncio.run(collector._hosts(["gone.example.net"]))
     assert [(h.host, h.net) for h in hosts] == [("gone.example.net", None)]
+
+
+def test_ip_owner_lookup_retries_a_lost_dns_answer():
+    from suveren.collect import Collector
+    from suveren.dnsutil import DnsLookupError
+
+    class Flaky:
+        calls = 0
+
+        async def resolve(self, name: str, rtype: str) -> list[str]:
+            Flaky.calls += 1
+            if Flaky.calls == 1:
+                raise DnsLookupError("timeout")
+            if name.endswith("origin.asn.cymru.com"):
+                return ["12389 | 213.59.252.0/22 | RU | ripencc | 2001-03-01"]
+            return ["12389 | RU | ripencc | 1999-06-29 | ROSTELECOM-AS PJSC Rostelecom, RU"]
+
+    info = asyncio.run(Collector(Flaky(), None, 5.0).net_info("213.59.253.7"))  # type: ignore[arg-type]
+    assert info.asn == 12389 and info.as_name

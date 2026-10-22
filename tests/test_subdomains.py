@@ -325,3 +325,24 @@ def test_a_slow_stage_gives_up_on_its_own_section_only(monkeypatch):
     checks, data = asyncio.run(subdomains.run_subdomain_checks(None, None, None, "a.ru"))
     # alfabank.ru once lost its whole report in a batch; now only this section is unknown.
     assert checks[0].status is Status.UNKNOWN and "дольше" in checks[0].details and data == {}
+
+
+def test_ct_down_uses_a_recent_saved_list(tmp_path, monkeypatch):
+    import json as _json
+    import os
+    import time
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    saved = tmp_path / "ct" / "example.ru.json"
+    saved.parent.mkdir(parents=True)
+    saved.write_text(_json.dumps({"names": ["promo.example.ru"], "source": "crt.sh"}))
+    three_days = time.time() - 3 * 24 * 3600
+    os.utime(saved, (three_days, three_days))
+
+    async def go():
+        async with client(lambda r: httpx.Response(503)) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    names, source = run(go())
+    assert names == ["promo.example.ru"]
+    assert "сохранённый список" in source and "3 дн" in source

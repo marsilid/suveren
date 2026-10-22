@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 
-from suveren.cache import cache_dir, is_fresh
+from suveren.cache import age_text, cache_dir, is_fresh
 from suveren.checks import Check, Status
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
@@ -40,6 +40,7 @@ CERTSPOTTER_PAGES = 5
 # stage once pushed alfabank.ru and sovcombank.ru past the per-site deadline, losing
 # the whole report for want of one section.
 STAGE_BUDGET = 120.0
+STALE_TTL = 14 * 24 * 3600  # an old list, used only when both logs are down
 MAX_SUBDOMAINS = 300
 MAX_CNAME_HOPS = 4
 DNS_CONCURRENCY = 20
@@ -122,6 +123,11 @@ async def ct_subdomains(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"names": names, "source": source}), encoding="utf-8")
         return names, source
+    # Both logs fail often at night: a list from the last days beats "not checked", and
+    # the source says how old it is.
+    if path.exists() and is_fresh(path, STALE_TTL):
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        return cached["names"], f"{cached['source']}, сохранённый список ({age_text(path)})"
     raise ModuleError(f"журналы сертификатов недоступны ({'; '.join(errors)}), попробуйте позже")
 
 

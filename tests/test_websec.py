@@ -431,3 +431,11 @@ def test_tls_unverified_certificate_is_said_not_hidden():
     t.verified = False
     check = tls_check(web(tls=t))
     assert check is not None and "проверить не удалось" in check.details
+
+
+def test_repeated_hsts_header_is_a_warning():
+    # bi.zone: four Strict-Transport-Security headers, joined by the HTTP client.
+    value = "max-age=15552000;, max-age=31536000, max-age=7200, max-age=15552000;"
+    check = hsts_check(web(headers={"strict-transport-security": value}))
+    assert check is not None and check.status is Status.WARN
+    assert "4 раза" in check.details and "RFC 6797" in check.details

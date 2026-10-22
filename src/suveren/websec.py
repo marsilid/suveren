@@ -488,8 +488,22 @@ def hsts_check(w: WebFacts) -> Check | None:
             "перехватить в общественном Wi-Fi и подменить страницу.",
             "Добавьте заголовок Strict-Transport-Security: max-age=31536000; includeSubDomains.",
         )
-    match = re.search(r"max-age\s*=\s*\"?(\d+)", value, re.I)
-    age = int(match.group(1)) if match else 0
+    ages = re.findall(r"max-age\s*=\s*\"?(\d+)", value, re.I)
+    if len(ages) > 1:
+        # bi.zone sends the header four times; joined, it repeats max-age, and a header
+        # with a repeated directive is invalid (RFC 6797, section 6.1).
+        times = f"{len(ages)} {plural(len(ages), 'раз', 'раза', 'раз')}"
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.WARN,
+            f"Заголовок Strict-Transport-Security повторяется ({times}, max-age: "
+            f"{', '.join(dict.fromkeys(ages))}). Директивы в нём не должны повторяться "
+            "(RFC 6797, раздел 6.1), и браузеры могут отвергнуть его целиком.",
+            "Оставьте один заголовок Strict-Transport-Security: max-age=31536000; "
+            "includeSubDomains. Обычно повтор добавляют сразу веб-сервер и приложение.",
+        )
+    age = int(ages[0]) if ages else 0
     if age < HSTS_MIN_AGE:
         return Check(
             GROUP_WEB,

@@ -270,17 +270,25 @@ class Collector:
         if addr.version != 4:
             return info
         arpa = ".".join(reversed(ip.split(".")))
-        with contextlib.suppress(DnsLookupError):
-            origin = await self.resolver.resolve(f"{arpa}.origin.asn.cymru.com", "TXT")
-            if origin:
-                info.asn, info.country = parse_cymru_origin(origin[0])
+        origin = await self._txt_twice(f"{arpa}.origin.asn.cymru.com")
+        if origin:
+            info.asn, info.country = parse_cymru_origin(origin[0])
         if info.asn:
-            with contextlib.suppress(DnsLookupError):
-                names = await self.resolver.resolve(f"AS{info.asn}.asn.cymru.com", "TXT")
-                if names:
-                    as_country, info.as_name = parse_cymru_asname(names[0])
-                    info.country = as_country or info.country
+            names = await self._txt_twice(f"AS{info.asn}.asn.cymru.com")
+            if names:
+                as_country, info.as_name = parse_cymru_asname(names[0])
+                info.country = as_country or info.country
         return info
+
+    async def _txt_twice(self, name: str) -> list[str]:
+        """One retry: a lost answer at night left gosuslugi.ru with no owner for its IPs."""
+        for attempt in range(2):
+            try:
+                return await self.resolver.resolve(name, "TXT")
+            except DnsLookupError:
+                if attempt:
+                    return []
+        return []
 
     async def _host_infos(self, host: str) -> list[HostInfo]:
         """One entry per network the host's addresses live in.
