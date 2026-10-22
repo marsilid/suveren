@@ -130,26 +130,19 @@ class ComplianceInput:
 
 # Checks that are concluded from the page markup; meaningless if the page is an
 # anti-bot stub or an empty JavaScript shell.
-_HTML_CHECKS = frozenset(
-    {
-        "Политика обработки персональных данных",
-        "Согласие на обработку в формах",
-        "Уведомление о cookies",
-        "Трансграничная передача данных",
-        "Отдельное согласие на обработку",
-    }
-)
+# Checks that read the page's HTML (catalog.py IDs): unproven when the page is a shell.
+_HTML_CHECKS = frozenset({"SUV-PD-001", "SUV-PD-003", "SUV-PD-005", "SUV-PD-006", "SUV-PD-004"})
 
 
 def _mark_unverifiable(checks: list[Check], problem: str) -> None:
     for c in checks:
-        if c.title not in _HTML_CHECKS:
+        if c.id not in _HTML_CHECKS:
             continue
         found_something = c.status is Status.OK and c.link  # e.g. a policy link was found
-        if c.title == "Политика обработки персональных данных":
+        if c.id == "SUV-PD-001":
             if c.link:  # a policy, maybe inside another document, was found after all
                 continue
-        elif found_something or (c.status is Status.WARN and c.title != "Уведомление о cookies"):
+        elif found_something or (c.status is Status.WARN and c.id != "SUV-PD-005"):
             continue
         c.status = Status.UNKNOWN
         c.details = f"Не проверено: {problem}."
@@ -599,22 +592,22 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     if data.page_problem:
         _mark_unverifiable(checks, data.page_problem)
     for check in checks:
-        check.law = check.law or LAW_BY_TITLE.get(check.title)
+        check.law = check.law or LAW_BY_ID.get(check.id)
     return checks
 
 
 # Where each conclusion comes from in the law, shown next to it in the report.
-LAW_BY_TITLE = {
-    "Политика обработки персональных данных": "152-ФЗ, ст. 18.1",
-    "Содержание политики": "152-ФЗ, ст. 18.1",
-    "Политика и реальность": "152-ФЗ, ст. 18.1",
-    "Согласие на обработку в формах": "152-ФЗ, ст. 9",
-    "Отдельное согласие на обработку": "152-ФЗ, ст. 9 ч. 1",
-    "Уведомление о cookies": "152-ФЗ, ст. 9",
-    "Трансграничная передача данных": "152-ФЗ, ст. 12",
-    "Хранение данных в России": "152-ФЗ, ст. 18 ч. 5",
-    "Защищённое соединение": "152-ФЗ, ст. 19",
-    "Реестр операторов персональных данных": "152-ФЗ, ст. 22",
+LAW_BY_ID = {
+    "SUV-PD-001": "152-ФЗ, ст. 18.1",
+    "SUV-PD-002": "152-ФЗ, ст. 18.1",
+    "SUV-PD-011": "152-ФЗ, ст. 18.1",
+    "SUV-PD-003": "152-ФЗ, ст. 9",
+    "SUV-PD-004": "152-ФЗ, ст. 9 ч. 1",
+    "SUV-PD-005": "152-ФЗ, ст. 9",
+    "SUV-PD-006": "152-ФЗ, ст. 12",
+    "SUV-PD-007": "152-ФЗ, ст. 18 ч. 5",
+    "SUV-PD-008": "152-ФЗ, ст. 19",
+    "SUV-PD-009": "152-ФЗ, ст. 22",
 }
 
 
