@@ -31,7 +31,7 @@ from suveren.analyze import analyze
 from suveren.checks import Check, Status
 from suveren.collect import Facts, NetInfo
 from suveren.compliance import run_compliance
-from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_links
+from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
@@ -528,6 +528,21 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-form-in-sitemap",
+        "форма без согласия только на странице «Контакты», на которую главная не ссылается",
+        {"SUV-PD-003": "fail"},
+        html=page("<p>Звоните нам.</p>"),
+        files=site_files(
+            {
+                "/robots.txt": "User-agent: *\nSitemap: https://lab-form-in-sitemap.ru/sitemap.xml\n",
+                "/sitemap.xml": '<?xml version="1.0"?><urlset>'
+                "<url><loc>https://lab-form-in-sitemap.ru/blog/news-1</loc></url>"
+                "<url><loc>https://lab-form-in-sitemap.ru/kontakty</loc></url></urlset>",
+                "/kontakty": page(FORM_NO_CONSENT),
+            }
+        ),
+    ),
+    Case(
         "lab-form-prechecked",
         "галочка согласия стоит заранее",
         {"SUV-PD-003": "warn"},
@@ -933,6 +948,7 @@ async def run_case(case: Case) -> dict[str, Check]:
     try:
         async with httpx.AsyncClient(transport=_transport(case), follow_redirects=True) as client:
             links = pick_links(parse_page(case.html), final_url, DEFAULT_PAGES)
+            links += pick_from_sitemap(await sitemap_urls(client, final_url), final_url, set(links))
             facts.extra_pages = await fetch_pages(client, links)
             report = analyze(facts)
             checks = await run_compliance(

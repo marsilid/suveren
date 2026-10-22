@@ -20,7 +20,14 @@ from suveren.catalog import BY_ID
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import Collector, Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
-from suveren.crawl import DEFAULT_PAGES, FetchedPage, fetch_pages, pick_links
+from suveren.crawl import (
+    DEFAULT_PAGES,
+    FetchedPage,
+    fetch_pages,
+    pick_from_sitemap,
+    pick_links,
+    sitemap_urls,
+)
 from suveren.cutoff import GROUP_CUT, PAGE_TITLE, infra_check, run_cutoff
 from suveren.dataflow import run_dataflow
 from suveren.dnsutil import ResolverMode, create_resolver
@@ -90,6 +97,13 @@ async def run_scan(
             make_client(timeout) as client,
         ):
             links = pick_links(parse_page(facts.html), facts.final_url or "", pages)
+            # Form pages the home page doesn't link to (a contacts page only in the
+            # footer menu drawn by a script) are often in the sitemap.
+            links += pick_from_sitemap(
+                await sitemap_urls(client, facts.final_url or ""),
+                facts.final_url or "",
+                set(links),
+            )
             facts.extra_pages = _usable(await fetch_pages(client, links))
     report = analyze(facts, started_at=started)
     unseen = _unknown_domains(facts, host)

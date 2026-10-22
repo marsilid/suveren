@@ -116,3 +116,80 @@ async def fetch_pages(
 
     results = await asyncio.gather(*(one(u) for u in urls))
     return [r for r in results if r is not None]
+
+
+# --- sitemap ---------------------------------------------------------------------------
+
+SITEMAP_PAGES = 2  # pages added from the sitemap on top of the links
+_MAX_SITEMAPS = 4
+_MAX_SITEMAP_BYTES = 5_000_000
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+_ROBOTS_SITEMAP = re.compile(r"(?im)^\s*sitemap\s*:\s*(\S+)")
+# Pages where forms with personal data live (contacts, orders, cart, callback).
+_FORM_PAGE_WEIGHT = 8
+# In a bare path the keyword must open a short last segment (/kontakty, /cart,
+# /contact-us): skillbox.ru's /course/vkontakte-promotion-specialist and
+# /courses/vzaimodeistvie-s-zakazchikom are courses, not a contacts or order page.
+_PATH_PRIORITY = tuple(
+    (re.compile(rf"(?:{rx.pattern})[\w-]{{0,12}}$", re.I), w) for rx, w in _PRIORITY
+)
+
+
+async def sitemap_urls(client: httpx.AsyncClient, base: str) -> list[str]:
+    """Page URLs from the site's sitemap: the one robots.txt names, else /sitemap.xml;
+    an index is followed one level. Compressed (.gz) sitemaps are skipped."""
+    parts = urlsplit(base)
+    origin = f"{parts.scheme}://{parts.netloc}"
+    queue: list[str] = []
+    try:
+        robots = await client.get(f"{origin}/robots.txt")
+        if robots.status_code == 200:
+            queue = _ROBOTS_SITEMAP.findall(robots.text[:200_000])
+    except httpx.HTTPError:
+        pass
+    queue = queue or [f"{origin}/sitemap.xml"]
+    pages: list[str] = []
+    fetched = 0
+    while queue and fetched < _MAX_SITEMAPS:
+        url = queue.pop(0)
+        if url.lower().endswith(".gz"):
+            continue
+        fetched += 1
+        try:
+            resp = await client.get(url)
+        except httpx.HTTPError:
+            continue
+        if resp.status_code != 200:
+            continue
+        text = resp.text[:_MAX_SITEMAP_BYTES]
+        locs = [loc.replace("&amp;", "&") for loc in _LOC.findall(text)]
+        if "<sitemapindex" in text[:2000].lower():
+            queue += locs
+        else:
+            pages += locs
+    return pages
+
+
+def pick_from_sitemap(
+    urls: list[str], base: str, skip: set[str], limit: int = SITEMAP_PAGES
+) -> list[str]:
+    """Form pages (contacts, order, cart, callback) the home page doesn't link to."""
+    site = _bare(urlsplit(base).hostname or "")
+    seen = {_normalize(base), *(_normalize(u) for u in skip)}
+    scored: list[tuple[int, int, str]] = []
+    for url in urls:
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or _bare(parts.hostname or "") != site:
+            continue
+        if _SKIP_EXT.search(parts.path) or _SKIP_PATH.search(parts.path):
+            continue
+        key = _normalize(url)
+        last = parts.path.rstrip("/").rsplit("/", 1)[-1]
+        weight = max((w for rx, w in _PATH_PRIORITY if rx.match(last)), default=0)
+        if key in seen or weight < _FORM_PAGE_WEIGHT:
+            continue
+        seen.add(key)
+        # Shallow paths first: /contacts rather than /blog/2019/contacts-of-our-partners.
+        scored.append((parts.path.count("/"), -weight, key))
+    scored.sort()
+    return [url for _, _, url in scored[:limit]]
