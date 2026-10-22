@@ -293,7 +293,7 @@ class Finding:
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
 # The format of to_dict(), described by data/report.schema.json: the minor number grows
 # with new fields, the major one when a field is removed or renamed.
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"  # 1.1: checks from plugins, with their own ID prefix
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 

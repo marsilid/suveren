@@ -51,7 +51,7 @@
    "required": ["id", "group", "title", "status", "details", "recommendation", "link", "law", "law_url"],
    "additionalProperties": false,
    "properties": {
-    "id": {"type": "string", "pattern": "^SUV-[A-Z]+-[0-9]{3}$"},
+    "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]{1,15}-[A-Z0-9]{1,15}-[0-9]{3}$", "description": "SUV-… — проверки Suveren; другой префикс — проверка из плагина (с 1.1)."},
     "group": {"type": "string"},
     "title": {"type": "string"},
     "status": {"enum": ["ok", "warn", "fail", "unknown"]},

@@ -29,6 +29,7 @@ from suveren.logins import find_login_page
 from suveren.mailsec import run_mail_checks
 from suveren.models import Report
 from suveren.page import parse_page
+from suveren.plugins import Plugin, PluginContext, run_plugins
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
 from suveren.scenarios import build as build_scenarios
 from suveren.subdomains import run_subdomain_checks
@@ -68,6 +69,7 @@ async def run_scan(
     progress: Progress | None = None,
     only: frozenset[str] | set[str] | None = None,
     cutoff: bool = False,
+    plugins: list[Plugin] | None = None,
 ) -> Report:
     """``only``: IDs of the checks to report (from ``--checks``); None reports all."""
     progress = progress or _quiet
@@ -164,6 +166,19 @@ async def run_scan(
             make_client(timeout) as client,
         ):
             report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
+
+    if plugins:
+        async with _stage(progress, "Плагины"), make_client(timeout) as client:
+            ctx = PluginContext(
+                host,
+                facts.domain,
+                facts.final_url,
+                "" if facts.page_problem else facts.html,
+                dict(facts.headers),
+                [d.to_dict() for d in report.dependencies],
+                client,
+            )
+            report.checks += await run_plugins(plugins, ctx)
 
     # Scenarios join what the modules found; they open the report.
     report.checks = build_scenarios(report.checks, report.dependencies, facts.domain) + (

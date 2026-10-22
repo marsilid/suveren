@@ -40,6 +40,7 @@ from suveren.errors import TIMEOUTS, ModuleError, SuverenError
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
+from suveren.plugins import load as load_plugin
 from suveren.render import print_pdf
 from suveren.report import write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
@@ -283,6 +284,14 @@ def scan(
             "что сломается (ещё 3 загрузки, нужен playwright).",
         ),
     ] = False,
+    plugin: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--plugin",
+            help="Плагин с проверками: файл .py или модуль (можно несколько раз). Код "
+            "плагина выполняется: запускайте только те, которым доверяете.",
+        ),
+    ] = None,
     no_152fz: Annotated[
         bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
     ] = False,
@@ -387,8 +396,14 @@ def scan(
         )
     except (SuverenError, SelectionError) as exc:
         raise _fail(str(exc)) from exc
+    try:
+        plugins = [load_plugin(p) for p in plugin or []]
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
 
     meta = plan_label(plan, "quick" if quick else profile.value)
+    if plugins:
+        meta += " · плагины: " + ", ".join(p.name for p in plugins)
     if checks:
         meta += f" · проверки: {checks}"
     console.print(header(__version__, host, meta))
@@ -402,6 +417,7 @@ def scan(
                     dns_mode=dns_mode.value,
                     refresh=refresh,
                     progress=log,
+                    plugins=plugins,
                     **plan.kwargs(),  # type: ignore[arg-type]
                 )
             )
