@@ -335,6 +335,8 @@ suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
   (`error`), «внимание» (`warning`), «не проверено» и иностранные зависимости низкого риска
   (`note`); пройденные проверки — нет.
 - `--json файл` — полный результат, в том числе пройденные проверки (нужен для `diff`).
+  Формат описан JSON-схемой [`src/suveren/data/report.schema.json`](src/suveren/data/report.schema.json);
+  поле `schema_version` растёт по semver, проверки различайте по `id` (SUV-…), а не по названию.
 
 Коды выхода:
 

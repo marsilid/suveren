@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from typing import Any
 
+from suveren import __version__
 from suveren.checks import Check
 from suveren.fines import FineEstimate, estimate
 from suveren.utils import country_name
@@ -290,6 +291,10 @@ class Finding:
 
 # Penalty per finding; a category produces at most one finding.
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
+# The format of to_dict(), described by data/report.schema.json: the minor number grows
+# with new fields, the major one when a field is removed or renamed.
+SCHEMA_VERSION = "1.0"
+
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
 
@@ -366,6 +371,8 @@ class Report:
 
         return {
             "tool": "suveren",
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": __version__,
             "target": self.target,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,

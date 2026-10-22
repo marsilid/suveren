@@ -1,0 +1,142 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/marsilid/suveren/blob/main/src/suveren/data/report.schema.json",
+ "title": "Отчёт Suveren (suveren scan --json)",
+ "description": "Формат JSON-отчёта. schema_version меняется по semver: второе число — новые поля (старые читатели не ломаются), первое — удалённые или переименованные поля. Ключи проверок — стабильные ID из `suveren checks` (SUV-…), названия на русском могут меняться.",
+ "type": "object",
+ "required": [
+  "tool", "schema_version", "tool_version", "target", "started_at", "finished_at",
+  "score", "grade", "overall_score", "overall_grade", "countries", "findings",
+  "dependencies", "checks", "fines", "migration", "facts", "notes"
+ ],
+ "properties": {
+  "tool": {"const": "suveren"},
+  "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+  "tool_version": {"type": "string"},
+  "target": {"type": "string", "description": "Адрес, который проверяли."},
+  "started_at": {"type": "string", "format": "date-time"},
+  "finished_at": {"type": ["string", "null"], "format": "date-time"},
+  "score": {"type": "integer", "minimum": 0, "maximum": 100, "description": "Оценка независимости от иностранных сервисов."},
+  "grade": {"$ref": "#/$defs/grade"},
+  "overall_score": {"type": "integer", "minimum": 0, "maximum": 100, "description": "Общая оценка по всем проверкам."},
+  "overall_grade": {"$ref": "#/$defs/grade"},
+  "countries": {
+   "type": "object",
+   "description": "Код страны → число зависимостей от сервисов этой страны.",
+   "additionalProperties": {"type": "integer", "minimum": 0}
+  },
+  "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+  "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}},
+  "checks": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+  "fines": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/fines"}]},
+  "migration": {"type": "array", "items": {"$ref": "#/$defs/move"}},
+  "facts": {
+   "type": "object",
+   "description": "Сырые данные сбора: DNS, хостинг, страницы, заголовки. Состав может расширяться.",
+   "properties": {
+    "host": {"type": "string"},
+    "domain": {"type": "string"},
+    "final_url": {"type": ["string", "null"]},
+    "page_status": {"type": ["integer", "null"]},
+    "page_problem": {"type": ["string", "null"]},
+    "rendered": {"type": "boolean"}
+   }
+  },
+  "notes": {"type": "array", "items": {"type": "string"}}
+ },
+ "$defs": {
+  "grade": {"enum": ["A", "B", "C", "D", "F"]},
+  "check": {
+   "type": "object",
+   "required": ["id", "group", "title", "status", "details", "recommendation", "link", "law", "law_url"],
+   "additionalProperties": false,
+   "properties": {
+    "id": {"type": "string", "pattern": "^SUV-[A-Z]+-[0-9]{3}$"},
+    "group": {"type": "string"},
+    "title": {"type": "string"},
+    "status": {"enum": ["ok", "warn", "fail", "unknown"]},
+    "details": {"type": "string"},
+    "recommendation": {"type": "string"},
+    "link": {"type": ["string", "null"]},
+    "law": {"type": ["string", "null"], "description": "Например, «152-ФЗ, ст. 9»."},
+    "law_url": {"type": ["string", "null"]}
+   }
+  },
+  "finding": {
+   "type": "object",
+   "required": ["id", "category", "title", "severity", "description", "recommendation", "services"],
+   "additionalProperties": false,
+   "properties": {
+    "id": {"type": "string"},
+    "category": {"type": "string"},
+    "title": {"type": "string"},
+    "severity": {"type": "string"},
+    "description": {"type": "string"},
+    "recommendation": {"type": "string"},
+    "services": {"type": "array", "items": {"type": "string"}}
+   }
+  },
+  "dependency": {
+   "type": "object",
+   "required": ["category", "category_title", "service", "country", "foreign", "evidence", "severity", "note"],
+   "additionalProperties": false,
+   "properties": {
+    "category": {"type": "string"},
+    "category_title": {"type": "string"},
+    "service": {"type": "string"},
+    "country": {"type": ["string", "null"]},
+    "foreign": {"type": ["boolean", "null"]},
+    "evidence": {"type": "string"},
+    "severity": {"type": ["string", "null"]},
+    "note": {"type": "string"}
+   }
+  },
+  "fines": {
+   "type": "object",
+   "required": ["total_max_legal_entity", "total_max_sole_trader", "items", "disclaimer", "checked"],
+   "additionalProperties": false,
+   "properties": {
+    "total_max_legal_entity": {"type": "integer", "minimum": 0},
+    "total_max_sole_trader": {"type": "integer", "minimum": 0},
+    "disclaimer": {"type": "string"},
+    "checked": {"type": "string", "description": "Дата сверки сумм с КоАП."},
+    "items": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": ["check", "article", "url", "counted", "condition", "legal_entity", "official", "sole_trader", "citizen", "repeat_legal_entity"],
+      "additionalProperties": false,
+      "properties": {
+       "check": {"type": "string"},
+       "article": {"type": "string"},
+       "url": {"type": "string"},
+       "counted": {"type": "boolean"},
+       "condition": {"type": ["string", "null"]},
+       "legal_entity": {"$ref": "#/$defs/range"},
+       "official": {"$ref": "#/$defs/range"},
+       "sole_trader": {"$ref": "#/$defs/range"},
+       "citizen": {"$ref": "#/$defs/range"},
+       "repeat_legal_entity": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/range"}]}
+      }
+     }
+    }
+   }
+  },
+  "range": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2},
+  "move": {
+   "type": "object",
+   "required": ["id", "category", "services", "severity", "difficulty", "cost", "alternatives", "steps"],
+   "additionalProperties": false,
+   "properties": {
+    "id": {"type": "string"},
+    "category": {"type": "string"},
+    "services": {"type": "array", "items": {"type": "string"}},
+    "severity": {"type": "string"},
+    "difficulty": {"type": "string"},
+    "cost": {"type": "string"},
+    "alternatives": {"type": "array", "items": {"type": "string"}},
+    "steps": {"type": "array", "items": {"type": "string"}}
+   }
+  }
+ }
+}
