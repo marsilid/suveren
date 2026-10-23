@@ -162,3 +162,37 @@ def test_a_list_that_parses_to_nothing_is_not_counted(tmp_path, monkeypatch):
     index = asyncio.run(load_index(None))  # type: ignore[arg-type]
     assert index.sources == ["us"]
     assert sum("ни одной записи" in n for n in index.notes) == 2
+
+
+def test_same_consonants_are_not_the_same_name():
+    # The consonant key is only the lookup: «Гранит» and GARANTIYA share "grnt",
+    # «Арсенал» and «5 ARSENAL» differ only by a number the key drops.
+    from suveren.sanctions import Entry, same_name
+
+    assert not same_name("ООО «Гранит»", "LIMITED LIABILITY COMPANY GARANTIYA")
+    assert not same_name("ООО «Арсенал»", "JOINT STOCK COMPANY 5 ARSENAL")
+    assert same_name("ООО «Арсенал»", "LLC ARSENAL")
+    assert same_name("ПАО «Сбербанк России»", "PUBLIC JOINT STOCK COMPANY SBERBANK OF RUSSIA")
+    entries = [
+        Entry("us", "1", "entity", ["LIMITED LIABILITY COMPANY GARANTIYA"], [], "RUSSIA"),
+        Entry("us", "2", "entity", ["JOINT STOCK COMPANY 5 ARSENAL"], [], "RUSSIA"),
+    ]
+    index = SanctionsIndex(entries)
+    assert screen_company(index, [], ["ООО «Гранит»"]) == []
+    # «5 ARSENAL» is still a similar name worth a look, not the same one.
+    assert {h.how for h in screen_company(index, [], ["ООО «Арсенал»"])} == {"partial"}
+
+
+def test_a_listed_entry_with_other_ids_is_another_organisation():
+    from suveren.sanctions import Entry
+
+    index = SanctionsIndex([
+        Entry("us", "1", "entity", ["LLC ARSENAL"], ["2465316804"], "RUSSIA"),
+        Entry("uk", "2", "entity", ["LLC ARSENAL"], ["1142468044179"], "RUS"),
+    ])  # fmt: skip
+    hits = {h.entry.ref: h.how for h in screen_company(index, ["7812345675"], ["ООО «Арсенал»"])}
+    # Our ИНН against the entry's ИНН: other. Our ИНН against an ОГРН alone: can't tell.
+    assert hits == {"1": "other", "2": "name"}
+    both = screen_company(index, ["7812345675", "1027700132195"], ["ООО «Арсенал»"])
+    assert {h.how for h in both} == {"other"}
+    assert {h.how for h in screen_company(index, [], ["ООО «Арсенал»"])} == {"name"}

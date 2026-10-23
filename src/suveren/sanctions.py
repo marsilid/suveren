@@ -133,6 +133,21 @@ def name_key(name: str) -> frozenset[str]:
     return frozenset(k for w in tokens(name) if len(k := skeleton(w)) >= 2)
 
 
+# The one word lists translate rather than transliterate: «Сбербанк России» is
+# SBERBANK OF RUSSIA. Other translations differ in their consonants anyway.
+_RUSSIA = frozenset({"rosi", "rosia", "rosiskaia", "rosiskoi", "rosiski", "rusia", "rusian"})
+
+
+def _word(w: str) -> str:
+    s = soft(w)
+    return "rusia" if s in _RUSSIA else s
+
+
+def same_name(a: str, b: str) -> bool:
+    """The same words, vowels and numbers included, across scripts and romanisations."""
+    return frozenset(_word(w) for w in tokens(a)) == frozenset(_word(w) for w in tokens(b))
+
+
 def brand(name: str) -> str | None:
     """Innermost quoted part of a Russian company name.
 
@@ -326,6 +341,7 @@ class Hit:
             "id": "совпадение по ИНН/ОГРН",
             "name": "совпадение по названию",
             "partial": "похожее название",
+            "other": "похожее название, другие ИНН/ОГРН — другая организация",
             "person": "возможное совпадение по ФИО",
             "person_full": "совпадение по фамилии, имени и отчеству",
         }[self.how]
@@ -342,18 +358,37 @@ class Hit:
         }
 
 
+def _other_ids(ours: list[str], theirs: Iterable[str]) -> bool:
+    """True when both sides have an identifier of the same kind (ИНН: 10 or 12 digits,
+    ОГРН: 13 or 15) and none is shared. Our ИНН against an entry with only an ОГРН
+    proves nothing: the UK list gives Kalashnikov Concern its ОГРН alone."""
+    theirs = list(theirs)
+    if set(ours) & set(theirs):
+        return False
+
+    def kind(i: str) -> str:
+        return "inn" if len(i) in (10, 12) else "ogrn" if len(i) in (13, 15) else "?"
+
+    return bool({kind(i) for i in ours} & {kind(i) for i in theirs} - {"?"})
+
+
 def screen_company(
     index: SanctionsIndex, ids: Iterable[str], names: Iterable[str], max_partial: int = 5
 ) -> list[Hit]:
     hits: list[Hit] = []
     seen: set[int] = set()
+    known = [i for i in ids if i]
 
     def add(entry: Entry, how: str, matched: str) -> None:
         if id(entry) not in seen and entry.kind == "entity":
             seen.add(id(entry))
+            # Names repeat (hundreds of «Арсенал»): a listed entry with its own ИНН/ОГРН,
+            # none of them ours, is another organisation. Shown, not a finding.
+            if how != "id" and _other_ids(known, entry.ids):
+                how = "other"
             hits.append(Hit(entry, how, matched))
 
-    for ident in ids:
+    for ident in known:
         for entry in index.by_id.get(ident, []):
             add(entry, "id", ident)
     names = [n for n in names if n]
@@ -363,18 +398,25 @@ def screen_company(
         key = name_key(name)
         if len(key) >= 1 and sum(len(k) for k in key) >= 4:
             for entry in index.by_key.get(key, []):
-                add(entry, "name", name)
+                # The consonant key is the lookup only: «Гранит» and GARANTIYA share
+                # "grnt", «Арсенал» and «5 ARSENAL» differ by a number it drops.
+                if any(same_name(name, n) for n in entry.names):
+                    add(entry, "name", name)
     if not hits:
         partial = 0
         for name in names:
             mark = brand(name)
             if not mark:
                 continue
-            tok = skeleton(mark)
+            tok, word = skeleton(mark), soft(mark)
             for entry in index.by_token.get(tok, []):
                 if partial >= max_partial:
                     break
-                if entry.kind == "entity" and any(len(name_key(n)) <= 3 for n in entry.names):
+                # The same word, not just its consonants: «Гранит» is not GARANTIYA.
+                if entry.kind == "entity" and any(
+                    len(name_key(n)) <= 3 and word in {soft(w) for w in tokens(n)}
+                    for n in entry.names
+                ):
                     add(entry, "partial", mark)
                     partial += 1
     return hits

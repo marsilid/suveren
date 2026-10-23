@@ -120,7 +120,8 @@ def test_managing_company_is_screened_as_an_organisation():
     entry = Entry("eu", "1", "entity", ["UK VK"], [], "RUS")
     report.person_hits = [Hit(entry, "name", "УК ВК")]
     result = statuses(report)
-    assert result["Управляющая организация в санкционных списках"] is Status.FAIL
+    # By name only, with no ИНН to compare: a lead to check, not a verdict.
+    assert result["Управляющая организация в санкционных списках"] is Status.WARN
     assert "Руководитель в санкционных списках" not in result
 
 
@@ -136,3 +137,24 @@ def test_unreadable_site_is_unknown_not_a_violation():
 def test_nothing_to_screen_is_not_ok():
     report = CompanyReport(query="example.ru", domain="example.ru", site_problem="защита от ботов")
     assert statuses(report)["Санкционные списки"] is Status.UNKNOWN
+
+
+def test_sanctions_levels_by_name_and_ids():
+    """ИНН/ОГРН match: FAIL. Same name, nothing to compare: WARN. Same name, the entry
+    has its own ИНН: another organisation, OK with a note (an «Арсенал» with its own
+    ИНН was "in the sanctions lists" because an LLC ARSENAL with another one is)."""
+    report = CompanyReport(query="x", inn="7812345675", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    listed = Entry("us", "1", "entity", ["LLC ARSENAL"], ["2465316804"], "RUSSIA-EO14024")
+    bare = Entry("eu", "2", "entity", ["Арсенал"], [], "RUS")
+
+    def check():
+        return next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                    if c.title == "Санкционные списки")  # fmt: skip
+
+    report.company_hits = [Hit(listed, "other", "ООО «Арсенал»")]
+    assert check().status is Status.OK and "другими ИНН/ОГРН (1)" in check().details
+    report.company_hits = [Hit(bare, "name", "ООО «Арсенал»")]
+    assert check().status is Status.WARN and "Реквизитов" in check().details
+    report.company_hits = [Hit(listed, "id", "2465316804")]
+    assert check().status is Status.FAIL

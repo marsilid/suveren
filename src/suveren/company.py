@@ -192,8 +192,18 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             )
         )
     else:
-        strong = [h for h in report.company_hits if h.how in ("id", "name")]
+        # FAIL takes the same ИНН/ОГРН: names repeat, and «Арсенал» with its own ИНН was
+        # "in the sanctions lists" because an LLC ARSENAL with another one is.
+        strong = [h for h in report.company_hits if h.how == "id"]
+        named = [h for h in report.company_hits if h.how == "name"]
         partial = [h for h in report.company_hits if h.how == "partial"]
+        others = [h for h in report.company_hits if h.how == "other"]
+        also = (
+            f" Похожие названия у организаций с другими ИНН/ОГРН ({len(others)}) — в таблице "
+            "ниже, это другие компании."
+            if others
+            else ""
+        )
         if strong:
             lists = ", ".join(dict.fromkeys(SOURCE_TITLES[h.entry.source] for h in strong))
             checks.append(
@@ -201,9 +211,22 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     GROUP,
                     "Санкционные списки",
                     Status.FAIL,
-                    f"Организация в санкционных списках: {lists}.",
+                    f"Организация в санкционных списках: {lists} (совпали ИНН или ОГРН).",
                     "Сделки с ней несут риск вторичных санкций для банков и партнёров. "
                     "Подробности в таблице ниже.",
+                )
+            )
+        elif named:
+            lists = ", ".join(dict.fromkeys(SOURCE_TITLES[h.entry.source] for h in named))
+            checks.append(
+                Check(
+                    GROUP,
+                    "Санкционные списки",
+                    Status.WARN,
+                    f"Название совпадает с организацией в списках: {lists}. Реквизитов, "
+                    "чтобы сверить, у записи нет или ИНН компании неизвестен.",
+                    "Сверьте адрес и руководителя с записью в таблице ниже: под санкциями "
+                    "бывают и новые юрлица со старым названием.",
                 )
             )
         elif partial:
@@ -222,13 +245,16 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     GROUP,
                     "Санкционные списки",
                     clean,
-                    (f"Не найдена в списках: {sources}." if sources else "Не найдена.") + gap,
+                    (f"Не найдена в списках: {sources}." if sources else "Не найдена.")
+                    + gap
+                    + also,
                     retry,
                 )
             )
         head = (rec.name_full if rec.individual else rec.head_name) if rec else None
         if head and rec and rec.head_is_org:
-            person_strong = any(h.how in ("id", "name") for h in report.person_hits)
+            # Screened by name only (no ИНН of the manager here): a lead, not a verdict.
+            person_strong = any(h.how == "id" for h in report.person_hits)
             title = "Управляющая организация в санкционных списках"
             if report.person_hits:
                 checks.append(
