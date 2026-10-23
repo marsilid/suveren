@@ -651,7 +651,7 @@ def batch(
             line.append_text(score_bar(report.score, report.grade, width=12))
             line.append(f" {report.score:>3}", style="bold")
             if missed := missed_sections(report):
-                line.append("   неполная: нет " + ", ".join(missed), style="grey50")
+                line.append("   неполная, не проверены: " + ", ".join(missed), style="grey50")
             console.print(line)
             return host, report, None
 

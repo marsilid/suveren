@@ -135,14 +135,15 @@ def overall_scope(report: Report) -> str:
     return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"])) + note
 
 
-# A whole section that could not run, by the ID that stands for it. Its problems are
-# missing, so the grade goes up: economy.gov.ru timed out and rose from B 77 to B 89 in
-# the nightly run of 2026-10-23, amocrm.ru lost its mail checks to a SERVFAIL.
+# What could not run, by the ID that stands for it. Often only the page-based part of a
+# section (TLS runs when the headers do not), so the names are narrower than SCOPE's. Its
+# problems are missing, so the grade goes up: economy.gov.ru timed out and rose from B 77
+# to B 89 in the nightly run of 2026-10-23, amocrm.ru lost its mail checks to a SERVFAIL.
 MISSED_SECTION = {
-    "SUV-PD-000": "152-ФЗ",
-    "SUV-WEB-000": "безопасность сайта",
+    "SUV-PD-000": "152-ФЗ на страницах сайта",
+    "SUV-WEB-000": "заголовки безопасности",
     "SUV-MAIL-001": "почта",
-    "SUV-BLK-000": "блокировки",
+    "SUV-BLK-000": "реестр блокировок",
     "SUV-SUB-000": "поддомены",
 }
 

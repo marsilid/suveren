@@ -337,10 +337,14 @@ def test_a_section_that_did_not_run_counts_as_all_its_checks():
     ran = scope.split(";")[0]
     assert "законы" not in ran and "безопасность" not in ran
     assert "оценка не выше B" in scope
-    assert "оценка неполная, не проверены: 152-ФЗ, безопасность сайта" in scope
+    assert (
+        "оценка неполная, не проверены: 152-ФЗ на страницах сайта, заголовки безопасности" in scope
+    )
     from suveren.advice import incomplete
 
-    assert incomplete(report)[0] == "не проверены: 152-ФЗ, безопасность сайта"
+    assert (
+        incomplete(report)[0] == "не проверены: 152-ФЗ на страницах сайта, заголовки безопасности"
+    )
     assert report.to_dict()["overall_incomplete"] == incomplete(report)
 
 
