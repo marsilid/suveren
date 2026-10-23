@@ -69,6 +69,19 @@ def test_find_blocked_domains_normalizes_entries():
     assert find_blocked_domains(lines, ["example.ru"]) == set()
 
 
+def test_cyrillic_entries_match_a_punycode_host():
+    # ~7 000 register entries are written in Cyrillic; hosts are looked up as punycode,
+    # so a blocked .рф site came out "not blocked". The real lines, as the list has them.
+    from suveren.utils import normalize_domain
+
+    lines = ["0-плюс.рф\n", "01646473-2dbd-41f0-8ce5-501efe09dad9.таксопарк34.рф\n", "x..рф\n"]
+    host = normalize_domain("www.0-плюс.рф")
+    assert find_blocked_domains(lines, domain_candidates(host)) == {"xn--0--6lcpl1f.xn--p1ai"}
+    sub = normalize_domain("01646473-2dbd-41f0-8ce5-501efe09dad9.таксопарк34.рф")
+    assert find_blocked_domains(lines, [sub]) == {sub}
+    assert find_blocked_domains(lines, domain_candidates(normalize_domain("плюс.рф"))) == set()
+
+
 def test_find_blocked_ips():
     lines = ["1.2.3.4\n", "10.0.0.0/8\n", "# comment\n", "garbage\n"]
     assert find_blocked_ips(lines, ["1.2.3.4", "10.1.2.3", "8.8.8.8"]) == {

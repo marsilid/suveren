@@ -4,6 +4,7 @@ republished by antifilter.download (domains, single IPs and aggregated subnets).
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 from collections.abc import Iterable
 from pathlib import Path
@@ -28,7 +29,13 @@ def domain_candidates(host: str) -> list[str]:
 
 
 def _normalize(line: str) -> str:
-    return line.strip().strip('"').strip().lower().removeprefix("*.").rstrip(".")
+    entry = line.strip().strip('"').strip().lower().removeprefix("*.").rstrip(".")
+    # About 7 000 entries are Cyrillic ("01инвест.рф") while the host we look up is
+    # punycode, as normalize_domain makes it: a blocked .рф site came out "not blocked".
+    if not entry.isascii():
+        with contextlib.suppress(UnicodeError):  # not a valid name: kept, matches nothing
+            entry = entry.encode("idna").decode("ascii")
+    return entry
 
 
 def find_blocked_domains(lines: Iterable[str], candidates: Iterable[str]) -> set[str]:
