@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from suveren.checks import GROUP_152, Check, Status
+from suveren.checks import GROUP_152, Check, Evidence, Status
 from suveren.cutoff import HostInfo, classify
 from suveren.models import Dependency
 from suveren.utils import country_name
@@ -119,4 +119,11 @@ async def run_dataflow(
         if d.category.info.visitor_data and d.country:
             hosts.setdefault(f"service:{d.service}", HostInfo(d.service, d.service, d.country))
     rows = flow(hosts)
-    return flow_check(rows), rows
+    check = flow_check(rows)
+    # Each third-party host the pages loaded, with its owner and country.
+    check.evidence = [
+        Evidence("url", info.label(), host)
+        for host, info in hosts.items()
+        if not host.startswith("service:")
+    ][:15]
+    return check, rows

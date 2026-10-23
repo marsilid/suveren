@@ -67,9 +67,18 @@ def errors(value, schema: dict, path: str = "$") -> list[str]:
 def test_a_full_report_matches_the_schema():
     from test_view import sample_report
 
-    data = sample_report().to_dict()
-    assert data["schema_version"] == "1.3"
+    from suveren.checks import Evidence
+
+    report = sample_report()
+    report.checks[0].evidence = [
+        Evidence("url", "Ссылка на политику на главной", ""),
+        Evidence("header", "Заголовок Strict-Transport-Security", "max-age=0"),
+    ]
+    data = report.to_dict()
+    assert data["schema_version"] == "1.4"
     assert errors(data, SCHEMA) == []
+    data["checks"][0]["evidence"][0]["kind"] = "guess"
+    assert errors(data, SCHEMA)
 
 
 def test_every_lab_check_matches_the_schema():

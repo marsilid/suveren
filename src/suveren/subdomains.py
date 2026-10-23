@@ -22,7 +22,7 @@ from typing import Any
 import httpx
 
 from suveren.cache import age_text, cache_dir, is_fresh
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError
@@ -359,6 +359,15 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             "подключите их к сервису в своём аккаунте.",
             link=SOURCE_URL,
         )
+        # The DNS answer for each candidate: where its CNAME points and what it resolves to.
+        takeover.evidence = [
+            Evidence(
+                "dns",
+                f"CNAME {c.sub.name}",
+                " → ".join(c.sub.cnames) + f" ({', '.join(c.sub.addresses) or 'адреса нет'})",
+            )
+            for c in scan.candidates[:10]
+        ]
     return [inventory, takeover]
 
 

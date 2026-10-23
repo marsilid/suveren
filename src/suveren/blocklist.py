@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 
 from suveren.cache import cache_dir, fetch_cached
-from suveren.checks import GROUP_BLOCK, Check, Status
+from suveren.checks import GROUP_BLOCK, Check, Evidence, Status
 from suveren.errors import ModuleError
 
 SOURCE = "https://antifilter.download/list/"
@@ -120,6 +120,10 @@ def third_party_check(hits: dict[str, str], checked: int) -> Check:
         "ждать их и открываться медленнее.",
         "Уберите эти подключения или замените сервисы на доступные в России.",
         link="https://blocklist.rkn.gov.ru/",
+        evidence=[
+            Evidence("registry", f"{host}: запись в выгрузке реестра", entry)
+            for host, entry in sorted(hits.items())[:10]
+        ],
     )
 
 
@@ -155,6 +159,7 @@ async def run_blocklist(
                 "Выясните причину блокировки на blocklist.rkn.gov.ru и обратитесь в "
                 "Роскомнадзор, если блокировка ошибочна.",
                 link="https://blocklist.rkn.gov.ru/",
+                evidence=[Evidence("registry", "Запись в выгрузке реестра", e) for e in blocked],
             )
         )
     else:
@@ -177,6 +182,10 @@ async def run_blocklist(
                 "CDN, заблокированный из-за другого сайта: часть посетителей сайт не откроет.",
                 "Попросите у хостинга выделенный IP или переезжайте к провайдеру, чьи адреса "
                 "не блокируются.",
+                evidence=[
+                    Evidence("registry", f"IP {ip} в списке", entry)
+                    for ip, entry in sorted(hits.items())
+                ],
             )
         )
     elif ips:

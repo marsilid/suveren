@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
-from suveren.checks import GROUP_LAWS, Check, Status
+from suveren.checks import GROUP_LAWS, Check, Evidence, Status
 from suveren.page import Page, page_code
 from suveren.utils import registrable_domain
 
@@ -435,6 +435,23 @@ _FINE = (
 
 
 def login_check(
+    evidence: list[LoginEvidence],
+    pages: list[str],
+    problem: str | None = None,
+    shell: str | None = None,
+    blocked: tuple[str, str] | None = None,
+    external: str | None = None,
+) -> Check:
+    check = _login_verdict(evidence, pages, problem, shell, blocked, external)
+    if check.status in (Status.FAIL, Status.WARN):
+        # Each foreign sign-in as found: the link, script or button, on its page.
+        check.evidence = [
+            Evidence("html", f"{e.provider} ({e.where})", e.sample) for e in evidence if e.foreign
+        ][:10]
+    return check
+
+
+def _login_verdict(
     evidence: list[LoginEvidence],
     pages: list[str],
     problem: str | None = None,

@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import unquote_plus, urlsplit
 
-from suveren.checks import GROUP_152, Check, Status
+from suveren.checks import GROUP_152, Check, Evidence, Status
 from suveren.cutoff import HostInfo, classify
 from suveren.errors import ModuleError
 from suveren.render import FORM_FLUSH_MS, FORM_WATCH_MS, FormProbe, Sent
@@ -405,7 +405,16 @@ def leak_check(r: FormLeaks) -> Check:
         + "."
         + own
     )
-    return Check(GROUP_152, TITLE, status, details, _advice(r, foreign, password), law=LAW)
+    evidence = [
+        Evidence(
+            "request",
+            f"{x.host}: {KIND_RU[x.kind]} {x.how}, страница {_path(x.page)}",
+            f"{x.method} {x.url}",
+        )
+        for x in [*r.leaks, *r.own][:10]
+    ]
+    advice = _advice(r, foreign, password)
+    return Check(GROUP_152, TITLE, status, details, advice, law=LAW, evidence=evidence)
 
 
 def _path(url: str) -> str:

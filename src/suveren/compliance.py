@@ -14,7 +14,7 @@ from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
 import httpx
 
-from suveren.checks import GROUP_152, Check, Status
+from suveren.checks import GROUP_152, Check, Evidence, Status
 from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
@@ -603,7 +603,68 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         _mark_unverifiable(checks, data.page_problem)
     for check in checks:
         check.law = check.law or LAW_BY_ID.get(check.id)
+        if check.status is not Status.UNKNOWN and not check.evidence:
+            check.evidence = evidence(data, located, check.id)
     return checks
+
+
+_SHOWN_EVIDENCE = 10
+_PAGE_CATEGORIES = frozenset(c for c in Category if c.info.visitor_data)
+
+
+def _dep_evidence(deps: list[Dependency]) -> list[Evidence]:
+    """Where each service was seen: a script or request address on the page, or a DNS
+    answer for infrastructure (hosting, CDN)."""
+    return [
+        Evidence("url" if d.category in _PAGE_CATEGORIES else "dns", d.service, d.evidence)
+        for d in deps[:_SHOWN_EVIDENCE]
+    ]
+
+
+def evidence(
+    data: ComplianceInput, located: list[tuple[str, Form]], check_id: str
+) -> list[Evidence]:
+    """What a 152-ФЗ check rests on: the policy address, the forms as found (their fields
+    and whether a consent statement is next to them), the services and their addresses."""
+    policy = data.policy
+    if check_id in ("SUV-PD-001", "SUV-PD-002", "SUV-PD-011"):
+        pages = ["главная", *(path for path, _, _ in data.extra)]
+        found = [Evidence("url", "Ссылка на политику", policy.url or "")]
+        if check_id == "SUV-PD-001":
+            found.append(Evidence("url", "Проверенные страницы", ", ".join(pages)))
+        return found
+    if check_id == "SUV-PD-003":
+        return [
+            Evidence(
+                "html",
+                f"Форма на странице {where}",
+                f"поля: {_fields(form)}; согласие рядом: "
+                + ("есть" if _form_has_consent(form) else "нет")
+                + (
+                    "; галочка уже стоит"
+                    if any(i.checked for i in form.inputs if i.type == "checkbox")
+                    else ""
+                ),
+            )
+            for where, form in located[:_SHOWN_EVIDENCE]
+        ]
+    if check_id == "SUV-PD-005":
+        return _dep_evidence([d for d in data.deps if d.category in _TRACKING])
+    if check_id == "SUV-PD-006":
+        return _dep_evidence([d for d in data.deps if d.foreign and d.category.info.visitor_data])
+    if check_id == "SUV-PD-007":
+        return _dep_evidence([d for d in data.deps if d.category is Category.HOSTING])
+    if check_id == "SUV-PD-008":
+        insecure = [f.action for _, f in located if f.action.lower().startswith("http://")]
+        return [Evidence("url", "Адрес сайта", data.final_url or "")] + [
+            Evidence("html", "Форма отправляется на", a) for a in insecure[:_SHOWN_EVIDENCE]
+        ]
+    return []
+
+
+def _fields(form: Form) -> str:
+    shown = [i for i in form.inputs if i.type not in ("hidden", "submit", "button", "image")]
+    return ", ".join(f"{i.name or i.hint or '?'} ({i.type})" for i in shown[:8]) or "нет"
 
 
 # Where each conclusion comes from in the law, shown next to it in the report.
@@ -652,7 +713,15 @@ def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Ch
         if link:
             separate = urljoin(url, link.href.strip())
             break
-    return consent_check(findings, separate, len(located))
+    check = consent_check(findings, separate, len(located))
+    if check is not None:
+        # The statements as quoted, and the separate consent document if there is one.
+        check.evidence = [
+            Evidence("html", f"Текст ({f.where})", f.quote) for f in findings[:_SHOWN_EVIDENCE]
+        ]
+        if separate:
+            check.evidence.append(Evidence("url", "Отдельный документ согласия", separate))
+    return check
 
 
 def _operator_check(data: ComplianceInput) -> Check:
@@ -684,6 +753,10 @@ def _operator_check(data: ComplianceInput) -> Check:
             + source,
             "Подайте уведомление в Роскомнадзор: это обязательно почти для всех операторов "
             "до начала обработки данных (152-ФЗ, ст. 22).",
+            evidence=[
+                Evidence("html", "ИНН на сайте", inn),
+                Evidence("registry", "Реестр операторов Роскомнадзора, поиск по ИНН", ""),
+            ],
         )
     op = data.operator
     since = op.registered.strftime("%d.%m.%Y") if op.registered else "?"

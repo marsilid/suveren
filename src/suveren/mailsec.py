@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from suveren import services as db
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS
@@ -109,6 +109,7 @@ class SpfResult:
     effective_all: str | None = None
     problems: list[str] = field(default_factory=list)
     void: list[str] = field(default_factory=list)  # a:/mx: names with an empty answer
+    records: list[str] = field(default_factory=list)  # v=spf1 records at the domain, as is
 
 
 async def _txt(resolver: DnsResolver, name: str) -> list[str]:
@@ -118,9 +119,9 @@ async def _txt(resolver: DnsResolver, name: str) -> list[str]:
 async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
     records = spf_records(await _txt(resolver, domain))
     if len(records) != 1:
-        return SpfResult(None, len(records))
+        return SpfResult(None, len(records), records=records)
     spf = parse_spf(records[0])
-    result = SpfResult(spf, 1)
+    result = SpfResult(spf, 1, records=records)
     loaded: dict[str, Spf | None] = {}
     budget = [_MAX_SPF_RECORDS]  # records evaluated, a guard against huge trees
 
@@ -250,6 +251,8 @@ class MailFacts:
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
     mta_sts_mx: list[str] = field(default_factory=list)  # "mx:" patterns of the policy
+    # The DNS answers the verdicts rest on, as received: "TXT _dmarc.example.ru" -> records.
+    raw: dict[str, list[str]] = field(default_factory=dict)
 
 
 # What each mail provider asks to put in SPF; every name was checked to publish an SPF
@@ -680,7 +683,42 @@ def evaluate(m: MailFacts) -> list[Check]:
     checks = [verdict(m), spf_check(m), dmarc_check(m)]
     if m.receives_mail:
         checks += [dkim_check(m), transport_check(m)]
+    for check in checks:
+        check.evidence = evidence(m, check.id)
     return checks
+
+
+# The DNS names each check rests on; the verdict rests on all three of its parts.
+_EVIDENCE_NAMES = {
+    "SUV-MAIL-001": ("TXT {d}", "TXT _dmarc.{d}"),
+    "SUV-MAIL-002": ("TXT {d}",),
+    "SUV-MAIL-003": ("TXT _dmarc.{d}",),
+    "SUV-MAIL-005": ("MX {d}", "TXT _mta-sts.{d}", "TXT _smtp._tls.{d}"),
+}
+
+
+def evidence(m: MailFacts, check_id: str) -> list[Evidence]:
+    """The records a mail check rests on, as DNS returned them; an empty value says the
+    record is not there."""
+    names = [n.format(d=m.domain) for n in _EVIDENCE_NAMES.get(check_id, ())]
+    if check_id == "SUV-MAIL-004":
+        names = [n for n in m.raw if n.endswith(f"._domainkey.{m.domain}")]
+        if not names:
+            tried = ", ".join(DKIM_SELECTORS[:5])
+            more = len(DKIM_SELECTORS) - 5
+            where = f"TXT <селектор>._domainkey.{m.domain} (селекторы {tried} и ещё {more})"
+            return [Evidence("dns", where, "")]
+    found = []
+    for name in names:
+        records = m.raw.get(name)
+        if records is not None:
+            found.append(Evidence("dns", name, "\n".join(records)))
+    if check_id == "SUV-MAIL-005" and m.mta_sts is not None:
+        mx = ", ".join(m.mta_sts_mx)
+        policy = f"mode: {m.mta_sts}" + (f"; mx: {mx}" if mx else "")
+        url = f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt (как её видит отправитель)"
+        found.insert(2, Evidence("url", url, policy))
+    return found
 
 
 # --- Collection -----------------------------------------------------------------------
@@ -736,11 +774,17 @@ async def _dmarc_unauthorized(resolver: DnsResolver, domain: str, dmarc: Dmarc) 
 
 
 async def _mta_sts(
-    resolver: DnsResolver, client: httpx.AsyncClient, domain: str
+    resolver: DnsResolver,
+    client: httpx.AsyncClient,
+    domain: str,
+    raw: dict[str, list[str]] | None = None,
 ) -> tuple[str | None, list[str]]:
-    """Policy mode and its mx patterns, fetched the way a sending server does."""
+    """Policy mode and its mx patterns, fetched the way a sending server does. ``raw``
+    gets the TXT record, for the evidence."""
     txt = await _txt(resolver, f"_mta-sts.{domain}")
     sts = [t for t in txt if t.lower().startswith("v=stsv1")]
+    if raw is not None:
+        raw[f"TXT _mta-sts.{domain}"] = sts
     if not sts:
         return None, []
     # Several records, or one without an id, mean "no policy" to senders (RFC 8461, 3.1).
@@ -773,6 +817,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     receives = any(r.split()[-1] not in (".", "") for r in mx if r.split())
     spf = await check_spf(resolver, domain)
     dmarc_txt = dmarc_records(await _txt(resolver, f"_dmarc.{domain}"))
+    raw = {f"MX {domain}": mx, f"TXT {domain}": spf.records, f"TXT _dmarc.{domain}": dmarc_txt}
     facts = MailFacts(
         domain=domain,
         receives_mail=receives,
@@ -781,6 +826,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         dmarc_count=len(dmarc_txt),
         dkim=[],
         mx_hosts=parse_mx(mx),
+        raw=raw,
     )
     if facts.dmarc:
         facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
@@ -788,9 +834,14 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         facts.dkim = await _dkim(resolver, domain)
         if not facts.dkim:
             facts.dkim_node = await _dkim_node(resolver, domain)
-        facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain)
+        facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain, raw)
         rpt = await _txt(resolver, f"_smtp._tls.{domain}")
         facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
+        raw[f"TXT _smtp._tls.{domain}"] = [t for t in rpt if t.lower().startswith("v=tlsrpt")]
+        for selector in facts.dkim:
+            name = f"{selector}._domainkey.{domain}"
+            with contextlib.suppress(DnsLookupError):
+                raw[f"TXT {name}"] = await _txt(resolver, name)
     return facts
 
 

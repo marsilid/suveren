@@ -121,6 +121,12 @@
   .check p { margin: 4px 0 0; grid-column: 2; }
   .check .fix { color: var(--muted); }
   .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .check details.evidence { grid-column: 2; margin: 6px 0 0; font-size: 13.5px; }
+  .check details.evidence summary { cursor: pointer; color: var(--muted); }
+  .check details.evidence dl { margin: 6px 0 0; }
+  .check details.evidence dt { color: var(--muted); margin-top: 6px; }
+  .check details.evidence dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+  .check details.evidence code { font-size: 12.5px; white-space: pre-wrap; }
   .check .st-ok { color: var(--grade-a); } .check .st-warn { color: var(--medium); }
   .check .st-fail { color: var(--grade-f); } .check .st-unknown { color: var(--info); }
   .checks { padding: 0; }

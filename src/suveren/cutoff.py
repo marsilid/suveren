@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 from suveren.models import Category, Dependency
 from suveren.render import HANG_WAIT_MS
 from suveren.services import by_network, scan_page
@@ -162,6 +162,12 @@ def infra_check(deps: list[Dependency]) -> Check:
         " ".join(parts),
         "Перенесите то, без чего сайт не откроется, к российским провайдерам: DNS, хостинг "
         "и CDN в первую очередь. Варианты — в разделе «Иностранные зависимости».",
+        evidence=[
+            Evidence(
+                "dns", f"{d.category.title}: {d.service} ({country_name(d.country)})", d.evidence
+            )
+            for d in [*whole, *mail][:10]
+        ],
     )
 
 
@@ -427,6 +433,9 @@ def page_check(r: PageCutoff, hosts: dict[str, HostInfo]) -> Check:
         status,
         " ".join(lines),
         _advice(r) if status is not Status.OK else "",
+        # The hosts refused in the experiment, and the scripts that broke without them.
+        evidence=[Evidence("url", "Отключён", f"{h.host} — {h.label()}") for h in r.blocked[:10]]
+        + [Evidence("html", "Новая ошибка JavaScript", e) for e in r.new_errors[:3]],
     )
 
 

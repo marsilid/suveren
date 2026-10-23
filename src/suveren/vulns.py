@@ -18,7 +18,7 @@ from functools import cache
 from importlib.resources import files
 from typing import Any
 
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 
 TITLE = "Уязвимые версии библиотек"
 GROUP_WEB = "Безопасность сайта"
@@ -137,6 +137,16 @@ def known_issues(lib: Library) -> tuple[list[dict[str, Any]], dict[str, Any] | N
 
 
 def vuln_check(libs: list[Library]) -> Check:
+    check = _verdict(libs)
+    # Where each version was read: the script's address (or the page, for a comment).
+    check.evidence = [
+        Evidence("url", f"{NAMES[x.name]} {x.version}", x.where)
+        for x in sorted(libs, key=lambda x: (x.name, version_tuple(x.version)))[:10]
+    ]
+    return check
+
+
+def _verdict(libs: list[Library]) -> Check:
     if not libs:
         return Check(
             GROUP_WEB,

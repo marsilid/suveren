@@ -24,7 +24,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509 import ocsp
 
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 from suveren.collect import Facts, browser_trust
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
@@ -922,7 +922,94 @@ def evaluate(w: WebFacts) -> list[Check]:
     else:
         checks += [csp_check(w), hsts_check(w), headers_check(w), cookies_check(w)]
     checks.append(tls_check(w))
-    return [c for c in checks if c is not None]
+    found = [c for c in checks if c is not None]
+    for check in found:
+        if check.status is not Status.UNKNOWN:
+            check.evidence = evidence(w, check.id)
+    return found
+
+
+_HEADER_EVIDENCE = {
+    "SUV-WEB-004": ("content-security-policy", "content-security-policy-report-only"),
+    "SUV-WEB-005": ("strict-transport-security",),
+    "SUV-WEB-006": ("x-frame-options", "x-content-type-options", "referrer-policy"),
+}
+_SHOWN_EVIDENCE = 10
+
+
+def evidence(w: WebFacts, check_id: str) -> list[Evidence]:
+    """What a site-security check rests on: the response headers as received (an empty
+    value: the header is absent), the scripts' addresses, the cookies, the certificate."""
+    found: list[Evidence] = []
+    for name in _HEADER_EVIDENCE.get(check_id, ()):
+        if name.endswith("report-only") and name not in w.headers:
+            continue
+        found.append(Evidence("header", f"Заголовок {_header_name(name)}", w.headers.get(name, "")))
+    if check_id == "SUV-WEB-004":
+        meta = "<meta http-equiv=Content-Security-Policy>"
+        found += [Evidence("html", meta, c) for c in w.csp_meta]
+    scripts = [r for r in w.third_party if r.kind == "script"]
+    if check_id == "SUV-WEB-001":
+        found += [
+            Evidence("url", f"Сторонний скрипт (страница {r.page})", r.url)
+            for r in _unique(scripts)[:_SHOWN_EVIDENCE]
+        ]
+    elif check_id == "SUV-WEB-002":
+        bad = set(w.abandoned)
+        found += [
+            Evidence("url", f"Скрипт (страница {r.page})", r.url)
+            for r in _unique(scripts)
+            if compromised(r.host) or registrable_domain(r.host) in bad
+        ][:_SHOWN_EVIDENCE]
+    elif check_id == "SUV-WEB-003":
+        found += [
+            Evidence("url", f"Без integrity (страница {r.page})", r.url)
+            for r in _unique(w.third_party)
+            if is_library_cdn(r.host) and not r.integrity
+        ][:_SHOWN_EVIDENCE]
+    elif check_id == "SUV-WEB-007":
+        found += [
+            Evidence(
+                "header",
+                f"Set-Cookie {c.name}",
+                f"Secure: {_yes(c.secure)}; HttpOnly: {_yes(c.http_only)}; "
+                f"SameSite: {c.same_site or 'не задан'}",
+            )
+            for c in w.cookies[:_SHOWN_EVIDENCE]
+        ]
+    elif check_id == "SUV-WEB-008" and w.tls is not None:
+        found.append(Evidence("tls", f"Сертификат {w.tls.host or w.domain}", _cert_text(w.tls)))
+    return found
+
+
+def _header_name(name: str) -> str:
+    return "-".join(part.capitalize() for part in name.split("-"))
+
+
+def _unique(resources: list[Resource]) -> list[Resource]:
+    return list({r.url: r for r in resources}.values())
+
+
+def _yes(flag: bool) -> str:
+    return "есть" if flag else "нет"
+
+
+def _cert_text(t: TlsInfo) -> str:
+    parts = [f"выдан: {t.issuer or 'не известно'}"]
+    if t.expires:
+        parts.append(f"действует до {t.expires:%Y-%m-%d}")
+    if t.version:
+        parts.append(f"протокол по умолчанию: {t.version}")
+    old = [v for v, accepted in t.legacy.items() if accepted]
+    if old:
+        parts.append("принимает " + ", ".join(old))
+    if t.verify_error:
+        parts.append(f"проверка браузером: {t.verify_error}")
+    if t.chain_incomplete:
+        parts.append("сервер не отдаёт промежуточный сертификат")
+    if t.revoked:
+        parts.append(f"отозван {t.revoked:%Y-%m-%d}")
+    return "; ".join(parts)
 
 
 # --- Collection -----------------------------------------------------------------------

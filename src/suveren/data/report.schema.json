@@ -87,7 +87,21 @@
     "recommendation": {"type": "string"},
     "link": {"type": ["string", "null"]},
     "law": {"type": ["string", "null"], "description": "Например, «152-ФЗ, ст. 9»."},
-    "law_url": {"type": ["string", "null"]}
+    "law_url": {"type": ["string", "null"]},
+    "evidence": {
+     "type": "array",
+     "description": "С 1.4. На чём основан вывод, как увидено: DNS-запись, заголовок ответа, адрес страницы или скрипта, запрос страницы, кусок страницы, сертификат, запись реестра.",
+     "items": {
+      "type": "object",
+      "required": ["kind", "what", "value"],
+      "additionalProperties": false,
+      "properties": {
+       "kind": {"enum": ["dns", "header", "url", "request", "html", "tls", "registry"]},
+       "what": {"type": "string", "description": "Где увидено: «TXT _dmarc.example.ru», «заголовок Strict-Transport-Security»."},
+       "value": {"type": "string", "description": "Что увидено, как есть (до 500 символов). Пусто — этого нет."}
+      }
+     }
+    }
    }
   },
   "finding": {

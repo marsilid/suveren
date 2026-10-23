@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -49,6 +49,29 @@ def law_url(law: str | None) -> str | None:
 STRICT_IDS = os.environ.get("SUVEREN_STRICT_CHECK_IDS") == "1"
 
 
+# What a finding may rest on. "what" says where it was seen, "value" is what was seen,
+# as is: a DNS record, a response header, a page or script address, a request a page
+# sent, a piece of the page, the certificate, an entry of a register (the РКН block list).
+EVIDENCE_KINDS = ("dns", "header", "url", "request", "html", "tls", "registry")
+EVIDENCE_MAX = 500
+
+
+@dataclass(frozen=True, slots=True)
+class Evidence:
+    kind: str
+    what: str
+    value: str = ""
+
+    def __post_init__(self) -> None:
+        if self.kind not in EVIDENCE_KINDS:
+            raise ValueError(f"unknown evidence kind: {self.kind}")
+        if len(self.value) > EVIDENCE_MAX:
+            object.__setattr__(self, "value", self.value[: EVIDENCE_MAX - 1] + "…")
+
+    def to_dict(self) -> dict[str, str]:
+        return {"kind": self.kind, "what": self.what, "value": self.value}
+
+
 @dataclass(slots=True)
 class Check:
     group: str
@@ -59,6 +82,7 @@ class Check:
     link: str | None = None
     law: str | None = None  # e.g. "152-ФЗ, ст. 9"
     id: str = ""  # stable ID from catalog.py, e.g. "SUV-MAIL-003"; filled in by title
+    evidence: list[Evidence] = field(default_factory=list)  # what the verdict rests on
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -85,4 +109,5 @@ class Check:
             "link": self.link,
             "law": self.law,
             "law_url": self.law_url,
+            "evidence": [e.to_dict() for e in self.evidence],
         }

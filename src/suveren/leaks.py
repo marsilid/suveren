@@ -25,7 +25,7 @@ from typing import Any
 
 import httpx
 
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 
 TITLE = "Ключи и секреты в коде сайта"
 GROUP_WEB = "Безопасность сайта"
@@ -153,6 +153,13 @@ async def scan_scripts(
 
 
 def leak_check(leaks: list[Leak], sources: int) -> Check:
+    check = _verdict(leaks, sources)
+    # The key as found, masked: enough to find it in the code, not to use it.
+    check.evidence = [Evidence("html", f"{x.kind} в {x.where}", x.masked) for x in leaks[:10]]
+    return check
+
+
+def _verdict(leaks: list[Leak], sources: int) -> Check:
     secrets = [x for x in leaks if x.secret]
     public = [x for x in leaks if not x.secret]
 

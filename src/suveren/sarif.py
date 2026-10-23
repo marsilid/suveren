@@ -79,7 +79,11 @@ def to_sarif(report: Report) -> dict[str, Any]:
                 "level": LEVEL[c.status],
                 "message": {"text": text},
                 "locations": location,
-                "properties": {"status": c.status.value, "law": c.law},
+                "properties": {
+                    "status": c.status.value,
+                    "law": c.law,
+                    "evidence": [e.to_dict() for e in c.evidence],
+                },
             }
         )
 
