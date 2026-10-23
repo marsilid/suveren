@@ -31,6 +31,21 @@ def load(folder: Path) -> dict[str, dict]:
     return reports
 
 
+def incomplete(report: dict) -> str:
+    """Why the report's overall grade is incomplete, "" when it is not. Reports before
+    schema 1.3 have no "overall_incomplete": the sections that did not run say it."""
+    from suveren.advice import MISSED_SECTION
+
+    if "overall_incomplete" in report:
+        return "; ".join(report["overall_incomplete"])
+    missed = [
+        MISSED_SECTION[c["id"]]
+        for c in report.get("checks", [])
+        if c.get("id") in MISSED_SECTION and c.get("status") == "unknown"
+    ]
+    return f"не проверены: {', '.join(missed)}" if missed else ""
+
+
 def compare(old: dict[str, dict], new: dict[str, dict]) -> list[str]:
     """Markdown lines: what changed per site between two runs."""
     lines = []
@@ -47,10 +62,16 @@ def compare(old: dict[str, dict], new: dict[str, dict]) -> list[str]:
             b.get("overall_grade"),
             b.get("overall_score"),
         ):
-            changes.append(
+            grades = (
                 f"общая оценка {a.get('overall_grade')} {a.get('overall_score')} → "
                 f"{b.get('overall_grade')} {b.get('overall_score')}"
             )
+            # A section that did not run takes its problems with it, so the grade goes
+            # up (economy.gov.ru timed out: B 77 → B 89). That is not an improvement.
+            if gap := incomplete(b) or incomplete(a):
+                side = "сейчас" if incomplete(b) else "в прошлый раз"
+                grades = f"оценка неполная ({side} {gap}), сравнивать нельзя: " + grades
+            changes.append(grades)
         before = {c["id"]: c["status"] for c in a.get("checks", []) if c.get("id")}
         after = {c["id"]: c["status"] for c in b.get("checks", []) if c.get("id")}
         for cid in sorted(before.keys() | after.keys()):

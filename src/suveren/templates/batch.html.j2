@@ -17,7 +17,7 @@
         {% set r = row.report %}
         <tr>
           <td><a href="{{ r.target }}.html">{{ r.target }}</a>{% if row.blocked %}<br><span class="badge sev-high"><span>заблокирован</span></span>{% endif %}</td>
-          <td><span class="mini-grade grade-{{ row.grade }}">{{ row.grade }}</span> {{ row.score }}{% if row.unchecked %}<br><small class="empty">не проверено {{ row.unchecked[0] }} из {{ row.unchecked[1] }}</small>{% endif %}</td>
+          <td><span class="mini-grade grade-{{ row.grade }}">{{ row.grade }}</span> {{ row.score }}{% if row.missed %}<br><small class="empty">неполная: нет {{ row.missed | join(", ") }}</small>{% elif row.unchecked %}<br><small class="empty">не проверено {{ row.unchecked[0] }} из {{ row.unchecked[1] }}</small>{% endif %}</td>
           <td><span class="grade-{{ r.grade }}">{{ r.score }}</span> / 100</td>
           <td>{{ r.foreign_count }} / {{ r.domestic_count }}</td>
           <td>

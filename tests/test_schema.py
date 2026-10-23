@@ -68,7 +68,7 @@ def test_a_full_report_matches_the_schema():
     from test_view import sample_report
 
     data = sample_report().to_dict()
-    assert data["schema_version"] == "1.2"
+    assert data["schema_version"] == "1.3"
     assert errors(data, SCHEMA) == []
 
 

@@ -13,7 +13,14 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup, escape
 
 from suveren import __version__
-from suveren.advice import overall_grade, overall_scope, overall_score, priorities, unchecked
+from suveren.advice import (
+    missed_sections,
+    overall_grade,
+    overall_scope,
+    overall_score,
+    priorities,
+    unchecked,
+)
 from suveren.brand import Brand
 from suveren.checks import GROUP_BLOCK, Status
 from suveren.company import CompanyReport
@@ -290,6 +297,7 @@ def write_batch_html(
                 "grade": overall_grade(r),
                 "score": overall_score(r),
                 "unchecked": unchecked(r),
+                "missed": missed_sections(r),
                 "fails": checks[Status.FAIL],
                 "warns": checks[Status.WARN],
                 "blocked": any(

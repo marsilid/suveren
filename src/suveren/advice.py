@@ -127,9 +127,41 @@ def overall_scope(report: Report) -> str:
     ran = [word for prefix, word in SCOPE if any(c.group.startswith(prefix) for c in checked)]
     gap = unchecked(report)
     note = f"; не удалось проверить {gap[0]} из {gap[1]}, поэтому оценка не выше B" if gap else ""
+    missed = missed_sections(report)
+    if missed:
+        note += "; оценка неполная, не проверены: " + ", ".join(missed)
     if not ran:
         return "проверены только иностранные зависимости" + note
     return "проверено: " + ", ".join(dict.fromkeys([*ran, "зависимости"])) + note
+
+
+# A whole section that could not run, by the ID that stands for it. Its problems are
+# missing, so the grade goes up: economy.gov.ru timed out and rose from B 77 to B 89 in
+# the nightly run of 2026-10-23, amocrm.ru lost its mail checks to a SERVFAIL.
+MISSED_SECTION = {
+    "SUV-PD-000": "152-ФЗ",
+    "SUV-WEB-000": "безопасность сайта",
+    "SUV-MAIL-001": "почта",
+    "SUV-BLK-000": "блокировки",
+    "SUV-SUB-000": "поддомены",
+}
+
+
+def missed_sections(report: Report) -> list[str]:
+    """Sections that did not run at all: a grade without them is not comparable with
+    one that had them, whichever way it moved."""
+    return [
+        MISSED_SECTION[c.id]
+        for c in report.checks
+        if c.id in MISSED_SECTION and c.status is Status.UNKNOWN
+    ]
+
+
+def incomplete(report: Report) -> list[str]:
+    """Why the overall grade is incomplete (empty when it is not)."""
+    gap = unchecked(report)
+    reasons = [f"не проверены: {', '.join(missed)}"] if (missed := missed_sections(report)) else []
+    return reasons + ([f"не удалось проверить {gap[0]} из {gap[1]}"] if gap else [])
 
 
 def unchecked(report: Report) -> tuple[int, int] | None:

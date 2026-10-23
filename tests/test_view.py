@@ -141,7 +141,13 @@ def test_batch_outputs(tmp_path):
     assert row["pd_fail"] == 1
     assert isinstance(row["fines_max"], int)
     # Old columns keep their places in summary.csv; new ones are appended.
-    assert list(row)[-4:] == ["top_risks", "fines_max", "overall_grade", "overall_score"]
+    assert list(row)[-5:] == [
+        "top_risks",
+        "fines_max",
+        "overall_grade",
+        "overall_score",
+        "overall_incomplete",
+    ]
     assert list(row)[1:3] == ["grade", "score"]  # independence keeps its place
     index = write_batch_html([report], [("bad.ru", "NXDOMAIN")], tmp_path / "index.html")
     html = index.read_text(encoding="utf-8")
@@ -328,8 +334,21 @@ def test_a_section_that_did_not_run_counts_as_all_its_checks():
     mail = BY_ID["SUV-MAIL-002"]
     report.checks.append(Check(mail.group, mail.title, Status.OK, "SPF в порядке."))
     scope = overall_scope(report)
-    assert "законы" not in scope and "безопасность" not in scope
+    ran = scope.split(";")[0]
+    assert "законы" not in ran and "безопасность" not in ran
     assert "оценка не выше B" in scope
+    assert "оценка неполная, не проверены: 152-ФЗ, безопасность сайта" in scope
+    from suveren.advice import incomplete
+
+    assert incomplete(report)[0] == "не проверены: 152-ФЗ, безопасность сайта"
+    assert report.to_dict()["overall_incomplete"] == incomplete(report)
+
+
+def test_a_full_report_is_not_incomplete():
+    from suveren.advice import incomplete
+
+    assert incomplete(sample_report()) == []
+    assert sample_report().to_dict()["overall_incomplete"] == []
 
 
 def test_services_table_gives_the_same_risk_as_the_dependency_card():

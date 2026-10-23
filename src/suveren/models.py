@@ -294,7 +294,9 @@ class Finding:
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
 # The format of to_dict(), described by data/report.schema.json: the minor number grows
 # with new fields, the major one when a field is removed or renamed.
-SCHEMA_VERSION = "1.2"  # 1.1: plugin checks; 1.2: "history" (scan --since)
+SCHEMA_VERSION = (
+    "1.3"  # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete"
+)
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
@@ -369,7 +371,7 @@ class Report:
         return sorted(self.findings, key=lambda f: f.severity, reverse=True)
 
     def to_dict(self) -> dict[str, Any]:
-        from suveren.advice import overall_score  # advice reads the report
+        from suveren.advice import incomplete, overall_score  # advice reads the report
         from suveren.migration import plan as migration_plan  # migration imports models
 
         return {
@@ -383,6 +385,7 @@ class Report:
             "grade": self.grade,
             "overall_score": overall_score(self),
             "overall_grade": grade_for(overall_score(self)),
+            "overall_incomplete": incomplete(self),
             "countries": dict(self.countries),
             "findings": [f.to_dict() for f in self.sorted_findings()],
             "dependencies": [d.to_dict() for d in self.dependencies],

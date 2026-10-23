@@ -25,7 +25,7 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__, unknown
-from suveren.advice import overall_grade, overall_score
+from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
@@ -534,6 +534,7 @@ def batch_row(report: Report) -> dict[str, object]:
         "fines_max": report.fines.total(),
         "overall_grade": overall_grade(report),
         "overall_score": overall_score(report),
+        "overall_incomplete": "; ".join(incomplete(report)),
     }
 
 
@@ -637,6 +638,8 @@ def batch(
             line.append("   независимость ", style="grey50")
             line.append_text(score_bar(report.score, report.grade, width=12))
             line.append(f" {report.score:>3}", style="bold")
+            if missed := missed_sections(report):
+                line.append("   неполная: нет " + ", ".join(missed), style="grey50")
             console.print(line)
             return host, report, None
 
