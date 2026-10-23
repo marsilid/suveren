@@ -736,6 +736,17 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-consent-provided",
+        "в форме фраза «вы предоставляете согласие на обработку» (cloudpayments.ru), без галочки",
+        {"SUV-PD-003": "ok"},
+        html=page(
+            '<form action="/lead"><input type="tel" name="phone" placeholder="Телефон">'
+            "<button>Отправить</button><p>Нажимая «Отправить», вы предоставляете Согласие "
+            "на обработку персональных данных в соответствии с Политикой</p></form>"
+        ),
+        files=site_files(),
+    ),
+    Case(
         "lab-search-only",
         "на сайте только поиск по городам и билетам: персональные данные не собираются",
         {"SUV-PD-003": "unknown"},

@@ -65,9 +65,11 @@ _CONSENT_TEXT = re.compile(
 # A checkbox for news or ads: ticked in advance, it is not the consent to processing.
 _MARKETING_BOX = re.compile(r"news|subscri|mailing|promo|advert|реклам|рассыл|новост", re.I)
 # A statement the visitor makes ("нажимая кнопку, вы соглашаетесь с политикой", "даю
-# согласие на обработку"), not the title of a document linked in the footer.
+# согласие на обработку"), not the title of a document linked in the footer. The verb
+# varies: cloudpayments.ru has "вы предоставляете Согласие на обработку".
 _CONSENT_NEARBY = re.compile(
-    r"(?:соглаша\w*|согласен|согласна|согласны|(?:даю|да[её]те|да[её]м)\s+(?:сво[её]\s+)?"
+    r"(?:соглаша\w*|согласен|согласна|согласны|(?:даю|да[её]те|да[её]м|предоставля\w*|"
+    r"предоставить|выража\w*|подтвержда\w*)\s+(?:сво[её]\s+)?"
     r"согласие)(?:\s+[\w-]+){0,3}?\s+(?:на|с|со)\s+(?:обработк|политик|услови|правил)|"
     r"обработк\w* моих персональных",
     re.I,
