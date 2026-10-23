@@ -43,6 +43,11 @@ def test_each_contradiction_a_reader_once_caught_is_flagged():
     )
     assert "duplicate-id" in rules({"checks": [check("SUV-PD-001", "ok")] * 2})
     assert "grade-mismatch" in rules({"checks": [], "overall_score": 95, "overall_grade": "D"})
+    # profi.ru: an HTTPS site whose TLS check left the report.
+    web = [check("SUV-WEB-001", "ok"), check("SUV-WEB-005", "ok")]
+    https = {"facts": {"final_url": "https://profi.ru/"}}
+    assert "check-vanished" in rules({"checks": web, **https})
+    assert "check-vanished" not in rules({"checks": [*web, check("SUV-WEB-008", "ok")], **https})
 
 
 def test_a_consistent_report_passes():

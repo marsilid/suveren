@@ -395,12 +395,17 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
     info = TlsInfo(host)
     cert = None
     chain: list[bytes] = []
-    with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
-        info.version, der = await _handshake(host, _context(), timeout, chain)
-        if der:
-            cert = x509.load_der_x509_certificate(der)
-            info.expires = cert.not_valid_after_utc
-            info.issuer = cert.issuer.rfc4514_string()
+    # A second try: under a batch's load one handshake can time out on a site whose page
+    # has just loaded over HTTPS (profi.ru, 2026-10-23), and the check went missing.
+    for _ in range(2):
+        with contextlib.suppress(OSError, *TIMEOUTS, ssl.SSLError, ValueError):
+            chain.clear()
+            info.version, der = await _handshake(host, _context(), timeout, chain)
+            if der:
+                cert = x509.load_der_x509_certificate(der)
+                info.expires = cert.not_valid_after_utc
+                info.issuer = cert.issuer.rfc4514_string()
+            break
     if info.version is None:
         return info
     if cert is not None:
@@ -779,9 +784,20 @@ def cookies_check(w: WebFacts) -> Check | None:
 
 def tls_check(w: WebFacts) -> Check | None:
     t = w.tls
-    if t is None or t.version is None:
+    if t is None:
         return None
     title = TLS_CHECK_TITLE
+    if t.version is None:
+        # The page came over HTTPS, so there is TLS: a check that silently disappears
+        # from the report reads as "nothing to say", which is not what happened.
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.UNKNOWN,
+            f"Не удалось установить TLS-соединение с {t.host} (таймаут или сброс), "
+            "поэтому сертификат и версии TLS не проверены.",
+            "Повторите проверку позже.",
+        )
     status = Status.OK
     details = [f"Сервер {t.host}, соединение {t.version.replace('TLSv', 'TLS ')}."]
     recommendation = ""

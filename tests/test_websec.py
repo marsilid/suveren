@@ -204,6 +204,24 @@ def test_tls_expiry_and_protocols():
     )
     check = tls_check(web(tls=unknown))
     assert check.status is Status.OK and "проверить не удалось" in check.details
+    # No handshake at all on an HTTPS site: "not checked", not a missing check.
+    check = tls_check(web(tls=TlsInfo("example.ru")))
+    assert check.status is Status.UNKNOWN and "TLS-соединение" in check.details
+    assert tls_check(web(tls=None)) is None  # a site without HTTPS has no TLS to check
+
+
+def test_probe_tls_tries_the_handshake_twice(monkeypatch):
+    calls = []
+
+    async def flaky(host, context, timeout, chain=None):
+        calls.append(host)
+        if len(calls) == 1:
+            raise TimeoutError
+        raise ssl.SSLError("stop here")
+
+    monkeypatch.setattr(websec, "_handshake", flaky)
+    info = asyncio.run(websec.probe_tls("example.ru", 1.0))
+    assert len(calls) == 2 and info.version is None
 
 
 @pytest.mark.parametrize(

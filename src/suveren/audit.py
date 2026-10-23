@@ -80,6 +80,10 @@ def audit(report: dict[str, Any]) -> list[Issue]:
     sections = {cid.rsplit("-", 1)[0] for cid in by_id}
     if "SUV-MAIL" in sections and "SUV-WEB" not in sections and "SUV-PD" in sections:
         issues.append(Issue("section-vanished", "", "раздел безопасности сайта пропал целиком"))
+    # profi.ru, 2026-10-23: one handshake timed out and the TLS check left the report.
+    https = str(report.get("facts", {}).get("final_url") or "").startswith("https://")
+    if https and {"SUV-WEB-001", "SUV-WEB-005"} <= by_id.keys() and "SUV-WEB-008" not in by_id:
+        issues.append(Issue("check-vanished", "SUV-WEB-008", "сайт на HTTPS, а проверки TLS нет"))
 
     score, grade = report.get("overall_score"), report.get("overall_grade")
     if score is not None and grade is not None:
