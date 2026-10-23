@@ -254,3 +254,34 @@ def test_first_step_of_a_form_without_consent_is_a_warning():
     check = next(c for c in checks if c.title == "Согласие на обработку в формах")
     assert check.status is Status.WARN
     assert "первом шаге" in check.details
+
+
+def test_a_policy_page_that_timed_out_is_not_a_finding():
+    title = "Политика обработки персональных данных"
+    page = '<a href="/privacy">Политика обработки персональных данных</a>'
+    slow = PolicyInfo(url=BASE + "privacy", error="сайт не ответил вовремя (ReadTimeout)")
+    assert status(run(page, policy=slow), title) is Status.UNKNOWN
+    gone = PolicyInfo(url=BASE + "privacy", error="такой страницы нет (код 404)")
+    assert status(run(page, policy=gone), title) is Status.WARN
+
+
+def test_get_once_more_retries_a_timeout_only():
+    import asyncio
+
+    import httpx
+
+    from suveren.crawl import get_once_more
+
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if len(calls) == 1:
+            raise httpx.ReadTimeout("slow", request=request)
+        return httpx.Response(200, text="ok")
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await get_once_more(client, "https://example.ru/privacy")
+
+    assert asyncio.run(go()).text == "ok" and len(calls) == 2

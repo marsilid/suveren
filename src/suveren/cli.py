@@ -650,8 +650,9 @@ def batch(
             line.append("   независимость ", style="grey50")
             line.append_text(score_bar(report.score, report.grade, width=12))
             line.append(f" {report.score:>3}", style="bold")
-            if missed := missed_sections(report):
-                line.append("   неполная, не проверены: " + ", ".join(missed), style="grey50")
+            # The line is near 80 columns already: what was missed is in the table and CSV.
+            if missed_sections(report):
+                line.append("  неполная", style="grey50")
             console.print(line)
             return host, report, None
 

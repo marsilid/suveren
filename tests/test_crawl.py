@@ -41,6 +41,29 @@ def test_pick_links_skips_other_sites_files_and_duplicates():
     assert pick_links(page, BASE, 10) == ["https://example.ru/catalog"]
 
 
+def test_pick_links_takes_one_page_of_a_kind_first():
+    # fl.ru: portfolios that change on every visit took the whole budget.
+    page = parse_page(
+        """
+        <a href="/users/anna/portfolio/">Анна</a>
+        <a href="/users/boris/portfolio/">Борис</a>
+        <a href="/users/vera/portfolio/">Вера</a>
+        <a href="/projects/">Проекты</a>
+        <a href="/help/">Помощь</a>
+        """
+    )
+    assert pick_links(page, BASE, 3) == [
+        "https://example.ru/users/anna/portfolio",
+        "https://example.ru/projects",
+        "https://example.ru/help",
+    ]
+    # With budget to spare the rest of the kind still comes, in page order.
+    assert pick_links(page, BASE, 5)[3:] == [
+        "https://example.ru/users/boris/portfolio",
+        "https://example.ru/users/vera/portfolio",
+    ]
+
+
 def test_pick_links_zero_limit():
     assert pick_links(parse_page('<a href="/a">a</a>'), BASE, 0) == []
 

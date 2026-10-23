@@ -95,7 +95,35 @@ def pick_links(page: Page, base: str, limit: int, skip: set[str] | None = None) 
         weight = max((w for rx, w in _PRIORITY if rx.search(haystack)), default=0)
         scored.append((-weight, order, key))
     scored.sort()
-    return [url for _, _, url in scored[:limit]]
+    # One page of each kind first: fl.ru's home page shows freelancers' cards that change
+    # on every visit (their text says "заказ", so they rank as order pages), and five
+    # /users/<name>/portfolio pages took the whole budget: the policy link was found one
+    # night and not the next. News sites do the same with today's articles. Pages of a
+    # kind already taken fill what budget is left, still by weight.
+    first, rest, kinds = [], [], set()
+    for _, _, url in scored:
+        kind = _kind(url)
+        if kind not in kinds:
+            first.append(url)
+            kinds.add(kind)
+        else:
+            rest.append(url)
+    return (first + rest)[:limit]
+
+
+def _kind(url: str) -> tuple[str, int]:
+    """/users/maxiseo/portfolio and /users/me2w/portfolio are one kind of page."""
+    segments = urlsplit(url).path.strip("/").split("/")
+    return segments[0], len(segments)
+
+
+async def get_once_more(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """GET, tried once more after a timeout: under a batch's load one page in many times
+    out and comes on the second try (kp.ru's policy, 2026-10-23)."""
+    try:
+        return await client.get(url)
+    except httpx.TimeoutException:
+        return await client.get(url)
 
 
 async def fetch_pages(
@@ -107,7 +135,7 @@ async def fetch_pages(
     async def one(url: str) -> FetchedPage | None:
         async with semaphore:
             try:
-                resp = await client.get(url)
+                resp = await get_once_more(client, url)
             except httpx.HTTPError:
                 return None
         if "html" not in resp.headers.get("content-type", "html"):

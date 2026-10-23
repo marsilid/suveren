@@ -16,7 +16,7 @@ import httpx
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
-from suveren.crawl import MAX_HTML_CHARS, FetchedPage
+from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
 from suveren.discover import discover_inns, is_requisites_path
 from suveren.errors import ModuleError
 from suveren.inn import own_ad_inns
@@ -330,15 +330,19 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
     elif policy.error:
+        gone = policy.error.startswith("такой страницы нет")
         checks.append(
             Check(
                 GROUP_152,
                 "Политика обработки персональных данных",
-                Status.WARN,
-                f"Ссылка на политику есть, но страница не открылась: {policy.error}.",
+                # A 404 is the site's fault; a timeout is the network's, not a finding
+                # (kp.ru's policy timed out in one of two runs on 2026-10-23).
+                Status.WARN if gone else Status.UNKNOWN,
+                f"Ссылка на политику есть, но страница не открылась: {policy.error}."
+                + ("" if gone else " Содержание политики не проверено."),
                 "Опубликуйте политику по этому адресу или исправьте ссылку (152-ФЗ, ст. 18.1 ч. 2)."
-                if policy.error.startswith("такой страницы нет")
-                else "Проверьте, что ссылка рабочая.",
+                if gone
+                else "Проверьте, что ссылка открывается, и повторите проверку.",
                 link=policy.url,
             )
         )
@@ -717,7 +721,10 @@ async def fetch_policy(
         status, html, content_type = prefetched.status, prefetched.html, "text/html"
     else:
         try:
-            resp = await client.get(url)
+            resp = await get_once_more(client, url)
+        except httpx.TimeoutException as exc:
+            info.error = f"сайт не ответил вовремя ({type(exc).__name__})"
+            return info
         except httpx.HTTPError as exc:
             info.error = type(exc).__name__
             return info
