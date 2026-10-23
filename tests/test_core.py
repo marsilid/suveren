@@ -16,7 +16,7 @@ runner = CliRunner()
 
 def test_profiles():
     standard = make_plan()
-    assert standard.modules == frozenset(SCAN_MODULES) - {"cutoff"}
+    assert standard.modules == frozenset(SCAN_MODULES) - {"cutoff", "formleaks"}
     assert not standard.browser and standard.pages == DEFAULT_PAGES and standard.only is None
     assert make_plan(Profile.quick).modules == frozenset()
     deep = make_plan(Profile.deep, pages=2)
@@ -93,6 +93,7 @@ def test_scan_cli_passes_the_plan_and_exits_4(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert calls["compliance"] and not calls["mail"] and not calls["subdomains"]
+    assert not calls["formleaks"]  # "pd" holds SUV-PD-012, but its experiment needs a flag
     assert "SUV-PD-001" in calls["only"]
     assert sarif.exists()
     result = runner.invoke(app, ["scan", "example.ru", "--no-report", "--fail-on", "fail"])

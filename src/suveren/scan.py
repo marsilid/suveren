@@ -32,6 +32,8 @@ from suveren.cutoff import GROUP_CUT, PAGE_TITLE, infra_check, run_cutoff
 from suveren.dataflow import run_dataflow
 from suveren.dnsutil import ResolverMode, create_resolver
 from suveren.errors import ModuleError
+from suveren.formleaks import TITLE as FORM_TITLE
+from suveren.formleaks import pages_with_fields, run_form_leaks
 from suveren.logins import find_login_page
 from suveren.mailsec import run_mail_checks
 from suveren.models import Report
@@ -76,9 +78,12 @@ async def run_scan(
     progress: Progress | None = None,
     only: frozenset[str] | set[str] | None = None,
     cutoff: bool = False,
+    formleaks: bool = False,
+    form_phone: str | None = None,
     plugins: list[Plugin] | None = None,
 ) -> Report:
-    """``only``: IDs of the checks to report (from ``--checks``); None reports all."""
+    """``only``: IDs of the checks to report (from ``--checks``); None reports all.
+    ``form_phone``: the owner's own number for the form experiment (ten digits)."""
     progress = progress or _quiet
     started = datetime.now(timezone.utc)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
@@ -181,6 +186,15 @@ async def run_scan(
         ):
             report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
 
+    if formleaks:
+        async with (
+            _stage(progress, "Данные из форм до отправки (браузер)"),
+            make_client(timeout) as client,
+        ):
+            report.checks.append(
+                await _form_leaks(client, facts, report, host, dns_mode, timeout, form_phone)
+            )
+
     if plugins:
         async with _stage(progress, "Плагины"), make_client(timeout) as client:
             ctx = PluginContext(
@@ -240,6 +254,39 @@ async def _cutoff(
     report.facts["cutoff"] = result.to_dict()
     report.media.update({f"cutoff_{k}": v for k, v in shots.items() if v})
     return [*checks, check]
+
+
+async def _form_leaks(
+    client: httpx.AsyncClient,
+    facts: Facts,
+    report: Report,
+    host: str,
+    dns_mode: ResolverMode,
+    timeout: float,
+    phone: str | None = None,
+) -> Check:
+    # A bot wall over plain HTTP is no reason to skip: the experiment runs in a browser,
+    # which often gets through. Only a site that did not answer at all is skipped.
+    if not facts.html and not facts.final_url:
+        reason = facts.page_problem or "главная не загрузилась"
+        return Check(GROUP_152, FORM_TITLE, Status.UNKNOWN, f"Не проверено: {reason}.")
+    home = facts.final_url or f"https://{host}/"
+    login = find_login_page(parse_page(facts.html), home)
+    urls = pages_with_fields(home, [(p.url, p.html) for p in facts.extra_pages], login)
+    resolver, _ = await create_resolver(dns_mode, timeout, client)
+    try:
+        check, _result, data = await run_form_leaks(
+            urls,
+            host,
+            Collector(resolver, client, timeout),
+            timeout=max(timeout, 25.0),
+            phone=phone,
+        )
+    except Exception as exc:  # the experiment must never take the whole scan down
+        reason = str(exc) if isinstance(exc, ModuleError) else f"ошибка браузера ({exc!r:.120})"
+        return Check(GROUP_152, FORM_TITLE, Status.UNKNOWN, f"Не проверено: {reason}.")
+    report.facts["form_leaks"] = data
+    return check
 
 
 def narrow(checks: list[Check], only: frozenset[str] | set[str]) -> list[Check]:

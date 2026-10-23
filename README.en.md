@@ -24,6 +24,10 @@ Suveren answers six questions:
    normally again, and the report shows both screenshots and what broke — JavaScript errors,
    vanished buttons, maps and videos, captcha forms that can no longer be sent, images, fonts —
    plus the foreign resources in `<head>` that would leave the page blank if they hang.
+   With `--form-leaks` (its own flag only) it types test values into the name, phone, e-mail
+   and password fields, never sends the form, and finds which third parties receive them
+   before submission — in the clear, base64, gzip or as MD5/SHA hashes (the method of
+   "Leaky Forms", USENIX Security 2022).
 2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
    policy (with a checklist of the sections Roskomnadzor recommends), consent in forms and whether
    it is drawn up separately from offers and user agreements (required since 1 September 2025), cookie notice, cross-border transfer, data localisation, the

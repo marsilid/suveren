@@ -28,9 +28,13 @@ ATTACK = "Сценарии атак"
 COMPANY = "Проверка компании"
 
 # Modules of `suveren scan`, as switched by --no-152fz, --no-mail and the like;
-# "cutoff" runs with --cutoff or the deep profile; "company" is `suveren company`;
+# "cutoff" runs with --cutoff or the deep profile, "formleaks" only with --form-leaks
+# (it types into the site's forms); "company" is `suveren company`;
 # "core" needs nothing beyond the dependency scan every run does.
-MODULES = ("core", "compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "company")
+MODULES = (
+    "core", "compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "formleaks",
+    "company",
+)  # fmt: skip
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +85,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "В какие страны и каким сервисам браузер посетителя передаёт IP и cookies."),
     _spec("SUV-PD-011", PD, "Политика и реальность", "compliance", "pd law",
           "Не противоречит ли политика тому, что делает сайт (третьи лица, страны, cookies)."),
+    _spec("SUV-PD-012", PD, "Данные из форм до отправки", "formleaks", "pd law forms browser",
+          "Эксперимент в браузере: уходят ли имя, телефон, почта, пароль сторонним сервисам "
+          "до отправки формы."),
     # --- other laws ---------------------------------------------------------------------
     _spec("SUV-LAW-001", LAWS, "Вход через иностранные сервисы", "compliance",
           "law foreign auth",
@@ -241,6 +248,7 @@ MODULE_RU = {
     "security": "безопасность сайта (`--no-security`)",
     "subdomains": "поддомены (`--no-subdomains`)",
     "cutoff": "эксперимент `--cutoff` или `--profile deep`",
+    "formleaks": "эксперимент `--form-leaks` (только по флагу)",
     "company": "`suveren company`",
 }
 

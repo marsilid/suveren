@@ -169,7 +169,7 @@ def unchecked(report: Report) -> tuple[int, int] | None:
     """(not checked, all) when a quarter or more of the checks could not run: a bot wall
     or a script-built page hides what was not seen, and the grade looks better than it is.
     A section that did not run at all ("SUV-WEB-000") stands for every check in it."""
-    from suveren.catalog import CATALOG  # the catalogue imports the checks' modules
+    from suveren.catalog import BY_ID, CATALOG  # the catalogue imports the checks' modules
 
     n = total = 0
     for c in report.checks:
@@ -177,8 +177,16 @@ def unchecked(report: Report) -> tuple[int, int] | None:
             continue
         weight = 1
         if c.id.endswith("-000") and c.status is Status.UNKNOWN:
-            prefix = c.id[:-3]
-            weight = sum(1 for s in CATALOG if s.id.startswith(prefix) and s.id != c.id) or 1
+            # Only the checks of that module: SUV-PD-012 is a separate experiment.
+            prefix, module = c.id[:-3], BY_ID[c.id].module
+            weight = (
+                sum(
+                    1
+                    for s in CATALOG
+                    if s.id.startswith(prefix) and s.id != c.id and s.module == module
+                )
+                or 1
+            )
         total += weight
         n += weight if c.status is Status.UNKNOWN else 0
     return (n, total) if n >= 3 and n * 4 >= total else None

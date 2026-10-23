@@ -7,12 +7,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from suveren.catalog import modules_for, select
+from suveren.catalog import SelectionError, modules_for, select
 from suveren.crawl import DEFAULT_PAGES
 
-SCAN_MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "cutoff")
+SCAN_MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "formleaks")
 # The cutoff experiment opens the site three more times in a browser: on request only.
-DEFAULT_MODULES = frozenset(SCAN_MODULES) - {"cutoff"}
+# The form experiment types into the site's forms: only with its own flag, never by a
+# profile, so nobody runs it on a site without meaning to.
+DEFAULT_MODULES = frozenset(SCAN_MODULES) - {"cutoff", "formleaks"}
 DEEP_PAGES = 12
 
 
@@ -54,6 +56,7 @@ def make_plan(
     pages: int = DEFAULT_PAGES,
     skip: frozenset[str] | set[str] = frozenset(),
     cutoff: bool = False,
+    form_leaks: bool = False,
 ) -> ScanPlan:
     """``checks`` narrows the modules to those the chosen checks need; ``skip`` comes
     from the --no-* switches and always wins. Raises ``SelectionError`` on an unknown
@@ -61,6 +64,8 @@ def make_plan(
     modules = set() if profile is Profile.quick else set(DEFAULT_MODULES)
     if cutoff or profile is Profile.deep:
         modules.add("cutoff")
+    if form_leaks:
+        modules.add("formleaks")
     only: frozenset[str] | None = None
     if checks:
         only = frozenset(select(checks))
@@ -68,6 +73,15 @@ def make_plan(
         modules = modules_for(set(only)) & set(SCAN_MODULES)
         if cutoff:
             modules.add("cutoff")
+        if form_leaks:
+            modules.add("formleaks")
+        elif modules == {"formleaks"}:
+            raise SelectionError(
+                "--checks: эксперимент с формами вводит тестовые данные в формы сайта и "
+                "запускается только с флагом --form-leaks"
+            )
+        else:  # "--checks pd" and the like: the experiment stays off without its flag
+            modules.discard("formleaks")
     modules -= set(skip)
     if profile is Profile.deep:
         browser, pages = True, max(pages, DEEP_PAGES)

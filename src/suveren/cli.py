@@ -37,6 +37,8 @@ from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, ModuleError, SuverenError
+from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
+from suveren.formleaks import own_phone
 from suveren.history import compare as compare_reports
 from suveren.menu import run_menu
 from suveren.models import Report
@@ -52,6 +54,7 @@ from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
 from suveren.view import (
     ACCENT,
+    DIM,
     GRADE_STYLE,
     header,
     print_changes,
@@ -198,6 +201,8 @@ def plan_label(plan: ScanPlan, profile: str | None = None) -> str:
         parts.append(f"браузер · {plan.pages + 1} стр.")
     if "cutoff" in plan.modules:
         parts.append("отключение сервисов")
+    if "formleaks" in plan.modules:
+        parts.append("тест форм")
     return " · ".join(parts)
 
 
@@ -297,6 +302,23 @@ def scan(
             "что сломается (ещё 3 загрузки, нужен playwright).",
         ),
     ] = False,
+    form_leaks: Annotated[
+        bool,
+        typer.Option(
+            "--form-leaks",
+            help="Эксперимент: ввести тестовые данные в формы сайта (без отправки) и "
+            "проверить, не уходят ли они сторонним сервисам. Только для своих сайтов или "
+            "с согласия владельца; нужен playwright.",
+        ),
+    ] = False,
+    form_phone: Annotated[
+        str | None,
+        typer.Option(
+            "--form-phone",
+            help="Для --form-leaks на своём сайте: ваш мобильный номер вместо тестового, если "
+            "маска поля принимает только номера на 9. Номера не должно быть на сайте.",
+        ),
+    ] = None,
     plugin: Annotated[
         list[str] | None,
         typer.Option(
@@ -396,12 +418,16 @@ def scan(
     try:
         host = normalize_domain(target)
         threshold = _validate_grade(fail_under)
+        if form_phone is not None and not form_leaks:
+            raise SuverenError("--form-phone работает только вместе с --form-leaks")
+        phone = own_phone(form_phone) if form_phone is not None else None
         plan = make_plan(
             Profile.quick if quick else profile,
             checks,
             browser=browser,
             pages=pages,
             cutoff=cutoff,
+            form_leaks=form_leaks,
             skip={
                 name
                 for name, off in (
@@ -414,7 +440,7 @@ def scan(
                 if off
             },
         )
-    except (SuverenError, SelectionError) as exc:
+    except (SuverenError, SelectionError, ValueError) as exc:
         raise _fail(str(exc)) from exc
     try:
         plugins = [load_plugin(p) for p in plugin or []]
@@ -430,6 +456,8 @@ def scan(
         meta += f" · проверки: {checks}"
     console.print(header(__version__, host, meta))
     console.print()
+    if "formleaks" in plan.modules:
+        console.print(f"[{DIM}]{FORM_LEAKS_NOTE}[/]\n")
     try:
         with StageLog(spinner=export_svg is None) as log:
             report = asyncio.run(
@@ -440,6 +468,7 @@ def scan(
                     refresh=refresh,
                     progress=log,
                     plugins=plugins,
+                    form_phone=phone,
                     **plan.kwargs(),  # type: ignore[arg-type]
                 )
             )

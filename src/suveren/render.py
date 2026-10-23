@@ -80,6 +80,217 @@ class Probe:
     painted: bool | None = None
 
 
+@dataclass(slots=True)
+class Sent:
+    """One request (or WebSocket frame) the page sent after the fields were filled."""
+
+    url: str
+    method: str = "GET"
+    body: bytes = b""
+    websocket: bool = False
+
+
+@dataclass(slots=True)
+class FormProbe:
+    """One page of the form-leak experiment (formleaks.py)."""
+
+    url: str
+    final_url: str = ""
+    filled: list[dict[str, Any]] = field(default_factory=list)  # see _FIND_FIELDS
+    sent: list[Sent] = field(default_factory=list)
+    submits: int = 0  # submit attempts the page made and the probe stopped
+
+
+# How long the page is watched after typing: session recorders send in batches.
+FORM_WATCH_MS = 7000
+# Then the page is left, which flushes what recorders keep for "pagehide".
+FORM_FLUSH_MS = 2000
+MAX_FIELDS = 12
+
+# Nothing typed during the experiment may be sent by the form itself: submit events are
+# cancelled before the site's own handlers see them, and form.submit() does nothing.
+_NO_SUBMIT = """(() => {
+  window.__suverenSubmits = 0;
+  const stop = (e) => { window.__suverenSubmits += 1; e.preventDefault();
+    e.stopImmediatePropagation(); };
+  window.addEventListener('submit', stop, true);
+  HTMLFormElement.prototype.submit = function () { window.__suverenSubmits += 1; };
+  HTMLFormElement.prototype.requestSubmit = function () { window.__suverenSubmits += 1; };
+})();"""
+
+# What scripts send, seen from inside the page. The network view misses the body of a
+# beacon made of a Blob and anything sent while the page unloads; so sendBeacon, fetch,
+# XMLHttpRequest and WebSocket hand a copy of each body (base64) to the probe, at once,
+# through the __suverenKeep binding: a page that navigates away loses nothing.
+_SENT_HOOK = """(() => {
+  let count = 0;
+  const MAX = 2000000;
+  const b64 = (bytes) => {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 8192) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return btoa(s);
+  };
+  const put = (method, url, bytes) => {
+    if (count < 600 && bytes && bytes.length && window.__suverenKeep) {
+      count += 1;
+      try { window.__suverenKeep(method, String(url), b64(bytes.subarray(0, MAX))); }
+      catch (e) { /* the page is closing */ }
+    }
+  };
+  const keep = (method, url, body) => {
+    try {
+      url = new URL(String(url), location.href).href;
+      if (body == null) return;
+      if (typeof body === 'string' || body instanceof URLSearchParams) {
+        put(method, url, new TextEncoder().encode(String(body)));
+      } else if (body instanceof Blob) {
+        body.arrayBuffer().then((b) => put(method, url, new Uint8Array(b)), () => {});
+      } else if (body instanceof ArrayBuffer) {
+        put(method, url, new Uint8Array(body));
+      } else if (ArrayBuffer.isView(body)) {
+        put(method, url, new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
+      } else if (body instanceof FormData) {
+        const parts = [];
+        body.forEach((v, k) => parts.push(k + '=' + (typeof v === 'string' ? v : '')));
+        put(method, url, new TextEncoder().encode(parts.join('&')));
+      }
+    } catch (e) { /* never break the page */ }
+  };
+  const beacon = navigator.sendBeacon;
+  if (beacon) {
+    navigator.sendBeacon = function (url, data) {
+      keep('POST', url, data);
+      return beacon.apply(this, arguments);
+    };
+  }
+  const fetch0 = window.fetch;
+  if (fetch0) {
+    window.fetch = function (input, init) {
+      try {
+        if (init && init.body != null) keep((init.method || 'POST').toUpperCase(),
+          input instanceof Request ? input.url : input, init.body);
+        else if (input instanceof Request && input.body) {
+          input.clone().arrayBuffer().then((b) => put(input.method, input.url,
+            new Uint8Array(b)), () => {});
+        }
+      } catch (e) { /* never break the page */ }
+      return fetch0.apply(this, arguments);
+    };
+  }
+  const open = XMLHttpRequest.prototype.open;
+  const send = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this.__suverenTo = [String(method).toUpperCase(), url];
+    return open.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function (body) {
+    if (this.__suverenTo) keep(this.__suverenTo[0], this.__suverenTo[1], body);
+    return send.apply(this, arguments);
+  };
+  const wsSend = WebSocket.prototype.send;
+  WebSocket.prototype.send = function (data) {
+    keep('WS', this.url, data);
+    return wsSend.apply(this, arguments);
+  };
+})();"""
+
+# A headless tab can't be hidden, so the probe says it was: recorders send what they
+# hold when the visitor leaves (visibilitychange to hidden, pagehide), and the page
+# stays alive for _SENT_HOOK to see it.
+_HIDE = """() => {
+  Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => 'hidden'});
+  Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+  document.dispatchEvent(new Event('visibilitychange'));
+  window.dispatchEvent(new PageTransitionEvent('pagehide', {persisted: false}));
+}"""
+
+# Fields a visitor types personal data into, in the main document: name, phone, e-mail
+# and password. Card, code and search fields are never touched. Each field found is
+# marked with data-suveren-field so the probe can find it again.
+_FIND_FIELDS = """(limit) => {
+  const vis = (el) => {
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return r.width > 4 && r.height > 4 && s.visibility !== 'hidden' && s.display !== 'none'
+      && Number(s.opacity) > 0.05;
+  };
+  const labelOf = (el) => {
+    let t = '';
+    if (el.id) {
+      const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+      if (l) t = l.innerText;
+    }
+    if (!t && el.closest('label')) t = el.closest('label').innerText;
+    return (t || '').replace(/\\s+/g, ' ').trim().slice(0, 60);
+  };
+  const NOT_PD = new RegExp([
+    'card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|code|amount|qty|quantity',
+    'city|town|station|airport|country|region|hotel|product|goods|item|file|search|query',
+    'company|(^|[^a-z])inn([^a-z]|$)|address|street|zip|postal',
+    'индекс|город|адрес|компани|организац|код',
+  ].join('|'), 'i');
+  const kindOf = (el) => {
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    const label = labelOf(el);
+    const hint = [el.name, el.id, el.placeholder, el.getAttribute('aria-label'), label]
+      .join(' ').toLowerCase();
+    if (/cc-|card|one-time-code/.test(ac)) return '';
+    if (type === 'password') return 'password';
+    if (!['text', 'email', 'tel'].includes(type)) return '';
+    if (type === 'email' || ac === 'email'
+        || /e-?mail|почт(а|ы|у|ой)?(\\s|\\*|:|$)|электронн/.test(hint)) return 'email';
+    if (NOT_PD.test(hint)) return '';
+    if (type === 'tel' || ac.startsWith('tel')
+        || /phone|телефон|mobile|(^|[^a-z])tel([^a-z]|$)/.test(hint)) return 'phone';
+    if (/^(name|given-name|family-name|additional-name)$/.test(ac)
+        || /(^|[^a-z])(name|fio|first_?name|last_?name)([^a-z]|$)|имя|фио|фамили/.test(hint)) {
+      return 'name';
+    }
+    return '';
+  };
+  const found = [];
+  document.querySelectorAll('input, textarea').forEach((el) => {
+    if (el.tagName === 'TEXTAREA' || el.disabled || el.readOnly) return;
+    const form = el.closest('form');
+    if (form && (form.getAttribute('role') === 'search')) return;
+    const kind = kindOf(el);
+    if (kind) found.push({el, kind, visible: vis(el), label: labelOf(el)
+      || el.placeholder || el.getAttribute('aria-label') || el.name || ''});
+  });
+  // Visible fields first: what a visitor would type into without opening anything.
+  found.sort((a, b) => Number(b.visible) - Number(a.visible));
+  return found.slice(0, limit).map((f, i) => {
+    f.el.setAttribute('data-suveren-field', String(i));
+    return {i, kind: f.kind, visible: f.visible, label: f.label.slice(0, 60)};
+  });
+}"""
+
+
+def _digits(text: str) -> str:
+    return "".join(c for c in text if c.isdigit())
+
+
+# A field that can't be typed into (inside a closed pop-up) gets its value set the way
+# a framework sees it: the native setter and an input event. Change and blur come after
+# the value is checked (_LEAVE), as when a visitor moves on to the next field.
+_SET_VALUE = """(el, value) => {
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+  if (el.focus) el.focus();
+  setter.call(el, value);
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  return el.value;
+}"""
+_LEAVE = """(el) => {
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+  // A focused field gets a real blur; a hidden one, which can't hold focus, an event.
+  if (document.activeElement === el) el.blur();
+  else el.dispatchEvent(new FocusEvent('blur'));
+}"""
+
+
 # Hang mode of the cutoff: a block often drops packets instead of refusing, so the
 # browser waits. Requests are held this long, past the moment the page is measured.
 HANG_WAIT_MS = 10000
@@ -326,6 +537,97 @@ class BrowserSession:
             return probe
         except self._error as exc:  # e.g. the page navigated away mid-measurement
             raise ModuleError(f"браузер не измерил {url} ({str(exc).splitlines()[0]})") from exc
+        finally:
+            with contextlib.suppress(Exception):
+                await page.close()
+
+    async def fill_forms(
+        self, url: str, values: dict[str, str], *, settle_ms: int = SETTLE_MS
+    ) -> FormProbe:
+        """Open ``url``, type ``values`` (kind -> text) into the name, phone, e-mail and
+        password fields without sending any form, then watch what the page sends.
+        ``filled`` holds what ended up in each field: input masks rewrite phones, and a
+        phone the mask changed is erased ("value" is then empty)."""
+        page = await self._context.new_page()
+        probe = FormProbe(url)
+        watching = False
+
+        def on_request(req: Any) -> None:
+            if not watching:
+                return
+            body = b""
+            with contextlib.suppress(Exception):
+                body = req.post_data_buffer or b""
+            probe.sent.append(Sent(req.url, req.method, body))
+
+        def on_websocket(ws: Any) -> None:
+            def on_frame(payload: Any) -> None:
+                if watching:
+                    data = payload.encode("utf-8") if isinstance(payload, str) else payload
+                    probe.sent.append(Sent(ws.url, "WS", bytes(data), websocket=True))
+
+            ws.on("framesent", on_frame)
+
+        def keep(_source: Any, method: str, to: str, body: str) -> None:
+            if watching:
+                with contextlib.suppress(ValueError):
+                    data = base64.b64decode(body)
+                    probe.sent.append(Sent(to, method, data, websocket=method == "WS"))
+
+        page.on("request", on_request)
+        page.on("websocket", on_websocket)
+        try:
+            await page.expose_binding("__suverenKeep", keep)
+            await page.add_init_script(_NO_SUBMIT)
+            await page.add_init_script(_SENT_HOOK)
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
+            except self._error as exc:
+                raise ModuleError(f"браузер не открыл {url} ({str(exc).splitlines()[0]})") from exc
+            with contextlib.suppress(self._error):
+                await page.wait_for_load_state("networkidle", timeout=settle_ms)
+            probe.final_url = page.url
+            try:
+                fields = await page.evaluate(_FIND_FIELDS, MAX_FIELDS)
+            except self._error as exc:
+                raise ModuleError(
+                    f"браузер не прочитал {url} ({str(exc).splitlines()[0]})"
+                ) from exc
+            watching = True
+            for f in fields:
+                value = values.get(f["kind"], "")
+                if not value:
+                    continue
+                el = page.locator(f'[data-suveren-field="{f["i"]}"]').first
+                try:
+                    if f["visible"]:
+                        await el.focus(timeout=2000)
+                        # Key by key, as a visitor types: keyloggers listen to keys.
+                        await el.press_sequentially(value, delay=15, timeout=10000)
+                    else:
+                        await el.evaluate(_SET_VALUE, value)
+                    f["value"] = await el.input_value(timeout=2000)
+                    if f["kind"] == "phone" and _digits(value)[-10:] not in _digits(f["value"]):
+                        # The mask made another number of it, maybe a real person's. It is
+                        # erased before the field is left: "lost lead" widgets read fields
+                        # on change and blur and hand the number to a sales manager.
+                        await el.evaluate(_SET_VALUE, "")
+                        f["value"] = ""
+                    await el.evaluate(_LEAVE)
+                except self._error:
+                    continue
+                probe.filled.append(f)
+            if probe.filled:
+                await page.wait_for_timeout(FORM_WATCH_MS)
+                # The visitor "leaves": recorders send what they hold.
+                with contextlib.suppress(self._error):
+                    await page.evaluate(_HIDE)
+                await page.wait_for_timeout(FORM_FLUSH_MS)
+                # None when the page went to another address meanwhile.
+                with contextlib.suppress(self._error, TypeError, ValueError):
+                    probe.submits = int(await page.evaluate("window.__suverenSubmits") or 0)
+                watching = False
+            return probe
         finally:
             with contextlib.suppress(Exception):
                 await page.close()
