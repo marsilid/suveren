@@ -40,6 +40,11 @@ suveren scan example.ru [--quick|--browser]
 ```
 
 Именно эти шаги гоняет CI (`.github/workflows/ci.yml`, Python 3.10–3.14 + Windows).
+Пока ничего не пушится, CI не запускается: перед слиянием ветки гоняй всё разом —
+`.venv/Scripts/python tools/ci.py` (`--fast` — без тестов, `--no-audit` — без сети).
+
+После каждой правки `.py` хук `.claude/hooks/ruff_fix.py` сам делает `ruff check --fix` и
+`ruff format`; что не исправилось, он возвращает в ответе — чини сразу.
 
 ## Тесты
 
@@ -56,7 +61,8 @@ suveren scan example.ru [--quick|--browser]
 - Ruff: длина строки 100, target py310; mypy с `warn_unused_ignores`.
 - Коммиты: короткая английская фраза о сути изменения; запись в `CHANGELOG.md` (на русском,
   раздел «Не выпущено») — отдельным коммитом `CHANGELOG: ...`.
-- Новая проверка: ID в `catalog.py`, случай в `tests/lab.py`, описание в `docs/checks.md`.
+- Новая проверка или смена её ответа: навык `new-check` (`.claude/skills/new-check`) — каталог,
+  код, полигон, тесты, `docs/checks.md` (генерируется), CHANGELOG.
 - Windows: вывод с кириллицей требует `PYTHONUTF8=1`.
 
 ## graphify
