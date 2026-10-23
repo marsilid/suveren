@@ -6,6 +6,7 @@ They point at likely problems; they are not a legal opinion.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -728,6 +729,11 @@ async def fetch_policy(
         except httpx.HTTPError as exc:
             info.error = type(exc).__name__
             return info
+        if resp.status_code in (404, 410):
+            # sravni.ru's policy answered 404 in one of two runs and 200 in the other: a
+            # 404 is a finding, so it is asked twice before it counts.
+            with contextlib.suppress(httpx.HTTPError):
+                resp = await client.get(url)
         status, html = resp.status_code, resp.text[:3_000_000]
         content_type = resp.headers.get("content-type", "")
         if status in (404, 410):

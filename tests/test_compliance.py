@@ -285,3 +285,23 @@ def test_get_once_more_retries_a_timeout_only():
             return await get_once_more(client, "https://example.ru/privacy")
 
     assert asyncio.run(go()).text == "ok" and len(calls) == 2
+
+
+def test_a_policy_404_is_asked_twice_before_it_counts():
+    import asyncio
+
+    import httpx
+
+    from suveren.compliance import fetch_policy
+
+    answers = [404, 200]
+
+    def handler(request):
+        return httpx.Response(answers.pop(0), text="<p>Политика обработки персональных данных</p>")
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await fetch_policy(client, "https://example.ru/privacy")
+
+    info = asyncio.run(go())
+    assert info.fetched and info.error is None and not answers
