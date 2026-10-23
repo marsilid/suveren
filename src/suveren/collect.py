@@ -105,6 +105,17 @@ class Facts:
             return "главная страница не загрузилась"
         return page_problem(self.page_status, self.html, rendered=self.rendered)
 
+    @property
+    def page_unseen(self) -> str | None:
+        """Why the site's own page was not seen at all: nothing came back, or a bot wall
+        or an error page stood in for it. A thin page built by scripts is seen: its
+        scripts are in the code. After --browser the status and HTML are the browser's."""
+        if not self.html:
+            if self.page_status:
+                return f"сайт ответил кодом {self.page_status} без страницы"
+            return "главная страница не загрузилась"
+        return bot_wall(self.page_status, self.html)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "host": self.host,
@@ -119,6 +130,7 @@ class Facts:
             "page_status": self.page_status,
             "rendered": self.rendered,
             "page_problem": self.page_problem,
+            "page_unseen": self.page_unseen,
             "extra_pages": [p.url for p in self.extra_pages],
         }
 

@@ -39,6 +39,7 @@
     "final_url": {"type": ["string", "null"]},
     "page_status": {"type": ["integer", "null"]},
     "page_problem": {"type": ["string", "null"]},
+    "page_unseen": {"type": ["string", "null"], "description": "С 1.5. Почему страницу сайта не удалось увидеть: ничего не пришло, стена от ботов или страница ошибки. Тогда обе оценки не выше B."},
     "rendered": {"type": "boolean"}
    }
   },

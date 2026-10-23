@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from suveren.checks import Status
-from suveren.models import Report, Severity, grade_for
+from suveren.models import UNSEEN_CAP, Report, Severity, grade_for
 
 
 def first_sentence(text: str) -> str:
@@ -94,13 +94,15 @@ OVERALL_PENALTY = {Severity.HIGH: 10, Severity.MEDIUM: 3, Severity.LOW: 1, Sever
 
 # A means "checked and clean". On 98 sites (nightly run, 2026-10-21) 19 of 22 A grades
 # came from sites whose bot wall hid a quarter of the checks: unseen is not clean.
-UNCHECKED_CAP = 89  # the top of B
+UNCHECKED_CAP = UNSEEN_CAP  # the top of B
 
 
 def overall_score(report: Report) -> int:
     """All sections together: laws, security, mail, blocks and foreign dependencies."""
     score = max(0, 100 - sum(OVERALL_PENALTY[a.severity] for a in priorities(report)))
-    return min(score, UNCHECKED_CAP) if unchecked(report) else score
+    # An unreachable site got A 100/100 in --quick: no page, so no checks to count.
+    capped = unchecked(report) or report.page_unseen
+    return min(score, UNCHECKED_CAP) if capped else score
 
 
 def overall_grade(report: Report) -> str:
@@ -139,6 +141,7 @@ def overall_scope(report: Report) -> str:
 # section (TLS runs when the headers do not), so the names are narrower than SCOPE's. Its
 # problems are missing, so the grade goes up: economy.gov.ru timed out and rose from B 77
 # to B 89 in the nightly run of 2026-10-23, amocrm.ru lost its mail checks to a SERVFAIL.
+PAGE_SECTION = "скрипты и виджеты на странице"
 MISSED_SECTION = {
     "SUV-PD-000": "152-ФЗ на страницах сайта",
     "SUV-WEB-000": "заголовки безопасности",
@@ -151,11 +154,13 @@ MISSED_SECTION = {
 def missed_sections(report: Report) -> list[str]:
     """Sections that did not run at all: a grade without them is not comparable with
     one that had them, whichever way it moved."""
-    return [
+    missed = [
         MISSED_SECTION[c.id]
         for c in report.checks
         if c.id in MISSED_SECTION and c.status is Status.UNKNOWN
     ]
+    # The page feeds the dependency scan in every profile, --quick included.
+    return ([PAGE_SECTION] if report.page_unseen else []) + missed
 
 
 def incomplete(report: Report) -> list[str]:

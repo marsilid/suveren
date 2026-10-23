@@ -292,11 +292,13 @@ class Finding:
 
 # Penalty per finding; a category produces at most one finding.
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
+# A means "checked and clean": a grade resting on unseen parts goes no higher than B.
+UNSEEN_CAP = 89
 # The format of to_dict(), described by data/report.schema.json: the minor number grows
 # with new fields, the major one when a field is removed or renamed.
 # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
-# 1.4: "evidence" of each check.
-SCHEMA_VERSION = "1.4"
+# 1.4: "evidence" of each check; 1.5: facts.page_unseen.
+SCHEMA_VERSION = "1.5"
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
@@ -337,7 +339,16 @@ class Report:
 
     @property
     def score(self) -> int:
-        return max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
+        score = max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
+        # Scripts and widgets come from the page: without it they are unseen, not absent.
+        return min(score, UNSEEN_CAP) if self.page_unseen else score
+
+    @property
+    def page_unseen(self) -> str | None:
+        """Why the site's own page was not seen (nothing came back, a bot wall or an
+        error page instead), or None when it was."""
+        problem = self.facts.get("page_unseen")
+        return str(problem) if problem else None
 
     @property
     def grade(self) -> str:

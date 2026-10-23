@@ -264,13 +264,16 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
     report.facts = facts.to_dict()
     report.notes = facts.notes + notes
     problem = facts.page_problem
-    if facts.html and problem:
+    if problem:
+        # An empty answer is said too: a proxy's bare 503 for an unreachable host left
+        # the report silent and the grade at A.
         hint = (
             "" if facts.rendered else " Попробуйте режим --browser: он открывает сайт в браузере."
         )
+        cap = ", оценки не выше B" if facts.page_unseen else ""
         report.notes.append(
-            f"Главную страницу проанализировать не удалось: {problem}. Скрипты и виджеты не "
-            f"проверены, проверка 152-ФЗ неполная.{hint}"
+            f"Главную страницу проанализировать не удалось: {facts.page_unseen or problem}. "
+            f"Скрипты и виджеты не проверены{cap}, проверка 152-ФЗ неполная.{hint}"
         )
     elif facts.html:
         pages = 1 + len(facts.extra_pages)

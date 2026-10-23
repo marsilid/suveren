@@ -75,7 +75,7 @@ def test_a_full_report_matches_the_schema():
         Evidence("header", "Заголовок Strict-Transport-Security", "max-age=0"),
     ]
     data = report.to_dict()
-    assert data["schema_version"] == "1.4"
+    assert data["schema_version"] == "1.5"
     assert errors(data, SCHEMA) == []
     data["checks"][0]["evidence"][0]["kind"] = "guess"
     assert errors(data, SCHEMA)

@@ -32,6 +32,39 @@ def test_fully_domestic_site_gets_a():
     assert report.countries == [("RU", 100)]
 
 
+DOMESTIC = {
+    "ns": [HostInfo("ns1.selectel.org", ru_net()), HostInfo("ns2.selectel.org", ru_net())],
+    "mx": [HostInfo("mx.yandex.net", NetInfo("2.2.2.2", 13238, "YANDEX", "RU"))],
+    "web": [ru_net("3.3.3.3")],
+    "registrar": "RU-CENTER-RU",
+}
+
+
+def test_an_unseen_page_caps_the_grades_at_b():
+    """A local proxy answered an unreachable host with a bare 503: no findings, so the
+    site got A 100/100 in --quick, and --fail-under A let it through."""
+    from suveren.advice import PAGE_SECTION, incomplete, overall_grade
+
+    for status, html, why in [
+        (503, "", "кодом 503 без страницы"),
+        (None, "", "не загрузилась"),
+        (403, "<html><body>Access denied</body></html>", "кодом 403"),
+    ]:
+        report = analyze(make_facts(**DOMESTIC, page_status=status, html=html))
+        assert report.findings == [] and why in (report.page_unseen or "")
+        assert (report.grade, report.score) == ("B", 89)
+        assert overall_grade(report) == "B"
+        assert incomplete(report) == [f"не проверены: {PAGE_SECTION}"]
+        assert any("оценки не выше B" in n for n in report.notes)
+        assert report.to_dict()["facts"]["page_unseen"] == report.page_unseen
+
+
+def test_a_thin_script_page_is_seen():
+    # Its scripts are in the code: a small single-page app keeps its A.
+    report = analyze(make_facts(**DOMESTIC, page_status=200, html="<script src=/app.js></script>"))
+    assert report.page_unseen is None and report.grade == "A"
+
+
 def test_google_mail_and_cloudflare_dns_are_high():
     facts = make_facts(
         ns=[HostInfo("ada.ns.cloudflare.com", NetInfo("4.4.4.4", 13335, "CLOUDFLARENET", "US"))],

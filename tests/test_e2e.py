@@ -113,6 +113,24 @@ def test_scan_writes_a_consistent_report(offline, tmp_path, name):
     assert case.host in html and "<script>alert" not in html
 
 
+def test_an_unreachable_site_does_not_pass_fail_under_a(offline, tmp_path, monkeypatch):
+    # The proxy's bare 503 for a host that doesn't answer gave A 100/100 and exit 0.
+    case = offline("lab-good")
+
+    async def no_page(host, **_):
+        return Facts(host, host, web=[NetInfo("192.0.2.10", 64500, "Selectel", "RU")],
+                     page_status=503, html="")  # fmt: skip
+
+    monkeypatch.setattr(scan_module, "collect", no_page)
+    out = tmp_path / "r.json"
+    result = run_cli(tmp_path, case.host, "--quick", "--no-report", "--json", str(out),
+                     "--fail-under", "A")  # fmt: skip
+    assert result.exit_code == 3, result.output
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert (data["grade"], data["overall_grade"]) == ("B", "B")
+    assert data["overall_incomplete"] and errors(data, SCHEMA) == [] and audit(data) == []
+
+
 def test_fail_on_gives_exit_code_4(offline, tmp_path):
     case = offline("lab-tls-wrong-host")
     result = run_cli(tmp_path, case.host, "--fail-on", "fail", "-o", str(tmp_path / "r.html"))
