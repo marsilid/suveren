@@ -27,6 +27,15 @@ def test_quick_site_check():
     assert run(["1", "example.ru", "", "", "", "0"]) == [["scan", "example.ru", "--browser"]]
 
 
+def test_flags_after_the_address_are_used_and_not_asked_again():
+    calls = run(["1", "https://site.ru/#top --profile deep --pages 30 --pdf r.pdf", "", "0"])
+    assert calls == [["scan", "https://site.ru/#top", "--profile", "deep", "--pages", "30",
+                      "--pdf", "r.pdf"]]  # fmt: skip
+    # Flags that leave the questions open: both are still asked.
+    calls = run(["1", "site.ru --timeout 20", "д", "", "", "0"])
+    assert calls == [["scan", "site.ru", "--profile", "deep", "--timeout", "20"]]
+
+
 def test_deep_check_with_pdf():
     calls = run(["1", "https://example.ru/", "д", "да", "", "0"])
     pdf = str(Path("reports") / "https___example.ru_.pdf")

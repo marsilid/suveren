@@ -76,18 +76,22 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         return answer.lower() in ("д", "да", "y", "yes")
 
     def scan() -> None:
-        target = ask("Адрес сайта")
-        if not target:
+        # After the address the flags of `suveren scan` may follow, as on the command
+        # line ("сайт.ru --pages 30 --pdf отчёт.pdf"); what they set is not asked again.
+        words = ask("Адрес сайта (можно с флагами, как в командной строке)").split()
+        if not words:
             return
+        target, flags = words[0], words[1:]
         REPORTS.mkdir(exist_ok=True)
-        args = ["scan", target, "--browser"]
-        if yes("Глубокая проверка (браузер, отключение сервисов, ~1 мин)"):
-            args = ["scan", target, "--profile", "deep"]
-        if yes("Сохранить ещё и PDF"):
+        args = ["scan", target]
+        if "--profile" not in flags and "-P" not in flags and "--quick" not in flags:
+            deep = yes("Глубокая проверка (браузер, отключение сервисов, ~1 мин)")
+            args += ["--profile", "deep"] if deep else ["--browser"]
+        if "--pdf" not in flags and yes("Сохранить ещё и PDF"):
             name = "".join(c if c.isalnum() or c in ".-" else "_" for c in target)
             args += ["--pdf", str(REPORTS / f"{name}.pdf")]
         console.print()
-        call(*args)
+        call(*args, *flags)
 
     def batch() -> None:
         console.print(f"  [{DIM}]Нужен текстовый файл: по одному сайту в строке.[/]")
