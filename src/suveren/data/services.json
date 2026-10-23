@@ -1582,7 +1582,8 @@
    "country": "RU",
    "category": "chat",
    "page": [
-    "cdn\\.carrotquest\\.(?:app|io)"
+    "cdn\\.carrotquest\\.(?:app|io)",
+    "api\\.carrottrack\\.app"
    ]
   },
   {
