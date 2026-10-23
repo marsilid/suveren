@@ -38,6 +38,9 @@ class CompanyReport:
     inn_source: str | None = None
     egrul: EgrulRecord | None = None
     operator: RknOperator | None = None
+    # Set when a registry did not answer: "not found" then means "not checked".
+    egrul_error: str | None = None
+    operator_error: str | None = None
     company_hits: list[Hit] = field(default_factory=list)
     person_hits: list[Hit] = field(default_factory=list)
     sanctions_sources: list[str] = field(default_factory=list)
@@ -109,7 +112,18 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     checks: list[Check] = []
     rec = report.egrul
 
-    if rec is None:
+    if rec is None and report.egrul_error:
+        # Offline, Sberbank came out "not found" under a red "ЕСТЬ ПРОБЛЕМЫ".
+        checks.append(
+            Check(
+                GROUP,
+                "ЕГРЮЛ / ЕГРИП",
+                Status.UNKNOWN,
+                "Не проверено: ЕГРЮЛ не ответил.",
+                "Повторите проверку позже или найдите компанию на egrul.nalog.ru.",
+            )
+        )
+    elif rec is None:
         checks.append(
             Check(
                 GROUP,
@@ -266,6 +280,16 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     link=op.url,
                 )
             )
+        elif report.operator_error:
+            checks.append(
+                Check(
+                    GROUP,
+                    "Реестр операторов персональных данных",
+                    Status.UNKNOWN,
+                    "Не проверено: реестр Роскомнадзора не ответил.",
+                    "Повторите проверку позже или найдите компанию на pd.rkn.gov.ru.",
+                )
+            )
         else:
             checks.append(
                 Check(
@@ -406,6 +430,7 @@ async def run_company(
                 exact = [r for r in rows if query in (r.inn, r.ogrn)]
                 report.egrul = next(iter(exact or rows), None)
             except ModuleError as exc:
+                report.egrul_error = str(exc)
                 report.notes.append(f"ЕГРЮЛ: {exc}.")
             if report.egrul:
                 report.inn = report.inn or report.egrul.inn
@@ -414,6 +439,7 @@ async def run_company(
                 try:
                     report.operator = await rkn_operator(client, report.inn)
                 except ModuleError as exc:
+                    report.operator_error = str(exc)
                     report.notes.append(f"Реестр операторов ПДн: {exc}.")
 
         sanctions_ok: bool | None = None

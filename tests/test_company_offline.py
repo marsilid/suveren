@@ -88,4 +88,24 @@ def test_company_by_inn_when_egrul_is_down(offline, monkeypatch, tmp_path):
     data = json.loads(out.read_text(encoding="utf-8"))
     assert any("ЕГРЮЛ: ФНС не ответила" in n for n in data["notes"])
     statuses = {c["id"]: c["status"] for c in data["checks"]}
-    assert statuses["SUV-CO-001"] != "ok"
+    # A register that did not answer is "not checked", not "the company does not exist".
+    assert statuses["SUV-CO-001"] == "unknown"
+    assert "не найдена" not in result.output and "ЕСТЬ ПРОБЛЕМЫ" not in result.output
+
+
+def test_company_when_the_operators_register_is_down(offline, monkeypatch, tmp_path):
+    async def rkn_down(client, inn):
+        raise ModuleError("pd.rkn.gov.ru недоступен (ConnectError)")
+
+    monkeypatch.setattr(company_module, "rkn_operator", rkn_down)
+    out = tmp_path / "c.json"
+    result = CliRunner().invoke(
+        app,
+        ["company", "7707083893", "--no-sanctions", "--json", str(out), "--no-report"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    checks = {c["id"]: c for c in json.loads(out.read_text(encoding="utf-8"))["checks"]}
+    assert checks["SUV-CO-001"]["status"] == "ok"
+    assert checks["SUV-CO-006"]["status"] == "unknown"
+    assert "ConnectError" not in checks["SUV-CO-006"]["details"]
