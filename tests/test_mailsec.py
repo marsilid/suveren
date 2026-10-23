@@ -437,3 +437,10 @@ def test_mta_sts_txt_without_id_or_doubled_is_no_policy():
         records = {("_mta-sts.example.ru", "TXT"): txt}
         mode = asyncio.run(mailsec._mta_sts(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
         assert mode == ("none", [])
+
+
+def test_dmarc_version_must_be_capitals_but_the_tag_name_need_not():
+    assert parse_dmarc("v=DMARC1; p=reject").exact_version
+    assert parse_dmarc("V=DMARC1; p=reject").exact_version
+    assert not parse_dmarc("v=dmarc1; p=reject").exact_version
+    assert not parse_dmarc("v=Dmarc1; p=reject").exact_version

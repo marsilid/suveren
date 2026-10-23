@@ -186,6 +186,13 @@ class Dmarc:
     rua: str | None = None
     ruf: str | None = None
 
+    @property
+    def exact_version(self) -> bool:
+        """The version is "DMARC1" in capitals: RFC 7489, 6.3 says it "MUST match
+        precisely" or the record is ignored, and 6.4 spells it %x44 %x4d…, case and all.
+        The tag name may be "V"; the value may not be "dmarc1"."""
+        return bool(re.match(r"(?i:v)\s*=\s*DMARC1\s*(;|$)", self.record))
+
     def report_domains(self) -> list[str]:
         """Domains of the mailto: addresses in rua= and ruf=, in order, once each."""
         found: list[str] = []
@@ -501,6 +508,17 @@ def _rank(status: Status) -> int:
 
 def dmarc_check(m: MailFacts) -> Check:
     check = _dmarc_policy_check(m)
+    if m.dmarc and not m.dmarc.exact_version and check.status is not Status.FAIL:
+        version = m.dmarc.record.split(";", 1)[0].strip()
+        check.status = Status.WARN
+        check.details += (
+            f" Но версия записана как «{version}»: по стандарту значение должно точно "
+            "совпадать с DMARC1, иначе запись игнорируется (RFC 7489, раздел 6.3). Многие "
+            "почтовые сервисы прощают строчные буквы, но не все."
+        )
+        check.recommendation = (
+            f"{check.recommendation} Напишите версию заглавными: v=DMARC1."
+        ).strip()
     if m.dmarc_unauthorized and check.status is not Status.FAIL:
         names = ", ".join(m.dmarc_unauthorized)
         records = ", ".join(f"{m.domain}._report._dmarc.{d}" for d in m.dmarc_unauthorized)

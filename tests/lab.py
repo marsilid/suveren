@@ -635,6 +635,18 @@ CASES: list[Case] = [
         dns={("_dmarc.lab-dmarc-none.ru", "TXT"): ["v=DMARC1; p=none"]},
     ),
     Case(
+        "lab-dmarc-lowercase",
+        "v=dmarc1 строчными: по RFC 7489 (6.3) значение должно точно совпадать с DMARC1",
+        {"SUV-MAIL-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_dmarc.lab-dmarc-lowercase.ru", "TXT"): [
+                "v=dmarc1; p=reject; rua=mailto:dmarc@lab-dmarc-lowercase.ru"
+            ]
+        },
+    ),
+    Case(
         "lab-no-dmarc",
         "нет DMARC: письмо от имени домена может прийти от кого угодно",
         {"SUV-MAIL-001": "fail", "SUV-MAIL-003": "fail"},
