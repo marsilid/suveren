@@ -12,14 +12,64 @@ when the audit finds contradictions, so a scheduler can flag the night.
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import os
+import shutil
+import socket
 import subprocess
 import sys
+import tarfile
+import time
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "reports" / "nightly"
+# The scheduled run wakes the laptop; the network comes up a little later. Yandex DoT
+# answering is the sign it is up (the run uses it, and the system DNS here may not work).
+YANDEX_DOT = ("77.88.8.8", 853)
+NETWORK_WAIT = 600
+
+
+def snapshot() -> Path:
+    """The committed code (HEAD), frozen for the night in reports/nightly/.code.
+
+    2026-10-23 commits landed while the run was going; the sites scanned after them may
+    have run on new code, and the night no longer compared like with like. Without git
+    the run uses the working tree and says so."""
+    dest = OUT / ".code"
+    shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True)
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip()  # fmt: skip
+        tar = subprocess.run(
+            ["git", "archive", "--format=tar", "HEAD", "src"],
+            cwd=ROOT, capture_output=True, check=True,
+        ).stdout  # fmt: skip
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"снимок кода не сделан ({exc}), прогон идёт на рабочей копии")
+        return ROOT
+    with tarfile.open(fileobj=io.BytesIO(tar)) as archive:
+        archive.extractall(dest, filter="data")
+    print(f"код: коммит {head}, снимок в {dest}")
+    return dest
+
+
+def wait_for_network(timeout: float = NETWORK_WAIT, step: float = 15.0) -> bool:
+    """Wait until Yandex DoT answers on TCP; False if it does not within the timeout."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            socket.create_connection(YANDEX_DOT, timeout=5).close()
+            return True
+        except OSError:
+            if time.monotonic() + step > deadline:
+                return False
+            time.sleep(step)
 
 
 def load(folder: Path) -> dict[str, dict]:
@@ -93,12 +143,18 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--jobs", default="4")
     parser.add_argument("--profile", default="standard")
+    # A tool about sovereignty must not send 300 site names to Google: with "ru" a DNS
+    # failure leaves a check unchecked instead of going abroad (2026-10-23 it went).
+    parser.add_argument("--dns", default="ru")
     args = parser.parse_args(argv)
 
-    sys.path.insert(0, str(ROOT / "src"))
+    code = snapshot()
+    sys.path.insert(0, str(code / "src"))
     from suveren.audit import audit
 
-    previous = sorted(p for p in OUT.glob("*") if p.is_dir()) if OUT.is_dir() else []
+    if not wait_for_network():
+        print(f"сеть не появилась за {NETWORK_WAIT // 60} мин, прогон всё равно запущен")
+    previous = sorted(p for p in OUT.glob("[!.]*") if p.is_dir()) if OUT.is_dir() else []
     folder = OUT / date.today().isoformat()
     subprocess.run(
         [
@@ -112,10 +168,13 @@ def main(argv: list[str]) -> int:
             args.jobs,
             "-P",
             args.profile,
+            "--dns",
+            args.dns,
             "--out",
             str(folder),
         ],
         cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(code / "src")},
         check=False,
     )
     new = load(folder)

@@ -130,7 +130,7 @@ prodoctorov.ru
 eapteka.ru
 zdravcity.ru
 asna.ru
-36.6.ru
+366.ru
 rigla.ru
 emcmos.ru
 mamadeti.ru
@@ -301,7 +301,6 @@ edu.gov.ru
 minobrnauki.gov.ru
 digital.gov.ru
 economy.gov.ru
-fns.gov.ru
 fas.gov.ru
 fstec.ru
 

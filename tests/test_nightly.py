@@ -44,3 +44,18 @@ def test_a_grade_that_rose_because_a_section_did_not_run_is_not_an_improvement()
     full = {"a.ru": report("C", 66, [("SUV-PD-000", "ok")])}
     full["a.ru"]["overall_incomplete"] = []
     assert "в прошлый раз не проверены: почта" in nightly.compare(old, full)[0]
+
+
+def test_wait_for_network_retries_then_gives_up(monkeypatch):
+    calls = []
+
+    def refuse(address, timeout):
+        calls.append(address)
+        raise OSError("сеть ещё не поднялась")
+
+    monkeypatch.setattr(nightly.socket, "create_connection", refuse)
+    clock = [0.0]
+    monkeypatch.setattr(nightly.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(nightly.time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s))
+    assert nightly.wait_for_network(timeout=45, step=15) is False
+    assert len(calls) == 4 and calls[0] == nightly.YANDEX_DOT  # at 0, 15, 30 and 45 s

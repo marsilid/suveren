@@ -20,6 +20,7 @@ type (NOERROR/NODATA or NXDOMAIN). Anything that prevents a trustworthy answer
 from __future__ import annotations
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from typing import Literal
 
@@ -57,8 +58,11 @@ RR_TYPES = {
     "CAA": 257,
 }
 HEALTH_TIMEOUT = 3.0
-_system_healthy: bool | None = None
-_dot_healthy: bool | None = None
+# Health answers are remembered for the process (batch scans many sites in a row), but a
+# failure only for a while: the nightly run starts as the laptop wakes from sleep, before
+# the network is up, and one early failure sent all 300 sites of 2026-10-23 to Google DoH.
+HEALTH_RETRY = 120.0
+_health: dict[str, tuple[bool, float]] = {}
 
 DOH_ENDPOINTS = ("https://dns.google/resolve", "https://cloudflare-dns.com/dns-query")
 
@@ -242,16 +246,19 @@ async def create_resolver(
     system = SystemResolver(timeout)
     if mode == "system":
         return system, None
-    # Health probes can wait for a timeout on a filtering network, so their answers
-    # are remembered for the rest of the process (batch scans many sites in a row).
-    global _system_healthy, _dot_healthy
     probe_timeout = min(timeout, HEALTH_TIMEOUT)
-    if _system_healthy is None:
-        _system_healthy = await SystemResolver(probe_timeout).is_healthy()
-    if _system_healthy:
+    if await _healthy("system", SystemResolver(probe_timeout)):
         return system, None
-    if _dot_healthy is None:
-        _dot_healthy = await DotResolver(probe_timeout).is_healthy()
-    if _dot_healthy:
+    if await _healthy("dot", DotResolver(probe_timeout)):
         return DotResolver(timeout), NOTE_DOT
     return DohResolver(client), NOTE_DOH
+
+
+async def _healthy(name: str, resolver: DnsResolver) -> bool:
+    """A probe can wait for a timeout on a filtering network, so its answer is reused."""
+    known = _health.get(name)
+    if known and (known[0] or time.monotonic() - known[1] < HEALTH_RETRY):
+        return known[0]
+    ok = await resolver.is_healthy()
+    _health[name] = (ok, time.monotonic())
+    return ok

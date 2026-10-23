@@ -575,6 +575,13 @@ def batch(
         ),
     ] = DEFAULT_PAGES,
     timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
+    dns_mode: Annotated[
+        DnsChoice,
+        typer.Option(
+            "--dns",
+            help="DNS, как у scan: ru — только Яндекс DNS, имена сайтов не уходят за рубеж.",
+        ),
+    ] = DnsChoice.auto,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
@@ -621,7 +628,12 @@ def batch(
             try:
                 # One stuck site must not hold up the whole list.
                 report = await asyncio.wait_for(
-                    run_scan(host, timeout=timeout, **plan.kwargs()),  # type: ignore[arg-type]
+                    run_scan(
+                        host,
+                        timeout=timeout,
+                        dns_mode=dns_mode.value,
+                        **plan.kwargs(),  # type: ignore[arg-type]
+                    ),
                     SITE_DEADLINE,
                 )
             except (SuverenError, *TIMEOUTS) as exc:

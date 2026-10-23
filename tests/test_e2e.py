@@ -172,6 +172,27 @@ def test_batch_then_diff_then_audit(offline, tmp_path):
     assert audited.exit_code == 0, audited.output
 
 
+def test_batch_passes_the_dns_mode_on(offline, tmp_path, monkeypatch):
+    # The nightly run asks for --dns ru: no site name may go to a resolver abroad.
+    modes = []
+    fake = scan_module.create_resolver
+
+    async def recording(mode, timeout, client):
+        modes.append(mode)
+        return await fake(mode, timeout, client)
+
+    monkeypatch.setattr(scan_module, "create_resolver", recording)
+    sites = tmp_path / "sites.txt"
+    sites.write_text("lab-good.ru\n", encoding="utf-8")
+    result = CliRunner().invoke(
+        app,
+        ["batch", str(sites), "--dns", "ru", "--out", str(tmp_path / "b"), "--no-open"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    assert modes and set(modes) == {"ru"}
+
+
 class FakeBrowser:
     """A BrowserSession that 'renders' lab pages: the HTML as served, the requests a
     browser would make for Google Analytics, and who started each of them."""

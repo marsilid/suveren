@@ -19,8 +19,7 @@ from suveren.dnsutil import (
 @pytest.fixture(autouse=True)
 def fresh_health(monkeypatch):
     """Health answers are cached per process; every test starts from scratch."""
-    monkeypatch.setattr(dnsutil, "_system_healthy", None)
-    monkeypatch.setattr(dnsutil, "_dot_healthy", None)
+    monkeypatch.setattr(dnsutil, "_health", {})
 
 
 def _health(monkeypatch, *, system: bool, dot: bool) -> None:
@@ -54,6 +53,23 @@ def test_auto_uses_foreign_doh_last_and_says_so(monkeypatch):
     assert isinstance(resolver, DohResolver)
     assert note == NOTE_DOH
     assert "--dns ru" in note
+
+
+def test_a_failed_probe_is_retried_later_a_good_one_is_kept(monkeypatch):
+    # 2026-10-23: the nightly run woke the laptop, DoT failed once before the network was
+    # up, and every site after that went to Google DoH.
+    clock = [1000.0]
+    monkeypatch.setattr(dnsutil.time, "monotonic", lambda: clock[0])
+    _health(monkeypatch, system=False, dot=False)
+    assert isinstance(_pick()[0], DohResolver)
+    _health(monkeypatch, system=False, dot=True)
+    clock[0] += 10
+    assert isinstance(_pick()[0], DohResolver)  # too soon to ask again
+    clock[0] += dnsutil.HEALTH_RETRY
+    assert isinstance(_pick()[0], DotResolver)
+    _health(monkeypatch, system=False, dot=False)
+    clock[0] += 10 * dnsutil.HEALTH_RETRY
+    assert isinstance(_pick()[0], DotResolver)  # a good answer stands
 
 
 def test_ru_mode_never_falls_back_abroad(monkeypatch):
