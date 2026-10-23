@@ -251,7 +251,7 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     retry,
                 )
             )
-        head = (rec.name_full if rec.individual else rec.head_name) if rec else None
+        head = rec.person_name if rec else None
         if head and rec and rec.head_is_org:
             # Screened by name only (no ИНН of the manager here): a lead, not a verdict.
             person_strong = any(h.how == "id" for h in report.person_hits)
@@ -488,8 +488,11 @@ async def run_company(
                 ids = [i for i in (report.inn, report.ogrn) if i]
                 names = [rec.name_full, rec.name_short or ""] if rec else []
                 if ids or names:
-                    report.company_hits = screen_company(index, ids, names)
-                head = (rec.name_full if rec.individual else rec.head_name) if rec else None
+                    # A sole trader is a person in the lists: its ИНН sits on a person entry.
+                    report.company_hits = screen_company(
+                        index, ids, names, persons=bool(rec and rec.individual)
+                    )
+                head = rec.person_name if rec else None
                 if head and rec and rec.head_is_org:
                     # Run by a managing company: screen it as a company, not as a name.
                     report.person_hits = screen_company(index, [], [head])

@@ -373,8 +373,15 @@ def _other_ids(ours: list[str], theirs: Iterable[str]) -> bool:
 
 
 def screen_company(
-    index: SanctionsIndex, ids: Iterable[str], names: Iterable[str], max_partial: int = 5
+    index: SanctionsIndex,
+    ids: Iterable[str],
+    names: Iterable[str],
+    max_partial: int = 5,
+    *,
+    persons: bool = False,
 ) -> list[Hit]:
+    """``persons``: a sole trader, whose ИНН is on a person entry; matched by ИНН only,
+    the trader's name goes through screen_person."""
     hits: list[Hit] = []
     seen: set[int] = set()
     known = [i for i in ids if i]
@@ -390,6 +397,9 @@ def screen_company(
 
     for ident in known:
         for entry in index.by_id.get(ident, []):
+            if persons and entry.kind == "person" and id(entry) not in seen:
+                seen.add(id(entry))
+                hits.append(Hit(entry, "id", ident))
             add(entry, "id", ident)
     names = [n for n in names if n]
     if hits:  # identifier matches are exact; same-name entries would only add noise

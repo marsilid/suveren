@@ -158,3 +158,32 @@ def test_sanctions_levels_by_name_and_ids():
     assert check().status is Status.WARN and "Реквизитов" in check().details
     report.company_hits = [Hit(listed, "id", "2465316804")]
     assert check().status is Status.FAIL
+
+
+def test_a_sanctioned_sole_trader_is_found():
+    """A sole trader is a person in the lists: its ИНН was searched among companies only,
+    and its name was screened with "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ" read as the surname."""
+    from suveren.sanctions import SanctionsIndex, screen_company, screen_person
+
+    person = Entry(
+        "eu", "7", "person", ["Mikhail Timofeevich KALASHNIKOV"], ["771670606787"], "RUS"
+    )
+    index = SanctionsIndex([person])
+    rec = record(
+        name_full="ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ Калашников Михаил Тимофеевич",
+        name_short=None,
+        inn="771670606787",
+        ogrn="304770000000001",
+        head=None,
+        individual=True,
+    )
+    assert rec.person_name == "Калашников Михаил Тимофеевич"
+    hits = screen_company(index, ["771670606787"], [rec.name_full], persons=True)
+    assert [(h.entry.ref, h.how) for h in hits] == [("7", "id")]
+    assert screen_company(index, ["771670606787"], [rec.name_full]) == []  # a company: no
+    assert screen_person(index, rec.person_name)
+
+    report = CompanyReport(query="771670606787", inn="771670606787", egrul=rec)
+    report.sanctions_sources = ["us", "eu", "uk"]
+    report.company_hits = hits
+    assert statuses(report)["Санкционные списки"] is Status.FAIL

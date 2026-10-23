@@ -60,6 +60,17 @@ class EgrulRecord:
         return self.head.split(":", 1)[-1].strip() or None
 
     @property
+    def person_name(self) -> str | None:
+        """Whom to screen as a person: the head, or for a sole trader the trader, without
+        the "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ" in front (it was read as surname and name)."""
+        if not self.individual:
+            return self.head_name
+        name = re.sub(
+            r"^\s*(индивидуальный\s+предприниматель|ип)\s+", "", self.name_full, flags=re.I
+        )
+        return name.strip() or None
+
+    @property
     def head_is_org(self) -> bool:
         """The company is run by a managing company rather than a person."""
         name = self.head_name or ""
