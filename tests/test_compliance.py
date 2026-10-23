@@ -137,6 +137,16 @@ def test_operator_register_states():
     assert status(run("x", inns=["7707083893"], operator=op), title) is Status.OK
 
 
+def test_an_inn_from_the_sites_own_ad_says_where_it_came_from():
+    from suveren.compliance import _operator_check
+
+    data = ComplianceInput(BASE, parse_page("x"), [], inns=["7704218694"])
+    data.inn_from_ad = "МЕТРО Кэш энд Керри"
+    check = _operator_check(data)
+    assert check.status is Status.WARN
+    assert "из маркировки рекламы" in check.details and "«МЕТРО Кэш энд Керри»" in check.details
+
+
 def test_contact_links_same_site_only():
     page = parse_page(
         '<a href="/contacts">Контакты</a><a href="https://other.ru/rekvizity">Реквизиты</a>'

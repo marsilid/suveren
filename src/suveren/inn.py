@@ -56,19 +56,63 @@ def _clean(text: str) -> str:
 # An ad label under 38-ФЗ names the advertiser: "Реклама. ООО «X», ИНН …, erid: …".
 # That ИНН is someone else's, not the site owner's.
 _AD_LABEL = re.compile(r"\berid\b", re.I)
+# So is a partner's in a document: rbc.ru's offer names "партнер Администрации ООО
+# «Тривиум» (ОГРН …, ИНН 7806297293)", the operator of a course platform.
+_PARTNER = re.compile(r"партн[её]р", re.I)
 
 
-def find_inns(text: str) -> list[str]:
-    """Valid ИНН mentioned in the text, most frequent first; advertisers' ИНН from ad
-    labels are left out."""
+def find_inns(text: str, *, first: bool = False) -> list[str]:
+    """Valid ИНН mentioned in the text, most frequent first (``first``: in the order
+    they first appear); advertisers' ИНН from ad labels and partners' from documents
+    are left out."""
     clean = _clean(text)
     counts = Counter(
         m.group(1)
         for m in _INN_RE.finditer(clean)
         if is_valid_inn(m.group(1))
         and not _AD_LABEL.search(clean, max(0, m.start() - 40), m.end() + 80)
+        and not _PARTNER.search(clean, max(0, m.start() - 120), m.start())
     )
-    return [inn for inn, _ in counts.most_common()]
+    return list(counts) if first else [inn for inn, _ in counts.most_common()]
+
+
+# The advertiser's name, quoted, just before the ИНН: "Реклама АО «МегаФон Ритейл» ИНН".
+_QUOTED = re.compile(r"[«\"“]([^«»\"“”]{2,60})[»\"”]")
+_TRANSLIT = str.maketrans(
+    {
+        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
+        "з": "z", "и": "i", "й": "i", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+        "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c",
+        "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu",
+        "я": "ya",
+    }
+)  # fmt: skip
+
+
+def own_ad_inns(text: str, domain: str) -> list[tuple[str, str]]:
+    """(ИНН, advertiser) from ad labels whose advertiser carries the site's name.
+
+    find_inns leaves ad labels out, as they name someone else; but a shop advertising
+    itself names the site's owner, and that may be the only ИНН on the page:
+    metro-cc.ru has "Реклама. ООО «МЕТРО Кэш энд Керри», ИНН 7704218694", megafon.ru
+    "Реклама АО «МегаФон Ритейл» ИНН: 7825695758". A word of the name, in Latin
+    letters, must be a label of the domain (metro, megafon)."""
+    labels = {p for p in re.split(r"[.-]", domain.lower()) if len(p) >= 4}
+    clean = _clean(text)
+    found: Counter[tuple[str, str]] = Counter()
+    for m in _INN_RE.finditer(clean):
+        value = m.group(1)
+        if not is_valid_inn(value):
+            continue
+        if not _AD_LABEL.search(clean, max(0, m.start() - 40), m.end() + 80):
+            continue
+        names = _QUOTED.findall(clean, max(0, m.start() - 80), m.start())
+        if not names:
+            continue
+        words = re.findall(r"\w{4,}", names[-1].lower().translate(_TRANSLIT))
+        if labels & set(words):
+            found[(value, names[-1].strip())] += 1
+    return [pair for pair, _ in found.most_common()]
 
 
 def find_ogrns(text: str) -> list[str]:

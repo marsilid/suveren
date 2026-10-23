@@ -19,6 +19,7 @@ from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage
 from suveren.discover import discover_inns, is_requisites_path
 from suveren.errors import ModuleError
+from suveren.inn import own_ad_inns
 from suveren.logins import (
     LoginEvidence,
     find_evidence,
@@ -116,6 +117,8 @@ class ComplianceInput:
     deps: list[Dependency]
     policy: PolicyInfo = field(default_factory=PolicyInfo)
     inns: list[str] = field(default_factory=list)
+    # The ИНН came from the site's own ad label: the advertiser's name, as quoted.
+    inn_from_ad: str | None = None
     operator: RknOperator | None = None
     operator_error: str | None = None
     page_problem: str | None = None
@@ -659,14 +662,21 @@ def _operator_check(data: ComplianceInput) -> Check:
             "suveren company <ИНН>.",
         )
     inn = data.inns[0]
+    source = (
+        f" ИНН взят из маркировки рекламы на сайте: рекламодатель «{data.inn_from_ad}» носит "
+        "имя сайта, других реквизитов на проверенных страницах нет."
+        if data.inn_from_ad
+        else ""
+    )
     if data.operator_error:
-        return Check(GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.")
+        return Check(GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.{source}")
     if data.operator is None:
         return Check(
             GROUP_152,
             title,
             Status.WARN,
-            f"Организация с ИНН {inn} не найдена в реестре операторов персональных данных.",
+            f"Организация с ИНН {inn} не найдена в реестре операторов персональных данных."
+            + source,
             "Подайте уведомление в Роскомнадзор: это обязательно почти для всех операторов "
             "до начала обработки данных (152-ФЗ, ст. 22).",
         )
@@ -676,7 +686,7 @@ def _operator_check(data: ComplianceInput) -> Check:
         GROUP_152,
         title,
         Status.OK,
-        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.",
+        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{source}",
         link=op.url,
     )
 
@@ -777,6 +787,11 @@ async def run_compliance(
         own = [h for path, h, _ in data.extra if is_requisites_path(path)]
         extra_text = " ".join([data.policy.text, *own])
         data.inns, _ = await discover_inns(client, base, html, extra_text)
+        if not data.inns:
+            pages = " ".join([html, *(h for _, h, _ in data.extra)])
+            own_ads = own_ad_inns(pages, urlsplit(base).hostname or "")
+            if own_ads:
+                data.inns, data.inn_from_ad = [own_ads[0][0]], own_ads[0][1]
     if data.inns:
         try:
             data.operator = await rkn_operator(client, data.inns[0])

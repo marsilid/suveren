@@ -58,7 +58,10 @@ async def discover_inns(
 ) -> tuple[list[str], str | None]:
     """Return (ИНН list, URL where they were found). ``extra_text`` must come only from
     the site's own documents (policy, contacts, requisites), not from any inner page."""
-    inns = find_inns(html + " " + extra_text)
+    # A document names its operator first and the third parties after it: kp.ru's policy
+    # opens with the publisher's ИНН and lists ООО «ВК» twice, for two of its counters.
+    # So the documents go by order, the page by how often an ИНН recurs (its footer).
+    inns = list(dict.fromkeys(find_inns(extra_text, first=True) + find_inns(html)))
     if inns:
         return inns, base
     for url in contact_links(parse_page(html), base)[:MAX_EXTRA_PAGES]:
