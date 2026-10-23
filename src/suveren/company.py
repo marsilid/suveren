@@ -172,6 +172,12 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             )
 
     sources = ", ".join(SOURCE_TITLES.get(s, s) for s in report.sanctions_sources)
+    # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded:
+    # a clean answer from part of the lists is "not checked", with what is missing.
+    missing = ", ".join(t for k, t in SOURCE_TITLES.items() if k not in report.sanctions_sources)
+    clean = Status.UNKNOWN if missing else Status.OK
+    gap = f" Не загрузились: {missing}." if missing else ""
+    retry = "Повторите проверку позже с --refresh." if missing else ""
     if sanctions_ok is None:
         pass
     elif not sanctions_ok:
@@ -215,8 +221,9 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 Check(
                     GROUP,
                     "Санкционные списки",
-                    Status.OK,
-                    f"Не найдена в списках: {sources}." if sources else "Не найдена.",
+                    clean,
+                    (f"Не найдена в списках: {sources}." if sources else "Не найдена.") + gap,
+                    retry,
                 )
             )
         head = (rec.name_full if rec.individual else rec.head_name) if rec else None
@@ -239,7 +246,7 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     )
                 )
             else:
-                checks.append(Check(GROUP, title, Status.OK, f"{head}: совпадений нет."))
+                checks.append(Check(GROUP, title, clean, f"{head}: совпадений нет.{gap}", retry))
         elif head:
             if report.person_hits:
                 checks.append(
@@ -262,8 +269,9 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     Check(
                         GROUP,
                         "Руководитель в санкционных списках",
-                        Status.OK,
-                        f"{head}: совпадений нет.",
+                        clean,
+                        f"{head}: совпадений нет.{gap}",
+                        retry,
                     )
                 )
 

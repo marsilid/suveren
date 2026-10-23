@@ -63,10 +63,30 @@ async def fetch_cached(
             with tmp.open("wb") as fh:
                 async for chunk in resp.aiter_bytes(1 << 16):
                     fh.write(chunk)
+        if not _looks_like_data(tmp):
+            # A 200 with a stub page or nothing used to replace a good copy, and the
+            # empty index made from it lived for a day.
+            raise _NotData
         tmp.replace(path)
         return path, None
-    except (httpx.HTTPError, OSError) as exc:
+    except (httpx.HTTPError, OSError, _NotData) as exc:
         tmp.unlink(missing_ok=True)
+        why = "вместо списка пришла пустая страница или HTML" if isinstance(exc, _NotData) else ""
         if path.exists():
-            return path, f"не удалось обновить {name}, использована копия от {age_text(path)}"
-        raise ModuleError(f"не удалось скачать {url} ({type(exc).__name__})") from exc
+            prefix = f"{why}; " if why else ""
+            return (
+                path,
+                f"{prefix}не удалось обновить {name}, использована копия от {age_text(path)}",
+            )
+        raise ModuleError(f"не удалось скачать {url} ({why or type(exc).__name__})") from exc
+
+
+class _NotData(Exception):
+    pass
+
+
+def _looks_like_data(path: Path) -> bool:
+    """Not empty and not an HTML page (a block page, a CDN challenge, a moved source)."""
+    with path.open("rb") as fh:
+        head = fh.read(512).lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    return bool(head) and not head.startswith((b"<!doctype html", b"<html", b"<head"))

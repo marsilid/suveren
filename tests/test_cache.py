@@ -41,6 +41,24 @@ def test_download_then_cache_then_stale_copy(tmp_path, monkeypatch):
     assert not (tmp_path / "x.txt.part").exists()
 
 
+@pytest.mark.parametrize(
+    "body", [b"", b"  <!DOCTYPE html><html>blocked</html>", b"\xef\xbb\xbf<html><body>503"]
+)
+def test_a_stub_answer_does_not_replace_a_good_copy(tmp_path, monkeypatch, body):
+    # A 200 with a block page or nothing used to overwrite the list, and the empty
+    # index built from it passed for "checked, not found" for a day.
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    path, _ = fetch(lambda r: httpx.Response(200, content=b"list v1"), "x.txt")
+    old = time.time() - 2 * 24 * 3600
+    os.utime(path, (old, old))
+    path, note = fetch(lambda r: httpx.Response(200, content=body), "x.txt")
+    assert path.read_bytes() == b"list v1"
+    assert note and "HTML" in note and "копия" in note
+    with pytest.raises(ModuleError, match="HTML"):
+        fetch(lambda r: httpx.Response(200, content=body), "other.txt")
+    assert not (tmp_path / "other.txt").exists()
+
+
 def test_no_copy_and_no_download_is_an_error(tmp_path, monkeypatch):
     monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
     with pytest.raises(ModuleError, match="не удалось скачать"):

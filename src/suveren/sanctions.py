@@ -426,7 +426,11 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
             continue
         if note:
             notes.append(f"{source.title}: {note}")
-        entries += _cached_entries(source, raw, notes)
+        found = _cached_entries(source, raw, notes)
+        if not found:
+            # A list in a new format parses to nothing: it must not pass for "checked".
+            notes.append(f"{source.title}: в файле не найдено ни одной записи")
+        entries += found
     if not entries:
         raise ModuleError("не удалось загрузить ни один санкционный список")
     return SanctionsIndex(entries, notes)

@@ -59,12 +59,26 @@ def test_not_found():
 def test_sanctions_states():
     entry = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
     report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
     report.company_hits = [Hit(entry, "id", "7707083893")]
     assert statuses(report)["Санкционные списки"] is Status.FAIL
     report.company_hits = [Hit(entry, "partial", "РОМАШКА")]
     assert statuses(report)["Санкционные списки"] is Status.WARN
     assert statuses(report, sanctions_ok=False)["Санкционные списки"] is Status.UNKNOWN
     assert "Санкционные списки" not in statuses(report, sanctions_ok=None)
+
+
+def test_sanctions_with_a_list_missing_are_not_checked():
+    # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded.
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us"]
+    check = next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                 if c.title == "Санкционные списки")  # fmt: skip
+    assert check.status is Status.UNKNOWN and "Не загрузились: ЕС" in check.details
+    # A hit in the lists that did load is still a hit.
+    entry = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
+    report.company_hits = [Hit(entry, "id", "7707083893")]
+    assert statuses(report)["Санкционные списки"] is Status.FAIL
 
 
 def test_site_without_inn_warns():

@@ -137,3 +137,28 @@ def test_screen_person_uses_the_patronymic():
     assert same[0].how_ru
     # Without a patronymic on our side nothing is ruled out.
     assert len(screen_person(index, "Иванов Сергей")) == 2
+
+
+def test_a_list_that_parses_to_nothing_is_not_counted(tmp_path, monkeypatch):
+    # A source in a new format gave 0 entries without a word, and the check still said
+    # "Не найдена в списках" as if every list had been searched.
+    import asyncio
+
+    import suveren.sanctions as sanctions
+    from suveren.sanctions import Entry, load_index
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+
+    async def fetch_cached(client, url, name, *, refresh=False):
+        path = tmp_path / name
+        path.write_text("data", encoding="utf-8")
+        return path, None
+
+    one = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
+    monkeypatch.setattr(sanctions, "fetch_cached", fetch_cached)
+    monkeypatch.setattr(
+        sanctions, "PARSERS", {"us": lambda p: [one], "eu": lambda p: [], "uk": lambda p: []}
+    )
+    index = asyncio.run(load_index(None))  # type: ignore[arg-type]
+    assert index.sources == ["us"]
+    assert sum("ни одной записи" in n for n in index.notes) == 2
