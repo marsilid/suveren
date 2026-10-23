@@ -499,8 +499,8 @@ def _cached_entries(source: Source, raw: Path, notes: list[str]) -> list[Entry]:
             pass
     try:
         entries = list(PARSERS[source.key](raw))
-    except (OSError, ET.ParseError, csv.Error, UnicodeDecodeError) as exc:
-        notes.append(f"{source.title}: файл не разобран ({type(exc).__name__})")
+    except (OSError, ET.ParseError, csv.Error, UnicodeDecodeError):
+        notes.append(f"{source.title}: файл не разобран, он в неожиданном формате")
         return []
     index_path.write_text(
         json.dumps(

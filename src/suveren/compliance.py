@@ -19,7 +19,7 @@ from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
 from suveren.discover import discover_inns, is_requisites_path
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 from suveren.inn import find_inns, own_ad_inns
 from suveren.logins import (
     LoginEvidence,
@@ -858,11 +858,11 @@ async def fetch_policy(
     else:
         try:
             resp = await get_once_more(client, url)
-        except httpx.TimeoutException as exc:
-            info.error = f"сайт не ответил вовремя ({type(exc).__name__})"
+        except httpx.TimeoutException:
+            info.error = "сайт не ответил вовремя"
             return info
         except httpx.HTTPError as exc:
-            info.error = type(exc).__name__
+            info.error = describe(exc)
             return info
         if resp.status_code in (404, 410):
             # sravni.ru's policy answered 404 in one of two runs and 200 in the other: a

@@ -25,7 +25,7 @@ from suveren.cache import age_text, cache_dir, is_fresh
 from suveren.checks import Check, Evidence, Status
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
-from suveren.errors import TIMEOUTS, ModuleError
+from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.takeover_signatures import SOURCE_URL, Signature, find_signature
 from suveren.utils import registrable_domain
 
@@ -137,7 +137,7 @@ def _why(exc: BaseException) -> str:
         return "слишком много запросов" if code == 429 else f"HTTP {code}"
     if isinstance(exc, (httpx.TimeoutException, *TIMEOUTS)):
         return "не ответил вовремя"
-    return type(exc).__name__
+    return describe(exc)
 
 
 # --- DNS ------------------------------------------------------------------------------

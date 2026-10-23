@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -132,7 +132,7 @@ async def egrul_search(client: httpx.AsyncClient, query: str) -> list[EgrulRecor
                 return parse_egrul_rows(data)
             await asyncio.sleep(0.7)
     except (httpx.HTTPError, ValueError, KeyError) as exc:
-        raise ModuleError(f"ЕГРЮЛ недоступен ({type(exc).__name__})") from exc
+        raise ModuleError(f"ЕГРЮЛ недоступен ({describe(exc)})") from exc
     raise ModuleError("ЕГРЮЛ не ответил вовремя")
 
 
@@ -205,6 +205,6 @@ async def rkn_operator(client: httpx.AsyncClient, inn: str) -> RknOperator | Non
         resp = await client.get(RKN_URL, params=params, headers={"User-Agent": BROWSER_UA})
         resp.raise_for_status()
     except httpx.HTTPError as exc:
-        raise ModuleError(f"реестр Роскомнадзора недоступен ({type(exc).__name__})") from exc
+        raise ModuleError(f"реестр Роскомнадзора недоступен ({describe(exc)})") from exc
     matches = [op for op in parse_rkn_operators(resp.text) if op.inn == inn]
     return matches[0] if matches else None

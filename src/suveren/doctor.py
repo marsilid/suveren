@@ -26,7 +26,7 @@ from suveren.collect import (
     whois_query,
 )
 from suveren.dnsutil import create_resolver
-from suveren.errors import TIMEOUTS, ModuleError
+from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.registries import egrul_search, rkn_operator
 from suveren.sanctions import SOURCES
 from suveren.subdomains import CRTSH_URL, clean_names, parse_crtsh
@@ -62,7 +62,7 @@ async def _timed(name: str, fn: Callable[[], Awaitable[str]], *, abroad: bool = 
     except _Optional as exc:
         return Probe(name, None, str(exc), time.perf_counter() - started)
     except (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS, ValueError, KeyError) as exc:
-        message = str(exc) or type(exc).__name__
+        message = describe(exc)
         if abroad and name in RU_ONLY and _network_failure(exc):
             message = f"не проверен: из-за границы не отвечает ({message})"
             return Probe(name, None, message, time.perf_counter() - started)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 
 DEFAULT_TTL = 24 * 3600
 
@@ -78,7 +78,7 @@ async def fetch_cached(
                 path,
                 f"{prefix}не удалось обновить {name}, использована копия от {age_text(path)}",
             )
-        raise ModuleError(f"не удалось скачать {url} ({why or type(exc).__name__})") from exc
+        raise ModuleError(f"не удалось скачать {url} ({why or describe(exc)})") from exc
 
 
 class _NotData(Exception):

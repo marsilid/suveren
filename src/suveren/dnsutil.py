@@ -30,7 +30,7 @@ import dns.nameserver
 import dns.resolver
 import httpx
 
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 
 # "ru" never sends a query outside Russia: the system resolver is not used either,
 # since it may forward to anything.
@@ -121,7 +121,9 @@ class SystemResolver(DnsResolver):
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             return []
         except (dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
-            raise DnsLookupError(f"DNS lookup {name} {rtype} failed: {type(exc).__name__}") from exc
+            timeout = isinstance(exc, dns.exception.Timeout)
+            why = "не ответил вовремя" if timeout else "вернул ошибку"
+            raise DnsLookupError(f"DNS {why} на запрос {rtype} {name}") from exc
         if rtype == "TXT":
             # TXT records may be split into several 255-byte strings; join them back.
             return [b"".join(r.strings).decode("utf-8", "replace") for r in answer]
@@ -202,7 +204,8 @@ class DohResolver(DnsResolver):
                 return resp.json()
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = exc
-        raise DnsLookupError(f"DoH lookup {name} {rtype} failed: {type(last_error).__name__}")
+        why = describe(last_error) if last_error else "нет ответа"
+        raise DnsLookupError(f"DNS через HTTPS не ответил на запрос {rtype} {name}: {why}")
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         return parse_doh_answer(await self._query(name, rtype), rtype)

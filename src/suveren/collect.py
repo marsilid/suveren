@@ -21,7 +21,7 @@ import httpx
 from suveren import __version__
 from suveren.crawl import FetchedPage
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
-from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError
+from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -355,7 +355,9 @@ class Collector:
                 last_error = exc
                 continue
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
-        raise ModuleError(f"сайт не открылся ({type(last_error).__name__})")
+        raise ModuleError(
+            f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
+        )
 
     @property
     def insecure_client(self) -> httpx.AsyncClient:
@@ -391,7 +393,7 @@ class Collector:
                 return None
             return parse_whois_registrar(await whois_query(server, domain, self.timeout))
         except (OSError, *TIMEOUTS) as exc:
-            raise ModuleError(f"WHOIS недоступен ({type(exc).__name__})") from exc
+            raise ModuleError(f"WHOIS недоступен ({describe(exc)})") from exc
 
     async def tls_issuer(self, host: str) -> tuple[str | None, bool | None]:
         """(issuer organisation, trusted by the standard CA bundle)."""
@@ -558,7 +560,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
         if isinstance(value, BaseException):
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
-            facts.notes.append(f"Не удалось получить {labels[key]}: {value}")
+            facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
             continue
         if key == "ns":
             facts.ns = value
