@@ -211,7 +211,8 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     GROUP,
                     "Санкционные списки",
                     Status.FAIL,
-                    f"Организация в санкционных списках: {lists} (совпали ИНН или ОГРН).",
+                    ("Предприниматель" if rec and rec.individual else "Организация")
+                    + f" в санкционных списках: {lists} (совпали ИНН или ОГРН).",
                     "Сделки с ней несут риск вторичных санкций для банков и партнёров. "
                     "Подробности в таблице ниже.",
                 )
@@ -274,7 +275,20 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             else:
                 checks.append(Check(GROUP, title, clean, f"{head}: совпадений нет.{gap}", retry))
         elif head:
-            if report.person_hits:
+            # A sole trader found by ИНН is that very person: "may be a namesake" next to
+            # the ИНН match contradicted it.
+            by_inn = {id(h.entry) for h in strong}
+            if rec and rec.individual and any(id(h.entry) in by_inn for h in report.person_hits):
+                checks.append(
+                    Check(
+                        GROUP,
+                        "Руководитель в санкционных списках",
+                        Status.FAIL,
+                        f"{head}: предприниматель в санкционных списках, совпал ИНН.",
+                        "Подробности в таблице ниже.",
+                    )
+                )
+            elif report.person_hits:
                 checks.append(
                     Check(
                         GROUP,

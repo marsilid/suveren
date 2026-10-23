@@ -187,3 +187,9 @@ def test_a_sanctioned_sole_trader_is_found():
     report.sanctions_sources = ["us", "eu", "uk"]
     report.company_hits = hits
     assert statuses(report)["Санкционные списки"] is Status.FAIL
+    # The same person by ИНН: not "may be a namesake" next to it.
+    report.person_hits = screen_person(index, rec.person_name)
+    checks = {c.title: c for c in build_checks(report, sanctions_ok=True, today=TODAY)}
+    assert checks["Руководитель в санкционных списках"].status is Status.FAIL
+    assert "тёзка" not in checks["Руководитель в санкционных списках"].recommendation
+    assert checks["Санкционные списки"].details.startswith("Предприниматель")
