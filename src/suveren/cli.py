@@ -36,7 +36,7 @@ from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.doctor import run_doctor
-from suveren.errors import TIMEOUTS, ModuleError, SuverenError
+from suveren.errors import TIMEOUTS, InvalidTargetError, ModuleError, SuverenError
 from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
 from suveren.history import compare as compare_reports
@@ -533,16 +533,24 @@ def scan(
 # --- batch ----------------------------------------------------------------------------
 
 
-def read_targets(path: Path) -> list[str]:
-    """Domains from a text file: one per line, '#' comments and blanks ignored."""
+def read_targets(path: Path) -> tuple[list[str], list[str]]:
+    """(domains, skipped lines) from a text file: one domain per line, '#' comments and
+    blanks ignored. A line that is not a domain is skipped with its number, so one typo
+    no longer stops a list of hundreds."""
     hosts: list[str] = []
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+    skipped: list[str] = []
+    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
         value = line.split("#", 1)[0].strip()
-        if value:
+        if not value:
+            continue
+        try:
             host = normalize_domain(value)
-            if host not in hosts:
-                hosts.append(host)
-    return hosts
+        except InvalidTargetError as exc:
+            skipped.append(f"строка {number}: {exc}")
+            continue
+        if host not in hosts:
+            hosts.append(host)
+    return hosts, skipped
 
 
 def batch_row(report: Report) -> dict[str, object]:
@@ -619,9 +627,11 @@ def batch(
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
-        hosts = read_targets(file)
+        hosts, skipped = read_targets(file)
     except (OSError, SuverenError) as exc:
         raise _fail(f"не удалось прочитать список: {exc}") from exc
+    for skip in skipped:
+        console.print(f"  [#e6b450]![/] пропущена {skip}")
     if not hosts:
         raise _fail("в файле нет доменов")
     try:
@@ -695,12 +705,14 @@ def batch(
 
     csv_path = folder / "summary.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
-        writer = csv.DictWriter(
-            fh, fieldnames=list(batch_row(reports[0]).keys()) if reports else ["domain"]
-        )
+        columns = list(batch_row(reports[0]).keys()) if reports else ["domain"]
+        # Sites that could not be checked are rows too, with the reason in the last column.
+        writer = csv.DictWriter(fh, fieldnames=[*columns, "error"], restval="")
         writer.writeheader()
         for r in sorted(reports, key=overall_score):
             writer.writerow(batch_row(r))
+        for host, err in failed:
+            writer.writerow({"domain": host, "error": err})
     # The same, one JSON object per line (for jq and databases), with every check's
     # status by ID; sites that could not be checked say why.
     jsonl_path = folder / "summary.jsonl"
@@ -728,6 +740,9 @@ def batch(
     )
     if open_report:
         _open(index_path)
+    if failed or skipped:
+        # A list with gaps is not a clean run: scripts and CI must be able to tell.
+        raise typer.Exit(1)
 
 
 # --- diff -----------------------------------------------------------------------------

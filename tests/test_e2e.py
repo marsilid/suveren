@@ -7,6 +7,7 @@ the lab's facts, HTTP goes to the lab's transport, DNS to its records, TLS to it
 """
 
 import asyncio
+import csv
 import json
 
 import httpx
@@ -21,6 +22,7 @@ from suveren import subdomains, websec
 from suveren.audit import audit
 from suveren.cli import app
 from suveren.collect import Facts, NetInfo
+from suveren.errors import TargetNotFoundError
 
 CASES = {c.name: c for c in lab.CASES}
 
@@ -188,6 +190,30 @@ def test_batch_then_diff_then_audit(offline, tmp_path):
 
     audited = CliRunner().invoke(app, ["audit", str(out)])
     assert audited.exit_code == 0, audited.output
+
+
+def test_batch_with_gaps_exits_1_and_lists_them(offline, tmp_path, monkeypatch):
+    # Exit 0 when sites failed let a nightly or CI run look clean.
+    lab_collect = scan_module.collect
+
+    async def collect(host, **kw):
+        if host == "lab-missing.ru":
+            raise TargetNotFoundError("домен lab-missing.ru не существует (NXDOMAIN)")
+        return await lab_collect(host, **kw)
+
+    monkeypatch.setattr(scan_module, "collect", collect)
+    sites = tmp_path / "sites.txt"
+    sites.write_text("lab-good.ru\nnot a domain!!\nlab-missing.ru\n", encoding="utf-8")
+    out = tmp_path / "batch"
+    result = CliRunner().invoke(
+        app, ["batch", str(sites), "--out", str(out), "--no-open"], catch_exceptions=False
+    )
+    assert result.exit_code == 1, result.output
+    assert "строка 2" in result.output and "Не проверены: 1" in result.output
+    with (out / "summary.csv").open(encoding="utf-8-sig", newline="") as fh:
+        rows = {r["domain"]: r for r in csv.DictReader(fh)}
+    assert rows["lab-good.ru"]["error"] == "" and rows["lab-good.ru"]["overall_grade"]
+    assert rows["lab-missing.ru"]["error"] and rows["lab-missing.ru"]["grade"] == ""
 
 
 def test_batch_passes_the_dns_mode_on(offline, tmp_path, monkeypatch):

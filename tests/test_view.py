@@ -128,10 +128,14 @@ def test_find_legal_link():
 def test_read_targets(tmp_path):
     path = tmp_path / "sites.txt"
     path.write_text(
-        "# список\nexample.ru\nhttps://www.example.com/page\n\nexample.ru  # дубль\n",
+        "# список\nexample.ru\nhttps://www.example.com/page\n\nexample.ru  # дубль\n"
+        "not a domain!!\n",
         encoding="utf-8",
     )
-    assert read_targets(path) == ["example.ru", "www.example.com"]
+    hosts, skipped = read_targets(path)
+    assert hosts == ["example.ru", "www.example.com"]
+    # A typo is skipped with its line number instead of stopping the whole list.
+    assert skipped == ["строка 6: «not a domain!!» — это не доменное имя"]
 
 
 def test_batch_outputs(tmp_path):
