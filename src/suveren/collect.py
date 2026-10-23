@@ -516,6 +516,11 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.notes.append(note)
         if not await resolver.exists(domain):
             raise TargetNotFoundError(f"домен {domain} не существует (NXDOMAIN)")
+        # The parent existing is not enough: solar.rt.ru has been gone since the company
+        # moved, yet it got a B, rt.ru's DNS and mail, and a "page" with code 503 that a
+        # proxy made up for a host it could not find.
+        if host != domain and not await resolver.exists(host):
+            raise TargetNotFoundError(f"адреса {host} не существует (NXDOMAIN)")
 
         c = Collector(resolver, client, timeout)
         tasks = {

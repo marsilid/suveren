@@ -72,7 +72,7 @@ def offline(monkeypatch):
         return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
 
     async def create_resolver(mode, timeout, client):
-        return Resolver(DNS, missing={"nothing-here.com"}), None
+        return Resolver(DNS, missing={"nothing-here.com", "gone.example.com"}), None
 
     async def issuer(self, host, *, verify):
         return "Let's Encrypt"
@@ -100,6 +100,9 @@ def test_collect_gathers_every_fact(offline):
 def test_collect_refuses_a_domain_that_does_not_exist(offline):
     with pytest.raises(TargetNotFoundError):
         asyncio.run(collect("nothing-here.com"))
+    # solar.rt.ru: the parent exists, the address does not.
+    with pytest.raises(TargetNotFoundError, match=r"gone.example.com"):
+        asyncio.run(collect("gone.example.com"))
 
 
 def test_a_failed_stage_becomes_a_note_not_a_crash(offline, monkeypatch):
