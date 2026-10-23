@@ -23,3 +23,6 @@ Thumbs.db
 corpus/
 # ...but the data files shipped with the package are code
 !src/suveren/data/*.json
+
+# graphify knowledge graph (local, rebuilt with `graphify update .`)
+graphify-out/
