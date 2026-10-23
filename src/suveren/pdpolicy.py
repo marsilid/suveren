@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 from suveren.checks import GROUP_152, Check, Status
+from suveren.inn import find_inns
 from suveren.page import Form, Link
+from suveren.utils import registrable_domain
 
 RKN_RECOMMENDATIONS = "https://www.garant.ru/products/ipo/prime/doc/71634598/"
 
@@ -92,6 +95,7 @@ POLICY_SECTIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 _CROSS_BORDER = re.compile(r"трансграничн")
+_DATA_LIST = dict(POLICY_SECTIONS)["какие данные и чьи обрабатываются"]
 _SHORT_POLICY = 2500  # characters: a real policy with these sections is longer
 
 
@@ -373,12 +377,84 @@ def _claim(text: str, rx: re.Pattern[str]) -> str | None:
     return None
 
 
-def policy_reality(text: str, third: list[str], foreign: list[str], tracking: list[str]) -> Check:
-    """What the policy says against what the page does: each contradiction is the
-    policy's own sentence plus the services that prove it otherwise.
+# What a form asks for, and the words a policy names it with (lowercase, ё as е). A miss
+# is a hint, not proof: "контактные данные" may cover a phone.
+DATA_WORDS: dict[str, tuple[str, re.Pattern[str]]] = {
+    "phone": ("телефон", re.compile(r"телефон|номер\w*\s+(?:мобильн|сотов|контактн)")),
+    "email": (
+        "адрес электронной почты",
+        re.compile(r"e-?mail|электронн\w*\s+(?:почт|адрес)|адрес\w*\s+почт|почтов\w*\s+ящик"),
+    ),
+    "name": ("имя", re.compile(r"(?<!\w)(?:им(?:я|ени)|фио|ф\.\s?и\.\s?о)(?!\w)|фамили")),
+}
+_COOKIE_WORDS = re.compile(
+    r"cookie|(?<!\w)куки|метрическ\w*\s+(?:программ|сервис)|веб-?аналитик|"
+    r"яндекс\.?\s?метрик|google\s+analytics"
+)
+# "Настоящая политика применяется к сайту other-shop.ru": the site a policy is about.
+_SITE_REF = re.compile(
+    r"(?:сайт\w*|ресурс\w*|портал\w*|доменн\w*\s+им\w*|адрес\w*\s+в\s+сети)"
+    r"[\s:«\"“(]*(?:https?://)?(?:www\.)?"
+    r"((?:[a-z0-9-]+\.)+(?:ru|su|com|net|org|online|site|store|shop|pro|info|biz|io|app))(?![\w.-])"
+)
+# Sites a policy names for reasons of its own: the law, the regulator, big services.
+_REFERENCE_SITES = frozenset(
+    {"consultant.ru", "garant.ru", "pravo.gov.ru", "gosuslugi.ru", "yandex.ru", "google.com",
+     "mail.ru", "vk.com", "kremlin.ru"}
+)  # fmt: skip
+
+
+_COOKIE_DOC = re.compile(r"cookie|куки", re.I)
+
+
+def cookie_doc_link(links: list[Link], base: str, policy: str | None) -> bool:
+    """The site links a document about cookies ("Политика использования файлов cookie")
+    other than the policy itself: a banner's "подробнее о cookie" often leads to it."""
+    policy = (policy or "").split("#", 1)[0].rstrip("/")
+    for link in links:
+        if _COOKIE_DOC.search(f"{link.text} {link.href}") and len(link.text) < 80:
+            target = urljoin(base, link.href.strip()).split("#", 1)[0].rstrip("/")
+            if target != policy and not link.href.startswith(("#", "javascript:")):
+                return True
+    return False
+
+
+def foreign_site_refs(text: str, own: set[str]) -> list[str]:
+    """Other sites the policy says it applies to, when it never names this one: a
+    policy copied from another site (``own``: this site's registrable domains)."""
+    low = _norm(text)
+    if any(domain in low for domain in own):
+        return []
+    found = []
+    for m in _SITE_REF.finditer(low):
+        domain = registrable_domain(m.group(1))
+        if domain in own or domain in _REFERENCE_SITES or m.group(1).endswith(".gov.ru"):
+            continue
+        if domain not in found:
+            found.append(domain)
+    return found
+
+
+def policy_reality(
+    text: str,
+    third: list[str],
+    foreign: list[str],
+    tracking: list[str],
+    *,
+    collected: list[str] | None = None,
+    site_inn: str | None = None,
+    own: set[str] | None = None,
+    cookie_doc: bool = False,
+) -> Check:
+    """What the policy says against what the site does: each contradiction is the
+    policy's own sentence plus the services that prove it otherwise, and each gap is
+    what the site does that the policy does not mention.
 
     ``third``: services that receive visitor data (analytics, ads, chats, widgets);
-    ``foreign``: those of them abroad; ``tracking``: analytics and ads, which set cookies.
+    ``foreign``: those of them abroad; ``tracking``: analytics and ads, which set cookies;
+    ``collected``: what the forms ask for (DATA_WORDS keys); ``site_inn``: the ИНН from
+    the site's own pages, not from the policy; ``own``: the site's registrable domains;
+    ``cookie_doc``: the site links a cookie policy of its own, so this one may be silent.
     """
     found = []
     if third and (quote := _claim(text, _NO_THIRD)):
@@ -387,19 +463,54 @@ def policy_reality(text: str, third: list[str], foreign: list[str], tracking: li
         found.append(f"Политика: «{quote}» — а на сайте иностранные сервисы: {', '.join(foreign)}.")
     if tracking and (quote := _claim(text, _NO_COOKIES)):
         found.append(f"Политика: «{quote}» — а cookies ставят {', '.join(tracking)}.")
+    low = _norm(text)
+    # The operator: a policy copied from another company or another site.
+    policy_inns = find_inns(text, first=True)
+    if site_inn and policy_inns and site_inn not in policy_inns:
+        found.append(
+            f"В политике оператор с ИНН {', '.join(policy_inns[:2])}, а в реквизитах сайта — "
+            f"ИНН {site_inn}. Так бывает в группе компаний, но бывает и политика, взятая у "
+            "чужой компании: проверьте, кто оператор данных посетителей этого сайта."
+        )
+    others = foreign_site_refs(text, own or set())
+    if others:
+        found.append(
+            f"Политика говорит о сайте {', '.join(others[:3])}, а этот сайт в ней не назван ни "
+            "разу: проверьте, что она относится к этому сайту (её могли взять у другого сайта "
+            "или у другой компании группы)."
+        )
+    # The list of data (ст. 18.1 ч. 1 п. 2): what the forms ask for must be in it. A
+    # policy with no list at all is "Содержание политики"'s finding, not repeated here.
+    unnamed = [
+        DATA_WORDS[k][0]
+        for k in DATA_WORDS
+        if k in (collected or []) and not DATA_WORDS[k][1].search(low)
+    ]
+    if unnamed and _DATA_LIST.search(low):
+        found.append(
+            f"Формы сайта собирают данные, которых нет в перечне политики: {', '.join(unnamed)}."
+        )
+    silent = not _COOKIE_WORDS.search(low) and not cookie_doc
+    if tracking and silent and not any("cookies ставят" in x for x in found):
+        found.append(
+            f"На сайте {', '.join(tracking)}: они ставят cookies и собирают данные о посещениях, "
+            "а в политике о cookies и веб-аналитике ничего нет."
+        )
     if not found:
         return Check(
             GROUP_152,
             REALITY_TITLE,
             Status.OK,
-            "Политика не утверждает того, что опровергает сайт: противоречий с найденными "
-            "сервисами нет.",
+            "Политика не расходится с тем, что видно на сайте: оператор, данные из форм, "
+            "cookies и сервисы не противоречат ей.",
         )
     return Check(
         GROUP_152,
         REALITY_TITLE,
         Status.WARN,
-        " ".join(found) + " Проверка ищет категоричные фразы; если смысл другой, всё в порядке.",
-        "Приведите политику в соответствие с тем, что делает сайт: перечислите сервисы, "
-        "которым передаются данные, и страны (152-ФЗ, ст. 18.1), или уберите эти сервисы.",
+        " ".join(found) + " Проверка сравнивает слова политики с тем, что найдено на сайте: "
+        "если в политике это сказано другими словами, всё в порядке.",
+        "Приведите политику в соответствие с тем, что делает сайт: оператор с реквизитами "
+        "сайта, все данные, которые собирают формы, cookies, сервисы, которым передаются "
+        "данные, и страны (152-ФЗ, ст. 18.1 ч. 1 п. 2) — или уберите эти сервисы.",
     )

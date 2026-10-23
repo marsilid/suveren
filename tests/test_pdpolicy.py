@@ -271,3 +271,59 @@ def test_conditional_claims_are_not_contradictions():
     # A purpose narrows the claim (hh.ru): not "no cookies at all".
     scoped = "Мы не используем файлы cookie для установления вашей личности."
     assert policy_reality(scoped, [], [], ["Яндекс Метрика"]).status is Status.OK
+
+
+# --- the policy against the site ------------------------------------------------------
+from suveren.compliance import collected  # noqa: E402
+from suveren.page import Link  # noqa: E402
+from suveren.pdpolicy import cookie_doc_link, foreign_site_refs, policy_reality  # noqa: E402
+
+LIST = "Перечень обрабатываемых персональных данных: фамилия, имя, номер телефона. "
+
+
+def test_another_site_counts_only_when_this_one_is_never_named():
+    copied = "Настоящая политика применяется к сайту https://www.other-shop.ru и его поддоменам."
+    assert foreign_site_refs(copied, {"my-shop.ru"}) == ["other-shop.ru"]
+    assert foreign_site_refs(copied + " Также к сайту my-shop.ru.", {"my-shop.ru"}) == []
+    # The regulator and the law are named for reasons of their own.
+    legal = "Жалобу можно подать на сайте rkn.gov.ru, текст закона — на сайте consultant.ru."
+    assert foreign_site_refs(legal, {"my-shop.ru"}) == []
+
+
+def test_operator_inn_from_another_company():
+    text = LIST + "Оператор — ООО «Другая», ИНН 7700000023."
+    check = policy_reality(text, [], [], [], site_inn="7700000016")
+    assert check.status is Status.WARN and "ИНН 7700000023" in check.details
+    same = policy_reality(text, [], [], [], site_inn="7700000023")
+    assert same.status is Status.OK
+
+
+def test_data_the_forms_ask_for_must_be_in_the_list():
+    check = policy_reality(LIST, [], [], [], collected=["phone", "email", "name"])
+    assert check.status is Status.WARN
+    assert "нет в перечне политики: адрес электронной почты." in check.details
+    # No list at all is "Содержание политики"'s finding, not repeated here.
+    assert policy_reality("Мы бережём ваши данные.", [], [], [], collected=["email"]).status is (
+        Status.OK
+    )
+
+
+def test_cookies_silence_unless_a_cookie_policy_is_linked():
+    check = policy_reality(LIST, [], [], ["Яндекс Метрика"])
+    assert check.status is Status.WARN and "о cookies и веб-аналитике ничего нет" in check.details
+    assert policy_reality(LIST, [], [], ["Яндекс Метрика"], cookie_doc=True).status is Status.OK
+    assert policy_reality(LIST + "Сайт использует файлы cookie.", [], [], ["Метрика"]).status is (
+        Status.OK
+    )
+    base, policy = "https://a.ru/", "https://a.ru/privacy"
+    own = [Link("/cookies", "Политика использования файлов cookie")]
+    banner = [Link("/privacy#cookies", "Подробнее о cookie")]
+    assert cookie_doc_link(own, base, policy) and not cookie_doc_link(banner, base, policy)
+
+
+def test_what_forms_collect():
+    page = parse_page(
+        '<form><input name="fio"><input type="tel" name="p"><input name="promo_code">'
+        '<input name="hotel_name"></form><form><input type="email" name="e"></form>'
+    )
+    assert collected(page.forms) == ["phone", "email", "name"]

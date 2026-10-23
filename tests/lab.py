@@ -107,6 +107,8 @@ privacy@lab.example или по почте по адресу оператора.
 учет машинных носителей, проводится внутренний контроль.</p>
 <p>10. Сведения о реализуемых требованиях к защите персональных данных опубликованы в этом
 документе. Оператор не осуществляет трансграничную передачу персональных данных.</p>
+<p>11. Файлы cookie: сайт использует файлы cookie и сервисы веб-аналитики, чтобы считать
+посещения; посетитель может отключить cookie в настройках браузера.</p>
 """
     + "<p>Дополнительные положения. "
     + "Текст раздела. " * 120
@@ -220,6 +222,7 @@ CASES: list[Case] = [
             "SUV-PD-006": "ok",
             "SUV-PD-007": "ok",
             "SUV-PD-008": "ok",
+            "SUV-PD-011": "ok",
             "SUV-MAIL-001": "ok",
             "SUV-MAIL-002": "ok",
             "SUV-MAIL-003": "ok",
@@ -583,6 +586,68 @@ CASES: list[Case] = [
         {"SUV-PD-005": "ok", "SUV-PD-006": "warn"},
         html=page(FORM_OK + GA + COOKIE_BANNER),
         files=site_files(),
+    ),
+    # --- the policy against the site (152-ФЗ, ст. 18.1 ч. 1 п. 2) ---------------------
+    Case(
+        "lab-policy-copied",
+        "политика скопирована с другого сайта: говорит о other-shop.ru, этот сайт не называет",
+        {"SUV-PD-002": "ok", "SUV-PD-011": "warn"},
+        html=page(FORM_OK),
+        files=site_files(
+            {
+                "/privacy": page(
+                    "<p>Настоящая Политика применяется ко всей информации, которую сайт "
+                    "www.other-shop.ru может получить о посетителе.</p>" + POLICY_FULL
+                )
+            }
+        ),
+    ),
+    Case(
+        "lab-policy-two-sites",
+        "одна политика на два сайта компании, этот среди них: не копия",
+        {"SUV-PD-011": "ok"},
+        html=page(FORM_OK),
+        files=site_files(
+            {
+                "/privacy": page(
+                    "<p>Политика действует на сайтах lab-policy-two-sites.ru и "
+                    "www.brand-shop.ru.</p>" + POLICY_FULL
+                )
+            }
+        ),
+    ),
+    Case(
+        "lab-policy-other-inn",
+        "в реквизитах сайта ИНН 7700000016, в политике оператор с ИНН 7700000023",
+        {"SUV-PD-011": "warn"},
+        html=page(FORM_OK + "<p>ООО «Лаборатория», ИНН 7700000016</p>"),
+        files=site_files(
+            {"/privacy": page(POLICY_FULL.replace("ИНН 7700000000", "ИНН 7700000023"))}
+        ),
+    ),
+    Case(
+        "lab-policy-no-email",
+        "форма просит e-mail, а в перечне данных политики его нет",
+        {"SUV-PD-011": "warn"},
+        html=page(
+            FORM_OK.replace(
+                'placeholder="Телефон">', 'placeholder="Телефон"><input type="email" name="email">'
+            )
+        ),
+        files=site_files(
+            {
+                "/privacy": page(
+                    POLICY_FULL.replace("номер телефона, адрес электронной почты", "номер телефона")
+                )
+            }
+        ),
+    ),
+    Case(
+        "lab-policy-no-cookies",
+        "на сайте Google Analytics, а политика о cookies молчит",
+        {"SUV-PD-011": "warn"},
+        html=page(FORM_OK + GA + COOKIE_BANNER),
+        files=site_files({"/privacy": page(POLICY_FULL.split("<p>11. Файлы cookie")[0])}),
     ),
     Case(
         "lab-policy-lies",

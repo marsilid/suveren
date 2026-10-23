@@ -20,7 +20,7 @@ from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
 from suveren.discover import discover_inns, is_requisites_path
 from suveren.errors import ModuleError
-from suveren.inn import own_ad_inns
+from suveren.inn import find_inns, own_ad_inns
 from suveren.logins import (
     LoginEvidence,
     find_evidence,
@@ -36,6 +36,7 @@ from suveren.pdpolicy import (
     bundled_in_text,
     consent_check,
     consent_doc_link,
+    cookie_doc_link,
     implied_in_document,
     policy_content,
     policy_reality,
@@ -366,12 +367,22 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
             checks.append(policy_content(policy.text, bool(foreign_visitor), policy.scripted))
+            site = " ".join([html, *(h for _, h, _ in data.extra)])
+            site_inns = [] if data.inn_from_ad else find_inns(site)
+            hosts = {urlsplit(u).hostname or "" for u in (data.final_url, policy.url) if u}
             checks.append(
                 policy_reality(
                     policy.text,
                     _names(d for d in data.deps if d.category in _THIRD_PARTIES),
                     _names(foreign_visitor),
                     _names(d for d in data.deps if d.category in _COOKIE_SETTERS),
+                    collected=collected(forms),
+                    site_inn=site_inns[0] if site_inns else None,
+                    own={registrable_domain(h) for h in hosts if h},
+                    cookie_doc=any(
+                        cookie_doc_link(pg.links, data.final_url or "", policy.url)
+                        for pg in [page, *(p for _, _, p in data.extra)]
+                    ),
                 )
             )
 
@@ -680,6 +691,34 @@ LAW_BY_ID = {
     "SUV-PD-008": "152-ФЗ, ст. 19",
     "SUV-PD-009": "152-ФЗ, ст. 22",
 }
+
+
+# What a form field asks for, by its type and name: the words of pdpolicy.DATA_WORDS.
+_ASKS = (
+    ("phone", re.compile(r"phone|tel|телефон|mobile", re.I)),
+    ("email", re.compile(r"e-?mail|почт", re.I)),
+    (
+        "name",
+        re.compile(r"(?<![a-z])(?:name|fio|first_?name|last_?name)(?![a-z])|фио|имя|фамили", re.I),
+    ),
+)
+
+
+def collected(forms: list[Form]) -> list[str]:
+    """What the forms ask a visitor for: phone, email, name."""
+    found = set()
+    for form in forms:
+        for i in form.inputs:
+            if i.type in ("tel", "email"):
+                found.add("phone" if i.type == "tel" else "email")
+                continue
+            if i.type not in ("text", ""):
+                continue
+            hint = f"{i.name} {i.hint}"
+            if _NOT_PD_FIELD.search(i.name):
+                continue
+            found |= {kind for kind, rx in _ASKS if rx.search(hint)}
+    return [k for k in ("phone", "email", "name") if k in found]
 
 
 def _form_has_consent(form: Form) -> bool:
