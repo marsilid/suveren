@@ -182,14 +182,56 @@ def test_batch_then_diff_then_audit(offline, tmp_path):
     no_hsts = next(r for r in rows if r["domain"] == "lab-no-hsts.ru")
     assert no_hsts["checks"]["SUV-WEB-005"] == "warn"
 
-    # The site that lost HSTS, compared with the reference one.
-    diff = CliRunner().invoke(
-        app, ["diff", str(out / "lab-good.ru.json"), str(out / "lab-no-hsts.ru.json")]
-    )
+    good = str(out / "lab-good.ru.json")
+    diff = CliRunner().invoke(app, ["diff", good, good])
     assert diff.exit_code == 0, diff.output
+    # Two different sites are not one site's change: every service looked "removed".
+    other = CliRunner().invoke(app, ["diff", good, str(out / "lab-no-hsts.ru.json")])
+    assert other.exit_code == 2 and "разных сайтов" in other.output
 
+    # The folder also holds summary.jsonl and the like: those are not reports, not errors.
+    (out / "extra.json").write_text('{"note": 1}', encoding="utf-8")
     audited = CliRunner().invoke(app, ["audit", str(out)])
     assert audited.exit_code == 0, audited.output
+    assert "2 отчётов" in audited.output
+
+
+@pytest.mark.parametrize(
+    ("content", "why"),
+    [(None, "не удалось прочитать"), ("{}", "не отчёт"), ("[1, 2]", "не отчёт"),
+     ('{"target": "x.ru", "dependencies": [], "schema_version": "2.0"}', "только 1.x"),
+     ("{broken", "не удалось прочитать")],
+)  # fmt: skip
+def test_audit_and_diff_refuse_what_is_not_a_report(tmp_path, content, why):
+    # audit said "✓ Противоречий нет" with exit 0 on all of these; diff crashed on some.
+    path = tmp_path / "r.json"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    runner = CliRunner()
+    audited = runner.invoke(app, ["audit", str(path)])
+    assert audited.exit_code == 2 and why in audited.output, audited.output
+    assert "Противоречий нет" not in audited.output
+    diffed = runner.invoke(app, ["diff", str(path), str(path)])
+    # A clean refusal: exit 2 with the reason, no traceback.
+    assert diffed.exit_code == 2 and why in diffed.output, diffed.output
+    assert diffed.exception is None or isinstance(diffed.exception, SystemExit)
+
+
+def test_audit_of_an_empty_folder_is_an_error(tmp_path):
+    result = CliRunner().invoke(app, ["audit", str(tmp_path)])
+    assert result.exit_code == 2 and "нет JSON-отчётов" in result.output
+
+
+def test_since_is_checked_before_the_scan(offline, tmp_path):
+    case = offline("lab-good")
+    other = tmp_path / "other.json"
+    other.write_text(
+        json.dumps({"target": "lab-no-hsts.ru", "dependencies": [], "checks": []}), "utf-8"
+    )
+    for since, why in [(other, "другого сайта"), (tmp_path / "nofile.json", "прочитать")]:
+        result = run_cli(tmp_path, case.host, "--since", str(since), "--no-report")
+        assert result.exit_code == 2 and why in result.output, result.output
+        assert "готово за" not in result.output  # refused before any network work
 
 
 def test_batch_with_gaps_exits_1_and_lists_them(offline, tmp_path, monkeypatch):

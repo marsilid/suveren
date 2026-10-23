@@ -7,10 +7,47 @@ title.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from suveren.errors import SuverenError
+
 _RANK = {"ok": 0, "unknown": 1, "warn": 2, "fail": 3}
+
+
+class NotAReport(SuverenError):
+    """The file is JSON, but not a report this version reads."""
+
+
+def load_report(path: Path) -> dict[str, Any]:
+    """A `scan --json` report, or a SuverenError saying why the file is not one. Any
+    JSON used to pass: `audit` called {} "no contradictions", `diff` showed every service
+    of a real report as removed against it."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SuverenError(f"{path}: не удалось прочитать ({exc})") from exc
+    if not (
+        isinstance(data, dict)
+        and isinstance(data.get("target"), str)
+        and isinstance(data.get("dependencies"), list)
+    ):
+        raise NotAReport(f"{path}: это не отчёт suveren scan --json")
+    version = str(data.get("schema_version", "1.0"))
+    if version.split(".")[0] != "1":
+        raise NotAReport(f"{path}: отчёт в формате {version}, эта версия читает только 1.x")
+    return data
+
+
+def same_site(old: dict[str, Any], new: dict[str, Any]) -> None:
+    """Two reports of different sites compare as one site's change: refuse instead."""
+    if old["target"] != new["target"]:
+        raise SuverenError(
+            f"это отчёты разных сайтов: {old['target']} и {new['target']}; сравнивать "
+            "можно только проверки одного сайта"
+        )
 
 
 @dataclass(slots=True)

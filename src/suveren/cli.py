@@ -39,6 +39,7 @@ from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, InvalidTargetError, ModuleError, SuverenError
 from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
+from suveren.history import NotAReport, load_report, same_site
 from suveren.history import compare as compare_reports
 from suveren.menu import run_menu
 from suveren.models import Report
@@ -421,6 +422,12 @@ def scan(
         if form_phone is not None and not form_leaks:
             raise SuverenError("--form-phone работает только вместе с --form-leaks")
         phone = own_phone(form_phone) if form_phone is not None else None
+        # Read before the scan: a wrong file said so only after minutes of work.
+        previous = load_report(since) if since is not None else None
+        if previous is not None and previous["target"] != host:
+            raise SuverenError(
+                f"--since: отчёт другого сайта ({previous['target']}), а проверяется {host}"
+            )
         plan = make_plan(
             Profile.quick if quick else profile,
             checks,
@@ -476,13 +483,8 @@ def scan(
         raise _fail(str(exc), code=1) from exc
 
     console.print()
-    if since is not None:
-        try:
-            report.history = compare_reports(
-                json.loads(since.read_text(encoding="utf-8")), report.to_dict()
-            )
-        except (OSError, ValueError) as exc:
-            console.print(f"  [#e6b450]![/] Прошлый отчёт не прочитан: {exc}")
+    if previous is not None:
+        report.history = compare_reports(previous, report.to_dict())
     print_scan(console, report, details=details)
     if report.history is not None:
         section(console, "С прошлой проверки")
@@ -755,10 +757,10 @@ def diff(
 ) -> None:
     """Сравнить два отчёта: что удалось заменить, а что добавилось."""
     try:
-        a = json.loads(old.read_text(encoding="utf-8"))
-        b = json.loads(new.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise _fail(f"не удалось прочитать отчёты: {exc}") from exc
+        a, b = load_report(old), load_report(new)
+        same_site(a, b)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
 
     console.print(
         f"\n[bold]{b.get('target', '?')}[/]: независимость {a.get('grade')} → {b.get('grade')}, "
@@ -779,27 +781,40 @@ def audit_reports(
     """Проверить отчёты на противоречия: код выхода 5, если они есть."""
     from suveren.audit import audit
 
-    files = [f for p in paths for f in (sorted(p.glob("*.json")) if p.is_dir() else [p])]
-    found = 0
-    for f in files:
-        try:
-            report = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            console.print(f"  [#e6b450]![/] {f}: не прочитать ({exc})")
-            continue
-        if not isinstance(report, dict) or "checks" not in report:
-            continue  # summary.csv neighbours, other JSON
-        for issue in audit(report):
-            found += 1
-            where = f" {issue.check}" if issue.check else ""
-            console.print(
-                f"  [#e5534b]✗[/] {report.get('target', f.name)}{where} "
-                f"[grey50]{issue.rule}[/]: {issue.text}"
-            )
+    found = checked = 0
+    problems: list[str] = []
+    for p in paths:
+        # A folder (batch) may hold other JSON; a file named on the command line must be
+        # a report, and a missing one is an error, not "no contradictions".
+        listed = sorted(p.glob("*.json")) if p.is_dir() else [p]
+        if p.is_dir() and not listed:
+            problems.append(f"{p}: в папке нет JSON-отчётов")
+        for f in listed:
+            try:
+                report = load_report(f)
+            except NotAReport as exc:
+                if not p.is_dir():
+                    problems.append(str(exc))
+                continue
+            except SuverenError as exc:
+                problems.append(str(exc))
+                continue
+            checked += 1
+            for issue in audit(report):
+                found += 1
+                where = f" {issue.check}" if issue.check else ""
+                console.print(
+                    f"  [#e5534b]✗[/] {report['target']}{where} "
+                    f"[grey50]{issue.rule}[/]: {issue.text}"
+                )
+    for problem in problems:
+        errors_console.print(f"  [#e6b450]![/] {problem}")
     if found:
-        console.print(f"\n[bold #e5534b]Противоречий: {found}[/] в {len(files)} файлах.")
+        console.print(f"\n[bold #e5534b]Противоречий: {found}[/] в {checked} отчётах.")
         raise typer.Exit(5)
-    console.print(f"[#7fb069]✓[/] Противоречий нет ({len(files)} файлов).")
+    if problems or not checked:
+        raise _fail(f"проверено отчётов: {checked}, не прочитано: {len(problems)}")
+    console.print(f"[#7fb069]✓[/] Противоречий нет ({checked} отчётов).")
 
 
 # --- services -------------------------------------------------------------------------
