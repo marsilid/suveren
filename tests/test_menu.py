@@ -40,3 +40,19 @@ def test_deep_check_with_pdf():
     calls = run(["1", "https://example.ru/", "д", "да", "", "0"])
     pdf = str(Path("reports") / "https___example.ru_.pdf")
     assert calls == [["scan", "https://example.ru/", "--profile", "deep", "--pdf", pdf]]
+
+
+def test_a_bad_flag_is_said_and_the_menu_stays():
+    import typer
+
+    class Strict(FakeApp):
+        def __call__(self, args, standalone_mode=True):
+            super().__call__(args, standalone_mode)
+            raise typer.BadParameter("Option '--json' requires an argument.")
+
+    console = Console(record=True, width=100)
+    feed = iter(["1", "habr.com --json", "", "", "", "0"])
+    console.input = lambda prompt="": next(feed, "0")  # type: ignore[method-assign]
+    console.clear = lambda *a, **k: None  # type: ignore[method-assign]
+    run_menu(Strict(), console)
+    assert "requires an argument" in console.export_text()

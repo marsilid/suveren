@@ -15,6 +15,8 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
+from typer.exceptions import TyperException
 
 from suveren import __version__
 
@@ -59,7 +61,14 @@ def open_path(path: Path) -> None:
 def run_menu(app: typer.Typer, console: Console) -> None:
     def call(*args: str) -> None:
         with contextlib.suppress(SystemExit, typer.Exit, typer.Abort):
-            app(list(args), standalone_mode=False)
+            try:
+                app(list(args), standalone_mode=False)
+            except TyperException as exc:
+                # A mistyped flag ("--json" without a file) is said, not fatal: the menu
+                # runs in its own window, which would close.
+                format_message = getattr(exc, "format_message", None)
+                message = format_message() if format_message else str(exc)
+                console.print(f"  [red]{escape(message)}[/]")
 
     def ask(prompt: str) -> str:
         try:
