@@ -670,6 +670,14 @@ CASES: list[Case] = [
         hosting=("Hetzner Online GmbH", "DE"),
         files=site_files(),
     ),
+    Case(
+        "lab-hosting-abroad-crm-form",
+        "сайт в Германии, но заявки уходят в российскую CRM: база, вероятно, там",
+        {"SUV-PD-007": "warn"},
+        html=page(FORM_OK.replace('action="/lead"', 'action="https://crm.bitrix24.ru/lead"')),
+        hosting=("Hetzner Online GmbH", "DE"),
+        files=site_files(),
+    ),
     # --- mail (RFC 7208, 7489, 8461) -------------------------------------------------
     Case(
         "lab-spf-plus-all",

@@ -549,18 +549,29 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     hosting = [d for d in data.deps if d.category is Category.HOSTING]
     if any(d.foreign for d in hosting):
         where = ", ".join(f"{d.service} ({d.country_ru})" for d in hosting if d.foreign)
+        # FAIL needs the data to land on that server: a form posting to the site itself.
+        # A form sent elsewhere (a Russian CRM, a form service) keeps its base there.
+        here = [f for f in forms if _posts_to_site(f.action, data.final_url)]
+        away = sorted({urlsplit(f.action).hostname or "" for f in forms if f not in here})
+        if here:
+            about = (
+                " На нём есть формы сбора данных, и они отправляются на этот же сайт: если "
+                "заявки сохраняются на этом сервере, база с персональными данными находится "
+                "за рубежом."
+            )
+        elif forms:
+            about = (
+                f" Формы с данными отправляются на {', '.join(away)}: база, вероятно, там. "
+                "Проверьте, где хранятся заявки."
+            )
+        else:
+            about = ""
         checks.append(
             Check(
                 GROUP_152,
                 "Хранение данных в России",
-                Status.FAIL if forms else Status.WARN,
-                f"Сайт размещён за рубежом: {where}."
-                + (
-                    " На нём есть формы сбора данных: если заявки сохраняются на этом "
-                    "сервере, база с персональными данными находится за рубежом."
-                    if forms
-                    else ""
-                ),
+                Status.FAIL if here else Status.WARN,
+                f"Сайт размещён за рубежом: {where}." + about,
                 "Перенесите сайт и базу данных к российскому провайдеру: при сборе данных "
                 "граждан РФ записывать и хранить их в базах за рубежом нельзя (152-ФЗ, ст. 18 "
                 "ч. 5 в ред. от 01.07.2025).",
@@ -675,6 +686,14 @@ def evidence(
             Evidence("html", "Форма отправляется на", a) for a in insecure[:_SHOWN_EVIDENCE]
         ]
     return []
+
+
+def _posts_to_site(action: str, base: str | None) -> bool:
+    """A form sent to the site itself: no action, a relative one or the site's domain.
+    One sent by a script (no action) is counted here: where it goes can't be seen."""
+    host = urlsplit(urljoin(base or "", action)).hostname or ""
+    site = urlsplit(base or "").hostname or ""
+    return not host or not site or registrable_domain(host) == registrable_domain(site)
 
 
 def _fields(form: Form) -> str:

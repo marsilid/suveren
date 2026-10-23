@@ -40,6 +40,11 @@
    ]
   },
   {
+   "name": "Amazon CloudFront",
+   "country": "US",
+   "cdn": true
+  },
+  {
    "name": "Google Workspace",
    "country": "US",
    "mx": [
@@ -844,7 +849,8 @@
     "ddos-guard.net"
    ],
    "asn": [
-    57724
+    57724,
+    59692
    ],
    "as_names": [
     "ddos-guard"

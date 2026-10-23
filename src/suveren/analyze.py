@@ -66,6 +66,17 @@ def own_network(net: NetInfo | None, domain: str) -> bool:
     return bool(words) and words[0] == label
 
 
+def _edge(headers: dict[str, str]) -> tuple[str, Service, str] | None:
+    """(network's service, the edge service, the header that shows it) when the answer
+    came from a CDN edge inside a hosting network: CloudFront in Amazon's AS16509."""
+    if "x-amz-cf-id" in headers or "cloudfront" in headers.get("via", "").lower():
+        cloudfront = next((s for s in db.INFRA_SERVICES if s.name == "Amazon CloudFront"), None)
+        if cloudfront:
+            shown = "x-amz-cf-id" if "x-amz-cf-id" in headers else f"via: {headers['via']}"
+            return "Amazon Web Services", cloudfront, shown
+    return None
+
+
 def _from_service(category: Category, service: Service, evidence: str) -> Dependency:
     return Dependency(
         category=category,
@@ -173,9 +184,14 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
     deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX", facts.domain)
 
     hidden_origin = False
+    edge = _edge(facts.headers)
     for net in facts.web:
         evidence = f"IP {net.ip}" + (f" (AS{net.asn})" if net.asn else "")
         service = db.by_network(net.asn, net.as_name)
+        if service and edge and service.name == edge[0]:
+            # AWS serves CloudFront from its hosting AS: only the answer tells them apart.
+            # As "hosting", aviasales.ru got "database abroad" (SUV-PD-007) and 6 млн ₽.
+            service, evidence = edge[1], f"{evidence}, заголовок {edge[2]}"
         if service:
             category = Category.CDN if service.cdn else Category.HOSTING
             hidden_origin |= service.cdn

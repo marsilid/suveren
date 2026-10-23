@@ -97,6 +97,30 @@ def test_cdn_ip_is_cdn_not_hosting():
     assert any("настоящий хостинг скрыт" in n for n in report.notes)
 
 
+def test_cloudfront_in_amazons_network_is_a_cdn():
+    """CloudFront answers from AS16509 like plain AWS hosting: aviasales.ru got "the
+    database is abroad" (SUV-PD-007) and 6 млн ₽ for an edge server."""
+    aws = [NetInfo("13.33.1.1", 16509, "AMAZON-02", "US")]
+    edge = analyze(make_facts(web=aws, headers={"x-amz-cf-id": "abc", "via": "1.1 x (CloudFront)"}))
+    dep = next(d for d in edge.dependencies if d.service == "Amazon CloudFront")
+    assert dep.category is Category.CDN and "x-amz-cf-id" in dep.evidence
+    assert not any(d.category is Category.HOSTING for d in edge.dependencies)
+    assert any("настоящий хостинг скрыт" in n for n in edge.notes)
+    plain = analyze(make_facts(web=aws, headers={"server": "nginx"}))
+    assert any(
+        d.category is Category.HOSTING and d.service == "Amazon Web Services"
+        for d in plain.dependencies
+    )
+
+
+def test_ddos_guard_abroad_network_is_its_cdn():
+    # ddos-guard.net answered from AS59692 (IQWeb FZ-LLC, UAE): hosting "abroad" before.
+    report = analyze(make_facts(web=[NetInfo("186.2.163.1", 59692, "IQWEB-AS", "AE")]))
+    assert [
+        (d.category, d.service) for d in report.dependencies if d.evidence.startswith("IP")
+    ] == [(Category.CDN, "DDoS-Guard")]
+
+
 def test_unknown_network_uses_as_country():
     facts = make_facts(web=[NetInfo("7.7.7.7", 64500, "SOME HOSTER LTD", "NL")])
     dep = next(d for d in analyze(facts).dependencies if d.category is Category.HOSTING)
