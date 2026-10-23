@@ -412,6 +412,52 @@ def test_quiet_prints_nothing_but_keeps_files_and_exit_codes(offline, tmp_path):
     assert "Ничего не изменилось" in CliRunner().invoke(app, ["diff", str(out), str(out)]).output
 
 
+@pytest.mark.parametrize("flag", ["--json", "--sarif"])
+def test_dash_sends_the_data_to_stdout_and_the_view_to_stderr(offline, tmp_path, flag):
+    # "-" used to create a file named "-" and leave the terminal view on stdout.
+    case = offline("lab-good")
+    result = CliRunner().invoke(
+        app, ["scan", case.host, flag, "-", "--no-report", "--no-open"], catch_exceptions=False
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)  # nothing but the document
+    assert data.get("target") == case.host or data.get("version") == "2.1.0"
+    assert case.host in result.stderr  # the header and verdicts went to stderr
+    assert not (tmp_path / "-").exists()
+    # The next command prints to stdout again.
+    assert "SUV-MAIL-003" in CliRunner().invoke(app, ["checks", "mail"]).stdout
+
+
+@pytest.mark.parametrize(
+    ("args", "why"),
+    [(["-o", "-"], "HTML-отчёт в stdout"), (["--json", "-", "--sarif", "-"], "одно")],
+)
+def test_impossible_stdout_requests_are_refused(offline, tmp_path, args, why):
+    result = run_cli(tmp_path, offline("lab-good").host, *args)
+    assert result.exit_code == 2 and why in result.stderr and result.stdout == ""
+
+
+def test_errors_go_to_stderr_even_before_quiet_takes_effect(offline, tmp_path):
+    result = run_cli(tmp_path, offline("lab-good").host, "-q", "--checks", "BOGUS")
+    assert result.exit_code == 2 and result.stdout == "" and "BOGUS" in result.stderr
+
+
+def test_both_thresholds_are_told(offline, tmp_path, monkeypatch):
+    # The grade's message used to hide the failing checks: CI learned only one of them.
+    case = offline("lab-tls-wrong-host")
+    lab_collect = scan_module.collect
+
+    async def walled(host, **kw):  # a bot wall caps the grade at B; TLS is still probed
+        facts = await lab_collect(host, **kw)
+        facts.page_status, facts.html = 403, "<html><body>Access denied</body></html>"
+        return facts
+
+    monkeypatch.setattr(scan_module, "collect", walled)
+    result = run_cli(tmp_path, case.host, "--fail-under", "A", "--fail-on", "fail", "--no-report")
+    assert result.exit_code == 3  # the grade's code comes first
+    assert "хуже требуемой A" in result.stderr and "SUV-WEB-008" in result.stderr
+
+
 def test_shell_completion_is_offered():
     result = CliRunner().invoke(app, ["--help"])
     assert "--install-completion" in result.output

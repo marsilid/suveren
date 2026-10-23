@@ -46,10 +46,10 @@ from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
 from suveren.render import print_pdf
-from suveren.report import write_batch_html, write_company, write_html, write_json
+from suveren.report import json_text, write_batch_html, write_company, write_html, write_json
 from suveren.sanctions import SOURCE_TITLES, load_index
 from suveren.sanctions import SOURCES as SANCTION_SOURCES
-from suveren.sarif import write_sarif
+from suveren.sarif import sarif_text
 from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
 from suveren.utils import country_name, normalize_domain
@@ -161,12 +161,27 @@ def main(
 ) -> None:
     """Подробнее о команде: `suveren КОМАНДА --help`."""
     console.quiet = False  # scan -q sets it for its own run only
+    console.stderr = False  # and `--json -` moves the view to stderr for its own run
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
-    # In quiet mode the error still has to be seen: it goes to stderr.
-    (errors_console if console.quiet else console).print(f"[bold #e5534b]✗[/] {message}")
+    # Errors go to stderr always: under -q a bad --checks used to land on stdout, since
+    # it was refused before -q took effect.
+    errors_console.print(f"[bold #e5534b]✗[/] {message}")
     return typer.Exit(code)
+
+
+STDOUT = Path("-")
+
+
+def _emit(path: Path, text: str) -> None:
+    """Write a machine-readable result to a file, or to stdout for "-" (`| jq`)."""
+    if path == STDOUT:
+        sys.stdout.write(text + "\n")
+        sys.stdout.flush()
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
 
 
 def _validate_grade(value: str | None) -> str | None:
@@ -422,6 +437,10 @@ def scan(
         if form_phone is not None and not form_leaks:
             raise SuverenError("--form-phone работает только вместе с --form-leaks")
         phone = own_phone(form_phone) if form_phone is not None else None
+        if output == STDOUT:
+            raise SuverenError("-o -: HTML-отчёт в stdout не выводится, укажите файл")
+        if json_path == STDOUT and sarif_path == STDOUT:
+            raise SuverenError("в stdout можно вывести одно: --json - или --sarif -")
         # Read before the scan: a wrong file said so only after minutes of work.
         previous = load_report(since) if since is not None else None
         if previous is not None and previous["target"] != host:
@@ -456,6 +475,8 @@ def scan(
 
     # Errors still reach stderr through _fail; only the report view is silenced.
     console.quiet = quiet
+    # With the data on stdout the view goes to stderr, so `--json - | jq` gets JSON only.
+    console.stderr = STDOUT in (json_path, sarif_path)
     meta = plan_label(plan, "quick" if quick else profile.value)
     if plugins:
         meta += " · плагины: " + ", ".join(p.name for p in plugins)
@@ -491,45 +512,52 @@ def scan(
         print_changes(console, report.history)
 
     files: list[tuple[str, Path]] = []
-    if not no_report or pdf is not None:
-        if no_report:  # only needed to print the PDF: never touch the user's --output
-            html_path = Path(tempfile.gettempdir()) / f"suveren-{host}-{_stamp()}.html"
-        else:
-            html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
-        write_html(report, html_path, brand)
-        if not no_report:
-            files.append(("отчёт", html_path))
-        # A recorded session (--export-svg) must not keep the spinner's frames.
-        if pdf is not None and _pdf(html_path, pdf, spin=export_svg is None):
-            files.append(("pdf", pdf))
-        if no_report:
-            html_path.unlink(missing_ok=True)  # only needed to print the PDF
-        elif open_report:
-            _open(html_path)
-    if json_path is not None:
-        write_json(report, json_path)
-        files.append(("json", json_path))
-    if sarif_path is not None:
-        write_sarif(report, sarif_path)
-        files.append(("sarif", sarif_path))
+    try:
+        if not no_report or pdf is not None:
+            if no_report:  # only needed to print the PDF: never touch the user's --output
+                html_path = Path(tempfile.gettempdir()) / f"suveren-{host}-{_stamp()}.html"
+            else:
+                html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
+            write_html(report, html_path, brand)
+            if not no_report:
+                files.append(("отчёт", html_path))
+            # A recorded session (--export-svg) must not keep the spinner's frames.
+            if pdf is not None and _pdf(html_path, pdf, spin=export_svg is None):
+                files.append(("pdf", pdf))
+            if no_report:
+                html_path.unlink(missing_ok=True)  # only needed to print the PDF
+            elif open_report:
+                _open(html_path)
+        if json_path is not None:
+            _emit(json_path, json_text(report))
+            files.append(("json", json_path))
+        if sarif_path is not None:
+            _emit(sarif_path, sarif_text(report))
+            files.append(("sarif", sarif_path))
+    except OSError as exc:  # a folder that can't be created: a message, not a traceback
+        raise _fail(f"не удалось записать файл: {exc}", code=1) from exc
     print_footer(console, report, files)
     if export_svg is not None:
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
 
+    # Both thresholds are told when both are crossed; the exit code is the first one's.
     grade = overall_grade(report)
+    code = 0
     if threshold is not None and GRADE_ORDER.index(grade) > GRADE_ORDER.index(threshold):
-        (errors_console if console.quiet else console).print(
+        errors_console.print(
             f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]"
         )
-        raise typer.Exit(3)
+        code = 3
     failing = failing_checks(report, fail_on)
     if failing and fail_on is not None:
         ids = ", ".join(dict.fromkeys(c.id for c in failing))
-        (errors_console if console.quiet else console).print(
+        errors_console.print(
             f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]"
         )
-        raise typer.Exit(4)
+        code = code or 4
+    if code:
+        raise typer.Exit(code)
 
 
 # --- batch ----------------------------------------------------------------------------

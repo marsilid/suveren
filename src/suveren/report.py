@@ -249,11 +249,13 @@ def write_html(report: Report, path: Path, brand: Brand | None = None) -> Path:
     return path
 
 
+def json_text(report: Report) -> str:
+    return json.dumps(report.to_dict(), indent=2, ensure_ascii=False, default=str)
+
+
 def write_json(report: Report, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(report.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8"
-    )
+    path.write_text(json_text(report), encoding="utf-8")
     return path
 
 

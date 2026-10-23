@@ -110,7 +110,11 @@ def to_sarif(report: Report) -> dict[str, Any]:
     }
 
 
+def sarif_text(report: Report) -> str:
+    return json.dumps(to_sarif(report), ensure_ascii=False, indent=1)
+
+
 def write_sarif(report: Report, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(to_sarif(report), ensure_ascii=False, indent=1), encoding="utf-8")
+    path.write_text(sarif_text(report), encoding="utf-8")
     return path
