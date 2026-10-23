@@ -439,13 +439,17 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         elif hard:
             where = ", ".join(dict.fromkeys(p for p, _ in hard))
+            # Not FAIL: whether consent is needed depends on what the form is for, which
+            # can't be seen from outside. A request to sign a contract (ст. 6 ч. 1 п. 5)
+            # or an appeal to a state body (59-ФЗ, п. 2) needs none: kremlin.ru, pochta.ru.
             checks.append(
                 Check(
                     GROUP_152,
                     "Согласие на обработку в формах",
-                    Status.FAIL,
+                    Status.WARN,
                     f"Форм с персональными данными: {len(forms)}. Рядом с {len(hard)} из них "
-                    f"не найдено согласия на обработку данных ({where}).",
+                    f"не найдено согласия на обработку данных ({where}). Нужно ли оно, "
+                    "зависит от цели формы: снаружи её не видно.",
                     "Согласие не нужно, если данные нужны только для заключения или "
                     "исполнения договора по просьбе посетителя (152-ФЗ, ст. 6 ч. 1 п. 5); в "
                     "остальных случаях получите его до отправки формы, например отдельным "

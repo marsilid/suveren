@@ -56,11 +56,11 @@ def test_pd_form_detection_skips_search_and_login():
     assert [f.action for f in forms] == ["/lead"]
 
 
-def test_form_without_consent_fails():
+def test_form_without_consent_warns():
     html = (
         '<form action="/lead"><input type="tel" name="phone"><button>Позвоните мне</button></form>'
     )
-    assert status(run(html), "Согласие на обработку в формах") is Status.FAIL
+    assert status(run(html), "Согласие на обработку в формах") is Status.WARN
 
 
 def test_form_with_consent_checkbox_ok():
@@ -242,7 +242,7 @@ def test_gift_card_field_is_not_personal_data_but_css_classes_do_not_hide_a_phon
         '<form><input type="tel" name="phone" class="js--SignInBySms__input">'
         "<button>Позвоните мне</button></form>"
     )
-    assert status(run(phone), "Согласие на обработку в формах") is Status.FAIL
+    assert status(run(phone), "Согласие на обработку в формах") is Status.WARN
 
 
 def test_first_step_of_a_form_without_consent_is_a_warning():

@@ -116,8 +116,9 @@ RULES: dict[tuple[str, Status], tuple[Fine, str | None]] = {
         "если владелец сайта — российская компания или гражданин",
     ),
     # A lead form may be processed without consent to answer the request (152-ФЗ,
-    # ст. 6 ч. 1 п. 5), so missing consent is not always an offence.
-    ("SUV-PD-003", Status.FAIL): (
+    # ст. 6 ч. 1 п. 5), so missing consent is not always an offence: listed as possible,
+    # never added to the total.
+    ("SUV-PD-003", Status.WARN): (
         UNLAWFUL_PROCESSING,
         "если для этой обработки нужно согласие",
     ),

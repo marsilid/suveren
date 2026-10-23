@@ -540,14 +540,14 @@ CASES: list[Case] = [
     Case(
         "lab-form-no-consent",
         "форма заявки (имя, телефон) без согласия",
-        {"SUV-PD-003": "fail"},
+        {"SUV-PD-003": "warn"},
         html=page(FORM_NO_CONSENT),
         files=site_files(),
     ),
     Case(
         "lab-form-in-sitemap",
         "форма без согласия только на странице «Контакты», на которую главная не ссылается",
-        {"SUV-PD-003": "fail"},
+        {"SUV-PD-003": "warn"},
         html=page("<p>Звоните нам.</p>"),
         files=site_files(
             {
@@ -837,7 +837,7 @@ CASES: list[Case] = [
     Case(
         "lab-newsletter-box",
         "в форме только галочка «согласен получать рассылку»: это не согласие на обработку",
-        {"SUV-PD-003": "fail"},
+        {"SUV-PD-003": "warn"},
         html=page(
             '<form action="/lead"><input name="name" placeholder="Ваше имя">'
             '<input type="tel" name="phone"><label><input type="checkbox" name="news"> '

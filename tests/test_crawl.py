@@ -97,7 +97,7 @@ def test_forms_on_inner_pages_are_checked():
     )
     checks = {c.title: c for c in evaluate(data, "<p>home</p>")}
     consent = checks["Согласие на обработку в формах"]
-    assert consent.status is Status.FAIL
+    assert consent.status is Status.WARN
     assert "/contacts" in consent.details
 
 
