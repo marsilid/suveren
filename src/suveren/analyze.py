@@ -158,6 +158,9 @@ def _server_deps(
     return deps
 
 
+_RU_REGISTRAR = re.compile(r"^[A-Z0-9-]+-(?:RU|RF|SU)$")
+
+
 def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
     deps: list[Dependency] = []
     notes: list[str] = []
@@ -179,7 +182,10 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         if service:
             deps.append(_from_service(Category.REGISTRAR, service, facts.registrar))
         else:
-            deps.append(Dependency(Category.REGISTRAR, facts.registrar, None, "WHOIS"))
+            # The .ru/.рф registry names accredited registrars "MASTERHOST-RU", "RD-RU":
+            # they are Russian even when the base does not list them.
+            country = "RU" if _RU_REGISTRAR.search(facts.registrar) else None
+            deps.append(Dependency(Category.REGISTRAR, facts.registrar, country, "WHOIS"))
 
     deps += _server_deps(Category.DNS, facts.ns, db.by_ns, "NS", facts.domain)
     deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX", facts.domain)

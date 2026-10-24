@@ -205,3 +205,13 @@ def test_a_redirect_to_another_domain_is_said():
     assert "vtb.ru" in note and facts.domain in note
     same = make_facts(final_url=f"https://www.{make_facts().domain}/ru/")
     assert not any("перенаправляет" in n for n in analyze(same).notes)
+
+
+def test_an_unlisted_ru_registrar_handle_is_russian():
+    def registrar(name):
+        deps = analyze(make_facts(registrar=name)).dependencies
+        return next(d for d in deps if d.category is Category.REGISTRAR)
+
+    assert registrar("MASTERHOST-RU").country == "RU"
+    assert registrar("FLEXBE-RU").country == "RU"
+    assert registrar("Register SPA").country is None  # unknown stays unknown
