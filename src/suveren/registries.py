@@ -94,8 +94,12 @@ class EgrulRecord:
 
 
 def parse_egrul_rows(payload: dict[str, Any]) -> list[EgrulRecord]:
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        # A changed answer used to read as "no such company".
+        raise ModuleError("ЕГРЮЛ ответил в неожиданном формате")
     records = []
-    for row in payload.get("rows", []):
+    for row in rows:
         records.append(
             EgrulRecord(
                 name_full=row.get("n") or row.get("c") or "",
@@ -131,7 +135,7 @@ async def egrul_search(client: httpx.AsyncClient, query: str) -> list[EgrulRecor
             if data.get("status") != "wait":
                 return parse_egrul_rows(data)
             await asyncio.sleep(0.7)
-    except (httpx.HTTPError, ValueError, KeyError) as exc:
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise ModuleError(f"ЕГРЮЛ недоступен ({describe(exc)})") from exc
     raise ModuleError("ЕГРЮЛ не ответил вовремя")
 
@@ -206,5 +210,8 @@ async def rkn_operator(client: httpx.AsyncClient, inn: str) -> RknOperator | Non
         resp.raise_for_status()
     except httpx.HTTPError as exc:
         raise ModuleError(f"реестр Роскомнадзора недоступен ({describe(exc)})") from exc
+    if "<table" not in resp.text.lower():
+        # A captcha or a redesigned page has no results table: that is not "not registered".
+        raise ModuleError("реестр Роскомнадзора ответил страницей без таблицы результатов")
     matches = [op for op in parse_rkn_operators(resp.text) if op.inn == inn]
     return matches[0] if matches else None

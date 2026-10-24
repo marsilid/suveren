@@ -1,7 +1,12 @@
+import asyncio
 from datetime import date
 
+import httpx
+import pytest
+
 from suveren.blocklist import domain_candidates, find_blocked_domains, find_blocked_ips
-from suveren.registries import parse_egrul_rows, parse_rkn_operators
+from suveren.errors import ModuleError
+from suveren.registries import egrul_search, parse_egrul_rows, parse_rkn_operators, rkn_operator
 
 
 def test_parse_egrul_rows():
@@ -111,3 +116,33 @@ def test_third_party_hosts_blocked_in_russia():
     assert check.id == "SUV-BLK-003" and check.status is Status.WARN
     assert "facebook.net (connect.facebook.net)" in check.details
     assert third_party_check({}, 3).status is Status.OK
+
+
+def _registry(handler):
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.parametrize("answer", [{"status": "ok"}, ["a list"], {"rows": "none"}])
+def test_an_unexpected_egrul_answer_is_an_error_not_no_company(answer):
+    # An answer without rows read as "no such company"; a list crashed with AttributeError.
+    def handler(request):
+        if request.method == "POST":
+            return httpx.Response(200, json={"t": "token"})
+        return httpx.Response(200, json=answer)
+
+    async def go():
+        async with _registry(handler) as client:
+            return await egrul_search(client, "7707083893")
+
+    with pytest.raises(ModuleError, match="ЕГРЮЛ"):
+        asyncio.run(go())
+
+
+def test_a_page_without_results_table_is_not_unregistered():
+    async def go(page):
+        async with _registry(lambda r: httpx.Response(200, text=page)) as client:
+            return await rkn_operator(client, "7707083893")
+
+    with pytest.raises(ModuleError, match="без таблицы"):
+        asyncio.run(go("<html><body>Введите код с картинки</body></html>"))
+    assert asyncio.run(go("<html><table><tr><th>Номер</th></tr></table></html>")) is None
