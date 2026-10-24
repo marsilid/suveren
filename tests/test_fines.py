@@ -115,3 +115,11 @@ def test_consent_that_is_there_has_no_fine_line():
     ):
         consent = check("Согласие на обработку в формах", Status.WARN, details=details)
         assert estimate([consent]).items == ()
+
+
+def test_recommendation_rules_fine_is_listed_not_counted():
+    # КоАП ст. 13.56 ч. 3 (199-ФЗ, с 07.07.2026): 500–700 тыс. ₽ for an organisation.
+    feed = check("Рекомендательные технологии", Status.WARN, GROUP_LAWS)
+    fines = estimate([feed])
+    assert [i.fine.article for i in fines.listed] == ["КоАП, ст. 13.56 ч. 3"]
+    assert fines.listed[0].fine.legal == (500_000, 700_000) and fines.total() == 0

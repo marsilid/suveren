@@ -37,6 +37,7 @@ Range = tuple[int, int]
 
 KOAP_1311 = "https://www.consultant.ru/document/cons_doc_LAW_34661/1f421640c6775ff67079ebde06a7d2f6d17b96db/"
 KOAP_1355 = "https://www.consultant.ru/document/cons_doc_LAW_34661/eecaf3bcdcd8f21011f025127298179a3bfd8877/"
+KOAP_1356 = "https://www.consultant.ru/document/cons_doc_LAW_34661/32b1d73e2b548ee988d4c3d446900ed78bc161f0/"
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,17 @@ FOREIGN_SIGN_IN = Fine(
     official=(30_000, 50_000),
     citizen=(10_000, 20_000),
 )
+# ст. 13.56 ч. 3 (199-ФЗ, since 07.07.2026): the rules of recommendation technologies, an
+# email for legally significant messages or the owner's name are not published.
+RECOMMENDATION_RULES = Fine(
+    "КоАП, ст. 13.56 ч. 3",
+    KOAP_1356,
+    legal=(500_000, 700_000),
+    official=(30_000, 50_000),
+    citizen=(10_000, 20_000),
+    repeat_legal=(1_000_000, 1_400_000),
+    repeat_article="ч. 4",
+)
 
 # (check ID from catalog.py, status) -> (fine, note). The note says when the finding
 # is not by itself the offence that part describes.
@@ -121,6 +133,11 @@ RULES: dict[tuple[str, Status], tuple[Fine, str | None]] = {
     ("SUV-PD-003", Status.WARN): (
         UNLAWFUL_PROCESSING,
         "если для этой обработки нужно согласие",
+    ),
+    # Whether the feed is built from the visitor's interests can't be seen from outside.
+    ("SUV-LAW-002", Status.WARN): (
+        RECOMMENDATION_RULES,
+        "если подборка строится по интересам посетителя",
     ),
     # Some operators may process data without notifying (152-ФЗ, ст. 22 ч. 2).
     ("SUV-PD-009", Status.WARN): (
