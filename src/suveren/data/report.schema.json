@@ -59,6 +59,9 @@
     "overall_grade": {"type": "array"},
     "removed": {"type": "array", "items": {"type": "object"}},
     "added": {"type": "array", "items": {"type": "object"}},
+    "incomplete": {"type": "array", "description": "С 1.6: [почему неполная раньше, почему неполная сейчас], пустые списки — полная.", "items": {"type": "array", "items": {"type": "string"}}},
+    "appeared": {"type": "array", "description": "С 1.6: проверки, которых не было в раннем отчёте.", "items": {"type": "string"}},
+    "vanished": {"type": "array", "description": "С 1.6: проверки, которых нет в позднем отчёте.", "items": {"type": "string"}},
     "checks": {
      "type": "array",
      "items": {

@@ -132,10 +132,13 @@
   <h2 id="since">С прошлой проверки</h2>
   <div class="card">
     <p class="muted-note">Сравнение с отчётом от {{ history.since[:16] | replace("T", " ") }} UTC.</p>
+    {% if history.uneven %}<p>Сравнение неравноценное: оценка раньше — {{ history.incomplete[0] | join("; ") or "полная" }}, сейчас — {{ history.incomplete[1] | join("; ") or "полная" }}. Убранное могло быть просто не видно в этот раз.</p>{% endif %}
     {% if history.empty %}<p>Ничего не изменилось.</p>{% else %}<ul>
       {% for cat, service, foreign in history.removed %}<li>− убран: {{ cat }} — {{ service }}</li>{% endfor %}
       {% for cat, service, foreign in history.added %}<li>+ добавлен: {{ cat }} — {{ service }}{% if foreign %} (иностранный){% endif %}</li>{% endfor %}
       {% for c in history.checks %}<li>{{ "✓" if c.better else "✗" }} {{ c.title }}: {{ c.before }} → {{ c.after }}</li>{% endfor %}
+      {% for title in history.appeared %}<li>• новая проверка: {{ title }}</li>{% endfor %}
+      {% for title in history.vanished %}<li>• проверки больше нет в отчёте: {{ title }}</li>{% endfor %}
     </ul>{% endif %}
   </div>
   {% endif %}

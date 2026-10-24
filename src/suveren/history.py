@@ -70,10 +70,19 @@ class Changes:
     removed: list[tuple[str, str, bool]] = field(default_factory=list)  # category, service, foreign
     added: list[tuple[str, str, bool]] = field(default_factory=list)
     checks: list[CheckChange] = field(default_factory=list)
+    # Why each grade was incomplete: a service "removed" may just not have been seen.
+    incomplete: tuple[list[str], list[str]] = ([], [])
+    appeared: list[str] = field(default_factory=list)  # check titles only in the new report
+    vanished: list[str] = field(default_factory=list)  # only in the old one
 
     @property
     def empty(self) -> bool:
-        return not (self.removed or self.added or self.checks)
+        return not (self.removed or self.added or self.checks or self.appeared or self.vanished)
+
+    @property
+    def uneven(self) -> bool:
+        """The two runs did not see the same: the difference is partly what was missed."""
+        return bool(self.incomplete[0] or self.incomplete[1])
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -86,6 +95,9 @@ class Changes:
                 {"id": c.id, "title": c.title, "before": c.before, "after": c.after}
                 for c in self.checks
             ],
+            "incomplete": [list(self.incomplete[0]), list(self.incomplete[1])],
+            "appeared": self.appeared,
+            "vanished": self.vanished,
         }
 
 
@@ -111,6 +123,10 @@ def compare(old: dict[str, Any], new: dict[str, Any]) -> Changes:
         added=[
             (k[0], k[1], bool(b_deps[k].get("foreign"))) for k in sorted(b_deps - a_deps.keys())
         ],
+        incomplete=(
+            list(old.get("overall_incomplete") or []),
+            list(new.get("overall_incomplete") or []),
+        ),
     )
     before = {_check_key(c): c for c in old.get("checks", [])}
     by_title = {c.get("title"): c for c in old.get("checks", [])}
@@ -121,4 +137,13 @@ def compare(old: dict[str, Any], new: dict[str, Any]) -> Changes:
             changes.checks.append(
                 CheckChange(_check_key(c), c.get("title", ""), prev["status"], c["status"])
             )
+        elif prev is None:
+            changes.appeared.append(c.get("title", _check_key(c)))
+    after = {_check_key(c) for c in new.get("checks", [])}
+    titles = {c.get("title") for c in new.get("checks", [])}
+    changes.vanished = [
+        c.get("title", key)
+        for key, c in before.items()
+        if key not in after and c.get("title") not in titles
+    ]
     return changes

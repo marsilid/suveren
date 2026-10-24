@@ -299,6 +299,13 @@ def print_footer(
 
 def print_changes(console: Console, changes: Changes) -> None:
     """Services and verdicts that changed since an earlier report (diff, scan --since)."""
+    if changes.uneven:
+        # drive2.ru "removed" four ad networks on a night its page was not fully seen.
+        old, new = ("; ".join(x) or "полная" for x in changes.incomplete)
+        console.print(
+            f"  [#e6b450]! Сравнение неравноценное: оценка раньше — {old}, сейчас — {new}. "
+            "Убранное могло быть просто не видно в этот раз.[/]"
+        )
     for category, service, foreign in changes.removed:
         style = "green" if foreign else "yellow"
         console.print(f"  [{style}]− убран   [/] {category}: {service}")
@@ -309,5 +316,9 @@ def print_changes(console: Console, changes: Changes) -> None:
         style = "green" if c.better else "red"
         mark = "✓" if c.better else "✗"
         console.print(f"  [{style}]{mark} {c.title}[/] [grey50]{c.id}[/]: {c.before} → {c.after}")
+    for title in changes.appeared:
+        console.print(f"  [grey50]• новая проверка: {title}[/]")
+    for title in changes.vanished:
+        console.print(f"  [grey50]• проверки больше нет в отчёте: {title}[/]")
     if changes.empty:
         console.print("  [grey50]Ничего не изменилось.[/]")
