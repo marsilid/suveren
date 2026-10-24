@@ -463,3 +463,135 @@ def test_both_thresholds_are_told(offline, tmp_path, monkeypatch):
 def test_shell_completion_is_offered():
     result = CliRunner().invoke(app, ["--help"])
     assert "--install-completion" in result.output
+
+
+def test_an_incomplete_grade_does_not_pass_a_threshold(offline, tmp_path):
+    # Offline the block register and the CT logs do not answer: the grade is incomplete,
+    # and passing --fail-under with it hid what was not seen.
+    case = offline("lab-good")
+    result = run_cli(tmp_path, case.host, "--fail-under", "C", "--no-report")
+    assert result.exit_code == 6, result.output
+    assert "Оценка неполная" in result.stderr and "--allow-incomplete" in result.stderr
+    allowed = run_cli(tmp_path, case.host, "--fail-under", "C", "--allow-incomplete", "--no-report")
+    assert allowed.exit_code == 0, allowed.output
+    # Without thresholds nothing changes: exit 0 as before.
+    assert run_cli(tmp_path, case.host, "--no-report").exit_code == 0
+
+
+def test_max_time_bounds_the_whole_scan(offline, tmp_path, monkeypatch):
+    case = offline("lab-good")
+
+    async def stuck(host, **_):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(scan_module, "collect", stuck)
+    result = CliRunner().invoke(
+        app, ["scan", case.host, "--no-open", "--no-report", "--max-time", "1"]
+    )
+    assert result.exit_code == 1 and "не уложилась в 1 с" in result.stderr
+
+
+def test_batch_thresholds_go_by_the_worst_site(offline, tmp_path):
+    sites = tmp_path / "sites.txt"
+    sites.write_text("lab-good.ru\nlab-tls-wrong-host.ru\n", encoding="utf-8")
+
+    def run(*args):
+        out = tmp_path / f"b{len(args)}"
+        return CliRunner().invoke(
+            app, ["batch", str(sites), "--out", str(out), "--no-open", "-q", *args]
+        )
+
+    failing = run("--fail-on", "fail")
+    assert failing.exit_code == 4 and "SUV-WEB-008" in failing.stderr
+    assert "Итого" not in failing.stdout  # -q
+    assert run("--fail-under", "F").exit_code == 6  # incomplete offline
+    assert run("--fail-under", "F", "--allow-incomplete").exit_code == 0
+    assert run("--fail-under", "Z").exit_code == 2
+
+
+def test_no_browser_is_opened_in_ci(monkeypatch, tmp_path):
+    opened = []
+    monkeypatch.setattr(cli_module.webbrowser, "open", opened.append)
+    monkeypatch.setattr(cli_module.sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.setenv("CI", "true")
+    cli_module._open(tmp_path / "r.html")
+    monkeypatch.delenv("CI")
+    cli_module._open(tmp_path / "r.html")
+    assert len(opened) == 1
+
+
+def test_diff_says_when_the_two_runs_did_not_see_the_same(tmp_path):
+    # drive2.ru "removed" four ad networks on a night its page was not fully seen.
+    from rich.console import Console
+
+    from suveren.history import compare
+    from suveren.view import print_changes
+
+    ads = {"category": "ads", "category_title": "Реклама", "service": "AdRiver", "foreign": False}
+    policy = {"id": "SUV-PD-001", "title": "Политика", "status": "ok"}
+    recs = {"id": "SUV-LAW-002", "title": "Рекомендательные технологии", "status": "ok"}
+    unseen = ["не проверены: скрипты и виджеты на странице"]
+    old = {"dependencies": [ads], "checks": [policy], "overall_incomplete": []}
+    new = {"dependencies": [], "checks": [recs], "overall_incomplete": unseen}
+    changes = compare(old, new)
+    assert changes.uneven and changes.appeared == ["Рекомендательные технологии"]
+    assert changes.vanished == ["Политика"]
+    console = Console(record=True, width=200)
+    print_changes(console, changes)
+    text = console.export_text()
+    assert "Сравнение неравноценное" in text and "могло быть просто не видно" in text
+    assert "новая проверка: Рекомендательные технологии" in text
+    assert changes.to_dict()["incomplete"] == [[], unseen]
+
+
+def test_diff_header_has_the_overall_grade(tmp_path):
+    def report(grade, score):
+        return {"tool": "suveren", "schema_version": "1.6", "target": "x.ru", "grade": "A",
+                "score": 100, "overall_grade": grade, "overall_score": score,
+                "dependencies": [], "checks": []}  # fmt: skip
+
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_text(json.dumps(report("B", 80)), encoding="utf-8")
+    b.write_text(json.dumps(report("D", 50)), encoding="utf-8")
+    result = CliRunner().invoke(app, ["diff", str(a), str(b)])
+    assert result.exit_code == 0, result.output
+    assert "общая оценка B → D, 80 → 50" in result.output
+
+
+def test_batch_max_time_and_quiet_gaps_on_stderr(offline, tmp_path, monkeypatch):
+    # -q hid the skipped lines and failed sites; the per-site limit was a fixed 300 s.
+    case = offline("lab-good")
+    lab_collect = scan_module.collect
+
+    async def collect(host, **kw):
+        if host == "lab-no-hsts.ru":
+            await asyncio.sleep(60)
+        return await lab_collect(host, **kw)
+
+    monkeypatch.setattr(scan_module, "collect", collect)
+    sites = tmp_path / "sites.txt"
+    sites.write_text(f"{case.host}\nnot a domain!!\nlab-no-hsts.ru\n", encoding="utf-8")
+    result = CliRunner().invoke(
+        app,
+        ["batch", str(sites), "--out", str(tmp_path / "b"), "--no-open", "-q", "--max-time", "1"],
+    )
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "строка 2" in result.stderr and "не уложилась в 1 с" in result.stderr
+    assert "--max-time" in CliRunner().invoke(app, ["scan", "--help"]).output
+
+
+def test_since_in_html_warns_about_an_uneven_comparison(offline, tmp_path):
+    case = offline("lab-good")
+    old = tmp_path / "old.json"
+    first = run_cli(tmp_path, case.host, "--json", str(old), "--no-report")
+    assert first.exit_code == 0
+    data = json.loads(old.read_text(encoding="utf-8"))
+    data["overall_incomplete"] = []  # the earlier run saw everything
+    data["checks"].append({"id": "SUV-OLD-001", "title": "Старая проверка", "status": "ok"})
+    old.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    html = tmp_path / "r.html"
+    result = run_cli(tmp_path, case.host, "--since", str(old), "-o", str(html))
+    assert result.exit_code == 0, result.output
+    page = html.read_text(encoding="utf-8")
+    assert "Сравнение неравноценное" in page and "проверки больше нет в отчёте: Старая" in page

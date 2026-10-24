@@ -8,15 +8,17 @@ import csv
 import functools
 import io
 import json
+import os
 import sys
 import tempfile
 import time
 import webbrowser
 from collections import Counter
+from collections.abc import Coroutine
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, TypeVar
 
 import typer
 from rich.console import Console
@@ -85,6 +87,9 @@ console = Console(record=True, highlight=False)
 errors_console = Console(stderr=True, highlight=False)
 GRADE_ORDER = ("A", "B", "C", "D", "F")
 SITE_DEADLINE = 300  # seconds per site in batch
+# A single deep scan in the browser takes longer than a batch site; losing the whole report
+# to the limit is worse than waiting, so `scan` gets more room.
+SCAN_DEADLINE = 600
 
 
 class DnsChoice(str, Enum):
@@ -106,6 +111,21 @@ BrandLogo = Annotated[
     typer.Option("--brand-logo", help="Логотип студии: PNG, JPEG или SVG до 512 КБ."),
 ]
 BrandUrl = Annotated[str | None, typer.Option("--brand-url", help="Сайт студии в подвале.")]
+AllowIncomplete = Annotated[
+    bool,
+    typer.Option(
+        "--allow-incomplete",
+        help="С --fail-under/--fail-on: неполную оценку принять, а не выйти с кодом 6.",
+    ),
+]
+MaxTime = Annotated[
+    int,
+    typer.Option(
+        "--max-time",
+        min=1,
+        help="Предел на всю проверку сайта, секунды: зависший сайт не держит CI.",
+    ),
+]
 PdfPath = Annotated[
     Path | None,
     typer.Option("--pdf", help="Сохранить отчёт в PDF (нужен playwright, как для --browser)."),
@@ -144,6 +164,60 @@ def failing_checks(report: Report, fail_on: FailOn | None) -> list[Check]:
         return []
     bad = {Status.FAIL} if fail_on is FailOn.fail else {Status.FAIL, Status.WARN}
     return [c for c in report.checks if c.status in bad]
+
+
+T = TypeVar("T")
+
+EXIT_CODES = (
+    "Коды выхода: 0 — всё в порядке; 1 — сбой проверки или не проверен сайт из списка; "
+    "2 — неверные аргументы или файл; 3 — оценка хуже --fail-under; 4 — есть проверки по "
+    "--fail-on; 5 — audit нашёл противоречия; 6 — пороги заданы, но оценка неполная "
+    "(--allow-incomplete отключает)."
+)
+
+
+def ci_exit(
+    reports: list[Report],
+    threshold: str | None,
+    fail_on: FailOn | None,
+    *,
+    allow_incomplete: bool = False,
+) -> int:
+    """The CI verdict for one report or the worst of a list: 3, 4, 6 or 0.
+
+    Both thresholds are told when both are crossed; the code is the first one's. An
+    incomplete grade passing a threshold is not a pass: a bot wall or a dead source
+    hides problems, and the grade only goes up from what was not seen.
+    """
+    if threshold is None and fail_on is None:
+        return 0
+    code = 0
+    if threshold is not None and reports:
+        worst = max(reports, key=lambda r: GRADE_ORDER.index(overall_grade(r)))
+        grade = overall_grade(worst)
+        if GRADE_ORDER.index(grade) > GRADE_ORDER.index(threshold):
+            where = f" ({worst.target})" if len(reports) > 1 else ""
+            errors_console.print(
+                f"\n[bold #e5534b]✗ Общая оценка {grade}{where} хуже требуемой {threshold}.[/]"
+            )
+            code = 3
+    failing = [(r, c) for r in reports for c in failing_checks(r, fail_on)]
+    if failing and fail_on is not None:
+        ids = ", ".join(dict.fromkeys(c.id for _, c in failing))
+        errors_console.print(
+            f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]"
+        )
+        code = code or 4
+    gaps = [r for r in reports if incomplete(r)]
+    if not code and gaps and not allow_incomplete:
+        why = "; ".join(incomplete(gaps[0]))
+        where = f" у {len(gaps)} сайтов, например {gaps[0].target}" if len(reports) > 1 else ""
+        errors_console.print(
+            f"\n[bold #e6b450]! Оценка неполная{where}: {why}. Пороги не проверены честно: "
+            "код выхода 6 (--allow-incomplete — принять неполную).[/]"
+        )
+        code = 6
+    return code
 
 
 def _version_callback(value: bool) -> None:
@@ -193,11 +267,23 @@ def _validate_grade(value: str | None) -> str | None:
     return grade
 
 
+async def _within(seconds: int, work: Coroutine[Any, Any, T]) -> T:
+    """``work`` with a limit on the whole of it: --timeout is per request."""
+    try:
+        return await asyncio.wait_for(work, seconds)
+    except TIMEOUTS as exc:
+        raise SuverenError(f"проверка не уложилась в {seconds} с (--max-time)") from exc
+
+
 def _stamp() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def _open(path: Path) -> None:
+    # In CI or with output redirected nobody is there to look: a browser would start on
+    # a build machine or hang a headless job.
+    if os.environ.get("CI") or not sys.stdout.isatty():
+        return
     with contextlib.suppress(Exception):
         webbrowser.open(path.resolve().as_uri())
 
@@ -257,7 +343,7 @@ class StageLog:
 # --- scan -----------------------------------------------------------------------------
 
 
-@app.command()
+@app.command(epilog=EXIT_CODES)
 def scan(
     target: Annotated[str, typer.Argument(help="Домен или ссылка, например example.ru")],
     browser: Annotated[
@@ -407,9 +493,12 @@ def scan(
             "только «проблема», warn — ещё и «внимание» (для CI).",
         ),
     ] = None,
+    allow_incomplete: AllowIncomplete = False,
     timeout: Annotated[
-        float, typer.Option("--timeout", "-t", min=1.0, help="Сетевой таймаут, секунды.")
+        float,
+        typer.Option("--timeout", "-t", min=1.0, help="Таймаут одного сетевого запроса, секунды."),
     ] = 10.0,
+    max_time: MaxTime = SCAN_DEADLINE,
     dns_mode: Annotated[
         DnsChoice,
         typer.Option(
@@ -489,15 +578,18 @@ def scan(
     try:
         with StageLog(spinner=export_svg is None) as log:
             report = asyncio.run(
-                run_scan(
-                    host,
-                    timeout=timeout,
-                    dns_mode=dns_mode.value,
-                    refresh=refresh,
-                    progress=log,
-                    plugins=plugins,
-                    form_phone=phone,
-                    **plan.kwargs(),  # type: ignore[arg-type]
+                _within(
+                    max_time,
+                    run_scan(
+                        host,
+                        timeout=timeout,
+                        dns_mode=dns_mode.value,
+                        refresh=refresh,
+                        progress=log,
+                        plugins=plugins,
+                        form_phone=phone,
+                        **plan.kwargs(),  # type: ignore[arg-type]
+                    ),
                 )
             )
     except SuverenError as exc:
@@ -541,21 +633,7 @@ def scan(
         export_svg.parent.mkdir(parents=True, exist_ok=True)
         console.save_svg(str(export_svg), title=f"suveren scan {host}")
 
-    # Both thresholds are told when both are crossed; the exit code is the first one's.
-    grade = overall_grade(report)
-    code = 0
-    if threshold is not None and GRADE_ORDER.index(grade) > GRADE_ORDER.index(threshold):
-        errors_console.print(
-            f"\n[bold #e5534b]✗ Общая оценка {grade} хуже требуемой {threshold}.[/]"
-        )
-        code = 3
-    failing = failing_checks(report, fail_on)
-    if failing and fail_on is not None:
-        ids = ", ".join(dict.fromkeys(c.id for c in failing))
-        errors_console.print(
-            f"\n[bold #e5534b]✗ Проверки со статусом «{fail_on.ru}» и хуже: {ids}.[/]"
-        )
-        code = code or 4
+    code = ci_exit([report], threshold, fail_on, allow_incomplete=allow_incomplete)
     if code:
         raise typer.Exit(code)
 
@@ -605,7 +683,7 @@ def batch_row(report: Report) -> dict[str, object]:
     }
 
 
-@app.command()
+@app.command(epilog=EXIT_CODES)
 def batch(
     file: Annotated[Path, typer.Argument(help="Текстовый файл: по одному домену в строке.")],
     quick: Annotated[
@@ -641,7 +719,10 @@ def batch(
             help="Сколько внутренних страниц проверить помимо главной (0 — только главную).",
         ),
     ] = DEFAULT_PAGES,
-    timeout: Annotated[float, typer.Option("--timeout", "-t", min=1.0)] = 10.0,
+    timeout: Annotated[
+        float,
+        typer.Option("--timeout", "-t", min=1.0, help="Таймаут одного сетевого запроса, секунды."),
+    ] = 10.0,
     dns_mode: Annotated[
         DnsChoice,
         typer.Option(
@@ -650,6 +731,24 @@ def batch(
         ),
     ] = DnsChoice.auto,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
+    fail_under: Annotated[
+        str | None,
+        typer.Option(
+            "--fail-under", help="Код выхода 3, если оценка худшего сайта хуже указанной."
+        ),
+    ] = None,
+    fail_on: Annotated[
+        FailOn | None,
+        typer.Option(
+            "--fail-on", help="Код выхода 4, если у какого-то сайта есть проверки с этим статусом."
+        ),
+    ] = None,
+    allow_incomplete: AllowIncomplete = False,
+    max_time: MaxTime = SITE_DEADLINE,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Ничего не печатать, кроме ошибок (для CI)."),
+    ] = False,
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
@@ -657,12 +756,19 @@ def batch(
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
+        threshold = _validate_grade(fail_under)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+    try:
         hosts, skipped = read_targets(file)
     except (OSError, SuverenError) as exc:
         raise _fail(f"не удалось прочитать список: {exc}") from exc
+    console.quiet = quiet
+    # With -q the gaps still have to be seen: they go to stderr.
+    warn = errors_console if quiet else console
     if not hosts:
         for skip in skipped:
-            console.print(f"  [#e6b450]![/] пропущена {skip}")
+            warn.print(f"  [#e6b450]![/] пропущена {skip}")
         raise _fail("в файле нет доменов")
     try:
         plan = make_plan(Profile.quick if quick else profile, checks, browser=browser, pages=pages)
@@ -680,7 +786,7 @@ def batch(
     )
     # After the header: printed before it, the warnings read as part of the shell's output.
     for skip in skipped:
-        console.print(f"  [#e6b450]![/] пропущена {skip}")
+        warn.print(f"  [#e6b450]![/] пропущена {skip}")
     console.print()
 
     results: list[tuple[str, Report | None, str | None]] = []
@@ -706,11 +812,11 @@ def batch(
                         dns_mode=dns_mode.value,
                         **plan.kwargs(),  # type: ignore[arg-type]
                     ),
-                    SITE_DEADLINE,
+                    max_time,
                 )
             except (SuverenError, *TIMEOUTS) as exc:
-                reason = str(exc) or f"не уложилась в {SITE_DEADLINE // 60} мин"
-                console.print(f"  [#e5534b]✗[/] {host:<32} [grey50]{reason}[/]")
+                reason = str(exc) or f"не уложилась в {max_time} с (--max-time)"
+                warn.print(f"  [#e5534b]✗[/] {host:<32} [grey50]{reason}[/]")
                 return host, None, reason
             write_html(report, folder / f"{host}.html", brand)
             write_json(report, folder / f"{host}.json")
@@ -773,9 +879,13 @@ def batch(
     )
     if open_report:
         _open(index_path)
+    # The thresholds go by the worst site; a site not checked at all comes first (1).
+    code = ci_exit(reports, threshold, fail_on, allow_incomplete=allow_incomplete)
     if failed or skipped:
         # A list with gaps is not a clean run: scripts and CI must be able to tell.
         raise typer.Exit(1)
+    if code:
+        raise typer.Exit(code)
 
 
 # --- diff -----------------------------------------------------------------------------
@@ -794,8 +904,10 @@ def diff(
         raise _fail(str(exc)) from exc
 
     console.print(
-        f"\n[bold]{b.get('target', '?')}[/]: независимость {a.get('grade')} → {b.get('grade')}, "
-        f"{a.get('score')} → {b.get('score')} из 100\n"
+        f"\n[bold]{b.get('target', '?')}[/]: общая оценка {a.get('overall_grade', '?')} → "
+        f"{b.get('overall_grade', '?')}, {a.get('overall_score', '?')} → "
+        f"{b.get('overall_score', '?')} из 100; независимость {a.get('grade')} → "
+        f"{b.get('grade')}, {a.get('score')} → {b.get('score')}\n"
     )
     print_changes(console, compare_reports(a, b))
 
