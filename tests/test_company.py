@@ -81,6 +81,31 @@ def test_sanctions_with_a_list_missing_are_not_checked():
     assert statuses(report)["Санкционные списки"] is Status.FAIL
 
 
+def sanctions_check(report):
+    return next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                if c.title == "Санкционные списки")  # fmt: skip
+
+
+def test_an_outdated_copy_of_the_lists_is_not_clean():
+    # A copy kept because the refresh failed was accepted at any age, the check stayed OK.
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    report.sanctions_stale = {"eu": 40}
+    check = sanctions_check(report)
+    assert check.status is Status.UNKNOWN
+    assert "список) — 40 дн." in check.details and "--refresh" in check.recommendation
+
+
+def test_without_egrul_only_the_ids_were_screened():
+    # Most entries have no ИНН: a clean answer by ИНН alone is not a clean answer.
+    report = CompanyReport(query="7707083893", inn="7707083893", egrul_error="нет связи")
+    report.sanctions_sources = ["us", "eu", "uk"]
+    check = sanctions_check(report)
+    assert check.status is Status.UNKNOWN and "ЕГРЮЛ не ответил" in check.details
+    report.egrul_error = None
+    assert "запись не найдена" in sanctions_check(report).details
+
+
 def test_site_without_inn_warns():
     report = CompanyReport(query="example.ru", domain="example.ru")
     assert statuses(report)["Сайт и компания"] is Status.WARN

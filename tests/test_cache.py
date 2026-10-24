@@ -7,7 +7,7 @@ import time
 import httpx
 import pytest
 
-from suveren.cache import age_text, cache_dir, fetch_cached
+from suveren.cache import age_text, cache_dir, fetch_cached, stale_days
 from suveren.errors import ModuleError
 
 
@@ -63,6 +63,15 @@ def test_no_copy_and_no_download_is_an_error(tmp_path, monkeypatch):
     monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
     with pytest.raises(ModuleError, match="не удалось скачать"):
         fetch(lambda r: httpx.Response(404), "missing.txt")
+
+
+def test_stale_days(tmp_path):
+    f = tmp_path / "f"
+    f.write_text("x")
+    assert stale_days(f) is None
+    month = time.time() - 30 * 24 * 3600
+    os.utime(f, (month, month))
+    assert stale_days(f) == 30 and stale_days(f, limit=40) is None
 
 
 def test_age_in_words(tmp_path):

@@ -12,6 +12,9 @@ import httpx
 from suveren.errors import ModuleError, describe
 
 DEFAULT_TTL = 24 * 3600
+# Sanctions lists change weekly and the block register daily: a "not found" against an
+# older copy (kept when a refresh fails) is not a clean answer.
+STALE_DAYS = 14
 
 
 def cache_dir() -> Path:
@@ -28,6 +31,12 @@ def cache_dir() -> Path:
 
 def is_fresh(path: Path, ttl: float = DEFAULT_TTL) -> bool:
     return path.exists() and time.time() - path.stat().st_mtime < ttl
+
+
+def stale_days(path: Path, limit: int = STALE_DAYS) -> int | None:
+    """Age in whole days when the copy is older than ``limit`` days, else None."""
+    days = int((time.time() - path.stat().st_mtime) / 86400)
+    return days if days > limit else None
 
 
 def age_text(path: Path) -> str:

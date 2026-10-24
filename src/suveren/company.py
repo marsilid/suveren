@@ -44,6 +44,8 @@ class CompanyReport:
     company_hits: list[Hit] = field(default_factory=list)
     person_hits: list[Hit] = field(default_factory=list)
     sanctions_sources: list[str] = field(default_factory=list)
+    # Source key -> age in days of an outdated copy the screening had to use.
+    sanctions_stale: dict[str, int] = field(default_factory=dict)
     whois_org: str | None = None
     site_problem: str | None = None
     checks: list[Check] = field(default_factory=list)
@@ -175,9 +177,20 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded:
     # a clean answer from part of the lists is "not checked", with what is missing.
     missing = ", ".join(t for k, t in SOURCE_TITLES.items() if k not in report.sanctions_sources)
-    clean = Status.UNKNOWN if missing else Status.OK
     gap = f" Не загрузились: {missing}." if missing else ""
-    retry = "Повторите проверку позже с --refresh." if missing else ""
+    # A copy kept because the refresh failed may be weeks old; lists change weekly.
+    old = ", ".join(
+        f"{SOURCE_TITLES.get(k, k)} — {d} дн." for k, d in sorted(report.sanctions_stale.items())
+    )
+    if old:
+        gap += f" Обновить не удалось, использованы старые копии: {old}"
+    # Without ЕГРЮЛ only the ИНН/ОГРН is screened, and most entries in the lists have none.
+    ids_only = rec is None and bool(report.inn or report.ogrn)
+    if ids_only:
+        why = "ЕГРЮЛ не ответил" if report.egrul_error else "в ЕГРЮЛ запись не найдена"
+        gap += f" Сверены только ИНН и ОГРН: {why}, название сверить не с чем."
+    clean = Status.UNKNOWN if missing or old or ids_only else Status.OK
+    retry = "Повторите проверку позже с --refresh." if clean is Status.UNKNOWN else ""
     if sanctions_ok is None:
         pass
     elif not sanctions_ok:
@@ -497,6 +510,7 @@ async def run_company(
                 index = await load_index(client, refresh=refresh)
                 sanctions_ok = True
                 report.sanctions_sources = index.sources
+                report.sanctions_stale = index.stale
                 report.notes += index.notes
                 rec = report.egrul
                 ids = [i for i in (report.inn, report.ogrn) if i]

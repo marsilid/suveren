@@ -11,7 +11,7 @@ from pathlib import Path
 
 import httpx
 
-from suveren.cache import cache_dir, fetch_cached
+from suveren.cache import cache_dir, fetch_cached, stale_days
 from suveren.checks import GROUP_BLOCK, Check, Evidence, Status
 from suveren.errors import ModuleError
 
@@ -85,6 +85,15 @@ async def ensure_lists(
     return sizes, notes
 
 
+def _outdated(old: int | None) -> str:
+    if not old:
+        return ""
+    return (
+        f" Но это по копии реестра {old}-дневной давности: обновить её не удалось, "
+        "повторите проверку с --refresh."
+    )
+
+
 def blocked_hosts(lines: Iterable[str], hosts: Iterable[str]) -> dict[str, str]:
     """Map of host -> register entry that blocks it (the host or a parent domain)."""
     candidates = {h: domain_candidates(h) for h in hosts}
@@ -96,7 +105,7 @@ def blocked_hosts(lines: Iterable[str], hosts: Iterable[str]) -> dict[str, str]:
     }
 
 
-def third_party_check(hits: dict[str, str], checked: int) -> Check:
+def third_party_check(hits: dict[str, str], checked: int, old: int | None = None) -> Check:
     """Third-party hosts the page loads that are in the register: for visitors in
     Russia without a VPN they do not load today, whatever the site does."""
     title = "Сторонние сервисы в реестре блокировок"
@@ -108,8 +117,9 @@ def third_party_check(hits: dict[str, str], checked: int) -> Check:
         return Check(
             GROUP_BLOCK,
             title,
-            Status.OK,
-            f"Ни один из сторонних доменов, с которых грузится сайт ({checked}), не заблокирован.",
+            Status.UNKNOWN if old else Status.OK,
+            f"Ни один из сторонних доменов, с которых грузится сайт ({checked}), не заблокирован."
+            + _outdated(old),
         )
     by_entry: dict[str, list[str]] = {}
     for host, entry in sorted(hits.items()):
@@ -149,6 +159,9 @@ async def run_blocklist(
         return [Check(GROUP_BLOCK, "Реестр блокировок Роскомнадзора", Status.UNKNOWN, str(exc))], []
     domains_path = cache_dir() / f"blocklist-{DOMAINS}"
     ip_paths = [cache_dir() / f"blocklist-{name}" for name in IP_LISTS]
+    # A copy kept because the refresh failed: "not blocked" by it is not a clean answer.
+    old = stale_days(domains_path)
+    clean = Status.UNKNOWN if old else Status.OK
 
     checks: list[Check] = []
     others = sorted(set(third_party or ()))
@@ -171,7 +184,12 @@ async def run_blocklist(
         )
     else:
         checks.append(
-            Check(GROUP_BLOCK, "Домен в реестре блокировок", Status.OK, "Домен не заблокирован.")
+            Check(
+                GROUP_BLOCK,
+                "Домен в реестре блокировок",
+                clean,
+                "Домен не заблокирован." + _outdated(old),
+            )
         )
 
     hits: dict[str, str] = {}
@@ -197,8 +215,11 @@ async def run_blocklist(
         )
     elif ips:
         checks.append(
-            Check(GROUP_BLOCK, "IP-адреса сайта", Status.OK, "IP сайта не заблокированы.")
+            Check(
+                GROUP_BLOCK, "IP-адреса сайта", clean, "IP сайта не заблокированы." + _outdated(old)
+            )
         )
     if third_party is not None:
-        checks.append(third_party_check({h: found[h] for h in others if h in found}, len(others)))
+        hits3 = {h: found[h] for h in others if h in found}
+        checks.append(third_party_check(hits3, len(others), old))
     return checks, notes

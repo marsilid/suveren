@@ -23,7 +23,7 @@ from typing import Any
 
 import httpx
 
-from suveren.cache import cache_dir, fetch_cached
+from suveren.cache import cache_dir, fetch_cached, stale_days
 from suveren.errors import ModuleError
 from suveren.inn import classify
 
@@ -303,9 +303,16 @@ PARSERS = {"us": parse_ofac_xml, "eu": parse_eu_csv, "uk": parse_uk_csv}
 
 
 class SanctionsIndex:
-    def __init__(self, entries: list[Entry], notes: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        entries: list[Entry],
+        notes: list[str] | None = None,
+        stale: dict[str, int] | None = None,
+    ) -> None:
         self.entries = entries
         self.notes = notes or []
+        # Source key -> age in days of a copy kept because the refresh failed.
+        self.stale = stale or {}
         self.sources = sorted({e.source for e in entries})
         self.by_id: dict[str, list[Entry]] = {}
         self.by_key: dict[frozenset[str], list[Entry]] = {}
@@ -470,6 +477,7 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
     """Download (if stale) and parse all lists; a failed source is skipped with a note."""
     entries: list[Entry] = []
     notes: list[str] = []
+    stale: dict[str, int] = {}
     for source in SOURCES:
         try:
             raw, note = await fetch_cached(client, source.url, source.filename, refresh=refresh)
@@ -478,6 +486,9 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
             continue
         if note:
             notes.append(f"{source.title}: {note}")
+            days = stale_days(raw)
+            if days is not None:
+                stale[source.key] = days
         found = _cached_entries(source, raw, notes)
         if not found:
             # A list in a new format parses to nothing: it must not pass for "checked".
@@ -485,7 +496,7 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
         entries += found
     if not entries:
         raise ModuleError("не удалось загрузить ни один санкционный список")
-    return SanctionsIndex(entries, notes)
+    return SanctionsIndex(entries, notes, stale)
 
 
 def _cached_entries(source: Source, raw: Path, notes: list[str]) -> list[Entry]:

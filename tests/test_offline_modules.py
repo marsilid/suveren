@@ -1,6 +1,8 @@
 """The block-list stage and `suveren doctor`, run offline from start to finish."""
 
 import asyncio
+import os
+import time
 from datetime import date
 
 import httpx
@@ -40,6 +42,30 @@ def test_block_lists_from_the_cache(tmp_path, monkeypatch):
     assert by_id["SUV-BLK-001"].status is Status.FAIL
     assert by_id["SUV-BLK-002"].status is Status.OK
     assert "SUV-BLK-003" not in by_id  # the page was not read
+
+
+def test_an_outdated_register_copy_is_not_a_clean_answer(tmp_path, monkeypatch):
+    # The refresh fails and a month-old copy is used: "not blocked" by it is not checked.
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    month = time.time() - 30 * 24 * 3600
+    for name, body in ((DOMAINS, "blocked.example\n"), *((n, "192.0.2.10\n") for n in IP_LISTS)):
+        path = tmp_path / f"blocklist-{name}"
+        path.write_text(body, "utf-8")
+        os.utime(path, (month, month))
+
+    async def go(host):
+        down = httpx.MockTransport(lambda r: httpx.Response(503))
+        async with httpx.AsyncClient(transport=down) as client:
+            return await run_blocklist(client, host, ["203.0.113.5"], third_party=["x.ru"])
+
+    checks, notes = asyncio.run(go("site.example"))
+    by_id = {c.id: c for c in checks}
+    assert {c.status for c in checks} == {Status.UNKNOWN}
+    assert "30-дневной давности" in by_id["SUV-BLK-001"].details
+    assert notes and "копия" in notes[0]
+    # A domain that is in the old copy is still reported.
+    checks, _ = asyncio.run(go("blocked.example"))
+    assert {c.id: c for c in checks}["SUV-BLK-001"].status is Status.FAIL
 
 
 class Resolver:
