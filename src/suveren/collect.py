@@ -20,7 +20,7 @@ import certifi
 import httpx
 
 from suveren import __version__
-from suveren.crawl import FetchedPage
+from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
 from suveren.page import parse_page
@@ -375,7 +375,9 @@ class Collector:
                     continue
                 client = self.insecure_client
             try:
-                resp = await client.get(url)
+                # Tried again after a timeout: one slow answer under a batch's load made the
+                # site "not opened" one night and fine the next.
+                resp = await get_once_more(client, url)
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
@@ -416,7 +418,12 @@ class Collector:
             )
             if not server:
                 return None
-            return parse_whois_registrar(await whois_query(server, domain, self.timeout))
+            try:
+                answer = await whois_query(server, domain, self.timeout)
+            except TIMEOUTS:
+                # The registrar came and went between nights with WHOIS timeouts.
+                answer = await whois_query(server, domain, self.timeout)
+            return parse_whois_registrar(answer)
         except (OSError, *TIMEOUTS) as exc:
             raise ModuleError(f"WHOIS недоступен ({describe(exc)})") from exc
 

@@ -164,3 +164,42 @@ def test_utf8_stays_utf8():
     assert collect_module.guess_encoding("Политика".encode()) == "utf-8"
     assert collect_module.guess_encoding("Политика".encode()[:-1]) == "utf-8"  # cut at the end
     assert collect_module.guess_encoding(b'<meta charset="nonsense">ok') == "utf-8"
+
+
+def test_a_homepage_timeout_is_tried_once_more(offline, monkeypatch):
+    # One slow answer under a batch's load made the site "not opened" for the night.
+    calls = []
+
+    def slow_once(request):
+        if request.url.host == "example.com":
+            calls.append(request.url.scheme)
+            if len(calls) == 1:
+                raise httpx.ReadTimeout("slow", request=request)
+        return handler(request)
+
+    def make_client(timeout, *, verify=True):
+        return httpx.AsyncClient(transport=httpx.MockTransport(slow_once), follow_redirects=True)
+
+    monkeypatch.setattr(collect_module, "make_client", make_client)
+    facts = asyncio.run(collect("example.com"))
+    assert calls == ["https", "https"] and facts.final_url == "https://example.com/"
+
+
+def test_a_whois_timeout_is_tried_once_more(monkeypatch):
+    answers = iter([TimeoutError(), "domain: EXAMPLE.RU\nregistrar: RU-CENTER-RU\n"])
+
+    async def whois_query(server, query, timeout):
+        if server == "whois.iana.org":
+            return "refer: whois.tcinet.ru\n"
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(collect_module, "whois_query", whois_query)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await Collector(Resolver({}), client, 5).registrar("example.ru")
+
+    assert asyncio.run(go()) == "RU-CENTER-RU"
