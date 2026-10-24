@@ -134,3 +134,33 @@ def test_ru_registrar_comes_from_whois(monkeypatch):
     assert asyncio.run(go()) == "RU-CENTER-RU"
     # .ru has no RDAP: straight to WHOIS, IANA first for the server.
     assert queries == [("whois.iana.org", "ru"), ("whois.tcinet.ru", "example.ru")]
+
+
+@pytest.mark.parametrize(
+    ("body", "content_type"),
+    [
+        ('<meta charset="windows-1251"><p>Политика обработки персональных данных</p>', "text/html"),
+        ("<p>Политика обработки персональных данных</p>", "text/html"),  # no meta either
+        ("<p>Политика обработки персональных данных</p>", "text/html; charset=windows-1251"),
+    ],
+)
+def test_a_windows_1251_page_without_charset_is_read(body, content_type):
+    # httpx assumed UTF-8 and the page came out as «��»: the 152-ФЗ checks read nothing.
+    resp = httpx.Response(
+        200,
+        content=body.encode("cp1251"),
+        headers={"content-type": content_type},
+        default_encoding=collect_module.guess_encoding,
+    )
+    assert "Политика обработки" in resp.text
+
+
+def test_utf8_stays_utf8():
+    async def client_guesses():
+        async with collect_module.make_client(5) as client:
+            return client._default_encoding
+
+    assert asyncio.run(client_guesses()) is collect_module.guess_encoding
+    assert collect_module.guess_encoding("Политика".encode()) == "utf-8"
+    assert collect_module.guess_encoding("Политика".encode()[:-1]) == "utf-8"  # cut at the end
+    assert collect_module.guess_encoding(b'<meta charset="nonsense">ok') == "utf-8"

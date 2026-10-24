@@ -8,6 +8,7 @@ Network ownership (ASN) comes from Team Cymru's free IP-to-ASN service over DNS.
 from __future__ import annotations
 
 import asyncio
+import codecs
 import contextlib
 import ipaddress
 import re
@@ -505,11 +506,39 @@ def browser_trust() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=certifi.where())
 
 
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)""", re.I)
+
+
+def guess_encoding(content: bytes) -> str:
+    """Encoding of a body whose Content-Type names none (httpx then assumed UTF-8).
+
+    Old Russian sites send windows-1251 with only a <meta charset>, and the page came
+    out as «��»: the 152-ФЗ text checks and the ИНН search read nothing.
+    """
+    if content.startswith(b"\xef\xbb\xbf"):
+        return "utf-8-sig"
+    meta = _META_CHARSET.search(content[:4096])
+    if meta:
+        name = meta.group(1).decode("ascii").lower()
+        try:
+            codecs.lookup(name)
+            return name
+        except LookupError:
+            pass
+    try:
+        content.decode("utf-8")
+        return "utf-8"
+    except UnicodeDecodeError as exc:
+        # A cut multi-byte character at the very end is still UTF-8.
+        return "utf-8" if exc.start >= len(content) - 3 else "cp1251"
+
+
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=True,
         verify=verify,
+        default_encoding=guess_encoding,
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
