@@ -99,6 +99,9 @@ def test_foreign_hosting_with_forms_fails_localisation():
     html = '<form><input type="tel" name="phone"> согласие на обработку персональных данных</form>'
     checks = run(html, deps=[hetzner])
     assert status(checks, "Хранение данных в России") is Status.FAIL
+    # ст. 18 ч. 5 excepts the cases of ст. 6 ч. 1 п. 2, 3, 4, 8: the advice cited it without.
+    advice = next(c for c in checks if c.title == "Хранение данных в России").recommendation
+    assert "ст. 6 ч. 1 п. 2, 3, 4, 8" in advice and "СМИ" in advice
 
 
 def test_http_site_fails_encryption():
