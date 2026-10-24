@@ -213,7 +213,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         else:
             deps.append(Dependency(Category.TLS, facts.tls_issuer, None, "сертификат"))
 
-    page_text = page_code(facts.html) + "\n" + "\n".join(facts.loaded_urls)
+    page_text = page_code(facts.html, links=False) + "\n" + "\n".join(facts.loaded_urls)
     found: set[str] = set()
     own = facts.domain  # the site's own hosts are not a dependency on itself
     for service, matched in db.scan_page(page_text, own_domain=own):
@@ -222,7 +222,7 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         found.add(service.name)
     # Services that appear only on inner pages say where they were seen.
     for extra in facts.extra_pages:
-        text = page_code(extra.html) + "\n" + "\n".join(extra.loaded_urls)
+        text = page_code(extra.html, links=False) + "\n" + "\n".join(extra.loaded_urls)
         for service, matched in db.scan_page(text, own_domain=own):
             if service.name in found:
                 continue

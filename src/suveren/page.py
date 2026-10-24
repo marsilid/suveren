@@ -114,15 +114,31 @@ class _Parser(HTMLParser):
         self.page.text = re.sub(r"\s+", " ", " ".join(self._text)).strip()
 
 
+_LINKED_FORM = re.compile(
+    r"docs\.google\.com/forms|forms\.gle/|forms\.office\.com|forms\.yandex\.|typeform\.com|"
+    r"jotform\.com|surveymonkey\.com|tally\.so|airtable\.com/shr",
+    re.I,
+)
+
+
 class _CodeParser(HTMLParser):
     """Keeps tags, attributes and script/style bodies; drops visible text and comments."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, links: bool = True) -> None:
         super().__init__(convert_charrefs=False)
         self.parts: list[str] = []
         self._raw = 0
+        self._links = links
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if (
+            tag == "a"
+            and not self._links
+            and not _LINKED_FORM.search(dict(attrs).get("href") or "")
+        ):
+            # A link loads nothing: "we are on YouTube" is not a YouTube player. A link to
+            # a form on another service is kept: visitors' data goes there.
+            return
         self.parts.append(self.get_starttag_text() or "")
         if tag in ("script", "style"):
             self._raw += 1
@@ -139,13 +155,14 @@ class _CodeParser(HTMLParser):
             self.parts.append(data)
 
 
-def page_code(html: str) -> str:
+def page_code(html: str, *, links: bool = True) -> str:
     """The part of a page that can load something: tags and scripts, not the text.
 
     An article that merely mentions "googletagmanager.com" must not count as the site
-    using Google Tag Manager, and a commented-out tag loads nothing either.
+    using Google Tag Manager, and a commented-out tag loads nothing either. Without
+    ``links`` plain links are dropped too, for finding the services a page uses.
     """
-    parser = _CodeParser()
+    parser = _CodeParser(links=links)
     try:
         parser.feed(html)
         parser.close()

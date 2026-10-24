@@ -269,3 +269,17 @@ def test_data_file_entries_are_valid():
                 assert d.get("page") and "category" in d, d["name"]
             if group == "tls":
                 assert d.get("issuer"), d["name"]
+
+
+def test_a_plain_link_is_not_a_dependency_a_form_link_is():
+    # "Мы на YouTube" in the footer counted as a YouTube player, a news link as Rambler ads.
+    from suveren.page import page_code
+
+    html = (
+        '<a href="https://www.youtube.com/@shop">YouTube</a>'
+        '<a href="https://news.rambler.ru/a">Новость</a>'
+        '<a href="https://docs.google.com/forms/d/1/viewform">Анкета</a>'
+    )
+    names = {s.name for s, _ in db.scan_page(page_code(html, links=False))}
+    assert "YouTube" not in names and not any("Rambler" in n for n in names)
+    assert any("Google" in n for n in names)  # visitors' answers go to Google
