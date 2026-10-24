@@ -660,9 +660,9 @@ def batch(
         hosts, skipped = read_targets(file)
     except (OSError, SuverenError) as exc:
         raise _fail(f"не удалось прочитать список: {exc}") from exc
-    for skip in skipped:
-        console.print(f"  [#e6b450]![/] пропущена {skip}")
     if not hosts:
+        for skip in skipped:
+            console.print(f"  [#e6b450]![/] пропущена {skip}")
         raise _fail("в файле нет доменов")
     try:
         plan = make_plan(Profile.quick if quick else profile, checks, browser=browser, pages=pages)
@@ -678,6 +678,9 @@ def batch(
             f"одновременно {jobs} · {plan_label(plan, 'quick' if quick else profile.value)}",
         )
     )
+    # After the header: printed before it, the warnings read as part of the shell's output.
+    for skip in skipped:
+        console.print(f"  [#e6b450]![/] пропущена {skip}")
     console.print()
 
     results: list[tuple[str, Report | None, str | None]] = []
