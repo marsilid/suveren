@@ -185,11 +185,22 @@ class FineEstimate:
         }
 
 
+# A rule that fits only one of the check's answers with that status, told by its text.
+# PD-003 also warns about consent shown only on a later step, outside the form or
+# pre-ticked: consent is there, so no part of ст. 13.11 is about it.
+ONLY_WHEN: dict[tuple[str, Status], str] = {
+    ("SUV-PD-003", Status.WARN): "не найдено согласия",
+}
+
+
 def estimate(checks: list[Check]) -> FineEstimate:
     items: list[FineItem] = []
     seen: set[str] = set()
     for check in checks:
-        rule = RULES.get((check.id, check.status))
+        key = (check.id, check.status)
+        rule = RULES.get(key)
+        if key in ONLY_WHEN and ONLY_WHEN[key] not in check.details:
+            continue
         if rule and rule[0].article not in seen:
             seen.add(rule[0].article)
             items.append(FineItem(check.title, rule[0], rule[1], check.status is Status.FAIL))

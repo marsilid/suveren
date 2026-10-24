@@ -7,15 +7,16 @@ from suveren.report import render_html
 from suveren.view import fines_line
 
 
-def check(title, status, group=GROUP_152):
-    return Check(group, title, status, "details")
+def check(title, status, group=GROUP_152, details="details"):
+    return Check(group, title, status, details)
 
 
 VIOLATIONS = [
     check("Политика обработки персональных данных", Status.FAIL),  # ч. 3: до 60 тыс.
     check("Хранение данных в России", Status.FAIL),  # ч. 8: до 6 млн
     check("Вход через иностранные сервисы", Status.FAIL, GROUP_LAWS),  # 13.55: до 700 тыс.
-    check("Согласие на обработку в формах", Status.WARN),  # possible, ч. 1: not counted
+    # possible, ч. 1: not counted
+    check("Согласие на обработку в формах", Status.WARN, details="не найдено согласия на …"),
     check("Реестр операторов персональных данных", Status.WARN),  # possible, ч. 10
 ]
 
@@ -103,3 +104,14 @@ def test_terminal_line():
     assert "до 6,76 млн ₽ для юрлица" in out
     assert "статей: 3; ещё 2 по предупреждениям не в сумме" in out
     assert "не юридическое заключение" in out
+
+
+def test_consent_that_is_there_has_no_fine_line():
+    # Consent on a later step, outside the form or pre-ticked: it exists, ч. 1 is not about it.
+    for details in (
+        "Согласия не видно в первом шаге формы (главная).",
+        "Чекбокс согласия отмечен заранее.",
+        "Согласие упоминается на странице, но не внутри формы (главная).",
+    ):
+        consent = check("Согласие на обработку в формах", Status.WARN, details=details)
+        assert estimate([consent]).items == ()
