@@ -121,7 +121,7 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 GROUP,
                 "ЕГРЮЛ / ЕГРИП",
                 Status.UNKNOWN,
-                "Не проверено: ЕГРЮЛ не ответил.",
+                f"Не проверено: {report.egrul_error}.",
                 "Повторите проверку позже или найдите компанию на egrul.nalog.ru.",
             )
         )
@@ -187,8 +187,8 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     # Without ЕГРЮЛ only the ИНН/ОГРН is screened, and most entries in the lists have none.
     ids_only = rec is None and bool(report.inn or report.ogrn)
     if ids_only:
-        why = "ЕГРЮЛ не ответил" if report.egrul_error else "в ЕГРЮЛ запись не найдена"
-        gap += f" Сверены только ИНН и ОГРН: {why}, название сверить не с чем."
+        why = "ЕГРЮЛ не дал запись компании" if report.egrul_error else "в ЕГРЮЛ её нет"
+        gap += f" Сверены только ИНН и ОГРН: {why}, и название сверить не с чем."
     clean = Status.UNKNOWN if missing or old or ids_only else Status.OK
     retry = "Повторите проверку позже с --refresh." if clean is Status.UNKNOWN else ""
     if sanctions_ok is None:
@@ -457,6 +457,18 @@ async def _from_site(
     report.whois_org = parse_whois_org(raw) if raw else None
 
 
+def pick_record(rows: list[EgrulRecord], query: str) -> EgrulRecord | None:
+    """The row with this ИНН/ОГРН: an active one first, then the latest registered.
+
+    A sole trader who closed and registered again keeps the ИНН under a new ОГРНИП, and
+    the first row could be the closed one.
+    """
+    exact = [r for r in rows if query in (r.inn, r.ogrn)]
+    if not exact:
+        return None
+    return max(exact, key=lambda r: (r.active, r.registered or date.min))
+
+
 async def run_company(
     target: str,
     *,
@@ -488,8 +500,11 @@ async def run_company(
         if query:
             try:
                 rows = await egrul_search(client, query)
-                exact = [r for r in rows if query in (r.inn, r.ogrn)]
-                report.egrul = next(iter(exact or rows), None)
+                report.egrul = pick_record(rows, query)
+                if rows and report.egrul is None:
+                    # Another company's row would be screened and dated in its place.
+                    report.egrul_error = "ЕГРЮЛ вернул записи с другими ИНН и ОГРН"
+                    report.notes.append(f"ЕГРЮЛ: {report.egrul_error}.")
             except ModuleError as exc:
                 report.egrul_error = str(exc)
                 report.notes.append(f"ЕГРЮЛ: {exc}.")

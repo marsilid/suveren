@@ -1,7 +1,7 @@
 from datetime import date
 
 from suveren.checks import Status
-from suveren.company import CompanyReport, build_checks, render_age
+from suveren.company import CompanyReport, build_checks, pick_record, render_age
 from suveren.registries import EgrulRecord, RknOperator
 from suveren.report import render_company_html
 from suveren.sanctions import Entry, Hit
@@ -101,9 +101,9 @@ def test_without_egrul_only_the_ids_were_screened():
     report = CompanyReport(query="7707083893", inn="7707083893", egrul_error="нет связи")
     report.sanctions_sources = ["us", "eu", "uk"]
     check = sanctions_check(report)
-    assert check.status is Status.UNKNOWN and "ЕГРЮЛ не ответил" in check.details
+    assert check.status is Status.UNKNOWN and "ЕГРЮЛ не дал запись" in check.details
     report.egrul_error = None
-    assert "запись не найдена" in sanctions_check(report).details
+    assert "в ЕГРЮЛ её нет" in sanctions_check(report).details
 
 
 def test_site_without_inn_warns():
@@ -218,3 +218,13 @@ def test_a_sanctioned_sole_trader_is_found():
     assert checks["Руководитель в санкционных списках"].status is Status.FAIL
     assert "тёзка" not in checks["Руководитель в санкционных списках"].recommendation
     assert checks["Санкционные списки"].details.startswith("Предприниматель")
+
+
+def test_pick_record_prefers_the_active_row_and_no_stranger():
+    # A sole trader who closed and registered again: the first row was the closed one.
+    closed = record(ogrn="304770000000011", terminated=date(2020, 1, 1))
+    active = record(ogrn="320770000000022", registered=date(2020, 3, 1))
+    assert pick_record([closed, active], "7707083893") is active
+    # Without a row of this ИНН, another company was taken in its place.
+    stranger = record(inn="7702070139", ogrn="1027739609391")
+    assert pick_record([stranger], "7707083893") is None
