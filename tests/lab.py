@@ -1051,6 +1051,32 @@ CASES: list[Case] = [
             ("*.lab-dkim-wildcard.ru", "TXT"): ["v=spf1 -all"],
         },
     ),
+    # --- recommendation technologies (149-ФЗ, ст. 10.2-2) -----------------------------
+    Case(
+        "lab-recs-no-rules",
+        "блок «Рекомендуем для вас», правил рекомендательных технологий нет",
+        {"SUV-LAW-002": "warn"},
+        html=page(FORM_OK + "<section><h2>Рекомендуем для вас</h2><p>Товар 1</p></section>"),
+        files=site_files(),
+    ),
+    Case(
+        "lab-recs-rules",
+        "персональные рекомендации и ссылка на правила их применения в подвале",
+        {"SUV-LAW-002": "ok"},
+        html=page(
+            FORM_OK
+            + "<section><h2>Вам может понравиться</h2></section>"
+            + '<a href="/recommendations">Правила применения рекомендательных технологий</a>'
+        ),
+        files=site_files({"/recommendations": page("<p>Правила применения…</p>")}),
+    ),
+    Case(
+        "lab-recs-popular",
+        "«Популярные товары» одинаковы для всех: это не рекомендательная технология",
+        {"SUV-LAW-002": "нет проверки"},
+        html=page(FORM_OK + "<section><h2>Популярные товары</h2></section>"),
+        files=site_files(),
+    ),
 ]
 
 # Expected and actual differ here for a stated reason; the table counts them as misses.

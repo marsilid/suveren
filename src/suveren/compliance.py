@@ -41,6 +41,7 @@ from suveren.pdpolicy import (
     policy_content,
     policy_reality,
 )
+from suveren.recommend import recommendation_check
 from suveren.registries import RknOperator, rkn_operator
 from suveren.utils import registrable_domain
 
@@ -948,6 +949,9 @@ async def run_compliance(
     checks = evaluate(data, html)
     loaded = {p.path: p.loaded_urls for p in extra_pages or []}
     checks.append(_foreign_login(data, html, loaded_urls or [], loaded, login))
+    recommendations = recommendation_check([html, *(h for _, h, _ in data.extra)])
+    if recommendations:
+        checks.append(recommendations)
     return checks
 
 
