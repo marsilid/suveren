@@ -213,8 +213,8 @@ def ci_exit(
         why = "; ".join(incomplete(gaps[0]))
         where = f" у {len(gaps)} сайтов, например {gaps[0].target}" if len(reports) > 1 else ""
         errors_console.print(
-            f"\n[bold #e6b450]! Оценка неполная{where}: {why}. Пороги не проверены честно: "
-            "код выхода 6 (--allow-incomplete — принять неполную).[/]"
+            f"\n[bold #e6b450]! Оценка неполная{where}: {why}. Чего не увидели, то порог "
+            "проверить не может: код выхода 6 (--allow-incomplete — принять неполную).[/]"
         )
         code = 6
     return code
