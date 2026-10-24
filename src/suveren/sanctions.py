@@ -121,6 +121,9 @@ def soft(word: str) -> str:
         w = w.replace(src, dst)
     w = w.replace("y", "i").replace("j", "i")
     w = re.sub(r"^ie", "e", w)
+    # «ье/ьё» and «ё» lose the soft sign in Cyrillic and keep a y in romanisation:
+    # Васильев/Vasilyev/Vasiliev, Соловьёв/Solovyov, Фёдор/Fyodor.
+    w = w.replace("ie", "e").replace("io", "e")
     return re.sub(r"(.)\1+", r"\1", w)
 
 

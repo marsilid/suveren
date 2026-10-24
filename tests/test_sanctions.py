@@ -77,6 +77,16 @@ def test_soft_keeps_gender_endings():
     assert soft("Евгений") == soft("Yevgeniy") == soft("Evgeny")
 
 
+def test_soft_joins_the_soft_sign_and_yo_spellings():
+    # These surnames were missed against the Latin-only OFAC list.
+    assert soft("Васильев") == soft("Vasilyev") == soft("Vasiliev")
+    assert soft("Соловьёв") == soft("Solovyov") == soft("Соловьев")
+    assert soft("Воробьев") == soft("Vorobyov")
+    assert soft("Фёдор") == soft("Fyodor") == soft("Fedor")
+    assert soft("Королёв") == soft("Korolev")
+    assert soft("Васильев") != soft("Васильева")
+
+
 def test_brand():
     assert brand('ПАО "НК "РОСНЕФТЬ"') == "РОСНЕФТЬ"
     assert brand('ООО "Ромашка"') == "Ромашка"
