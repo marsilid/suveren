@@ -872,9 +872,13 @@
    "name": "NGENIX",
    "country": "RU",
    "as_names": [
-    "ngenix"
+    "ngenix",
+    "sovremennye setevye tekhnologii"
    ],
-   "cdn": true
+   "cdn": true,
+   "asn": [
+    34879
+   ]
   },
   {
    "name": "Servicepipe",
@@ -1025,7 +1029,7 @@
    "country": "MT",
    "category": "analytics",
    "page": [
-    "static\\.hotjar\\.com"
+    "(?:static|script)\\.hotjar\\.com"
    ],
    "alternative": "Замените на Вебвизор в Яндекс Метрике."
   },
@@ -1262,7 +1266,7 @@
    "country": "FR",
    "category": "ads",
    "page": [
-    "static\\.criteo\\.net"
+    "static\\.criteo\\.(?:net|com)"
    ]
   },
   {
@@ -1561,8 +1565,8 @@
    "country": "US",
    "category": "chat",
    "page": [
-    "js\\.hs-scripts\\.com",
-    "js\\.hsforms\\.net"
+    "js(?:-[a-z]{2}\\d)?\\.hs-scripts\\.com",
+    "js(?:-[a-z]{2}\\d)?\\.hsforms\\.net"
    ]
   },
   {
@@ -1570,7 +1574,7 @@
    "country": "RU",
    "category": "chat",
    "page": [
-    "code\\.jivosite\\.com",
+    "(?:code|widget|static)\\.jivosite\\.com",
     "code\\.jivo\\.ru"
    ]
   },
@@ -1682,7 +1686,8 @@
    "category": "maps",
    "page": [
     "maps\\.googleapis\\.com",
-    "google\\.com/maps/embed"
+    "google\\.com/maps/embed",
+    "maps\\.google\\.[a-z.]+/maps\\?[^\"']*output=embed"
    ]
   },
   {

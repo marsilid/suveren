@@ -283,3 +283,17 @@ def test_a_plain_link_is_not_a_dependency_a_form_link_is():
     names = {s.name for s, _ in db.scan_page(page_code(html, links=False))}
     assert "YouTube" not in names and not any("Rambler" in n for n in names)
     assert any("Google" in n for n in names)  # visitors' answers go to Google
+
+
+def test_ngenix_by_its_network_and_regional_service_hosts():
+    # AS34879 is registered under NGENIX's legal name, without "ngenix" in it.
+    ngenix = db.by_network(34879, "OOO «Sovremennye setevye tekhnologii»")
+    assert ngenix is not None and ngenix.name == "NGENIX" and ngenix.cdn
+    html = (
+        '<script src="https://js-eu1.hs-scripts.com/1.js"></script>'
+        '<script src="https://script.hotjar.com/modules.js"></script>'
+        '<script src="https://static.criteo.com/js/ld/ld.js"></script>'
+        '<script src="//widget.jivosite.com/widget/x"></script>'
+        '<iframe src="https://maps.google.com/maps?q=Moscow&output=embed"></iframe>'
+    )
+    assert {"HubSpot", "Hotjar", "Criteo", "Jivo", "Google Maps"} <= code_names(html)
