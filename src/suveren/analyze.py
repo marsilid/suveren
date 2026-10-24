@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from suveren import services as db
 from suveren.collect import Facts, HostInfo, NetInfo
@@ -270,6 +271,15 @@ def build_findings(deps: list[Dependency]) -> list[Finding]:
     return findings
 
 
+def redirect_target(facts: Facts) -> str | None:
+    """The other registrable domain the homepage redirected to, if any."""
+    host = urlsplit(facts.final_url or "").hostname
+    if not host:
+        return None
+    target = registrable_domain(host.lower())
+    return target if target != facts.domain else None
+
+
 def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
     report = Report(target=facts.host)
     if started_at is not None:
@@ -306,6 +316,14 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
                 "попасть в отчёт (режим --browser находит больше)."
             )
         report.notes.append(f"{where}. {how}")
+    moved = redirect_target(facts)
+    if moved:
+        # pochtabank.ru opens vtb.ru: the report mixed two companies without a word.
+        report.notes.append(
+            f"Сайт перенаправляет на другой домен: {moved}. Хостинг, DNS, почта и сертификат "
+            f"измерены у {facts.domain}, а скрипты и проверки страниц — у {moved}. "
+            f"Проверьте {moved} отдельно."
+        )
     if facts.tls_trusted is False:
         report.notes.append(TLS_UNTRUSTED_NOTE)
     report.finished_at = datetime.now(timezone.utc)

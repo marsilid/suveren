@@ -197,3 +197,11 @@ def test_unknown_dns_name_on_a_known_network_names_both():
     assert dns.service == "some-dns.net (на сети Cloudflare)" and dns.country == "US"
     dynadot = analyze(make_facts(ns=[HostInfo("ns1.dyna-ns.net", cf)]))
     assert [d.service for d in dynadot.dependencies if d.category is Category.DNS] == ["Dynadot"]
+
+
+def test_a_redirect_to_another_domain_is_said():
+    facts = make_facts(final_url="https://www.vtb.ru/personal/")
+    note = next(n for n in analyze(facts).notes if "перенаправляет" in n)
+    assert "vtb.ru" in note and facts.domain in note
+    same = make_facts(final_url=f"https://www.{make_facts().domain}/ru/")
+    assert not any("перенаправляет" in n for n in analyze(same).notes)
