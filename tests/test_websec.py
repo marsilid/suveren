@@ -7,7 +7,7 @@ import pytest
 
 from suveren import websec
 from suveren.checks import Status
-from suveren.collect import bot_wall
+from suveren.collect import bot_wall, page_problem
 from suveren.websec import (
     TlsInfo,
     WebFacts,
@@ -262,6 +262,27 @@ def test_bot_wall_detection():
     assert bot_wall(200, stub)
     shell = '<html><body><div id="root"></div><script src="/app.js"></script></body></html>'
     assert bot_wall(200, shell) is None  # an app shell: its headers are real
+
+
+def test_a_small_site_with_recaptcha_is_not_a_bot_wall():
+    # "captcha" in a reCAPTCHA script of a landing page's form made it "a bot wall": its
+    # inner pages were not read and the headers were "not checked".
+    landing = (
+        "<html><head><title>Окна на заказ</title>"
+        '<script src="https://www.google.com/recaptcha/api.js"></script></head><body>'
+        "<h1>Окна ПВХ</h1><p>Замер бесплатно.</p>"
+        '<form action="/send"><input name="phone"><div class="g-recaptcha"></div></form>'
+        "</body></html>"
+    )
+    assert bot_wall(200, landing) is None
+    assert "робот" not in (page_problem(200, landing) or "")
+    title_wall = "<html><head><title>Just a moment...</title></head><body>Checking your browser"
+    assert bot_wall(200, title_wall)
+    cf = '<html><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v1"></script>'
+    assert bot_wall(200, cf)
+    # The site's own 404 is not a protection service.
+    assert "защита" not in bot_wall(404, "<html>not found</html>")
+    assert "защита" in bot_wall(403, "<html>Forbidden</html>")
 
 
 def test_redirect_to_another_domain_hides_its_headers(monkeypatch):

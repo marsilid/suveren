@@ -135,6 +135,8 @@ class Facts:
         }
 
 
+# Words of a wall page, looked for in what a visitor reads (text and title): in the code
+# "captcha" or "challenge" is also a reCAPTCHA on an ordinary small site's form.
 _CHALLENGE = re.compile(
     r"captcha|challenge|доступ ограничен|доступ запрещ|проверка безопасности|"
     r"запрос отклонен|пройдите проверку|подтвердите, что вы|checking your browser|"
@@ -142,6 +144,27 @@ _CHALLENGE = re.compile(
     r"enable javascript|включите javascript|user_blocked",
     re.I,
 )
+# Marks of protection services in the code of their wall pages.
+_WALL_CODE = re.compile(
+    r"cdn-cgi/challenge|challenge-platform|_cf_chl|ddos-guard|__ddg|servicepipe|qrator|"
+    r"antibot|user_blocked|checking your browser",
+    re.I,
+)
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+# Answers a protection service gives a robot; a 404 or a 500 is the site's own answer.
+_WALL_STATUSES = frozenset({401, 403, 405, 406, 429, 503})
+
+
+def _challenge(html: str, text: str) -> bool:
+    title = _TITLE.search(html[:30000])
+    seen = text + " " + (title.group(1) if title else "")
+    return bool(_CHALLENGE.search(seen) or _WALL_CODE.search(html[:30000]))
+
+
+def _status_problem(status: int) -> str:
+    if status in _WALL_STATUSES:
+        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+    return f"сайт ответил кодом {status} вместо страницы"
 
 
 def page_problem(status: int | None, html: str, *, rendered: bool = False) -> str | None:
@@ -152,10 +175,10 @@ def page_problem(status: int | None, html: str, *, rendered: bool = False) -> st
     # A small page with no scripts at all is simply small, not built by scripts.
     scripted = "<script" in html.lower()
     thin = len(page.links) < 10 and len(page.text) < 600 and (scripted or rendered)
-    challenge = short and bool(_CHALLENGE.search(html[:30000]))
+    challenge = short and _challenge(html, page.text)
     # A browser may pass a challenge that first answered 403/503: judge the content then.
     if status is not None and status >= 400 and (thin or challenge or not rendered):
-        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+        return _status_problem(status)
     if challenge:
         return "сайт показал страницу проверки «вы не робот»"
     if thin:
@@ -172,8 +195,9 @@ def bot_wall(status: int | None, html: str) -> str | None:
     HTML is tiny, but its headers are the site's real headers.
     """
     if status is not None and status >= 400:
-        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
-    if len(parse_page(html).text) < 1500 and _CHALLENGE.search(html[:30000]):
+        return _status_problem(status)
+    text = parse_page(html).text
+    if len(text) < 1500 and _challenge(html, text):
         return "сайт показал страницу защиты от ботов"
     return None
 
