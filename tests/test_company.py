@@ -228,3 +228,10 @@ def test_pick_record_prefers_the_active_row_and_no_stranger():
     # Without a row of this ИНН, another company was taken in its place.
     stranger = record(inn="7702070139", ogrn="1027739609391")
     assert pick_record([stranger], "7707083893") is None
+
+
+def test_a_clean_screening_says_owners_were_not_screened():
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    check = sanctions_check(report)
+    assert check.status is Status.OK and "Учредители и владельцы не сверялись" in check.details

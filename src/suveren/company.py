@@ -261,7 +261,9 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     clean,
                     (f"Не найдена в списках: {sources}." if sources else "Не найдена.")
                     + gap
-                    + also,
+                    + also
+                    # The OFAC 50% rule reaches through owners, and they are not screened.
+                    + " Учредители и владельцы не сверялись: их нет в открытом ответе ЕГРЮЛ.",
                     retry,
                 )
             )
