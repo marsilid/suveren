@@ -352,6 +352,16 @@ def test_a_section_that_did_not_run_counts_as_all_its_checks():
     assert report.to_dict()["overall_incomplete"] == incomplete(report)
 
 
+def test_unanswered_site_dns_makes_the_grade_incomplete():
+    from suveren.advice import incomplete
+
+    # sravni.ru: four services vanished with the DNS answers, not from the site.
+    report = sample_report()
+    report.facts["dns_unanswered"] = ["ns", "web"]
+    assert incomplete(report) == ["не проверены: DNS-серверы, IP-адреса и хостинг сайта"]
+    assert report.to_dict()["overall_incomplete"] == incomplete(report)
+
+
 def test_a_full_report_is_not_incomplete():
     from suveren.advice import incomplete
 

@@ -48,6 +48,15 @@ def test_each_contradiction_a_reader_once_caught_is_flagged():
     https = {"facts": {"final_url": "https://profi.ru/"}}
     assert "check-vanished" in rules({"checks": web, **https})
     assert "check-vanished" not in rules({"checks": [*web, check("SUV-WEB-008", "ok")], **https})
+    # sravni.ru: the site's DNS did not answer, and the grade was not "неполная".
+    note = "Не удалось получить IP-адреса сайта: DNS не ответил вовремя на запрос A sravni.ru"
+    assert "dns-gap-complete" in rules({"checks": [], "notes": [note], "overall_incomplete": []})
+    gap = {"checks": [], "notes": [note], "overall_incomplete": ["не проверены: хостинг"]}
+    assert "dns-gap-complete" not in rules(gap)
+    whois = "Не удалось получить регистратора: WHOIS недоступен"
+    assert "dns-gap-complete" not in rules(
+        {"checks": [], "notes": [whois], "overall_incomplete": []}
+    )
 
 
 def test_a_consistent_report_passes():

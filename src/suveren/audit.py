@@ -28,6 +28,10 @@ _CALM = re.compile(
 )
 
 
+# A note of collect.py saying a DNS lookup of the site itself got no answer.
+_DNS_GAP = re.compile(r"Не удалось получить (?:DNS-серверы|почтовые серверы|IP-адреса сайта):")
+
+
 @dataclass(frozen=True, slots=True)
 class Issue:
     rule: str  # short slug, stable for tests and the nightly diff
@@ -84,6 +88,11 @@ def audit(report: dict[str, Any]) -> list[Issue]:
     https = str(report.get("facts", {}).get("final_url") or "").startswith("https://")
     if https and {"SUV-WEB-001", "SUV-WEB-005"} <= by_id.keys() and "SUV-WEB-008" not in by_id:
         issues.append(Issue("check-vanished", "SUV-WEB-008", "сайт на HTTPS, а проверки TLS нет"))
+
+    # sravni.ru, 2026-10-25: A, NS and MX timed out, yet the grade was not "неполная".
+    silent = [n for n in report.get("notes", []) if _DNS_GAP.match(n)]
+    if silent and "overall_incomplete" in report and not report["overall_incomplete"]:
+        issues.append(Issue("dns-gap-complete", "", silent[0][:140]))
 
     score, grade = report.get("overall_score"), report.get("overall_grade")
     if score is not None and grade is not None:

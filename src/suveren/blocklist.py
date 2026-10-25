@@ -147,12 +147,13 @@ def third_party_check(hits: dict[str, str], checked: int, old: int | None = None
 async def run_blocklist(
     client: httpx.AsyncClient,
     host: str,
-    ips: list[str],
+    ips: list[str] | None,
     *,
     refresh: bool = False,
     third_party: Iterable[str] | None = None,
 ) -> tuple[list[Check], list[str]]:
-    """``third_party``: hosts the page loads from; None when the page was not read."""
+    """``ips``: None when DNS did not answer for them (an empty list: the site has none).
+    ``third_party``: hosts the page loads from; None when the page was not read."""
     try:
         _, notes = await ensure_lists(client, refresh=refresh)
     except ModuleError as exc:
@@ -194,7 +195,7 @@ async def run_blocklist(
 
     hits: dict[str, str] = {}
     for path in ip_paths:
-        for ip, entry in find_blocked_ips(_lines(path), ips).items():
+        for ip, entry in find_blocked_ips(_lines(path), ips or ()).items():
             hits.setdefault(ip, entry)
     if hits:
         shown = ", ".join(f"{ip} (в списке {entry})" for ip, entry in sorted(hits.items()))
@@ -217,6 +218,16 @@ async def run_blocklist(
         checks.append(
             Check(
                 GROUP_BLOCK, "IP-адреса сайта", clean, "IP сайта не заблокированы." + _outdated(old)
+            )
+        )
+    elif ips is None:
+        checks.append(
+            Check(
+                GROUP_BLOCK,
+                "IP-адреса сайта",
+                Status.UNKNOWN,
+                "DNS не ответил на запрос IP-адресов сайта, поэтому блокировку по IP "
+                "проверить не удалось. Повторите проверку позже.",
             )
         )
     if third_party is not None:

@@ -98,6 +98,10 @@ class Facts:
     # Pages opened in the browser for later checks (the privacy policy), keyed by URL.
     prefetched: dict[str, FetchedPage] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    # The site's DNS lookups that got no answer ("ns", "mx", "web"): the services behind
+    # them are unseen, not absent. sravni.ru, 2026-10-25: A, NS and MX timed out, four
+    # services vanished and the report still looked complete.
+    dns_unanswered: list[str] = field(default_factory=list)
 
     @property
     def page_problem(self) -> str | None:
@@ -132,6 +136,7 @@ class Facts:
             "rendered": self.rendered,
             "page_problem": self.page_problem,
             "page_unseen": self.page_unseen,
+            "dns_unanswered": list(self.dns_unanswered),
             "extra_pages": [p.url for p in self.extra_pages],
         }
 
@@ -580,6 +585,14 @@ def issuer_from_der(der: bytes) -> str | None:
     return None
 
 
+# The site's own DNS lookups and what goes unseen without them, for "оценка неполная".
+DNS_SECTIONS = {
+    "ns": "DNS-серверы",
+    "mx": "почтовые серверы",
+    "web": "IP-адреса и хостинг сайта",
+}
+
+
 async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto") -> Facts:
     domain = registrable_domain(host)
     facts = Facts(host=host, domain=domain)
@@ -621,6 +634,8 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
             facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
+            if key in DNS_SECTIONS:
+                facts.dns_unanswered.append(key)
             continue
         if key == "ns":
             facts.ns = value

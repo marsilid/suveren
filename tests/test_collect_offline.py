@@ -116,6 +116,29 @@ def test_a_failed_stage_becomes_a_note_not_a_crash(offline, monkeypatch):
     assert facts.html == PAGE  # the other stages went on
 
 
+def test_unanswered_site_dns_is_remembered(offline, monkeypatch):
+    # sravni.ru, 2026-10-25: A, NS and MX timed out; the report looked complete.
+    async def silent(self, name, rtype):
+        if name == "example.com":
+            raise collect_module.DnsLookupError(f"DNS не ответил вовремя на запрос {rtype} {name}")
+        return self.records.get((name, rtype), [])
+
+    monkeypatch.setattr(Resolver, "resolve", silent)
+    facts = asyncio.run(collect("example.com"))
+    assert facts.dns_unanswered == ["ns", "mx", "web"]
+    assert facts.to_dict()["dns_unanswered"] == ["ns", "mx", "web"]
+    assert facts.ns == facts.mx == facts.web == []
+    assert any("IP-адреса сайта" in n for n in facts.notes)
+
+
+def test_a_whois_outage_is_not_a_dns_gap(offline, monkeypatch):
+    async def whois_down(self, domain):
+        raise collect_module.ModuleError("WHOIS недоступен")
+
+    monkeypatch.setattr(Collector, "registrar", whois_down)
+    assert asyncio.run(collect("example.com")).dns_unanswered == []
+
+
 def test_ru_registrar_comes_from_whois(monkeypatch):
     queries = []
 

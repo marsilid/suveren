@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from suveren.checks import Status
+from suveren.collect import DNS_SECTIONS
 from suveren.models import UNSEEN_CAP, Report, Severity, grade_for
 
 
@@ -159,8 +160,9 @@ def missed_sections(report: Report) -> list[str]:
         for c in report.checks
         if c.id in MISSED_SECTION and c.status is Status.UNKNOWN
     ]
-    # The page feeds the dependency scan in every profile, --quick included.
-    return ([PAGE_SECTION] if report.page_unseen else []) + missed
+    # The page and the site's DNS feed the dependency scan in every profile, --quick too.
+    dns = [DNS_SECTIONS[k] for k in report.facts.get("dns_unanswered") or () if k in DNS_SECTIONS]
+    return ([PAGE_SECTION] if report.page_unseen else []) + dns + missed
 
 
 def incomplete(report: Report) -> list[str]:

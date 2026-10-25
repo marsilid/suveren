@@ -40,6 +40,7 @@
     "page_status": {"type": ["integer", "null"]},
     "page_problem": {"type": ["string", "null"]},
     "page_unseen": {"type": ["string", "null"], "description": "С 1.5. Почему страницу сайта не удалось увидеть: ничего не пришло, стена от ботов или страница ошибки. Тогда обе оценки не выше B."},
+    "dns_unanswered": {"type": "array", "items": {"enum": ["ns", "mx", "web"]}, "description": "С 1.7. DNS-запросы сайта без ответа: ns — DNS-серверы, mx — почтовые серверы, web — IP-адреса и хостинг. Сервисы за ними не видны, оценка неполная."},
     "rendered": {"type": "boolean"}
    }
   },

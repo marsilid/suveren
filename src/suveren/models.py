@@ -297,8 +297,9 @@ UNSEEN_CAP = 89
 # The format of to_dict(), described by data/report.schema.json: the minor number grows
 # with new fields, the major one when a field is removed or renamed.
 # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
-# 1.4: "evidence" of each check; 1.5: facts.page_unseen.
-SCHEMA_VERSION = "1.6"
+# 1.4: "evidence" of each check; 1.5: facts.page_unseen; 1.6: history uneven runs;
+# 1.7: facts.dns_unanswered.
+SCHEMA_VERSION = "1.7"
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 

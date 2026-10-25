@@ -129,7 +129,7 @@ async def run_scan(
                     checks, notes = await run_blocklist(
                         client,
                         host,
-                        [n.ip for n in facts.web],
+                        None if "web" in facts.dns_unanswered else [n.ip for n in facts.web],
                         refresh=refresh,
                         third_party=unknown.third_party_hosts(_page_urls(facts, host), host)
                         if readable

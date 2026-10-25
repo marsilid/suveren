@@ -43,6 +43,13 @@ def test_block_lists_from_the_cache(tmp_path, monkeypatch):
     assert by_id["SUV-BLK-002"].status is Status.OK
     assert "SUV-BLK-003" not in by_id  # the page was not read
 
+    # sravni.ru: DNS did not answer for the IPs, and the check silently left the report.
+    checks, _ = asyncio.run(go("site.example", None, None))
+    blk2 = {c.id: c for c in checks}["SUV-BLK-002"]
+    assert blk2.status is Status.UNKNOWN and "DNS не ответил" in blk2.details
+    checks, _ = asyncio.run(go("site.example", [], None))  # no addresses at all
+    assert "SUV-BLK-002" not in {c.id for c in checks}
+
 
 def test_an_outdated_register_copy_is_not_a_clean_answer(tmp_path, monkeypatch):
     # The refresh fails and a month-old copy is used: "not blocked" by it is not checked.
