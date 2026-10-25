@@ -198,6 +198,25 @@ def test_collect_mail_reads_every_record():
     assert m.tls_rpt
 
 
+def test_an_mta_sts_timeout_leaves_the_other_mail_checks():
+    # kamaz.ru, 2026-10-25: one _mta-sts timeout made all of MAIL-001…005 "не проверено".
+    records = {
+        ("example.ru", "MX"): ["10 mx.yandex.net."],
+        ("example.ru", "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
+        ("_spf.yandex.net", "TXT"): ["v=spf1 ip4:10.0.0.1 ~all"],
+        ("_dmarc.example.ru", "TXT"): ["v=DMARC1; p=reject"],
+        ("mail._domainkey.example.ru", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEB"],
+        ("_mta-sts.example.ru", "TXT"): ["SERVFAIL"],
+        ("_smtp._tls.example.ru", "TXT"): ["SERVFAIL"],
+    }
+    resolver = FakeResolver(records)
+    checks = asyncio.run(run_mail_checks(resolver, None, "example.ru"))  # type: ignore[arg-type]
+    by_id = {c.id: c for c in checks}
+    assert by_id["SUV-MAIL-005"].status is Status.UNKNOWN
+    assert "MTA-STS прочитать не удалось: SERVFAIL" in by_id["SUV-MAIL-005"].details
+    assert all(by_id[f"SUV-MAIL-00{n}"].status is Status.OK for n in range(1, 5))
+
+
 def test_dkim_node_with_unknown_selector_is_probably_configured():
     records = {
         ("example.ru", "MX"): ["10 mx.example.ru."],

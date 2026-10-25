@@ -32,6 +32,7 @@ from suveren.checks import Check, Status
 from suveren.collect import Facts, NetInfo
 from suveren.compliance import run_compliance
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
+from suveren.dnsutil import DnsLookupError
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
@@ -177,6 +178,10 @@ def good_dns(host: str) -> dict[tuple[str, str], list[str]]:
 
 
 MTA_STS_OK = "version: STSv1\nmode: enforce\nmx: mx.yandex.net\nmax_age: 604800\n"
+
+
+# A DNS record whose lookup times out (put as the value in Case.dns).
+NO_ANSWER: list[str] = ["<нет ответа>"]
 
 
 @dataclass
@@ -1051,6 +1056,21 @@ CASES: list[Case] = [
             ("*.lab-dkim-wildcard.ru", "TXT"): ["v=spf1 -all"],
         },
     ),
+    # --- a record that times out: only the checks resting on it are unknown -----------
+    Case(
+        "lab-mta-sts-silent",
+        "DNS не ответил на _mta-sts: MTA-STS не проверить, SPF, DMARC и DKIM — можно",
+        {
+            "SUV-MAIL-001": "ok",
+            "SUV-MAIL-002": "ok",
+            "SUV-MAIL-003": "ok",
+            "SUV-MAIL-004": "ok",
+            "SUV-MAIL-005": "unknown",
+        },
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_mta-sts.lab-mta-sts-silent.ru", "TXT"): NO_ANSWER},
+    ),
     # --- recommendation technologies (149-ФЗ, ст. 10.2-2) -----------------------------
     Case(
         "lab-recs-no-rules",
@@ -1093,7 +1113,10 @@ class FakeResolver:
         self.records = records
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
-        return self.records.get((name, rtype), [])
+        records = self.records.get((name, rtype), [])
+        if records is NO_ANSWER:
+            raise DnsLookupError(f"DNS не ответил вовремя на запрос {rtype} {name}")
+        return records
 
     async def exists(self, domain: str) -> bool:
         return True

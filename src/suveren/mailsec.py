@@ -23,7 +23,7 @@ from suveren import services as db
 from suveren.checks import Check, Evidence, Status
 from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
-from suveren.errors import TIMEOUTS
+from suveren.errors import TIMEOUTS, describe
 from suveren.utils import registrable_domain
 
 GROUP_MAIL = "Защита почты от подделки"
@@ -251,6 +251,9 @@ class MailFacts:
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
     mta_sts_mx: list[str] = field(default_factory=list)  # "mx:" patterns of the policy
+    # Why MTA-STS could not be read (its DNS did not answer), or None. Only MAIL-005 rests
+    # on it: kamaz.ru lost the whole mail section to one _mta-sts timeout (2026-10-25).
+    transport_unknown: str | None = None
     # The DNS answers the verdicts rest on, as received: "TXT _dmarc.example.ru" -> records.
     raw: dict[str, list[str]] = field(default_factory=dict)
 
@@ -639,6 +642,14 @@ def mx_matches(host: str, pattern: str) -> bool:
 def transport_check(m: MailFacts) -> Check:
     title = "Шифрование входящей почты (MTA-STS)"
     rpt = " Отчёты TLS-RPT настроены." if m.tls_rpt else ""
+    if m.transport_unknown:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.UNKNOWN,
+            f"Политику MTA-STS прочитать не удалось: {m.transport_unknown}. Остальные проверки "
+            "почты выполнены.",
+        )
     unmatched = [h for h in m.mx_hosts if not any(mx_matches(h, p) for p in m.mta_sts_mx)]
     if m.mta_sts == "enforce" and unmatched:
         return Check(
@@ -834,10 +845,15 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         facts.dkim = await _dkim(resolver, domain)
         if not facts.dkim:
             facts.dkim_node = await _dkim_node(resolver, domain)
-        facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain, raw)
-        rpt = await _txt(resolver, f"_smtp._tls.{domain}")
-        facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
-        raw[f"TXT _smtp._tls.{domain}"] = [t for t in rpt if t.lower().startswith("v=tlsrpt")]
+        try:
+            facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain, raw)
+        except DnsLookupError as exc:
+            facts.transport_unknown = describe(exc)
+        # TLS-RPT only adds a sentence to MAIL-005: without an answer it is left out.
+        with contextlib.suppress(DnsLookupError):
+            rpt = await _txt(resolver, f"_smtp._tls.{domain}")
+            facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
+            raw[f"TXT _smtp._tls.{domain}"] = [t for t in rpt if t.lower().startswith("v=tlsrpt")]
         for selector in facts.dkim:
             name = f"{selector}._domainkey.{domain}"
             with contextlib.suppress(DnsLookupError):
