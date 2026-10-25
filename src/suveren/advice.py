@@ -102,7 +102,7 @@ def overall_score(report: Report) -> int:
     """All sections together: laws, security, mail, blocks and foreign dependencies."""
     score = max(0, 100 - sum(OVERALL_PENALTY[a.severity] for a in priorities(report)))
     # An unreachable site got A 100/100 in --quick: no page, so no checks to count.
-    capped = unchecked(report) or report.page_unseen
+    capped = unchecked(report) or report.page_unseen or report.dns_unanswered
     return min(score, UNCHECKED_CAP) if capped else score
 
 
@@ -161,7 +161,7 @@ def missed_sections(report: Report) -> list[str]:
         if c.id in MISSED_SECTION and c.status is Status.UNKNOWN
     ]
     # The page and the site's DNS feed the dependency scan in every profile, --quick too.
-    dns = [DNS_SECTIONS[k] for k in report.facts.get("dns_unanswered") or () if k in DNS_SECTIONS]
+    dns = [DNS_SECTIONS[k] for k in report.dns_unanswered if k in DNS_SECTIONS]
     return ([PAGE_SECTION] if report.page_unseen else []) + dns + missed
 
 

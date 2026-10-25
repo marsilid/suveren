@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from suveren import services as db
-from suveren.collect import Facts, HostInfo, NetInfo
+from suveren.collect import DNS_SECTIONS, Facts, HostInfo, NetInfo
 from suveren.models import Category, Dependency, Finding, Report, Severity
 from suveren.page import page_code
 from suveren.services import Service
@@ -295,6 +295,12 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
     report.findings = build_findings(deps)
     report.facts = facts.to_dict()
     report.notes = facts.notes + notes
+    if facts.dns_unanswered:
+        unseen = ", ".join(DNS_SECTIONS[k] for k in facts.dns_unanswered)
+        report.notes.append(
+            f"DNS сайта не ответил, поэтому не проверены: {unseen}. Сервисы за ними не видны, "
+            "а не отсутствуют: оценки не выше B. Повторите проверку позже."
+        )
     problem = facts.page_problem
     if problem:
         # An empty answer is said too: a proxy's bare 503 for an unreachable host left

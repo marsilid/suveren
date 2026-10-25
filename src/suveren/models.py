@@ -341,8 +341,9 @@ class Report:
     @property
     def score(self) -> int:
         score = max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
-        # Scripts and widgets come from the page: without it they are unseen, not absent.
-        return min(score, UNSEEN_CAP) if self.page_unseen else score
+        # Scripts and widgets come from the page, DNS and hosting from the site's DNS:
+        # without them they are unseen, not absent.
+        return min(score, UNSEEN_CAP) if self.page_unseen or self.dns_unanswered else score
 
     @property
     def page_unseen(self) -> str | None:
@@ -350,6 +351,11 @@ class Report:
         error page instead), or None when it was."""
         problem = self.facts.get("page_unseen")
         return str(problem) if problem else None
+
+    @property
+    def dns_unanswered(self) -> list[str]:
+        """The site's DNS lookups that got no answer: "ns", "mx", "web"."""
+        return [str(k) for k in self.facts.get("dns_unanswered") or ()]
 
     @property
     def grade(self) -> str:

@@ -360,6 +360,10 @@ def test_unanswered_site_dns_makes_the_grade_incomplete():
     report.facts["dns_unanswered"] = ["ns", "web"]
     assert incomplete(report) == ["не проверены: DNS-серверы, IP-адреса и хостинг сайта"]
     assert report.to_dict()["overall_incomplete"] == incomplete(report)
+    # Unseen is not clean: the demo got A 100/100 with nothing behind the DNS seen.
+    from suveren.advice import overall_score
+
+    assert report.score <= 89 and overall_score(report) <= 89
 
 
 def test_a_full_report_is_not_incomplete():
