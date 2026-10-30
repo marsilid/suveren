@@ -3,7 +3,7 @@
 CLI-аудит сайта и компании для работы в России: зависимость от иностранных сервисов
 (оценка A–F и план миграции), 152-ФЗ, блокировки РКН, почтовая подделка (SPF/DMARC/DKIM),
 захват поддоменов, веб-безопасность, ЕГРЮЛ и санкционные списки (OFAC, ЕС, UK).
-Python 3.10+, пакет `src/suveren`, точка входа `suveren = suveren.cli:app` (Typer + Rich).
+Python 3.11+, пакет `src/suveren`, точка входа `suveren = suveren.cli:app` (Typer + Rich).
 Интерфейс и отчёты на русском; код, комментарии и коммиты на английском. Лицензия AGPL-3.0.
 
 ## Архитектура
@@ -39,7 +39,7 @@ suveren services                   # дымовой тест CLI, как в CI
 suveren scan example.ru [--quick|--browser]
 ```
 
-Именно эти шаги гоняет CI (`.github/workflows/ci.yml`, Python 3.10–3.14 + Windows).
+Именно эти шаги гоняет CI (`.github/workflows/ci.yml`, Python 3.11–3.14 + Windows).
 Пока ничего не пушится, CI не запускается: перед слиянием ветки гоняй всё разом —
 `.venv/Scripts/python tools/ci.py` (`--fast` — без тестов, `--no-audit` — без сети).
 
@@ -58,7 +58,7 @@ suveren scan example.ru [--quick|--browser]
 
 ## Соглашения
 
-- Ruff: длина строки 100, target py310; mypy с `warn_unused_ignores`.
+- Ruff: длина строки 100, target py311; mypy с `warn_unused_ignores`.
 - Коммиты: короткая английская фраза о сути изменения; запись в `CHANGELOG.md` (на русском,
   раздел «Не выпущено») — отдельным коммитом `CHANGELOG: ...`.
 - Новая проверка или смена её ответа: навык `new-check` (`.claude/skills/new-check`) — каталог,

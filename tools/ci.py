@@ -8,8 +8,8 @@ the script, and prints a table at the end. Exit code 1 when any step fails.
     .venv\\Scripts\\python tools/ci.py --fast        # lint and types only, no tests
     .venv\\Scripts\\python tools/ci.py --no-audit    # skip pip-audit (it needs the network)
 
-What CI does that this cannot: the Python 3.10-3.13 matrix (here only the local version
-runs; mypy still checks against 3.10) and the Docker build.
+What CI does that this cannot: the Python 3.11-3.14 matrix (here only the local version
+runs; mypy still checks against 3.11) and the Docker build.
 """
 
 from __future__ import annotations

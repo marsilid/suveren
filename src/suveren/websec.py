@@ -14,7 +14,7 @@ import re
 import ssl
 import warnings
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -502,7 +502,7 @@ class WebFacts:
     # A bot wall answered instead of the site: its headers and code say nothing.
     page_problem: str | None = None
     http_problem: str | None = None
-    now: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    now: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def third_party(self) -> list[Resource]:

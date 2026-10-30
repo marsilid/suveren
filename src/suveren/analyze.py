@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from suveren import services as db
@@ -338,5 +338,5 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
         )
     if facts.tls_trusted is False:
         report.notes.append(TLS_UNTRUSTED_NOTE)
-    report.finished_at = datetime.now(timezone.utc)
+    report.finished_at = datetime.now(UTC)
     return report

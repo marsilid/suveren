@@ -6,7 +6,7 @@
 иностранные сервисы · 152-ФЗ · блокировки · защита почты · безопасность · ЕГРЮЛ и санкции
 
 [![CI](https://github.com/marsilid/suveren/actions/workflows/ci.yml/badge.svg)](https://github.com/marsilid/suveren/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
+![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 [English version](README.en.md)
@@ -59,7 +59,7 @@ DNS-записи, открытые реестры и страницы сайта
 
 Из исходного кода то же меню открывает `Suveren.bat`: скачайте репозиторий
 (Code → Download ZIP), распакуйте и запустите батник. При первом запуске он сам установит
-всё нужное (нужен [Python 3.10+](https://www.python.org/downloads/)).
+всё нужное (нужен [Python 3.11+](https://www.python.org/downloads/)).
 
 ### Любая система
 

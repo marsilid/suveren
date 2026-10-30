@@ -6,7 +6,7 @@
 foreign dependencies · personal-data law (152-FZ) · blocking · mail spoofing · web security · company registry and sanctions
 
 [![CI](https://github.com/marsilid/suveren/actions/workflows/ci.yml/badge.svg)](https://github.com/marsilid/suveren/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
+![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 [Русская версия](README.md)
@@ -59,7 +59,7 @@ It opens a menu, so no command line is needed:
 
 From the source code, `Suveren.bat` opens the same menu: download the repository
 (Code → Download ZIP), unpack it and run the batch file. On first launch it installs everything
-it needs ([Python 3.10+](https://www.python.org/downloads/) required).
+it needs ([Python 3.11+](https://www.python.org/downloads/) required).
 
 ### Any system
 

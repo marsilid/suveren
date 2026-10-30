@@ -102,7 +102,7 @@ def _broken(plugin: Plugin, why: str) -> Check:
 async def run_plugin(plugin: Plugin, ctx: PluginContext, timeout: float = TIMEOUT) -> list[Check]:
     try:
         result = await asyncio.wait_for(plugin.module.run(ctx), timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return [_broken(plugin, f"плагин не уложился в {timeout:.0f} с")]
     except Exception as exc:  # isolate the plugin: its bug is not the scan's failure
         return [_broken(plugin, f"плагин завершился с ошибкой {exc!r:.200}")]

@@ -1,6 +1,6 @@
 import asyncio
 import ssl
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -26,7 +26,7 @@ from suveren.websec import (
     tls_check,
 )
 
-NOW = datetime(2026, 10, 17, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 17, tzinfo=UTC)
 
 
 def web(html="", headers=None, cookies=(), tls=None, https=True, **kwargs) -> WebFacts:
@@ -428,7 +428,7 @@ def test_script_inventory_warns_only_when_many_domains_can_run_code():
 
 
 def test_tls_certificate_browsers_reject_is_a_fail():
-    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
     bad = TlsInfo("example.ru", "TLSv1.3", exp, {}, "Hostname mismatch, certificate is not valid")
     check = tls_check(web(tls=bad))
     assert check is not None and check.status is Status.FAIL
@@ -457,7 +457,7 @@ def test_x_frame_options_allow_from_does_not_protect():
 
 
 def test_tls_incomplete_chain_is_a_warning():
-    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
     t = TlsInfo("example.ru", "TLSv1.3", exp, {}, "unable to get local issuer certificate")
     t.chain_incomplete = True  # the AIA link supplied the missing intermediate
     check = tls_check(web(tls=t))
@@ -470,7 +470,7 @@ def test_tls_incomplete_chain_is_a_warning():
 
 
 def test_tls_unverified_certificate_is_said_not_hidden():
-    exp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
     t = TlsInfo("example.ru", "TLSv1.3", exp, {})
     t.verified = False
     check = tls_check(web(tls=t))
@@ -499,7 +499,7 @@ def _ca_and_leaf(ocsp_url: str | None = "http://ocsp.ca.example"):
     def name(cn):
         return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ca_key, leaf_key = (
         ec.generate_private_key(ec.SECP256R1()),
         ec.generate_private_key(ec.SECP256R1()),
@@ -530,7 +530,7 @@ def _responder(monkeypatch, ca, ca_key, leaf, status, calls):
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.x509 import ocsp
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     def handler(request):
         calls.append(str(request.url))
@@ -581,9 +581,9 @@ def test_no_ocsp_responder_means_no_request(monkeypatch):
 
 def test_revoked_certificate_is_a_failure():
     info = websec.TlsInfo(
-        "site.ru", "TLSv1.3", datetime.now(timezone.utc) + timedelta(days=200),
+        "site.ru", "TLSv1.3", datetime.now(UTC) + timedelta(days=200),
         {"TLS 1.0": False, "TLS 1.1": False},
-        revoked=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        revoked=datetime(2026, 10, 1, tzinfo=UTC),
     )  # fmt: skip
     facts = websec.WebFacts("site.ru", True, {}, [], [], [], info)
     check = websec.tls_check(facts)
@@ -599,7 +599,7 @@ def test_crl_used_when_there_is_no_ocsp(monkeypatch):
     from cryptography.hazmat.primitives.asymmetric import ec
 
     ca, ca_key, _ = _ca_and_leaf(None)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     leaf = (
         x509.CertificateBuilder().subject_name(ca.subject).issuer_name(ca.subject)
         .public_key(ec.generate_private_key(ec.SECP256R1()).public_key()).serial_number(7)

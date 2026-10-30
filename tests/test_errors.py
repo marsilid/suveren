@@ -25,7 +25,7 @@ def status_error(code):
         (status_error(429), "слишком много запросов, сервер просит подождать"),
         (httpx.ConnectError("All connection attempts failed"), "нет связи с сервером"),
         (httpx.ReadTimeout("timed out"), "сервер не ответил вовремя"),
-        (asyncio.TimeoutError(), "сервер не ответил вовремя"),
+        (TimeoutError(), "сервер не ответил вовремя"),
         (httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED]"), "не удалось установить "
          "защищённое соединение"),
         (socket.gaierror(11001, "getaddrinfo failed"), "имя сервера не найдено в DNS"),

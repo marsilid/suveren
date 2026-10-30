@@ -7,7 +7,7 @@ import contextlib
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TypeVar
 from urllib.parse import urljoin, urlsplit
 
@@ -85,7 +85,7 @@ async def run_scan(
     """``only``: IDs of the checks to report (from ``--checks``); None reports all.
     ``form_phone``: the owner's own number for the form experiment (ten digits)."""
     progress = progress or _quiet
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
         facts = await collect(host, timeout=timeout, dns_mode=dns_mode)
     if browser:
@@ -214,7 +214,7 @@ async def run_scan(
     )
     if only is not None:
         report.checks = narrow(report.checks, only)
-    report.finished_at = datetime.now(timezone.utc)
+    report.finished_at = datetime.now(UTC)
     return report
 
 

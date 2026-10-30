@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -67,7 +67,7 @@ def test_loading_errors_are_clear(tmp_path):
 
 def test_security_txt_example_follows_rfc_9116():
     example = load(str(EXAMPLE)).module
-    now = datetime(2026, 10, 22, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 22, tzinfo=UTC)
     good = "Contact: mailto:security@site.ru\nExpires: 2027-10-01T00:00:00Z\n"
     assert example.verdict(200, "text/plain", good, now).status is Status.OK
     lower = "Contact: https://g.co/vulnz\nExpires: 2030-04-01t00:00:00z\n"  # www.google.com

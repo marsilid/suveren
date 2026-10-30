@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum, IntEnum
 from typing import Any
 
@@ -314,7 +314,7 @@ def grade_for(score: int) -> str:
 @dataclass(slots=True)
 class Report:
     target: str
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None
     dependencies: list[Dependency] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)

@@ -19,7 +19,7 @@ import asyncio
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -38,7 +38,7 @@ from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
 from suveren.websec import TlsInfo, run_web_checks
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 POSITIVE = {Status.WARN.value, Status.FAIL.value}
 
 # Keys are put together at run time, so that no scanner takes this file for a leak.

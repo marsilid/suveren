@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -50,7 +50,7 @@ class CompanyReport:
     site_problem: str | None = None
     checks: list[Check] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None
 
     @property
@@ -546,8 +546,6 @@ async def run_company(
             except ModuleError as exc:
                 report.notes.append(f"Санкционные списки: {exc}.")
 
-    report.checks = build_checks(
-        report, sanctions_ok=sanctions_ok, today=datetime.now(timezone.utc).date()
-    )
-    report.finished_at = datetime.now(timezone.utc)
+    report.checks = build_checks(report, sanctions_ok=sanctions_ok, today=datetime.now(UTC).date())
+    report.finished_at = datetime.now(UTC)
     return report

@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +34,7 @@ VIEWS = {"desktop": (1280, 900), "phone": (390, 844)}
 SCHEMES = ("light", "dark")
 # Share of pixels that may differ before a shot counts as changed (antialiasing).
 TOLERANCE = 0.002
-FIXED = datetime(2026, 10, 22, 12, 0, tzinfo=timezone.utc)
+FIXED = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 
 
 def sample_html(case_name: str = "lab-ga-no-banner") -> str:

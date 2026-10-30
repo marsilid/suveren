@@ -12,7 +12,7 @@ plugin's own prefix (here EX-SEC-001), never SUV-. See docs/plugins.md.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -69,7 +69,7 @@ def verdict(status: int | None, content_type: str, text: str, now: datetime) -> 
             value = expires[0].upper().replace("Z", "+00:00")
             when = datetime.fromisoformat(value)
             if when.tzinfo is None:
-                when = when.replace(tzinfo=timezone.utc)
+                when = when.replace(tzinfo=UTC)
             if when < now:
                 problems.append(f"срок в Expires истёк {when:%d.%m.%Y}")
         except ValueError:
@@ -96,6 +96,6 @@ async def run(ctx: PluginContext) -> list[Check]:
             resp.status_code,
             resp.headers.get("content-type", ""),
             resp.text[:20_000],
-            datetime.now(timezone.utc),
+            datetime.now(UTC),
         )
     ]
