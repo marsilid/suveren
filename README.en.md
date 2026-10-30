@@ -26,6 +26,9 @@ The tool, its reports and the detailed guide are in Russian, as is the law it ch
 
 ![Suveren in a terminal](docs/demo.svg)
 
+<sub>The pictures show made-up sites in the reserved `.test` zone: real audit data with names,
+addresses and IPs replaced, so no real company is shown.</sub>
+
 ## What it checks
 
 | | Question | What is looked at |
