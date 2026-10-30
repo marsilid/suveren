@@ -64,7 +64,7 @@ it needs ([Python 3.10+](https://www.python.org/downloads/) required).
 ### Any system
 
 ```bash
-pip install "suveren[browser] @ git+https://github.com/marsilid/suveren.git"
+pip install "suveren[browser]"
 suveren scan example.ru
 ```
 

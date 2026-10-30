@@ -37,12 +37,23 @@ browser = ["playwright>=1.45"]
 
 [project.urls]
 Homepage = "https://github.com/marsilid/suveren"
+Documentation = "https://github.com/marsilid/suveren/blob/main/docs/guide.md"
+Changelog = "https://github.com/marsilid/suveren/blob/main/CHANGELOG.md"
+Issues = "https://github.com/marsilid/suveren/issues"
 
 [project.scripts]
 suveren = "suveren.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/suveren"]
+
+# The source package on PyPI: the code and what its tests need, not the repo's
+# screenshots, CI and editor settings.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/", "tests/", "tools/",
+    "README.md", "README.en.md", "CHANGELOG.md", "LICENSE", "COPYRIGHT", "pyproject.toml",
+]
 
 [tool.ruff]
 line-length = 100

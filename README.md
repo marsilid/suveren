@@ -64,7 +64,7 @@ DNS-записи, открытые реестры и страницы сайта
 ### Любая система
 
 ```bash
-pip install "suveren[browser] @ git+https://github.com/marsilid/suveren.git"
+pip install "suveren[browser]"
 suveren scan example.ru
 ```
 

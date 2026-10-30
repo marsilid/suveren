@@ -1,8 +1,11 @@
 name: Release
 
 # Pushing a tag like v1.0.0 builds Suveren.exe on Windows plus the wheel and sdist,
-# and attaches them to a GitHub release, so people without Python can just download
-# and run it. Each release also carries:
+# attaches them to a GitHub release, so people without Python can just download and
+# run it, and publishes the wheel and sdist to PyPI (`pip install suveren`) through
+# Trusted Publishing: PyPI trusts this workflow, no token is stored anywhere. A
+# version on PyPI can never be uploaded twice, so the tag must match pyproject.toml.
+# Each release also carries:
 # - suveren-sbom.cdx.json: the CycloneDX SBOM of a clean install (runtime only);
 # - SHA256SUMS.txt: checksums of every file;
 # - build provenance signed with Sigstore (GitHub attestations), checkable with
@@ -28,6 +31,13 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      - name: Tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: >-
+          python -c "import sys, tomllib;
+          v = tomllib.load(open('pyproject.toml', 'rb'))['project']['version'];
+          tag = '${{ github.ref_name }}';
+          sys.exit(0 if tag == 'v' + v else f'tag {tag} does not match version {v}')"
       - name: Install
         run: pip install ".[browser]" pyinstaller build cyclonedx-bom
       - name: Build
@@ -39,6 +49,8 @@ jobs:
         run: |
           dist\Suveren.exe --version
           dist\Suveren.exe services
+      - name: README links for PyPI
+        run: python tools/pypi_readme.py README.md --ref ${{ github.ref_name }}
       - name: Wheel and sdist
         run: python -m build --outdir dist
       - name: SBOM of a clean install
@@ -71,3 +83,21 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+  pypi:
+    needs: windows-exe
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/suveren/
+    permissions:
+      id-token: write # Trusted Publishing and PEP 740 attestations
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Suveren-windows
+          path: artifact
+      - name: Only the wheel and sdist
+        run: mkdir dist && mv artifact/*.whl artifact/*.tar.gz dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
