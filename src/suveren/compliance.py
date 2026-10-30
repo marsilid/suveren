@@ -6,19 +6,42 @@ They point at likely problems; they are not a legal opinion.
 
 from __future__ import annotations
 
+import contextlib
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
 import httpx
 
-from suveren.checks import GROUP_152, Check, Status
+from suveren.checks import GROUP_152, Check, Evidence, Status
+from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
-from suveren.crawl import FetchedPage
-from suveren.discover import discover_inns
-from suveren.errors import ModuleError
+from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
+from suveren.discover import discover_inns, is_requisites_path
+from suveren.errors import ModuleError, describe
+from suveren.inn import find_inns, own_ad_inns
+from suveren.logins import (
+    LoginEvidence,
+    find_evidence,
+    find_login_page,
+    login_check,
+    short_path,
+)
 from suveren.models import Category, Dependency
 from suveren.page import Form, Link, Page, parse_page
+from suveren.pdpolicy import (
+    ConsentFinding,
+    bundled_in_form,
+    bundled_in_text,
+    consent_check,
+    consent_doc_link,
+    cookie_doc_link,
+    implied_in_document,
+    policy_content,
+    policy_reality,
+)
+from suveren.recommend import recommendation_check
 from suveren.registries import RknOperator, rkn_operator
 from suveren.utils import registrable_domain
 
@@ -38,9 +61,21 @@ _PD_FIELD = re.compile(
     r"phone|tel|e-?mail|mail|name|fio|фио|имя|телефон|почт|фамили|contact|whatsapp|telegram",
     re.I,
 )
-_CONSENT_TEXT = re.compile(r"соглас|персональн|политик|privacy|consent", re.I)
+# What a consent checkbox is about: processing, the policy. "Согласен получать рассылку"
+# is a newsletter opt-in, not consent to processing.
+_CONSENT_TEXT = re.compile(
+    r"обработк|персональн|политик\w* конфиденциальн|политик\w* обработк|privacy|consent", re.I
+)
+# A checkbox for news or ads: ticked in advance, it is not the consent to processing.
+_MARKETING_BOX = re.compile(r"news|subscri|mailing|promo|advert|реклам|рассыл|новост", re.I)
+# A statement the visitor makes ("нажимая кнопку, вы соглашаетесь с политикой", "даю
+# согласие на обработку"), not the title of a document linked in the footer. The verb
+# varies: cloudpayments.ru has "вы предоставляете Согласие на обработку".
 _CONSENT_NEARBY = re.compile(
-    r"соглас\w*\s+(?:на|с)\s+(?:обработк|политик|условиям)|обработк\w* (?:моих )?персональных",
+    r"(?:соглаша\w*|согласен|согласна|согласны|(?:даю|да[её]те|да[её]м|предоставля\w*|"
+    r"предоставить|выража\w*|подтвержда\w*)\s+(?:сво[её]\s+)?"
+    r"согласие)(?:\s+[\w-]+){0,3}?\s+(?:на|с|со)\s+(?:обработк|политик|услови|правил)|"
+    r"обработк\w* моих персональных",
     re.I,
 )
 _COOKIE_WIDGETS = re.compile(
@@ -49,9 +84,19 @@ _COOKIE_WIDGETS = re.compile(
     re.I,
 )
 _COOKIE_TEXT = re.compile(r"cookie|куки", re.I)
-_COOKIE_CONTEXT = re.compile(r"соглас|использ|принять|принимаю|accept|продолжая", re.I)
+# Verbs of a notice ("мы используем cookie", "вы соглашаетесь", "принять"), not the nouns
+# of a document title: a footer link "Политика использования файлов cookie" next to
+# "Пользовательское соглашение" is no notice.
+_COOKIE_CONTEXT = re.compile(r"соглаша|согласн|использу|принять|принимаю|accept|продолжая", re.I)
 # Visitor-tracking categories: they set cookies whatever the provider's country.
 _TRACKING = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT})
+# Who receives visitor data as a third party, and who sets cookies, for policy claims.
+_THIRD_PARTIES = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT, Category.SOCIAL})
+_COOKIE_SETTERS = frozenset({Category.ANALYTICS, Category.ADS})
+
+
+def _names(deps: Iterable[Dependency]) -> list[str]:
+    return list(dict.fromkeys(d.service for d in deps))
 
 
 @dataclass(slots=True)
@@ -65,6 +110,7 @@ class PolicyInfo:
     indirect_label: str | None = None
     # The link works but the text could not be read (bot wall, JS shell).
     unreadable: str | None = None
+    scripted: bool = True  # the page has scripts that may draw the text
 
 
 @dataclass(slots=True)
@@ -74,31 +120,37 @@ class ComplianceInput:
     deps: list[Dependency]
     policy: PolicyInfo = field(default_factory=PolicyInfo)
     inns: list[str] = field(default_factory=list)
+    # The ИНН came from the site's own ad label: the advertiser's name, as quoted.
+    inn_from_ad: str | None = None
     operator: RknOperator | None = None
     operator_error: str | None = None
     page_problem: str | None = None
     # Inner pages: (path, raw HTML, parsed page).
     extra: list[tuple[str, str, Page]] = field(default_factory=list)
+    # The sign-in page, if found: (where, parsed page).
+    login: tuple[str, Page] | None = None
+    # The sign-in page answered with a bot wall: (where, why).
+    login_blocked: tuple[str, str] | None = None
+    login_external: str | None = None  # the sign-in page redirected to this host
+    # The pages were opened in a browser: a footer added by scripts was seen too.
+    rendered: bool = False
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
 # anti-bot stub or an empty JavaScript shell.
-_HTML_CHECKS = frozenset(
-    {
-        "Политика обработки персональных данных",
-        "Согласие на обработку в формах",
-        "Уведомление о cookies",
-        "Трансграничная передача данных",
-    }
-)
+# Checks that read the page's HTML (catalog.py IDs): unproven when the page is a shell.
+_HTML_CHECKS = frozenset({"SUV-PD-001", "SUV-PD-003", "SUV-PD-005", "SUV-PD-006", "SUV-PD-004"})
 
 
 def _mark_unverifiable(checks: list[Check], problem: str) -> None:
     for c in checks:
-        if c.title not in _HTML_CHECKS:
+        if c.id not in _HTML_CHECKS:
             continue
         found_something = c.status is Status.OK and c.link  # e.g. a policy link was found
-        if found_something or (c.status is Status.WARN and c.title != "Уведомление о cookies"):
+        if c.id == "SUV-PD-001":
+            if c.link:  # a policy, maybe inside another document, was found after all
+                continue
+        elif found_something or (c.status is Status.WARN and c.id != "SUV-PD-005"):
             continue
         c.status = Status.UNKNOWN
         c.details = f"Не проверено: {problem}."
@@ -166,10 +218,29 @@ def pd_forms(page: Page) -> list[Form]:
         if all(i.type == "search" or i.name in ("q", "s", "search", "query") for i in fields):
             continue
         if any(
-            i.type in ("email", "tel") or _PD_FIELD.search(f"{i.name} {i.hint}") for i in fields
+            (i.type in ("email", "tel") or _PD_FIELD.search(f"{i.name} {i.hint}"))
+            and not _NOT_PD_FIELD.search(i.name)
+            for i in fields
         ):
             result.append(form)
     return result
+
+
+# A gift card, promo code or SMS code typed into a "tel" field is not personal data
+# (vkusvill.ru's cart: <input type="tel" name="GIFT_CARD">). Only the field's name is
+# read: CSS classes say "card" for an e-mail field in a card layout (banki.ru) and
+# "SignInBySms" for a phone (citilink.ru).
+# "name" and "tel" also sit in the names of things: tutu.ru's ticket search has
+# city_name_from, a hotel search has hotel_name.
+_NOT_PD_FIELD = re.compile(
+    r"card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|amount|qty|quantity|"
+    r"city|town|station|airport|country|region|hotel|product|goods|item|file",
+    re.I,
+)
+_FIRST_STEP = re.compile(
+    r"(?<!\w)(?:продолжить|далее|получить код|отправить код|выбрать станцию|next|continue)(?!\w)",
+    re.I,
+)
 
 
 def _unique_forms(located: list[tuple[str, Form]]) -> list[tuple[str, Form]]:
@@ -216,9 +287,34 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             Check(
                 GROUP_152,
                 "Политика обработки персональных данных",
-                Status.FAIL,
-                "На проверенных страницах нет ссылки на политику обработки персональных данных. "
-                "Если подвал сайта подгружается скриптом, проверьте вручную.",
+                # Unproven if the sign-in page, where the link sometimes is, was a bot wall,
+                # or without a browser: footers added by scripts (mos.ru) are not in the HTML.
+                # The duty to publish it on the site is for an operator collecting data
+                # through the site (152-ФЗ, ст. 18.1 ч. 2): with no form or counter seen,
+                # that is not proven either.
+                Status.FAIL
+                if data.rendered and not data.login_blocked and (forms or tracking)
+                else Status.WARN,
+                "На проверенных страницах нет ссылки на политику обработки персональных данных."
+                + (
+                    ""
+                    if forms or tracking
+                    else " Форм и счётчиков, собирающих данные, на них тоже нет: если сайт "
+                    "совсем не собирает данные посетителей, публиковать политику на нём не "
+                    "обязательно."
+                )
+                + (
+                    ""
+                    if data.rendered
+                    else " Без браузера не виден подвал, который подгружается скриптами: "
+                    "перепроверьте в режиме --browser."
+                )
+                + (
+                    f" Страница входа ({data.login_blocked[0]}) не открылась: "
+                    f"{data.login_blocked[1]}, а ссылка бывает только там."
+                    if data.login_blocked
+                    else ""
+                ),
                 "Опубликуйте политику и поставьте ссылку на неё в подвале сайта и рядом с каждой "
                 "формой (152-ФЗ, ст. 18.1 ч. 2).",
             )
@@ -237,13 +333,19 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
     elif policy.error:
+        gone = policy.error.startswith("такой страницы нет")
         checks.append(
             Check(
                 GROUP_152,
                 "Политика обработки персональных данных",
-                Status.WARN,
-                f"Ссылка на политику есть, но страница не открылась: {policy.error}.",
-                "Проверьте, что ссылка рабочая.",
+                # A 404 is the site's fault; a timeout is the network's, not a finding
+                # (kp.ru's policy timed out in one of two runs on 2026-10-23).
+                Status.WARN if gone else Status.UNKNOWN,
+                f"Ссылка на политику есть, но страница не открылась: {policy.error}."
+                + ("" if gone else " Содержание политики не проверено."),
+                "Опубликуйте политику по этому адресу или исправьте ссылку (152-ФЗ, ст. 18.1 ч. 2)."
+                if gone
+                else "Проверьте, что ссылка открывается, и повторите проверку.",
                 link=policy.url,
             )
         )
@@ -265,7 +367,25 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
-            checks.append(_policy_content(policy.text, bool(foreign_visitor)))
+            checks.append(policy_content(policy.text, bool(foreign_visitor), policy.scripted))
+            site = " ".join([html, *(h for _, h, _ in data.extra)])
+            site_inns = [] if data.inn_from_ad else find_inns(site)
+            hosts = {urlsplit(u).hostname or "" for u in (data.final_url, policy.url) if u}
+            checks.append(
+                policy_reality(
+                    policy.text,
+                    _names(d for d in data.deps if d.category in _THIRD_PARTIES),
+                    _names(foreign_visitor),
+                    _names(d for d in data.deps if d.category in _COOKIE_SETTERS),
+                    collected=collected(forms),
+                    site_inn=site_inns[0] if site_inns else None,
+                    own={registrable_domain(h) for h in hosts if h},
+                    cookie_doc=any(
+                        cookie_doc_link(pg.links, data.final_url or "", policy.url)
+                        for pg in [page, *(p for _, _, p in data.extra)]
+                    ),
+                )
+            )
 
     # 2. Consent in forms.
     if not forms:
@@ -288,21 +408,54 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         # page mentions it, the form is "probably fine" rather than a clear failure.
         page_texts = {"главная": page.text, **{p: pg.text for p, _, pg in data.extra}}
         missing = [(p, f) for p, f in located if not _form_has_consent(f)]
-        hard = [(p, f) for p, f in missing if not _CONSENT_NEARBY.search(page_texts.get(p, ""))]
-        soft = [(p, f) for p, f in missing if (p, f) not in hard]
-        prechecked = [f for f in forms if any(i.type == "checkbox" and i.checked for i in f.inputs)]
-        if hard:
-            where = ", ".join(dict.fromkeys(p for p, _ in hard))
+        unseen = [(p, f) for p, f in missing if not _CONSENT_NEARBY.search(page_texts.get(p, ""))]
+        # The first step of a multi-step form ("Отправим СМС… Продолжить") often shows the
+        # consent on a later step that plain HTML does not have: not a proven failure.
+        steps = [(p, f) for p, f in unseen if _FIRST_STEP.search(f.text)]
+        hard = [x for x in unseen if x not in steps]
+        soft = [(p, f) for p, f in missing if (p, f) not in unseen]
+        prechecked = [
+            f
+            for f in forms
+            if any(
+                i.type == "checkbox"
+                and i.checked
+                and not _MARKETING_BOX.search(f"{i.name} {i.hint}")
+                for i in f.inputs
+            )
+        ]
+        if steps and not hard:
+            where = ", ".join(dict.fromkeys(p for p, _ in steps))
             checks.append(
                 Check(
                     GROUP_152,
                     "Согласие на обработку в формах",
-                    Status.FAIL,
+                    Status.WARN,
+                    f"Форм с персональными данными: {len(forms)}. Согласия не видно в "
+                    f"первом шаге формы ({where}). Если оно появляется на следующем шаге, "
+                    "всё в порядке: проверьте, пройдя форму до конца.",
+                    "Согласие должно быть дано до того, как данные отправлены. Если на "
+                    "первом шаге уже собирается телефон или имя, покажите согласие там же.",
+                )
+            )
+        elif hard:
+            where = ", ".join(dict.fromkeys(p for p, _ in hard))
+            # Not FAIL: whether consent is needed depends on what the form is for, which
+            # can't be seen from outside. A request to sign a contract (ст. 6 ч. 1 п. 5)
+            # or an appeal to a state body (59-ФЗ, п. 2) needs none: kremlin.ru, pochta.ru.
+            checks.append(
+                Check(
+                    GROUP_152,
+                    "Согласие на обработку в формах",
+                    Status.WARN,
                     f"Форм с персональными данными: {len(forms)}. Рядом с {len(hard)} из них "
-                    f"не найдено согласия на обработку данных ({where}).",
-                    "Добавьте в каждую форму отдельный чекбокс согласия со ссылкой на текст "
-                    "согласия. С 1 сентября 2025 года согласие должно оформляться отдельно от "
-                    "других документов (152-ФЗ, ст. 9).",
+                    f"не найдено согласия на обработку данных ({where}). Нужно ли оно, "
+                    "зависит от цели формы: снаружи её не видно.",
+                    "Согласие не нужно, если данные нужны только для заключения или "
+                    "исполнения договора по просьбе посетителя (152-ФЗ, ст. 6 ч. 1 п. 5); в "
+                    "остальных случаях получите его до отправки формы, например отдельным "
+                    "чекбоксом со ссылкой на текст согласия. С 1 сентября 2025 года согласие "
+                    "оформляется отдельно от других документов (ст. 9 ч. 1).",
                 )
             )
         elif soft:
@@ -340,6 +493,11 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 )
             )
 
+    # 2a. Consent drawn up separately from other documents.
+    separate = _consent_check(data, located)
+    if separate:
+        checks.append(separate)
+
     # 3. Cookie notice.
     if tracking:
         names = ", ".join(dict.fromkeys(d.service for d in tracking))
@@ -373,8 +531,9 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Трансграничная передача данных",
                 Status.WARN,
                 f"Данные посетителей уходят иностранным сервисам: {names}.",
-                "Уведомите Роскомнадзор о трансграничной передаче (152-ФЗ, ст. 12, требование "
-                "действует с 1 марта 2023 года) или замените сервисы на российские.",
+                "Уведомите Роскомнадзор о трансграничной передаче до её начала, отдельно от "
+                "уведомления об обработке (152-ФЗ, ст. 12 ч. 3, с 1 марта 2023 года), или "
+                "замените сервисы на российские.",
             )
         )
     else:
@@ -391,20 +550,35 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     hosting = [d for d in data.deps if d.category is Category.HOSTING]
     if any(d.foreign for d in hosting):
         where = ", ".join(f"{d.service} ({d.country_ru})" for d in hosting if d.foreign)
+        # FAIL needs the data to land on that server: a form posting to the site itself.
+        # A form sent elsewhere (a Russian CRM, a form service) keeps its base there.
+        here = [f for f in forms if _posts_to_site(f.action, data.final_url)]
+        away = sorted({urlsplit(f.action).hostname or "" for f in forms if f not in here})
+        if here:
+            about = (
+                " На нём есть формы сбора данных, и они отправляются на этот же сайт: если "
+                "заявки сохраняются на этом сервере, база с персональными данными находится "
+                "за рубежом."
+            )
+        elif forms:
+            about = (
+                f" Формы с данными отправляются на {', '.join(away)}: база, вероятно, там. "
+                "Проверьте, где хранятся заявки."
+            )
+        else:
+            about = ""
         checks.append(
             Check(
                 GROUP_152,
                 "Хранение данных в России",
-                Status.FAIL if forms else Status.WARN,
-                f"Сайт размещён за рубежом: {where}."
-                + (
-                    " На нём есть формы сбора данных: если заявки сохраняются на этом "
-                    "сервере, база с персональными данными находится за рубежом."
-                    if forms
-                    else ""
-                ),
-                "Перенесите сайт и базу данных к российскому провайдеру: базы с персональными "
-                "данными граждан РФ должны храниться в России (152-ФЗ, ст. 18 ч. 5).",
+                Status.FAIL if here else Status.WARN,
+                f"Сайт размещён за рубежом: {where}." + about,
+                "Перенесите сайт и базу данных к российскому провайдеру: при сборе данных "
+                "граждан РФ записывать и хранить их в базах за рубежом нельзя (152-ФЗ, ст. 18 "
+                "ч. 5 в ред. от 01.07.2025). Исключения — случаи ст. 6 ч. 1 п. 2, 3, 4, 8: "
+                "обработка по международному договору или закону (например, бронирование "
+                "билетов на международные рейсы), правосудие, госуслуги, работа журналистов "
+                "и СМИ.",
             )
         )
     elif hosting and all(d.foreign is False for d in hosting):
@@ -417,7 +591,9 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 GROUP_152,
                 "Хранение данных в России",
                 Status.UNKNOWN,
-                "Не удалось определить, где находится сервер (например, сайт за CDN).",
+                "Не удалось определить, где находится сервер (например, сайт за CDN)."
+                if hosting or any(d.category is Category.CDN for d in data.deps)
+                else "Не удалось определить, где находится сервер: IP-адреса сайта не получены.",
                 "Убедитесь, что база с персональными данными хранится в России.",
             )
         )
@@ -429,8 +605,12 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             Check(
                 GROUP_152,
                 "Защищённое соединение",
-                Status.FAIL,
-                "Сайт открывается без HTTPS: данные из форм передаются в открытом виде.",
+                Status.FAIL if forms else Status.WARN,
+                "Сайт открывается без HTTPS: данные из форм передаются в открытом виде."
+                if forms
+                else "Сайт открывается без HTTPS: форм на проверенных страницах нет, но адрес "
+                "посетителя, cookies и всё, что он введёт на других страницах, передаются в "
+                "открытом виде.",
                 "Включите HTTPS и перенаправление с HTTP.",
             )
         )
@@ -454,54 +634,162 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     if data.page_problem:
         _mark_unverifiable(checks, data.page_problem)
     for check in checks:
-        check.law = check.law or LAW_BY_TITLE.get(check.title)
+        check.law = check.law or LAW_BY_ID.get(check.id)
+        if check.status is not Status.UNKNOWN and not check.evidence:
+            check.evidence = evidence(data, located, check.id)
     return checks
 
 
+_SHOWN_EVIDENCE = 10
+_PAGE_CATEGORIES = frozenset(c for c in Category if c.info.visitor_data)
+
+
+def _dep_evidence(deps: list[Dependency]) -> list[Evidence]:
+    """Where each service was seen: a script or request address on the page, or a DNS
+    answer for infrastructure (hosting, CDN)."""
+    return [
+        Evidence("url" if d.category in _PAGE_CATEGORIES else "dns", d.service, d.evidence)
+        for d in deps[:_SHOWN_EVIDENCE]
+    ]
+
+
+def evidence(
+    data: ComplianceInput, located: list[tuple[str, Form]], check_id: str
+) -> list[Evidence]:
+    """What a 152-ФЗ check rests on: the policy address, the forms as found (their fields
+    and whether a consent statement is next to them), the services and their addresses."""
+    policy = data.policy
+    if check_id in ("SUV-PD-001", "SUV-PD-002", "SUV-PD-011"):
+        pages = ["главная", *(path for path, _, _ in data.extra)]
+        found = [Evidence("url", "Ссылка на политику", policy.url or "")]
+        if check_id == "SUV-PD-001":
+            found.append(Evidence("url", "Проверенные страницы", ", ".join(pages)))
+        return found
+    if check_id == "SUV-PD-003":
+        return [
+            Evidence(
+                "html",
+                f"Форма на странице {where}",
+                f"поля: {_fields(form)}; согласие рядом: "
+                + ("есть" if _form_has_consent(form) else "нет")
+                + (
+                    "; галочка уже стоит"
+                    if any(i.checked for i in form.inputs if i.type == "checkbox")
+                    else ""
+                ),
+            )
+            for where, form in located[:_SHOWN_EVIDENCE]
+        ]
+    if check_id == "SUV-PD-005":
+        return _dep_evidence([d for d in data.deps if d.category in _TRACKING])
+    if check_id == "SUV-PD-006":
+        return _dep_evidence([d for d in data.deps if d.foreign and d.category.info.visitor_data])
+    if check_id == "SUV-PD-007":
+        return _dep_evidence([d for d in data.deps if d.category is Category.HOSTING])
+    if check_id == "SUV-PD-008":
+        insecure = [f.action for _, f in located if f.action.lower().startswith("http://")]
+        return [Evidence("url", "Адрес сайта", data.final_url or "")] + [
+            Evidence("html", "Форма отправляется на", a) for a in insecure[:_SHOWN_EVIDENCE]
+        ]
+    return []
+
+
+def _posts_to_site(action: str, base: str | None) -> bool:
+    """A form sent to the site itself: no action, a relative one or the site's domain.
+    One sent by a script (no action) is counted here: where it goes can't be seen."""
+    host = urlsplit(urljoin(base or "", action)).hostname or ""
+    site = urlsplit(base or "").hostname or ""
+    return not host or not site or registrable_domain(host) == registrable_domain(site)
+
+
+def _fields(form: Form) -> str:
+    shown = [i for i in form.inputs if i.type not in ("hidden", "submit", "button", "image")]
+    return ", ".join(f"{i.name or i.hint or '?'} ({i.type})" for i in shown[:8]) or "нет"
+
+
 # Where each conclusion comes from in the law, shown next to it in the report.
-LAW_BY_TITLE = {
-    "Политика обработки персональных данных": "152-ФЗ, ст. 18.1",
-    "Содержание политики": "152-ФЗ, ст. 18.1",
-    "Согласие на обработку в формах": "152-ФЗ, ст. 9",
-    "Уведомление о cookies": "152-ФЗ, ст. 9",
-    "Трансграничная передача данных": "152-ФЗ, ст. 12",
-    "Хранение данных в России": "152-ФЗ, ст. 18 ч. 5",
-    "Защищённое соединение": "152-ФЗ, ст. 19",
-    "Реестр операторов персональных данных": "152-ФЗ, ст. 22",
+LAW_BY_ID = {
+    "SUV-PD-001": "152-ФЗ, ст. 18.1",
+    "SUV-PD-002": "152-ФЗ, ст. 18.1",
+    "SUV-PD-011": "152-ФЗ, ст. 18.1",
+    "SUV-PD-003": "152-ФЗ, ст. 9",
+    "SUV-PD-004": "152-ФЗ, ст. 9 ч. 1",
+    "SUV-PD-005": "152-ФЗ, ст. 9",
+    "SUV-PD-006": "152-ФЗ, ст. 12",
+    "SUV-PD-007": "152-ФЗ, ст. 18 ч. 5",
+    "SUV-PD-008": "152-ФЗ, ст. 19",
+    "SUV-PD-009": "152-ФЗ, ст. 22",
 }
+
+
+# What a form field asks for, by its type and name: the words of pdpolicy.DATA_WORDS.
+_ASKS = (
+    ("phone", re.compile(r"phone|tel|телефон|mobile", re.I)),
+    ("email", re.compile(r"e-?mail|почт", re.I)),
+    (
+        "name",
+        re.compile(r"(?<![a-z])(?:name|fio|first_?name|last_?name)(?![a-z])|фио|имя|фамили", re.I),
+    ),
+)
+
+
+def collected(forms: list[Form]) -> list[str]:
+    """What the forms ask a visitor for: phone, email, name."""
+    found = set()
+    for form in forms:
+        for i in form.inputs:
+            if i.type in ("tel", "email"):
+                found.add("phone" if i.type == "tel" else "email")
+                continue
+            if i.type not in ("text", ""):
+                continue
+            hint = f"{i.name} {i.hint}"
+            if _NOT_PD_FIELD.search(i.name):
+                continue
+            found |= {kind for kind, rx in _ASKS if rx.search(hint)}
+    return [k for k in ("phone", "email", "name") if k in found]
 
 
 def _form_has_consent(form: Form) -> bool:
     if any(i.type == "checkbox" for i in form.inputs) and _CONSENT_TEXT.search(form.text):
         return True
-    return bool(re.search(r"персональн\w* данн|соглас\w* на обработк", form.text, re.I))
+    # A statement ("нажимая кнопку, вы соглашаетесь с политикой"), not any mention of
+    # personal data: "мы не храним ваши персональные данные" is no consent.
+    return bool(_CONSENT_NEARBY.search(form.text))
 
 
-def _policy_content(text: str, foreign: bool) -> Check:
-    low = text.lower()
-    required = {
-        "ссылка на 152-ФЗ": "152-фз" in low or "о персональных данных" in low,
-        "кто оператор": "оператор" in low,
-        "цели обработки": bool(re.search(r"цел[ьи]\w*", low)),
-        "права субъекта и отзыв согласия": "отзыв" in low or "права субъект" in low,
-    }
-    if foreign:
-        required["трансграничная передача"] = "трансграничн" in low
-    missing = [name for name, ok in required.items() if not ok]
-    if not missing:
-        return Check(
-            GROUP_152,
-            "Содержание политики",
-            Status.OK,
-            "В политике есть основные обязательные разделы.",
-        )
-    return Check(
-        GROUP_152,
-        "Содержание политики",
-        Status.WARN,
-        "В тексте политики не найдено: " + ", ".join(missing) + ".",
-        "Дополните политику недостающими разделами.",
-    )
+def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Check | None:
+    findings = []
+    for where, form in located:
+        quote = bundled_in_form(form)
+        if quote:
+            findings.append(ConsentFinding(where, quote, "form"))
+    if data.login:
+        quote = bundled_in_text(data.login[1].text)
+        if quote:
+            findings.append(ConsentFinding(data.login[0], quote, "page"))
+    policy = data.policy
+    if policy.text:
+        quote = implied_in_document(policy.text)
+        if quote:
+            label = f"«{policy.indirect_label}»" if policy.indirect_label else "политика"
+            findings.append(ConsentFinding(label, quote, "doc"))
+    base = data.final_url or ""
+    separate = None
+    for url, page in [(base, data.page), *((urljoin(base, p), pg) for p, _, pg in data.extra)]:
+        link = consent_doc_link(page.links)
+        if link:
+            separate = urljoin(url, link.href.strip())
+            break
+    check = consent_check(findings, separate, len(located))
+    if check is not None:
+        # The statements as quoted, and the separate consent document if there is one.
+        check.evidence = [
+            Evidence("html", f"Текст ({f.where})", f.quote) for f in findings[:_SHOWN_EVIDENCE]
+        ]
+        if separate:
+            check.evidence.append(Evidence("url", "Отдельный документ согласия", separate))
+    return check
 
 
 def _operator_check(data: ComplianceInput) -> Check:
@@ -516,16 +804,27 @@ def _operator_check(data: ComplianceInput) -> Check:
             "suveren company <ИНН>.",
         )
     inn = data.inns[0]
+    source = (
+        f" ИНН взят из маркировки рекламы на сайте: рекламодатель «{data.inn_from_ad}» носит "
+        "имя сайта, других реквизитов на проверенных страницах нет."
+        if data.inn_from_ad
+        else ""
+    )
     if data.operator_error:
-        return Check(GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.")
+        return Check(GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.{source}")
     if data.operator is None:
         return Check(
             GROUP_152,
             title,
             Status.WARN,
-            f"Организация с ИНН {inn} не найдена в реестре операторов персональных данных.",
+            f"Организация с ИНН {inn} не найдена в реестре операторов персональных данных."
+            + source,
             "Подайте уведомление в Роскомнадзор: это обязательно почти для всех операторов "
             "до начала обработки данных (152-ФЗ, ст. 22).",
+            evidence=[
+                Evidence("html", "ИНН на сайте", inn),
+                Evidence("registry", "Реестр операторов Роскомнадзора, поиск по ИНН", ""),
+            ],
         )
     op = data.operator
     since = op.registered.strftime("%d.%m.%Y") if op.registered else "?"
@@ -533,7 +832,7 @@ def _operator_check(data: ComplianceInput) -> Check:
         GROUP_152,
         title,
         Status.OK,
-        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.",
+        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{source}",
         link=op.url,
     )
 
@@ -564,12 +863,24 @@ async def fetch_policy(
         status, html, content_type = prefetched.status, prefetched.html, "text/html"
     else:
         try:
-            resp = await client.get(url)
-        except httpx.HTTPError as exc:
-            info.error = type(exc).__name__
+            resp = await get_once_more(client, url)
+        except httpx.TimeoutException:
+            info.error = "сайт не ответил вовремя"
             return info
+        except httpx.HTTPError as exc:
+            info.error = describe(exc)
+            return info
+        if resp.status_code in (404, 410):
+            # sravni.ru's policy answered 404 in one of two runs and 200 in the other: a
+            # 404 is a finding, so it is asked twice before it counts.
+            with contextlib.suppress(httpx.HTTPError):
+                resp = await client.get(url)
         status, html = resp.status_code, resp.text[:3_000_000]
         content_type = resp.headers.get("content-type", "")
+        if status in (404, 410):
+            # The link leads nowhere: no policy is published, whatever the link says.
+            info.error = f"такой страницы нет (код {status})"
+            return info
     info.fetched = True
     if "pdf" in content_type:
         info.is_pdf = True
@@ -580,6 +891,7 @@ async def fetch_policy(
         info.unreadable = problem
     else:
         info.text = parse_page(html).text
+        info.scripted = "<script" in html.lower()
     return info
 
 
@@ -591,27 +903,189 @@ async def run_compliance(
     page_problem: str | None = None,
     extra_pages: list[FetchedPage] | None = None,
     prefetched: dict[str, FetchedPage] | None = None,
+    loaded_urls: list[str] | None = None,
+    rendered: bool = False,
 ) -> list[Check]:
-    """``prefetched`` holds pages already opened in the browser (the policy), keyed by URL."""
+    """``prefetched`` holds pages already opened in the browser (the policy, the sign-in
+    page), keyed by URL; ``loaded_urls`` are the home page's requests in the browser."""
     page = parse_page(html)
-    data = ComplianceInput(final_url=final_url, page=page, deps=deps, page_problem=page_problem)
+    data = ComplianceInput(
+        final_url=final_url, page=page, deps=deps, page_problem=page_problem, rendered=rendered
+    )
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     prefetched = prefetched or {}
-    target = policy_target(page, [(urljoin(base, p), pg) for p, _, pg in data.extra], base)
+    # The sign-in page: foreign sign-in buttons, and sometimes the only policy link
+    # (drom.ru links its policy from "При входе вы принимаете...").
+    login = await _login_page(client, data, prefetched)
+    extras = [(urljoin(base, p), pg) for p, _, pg in data.extra]
+    if login:
+        login_page = parse_page(login.html)
+        extras.append((login.url, login_page))
+        data.login = (_where(login.url, base), login_page)
+    target = policy_target(page, extras, base)
+    if target is None or target[1] is not None:
+        # No direct link: the policy is often one page away, in a list of documents
+        # (beget.com: "Правила и лицензии"). Check that before falling back on an offer.
+        via_hub = await _policy_via_hub(client, [(base, page), *extras], base)
+        if via_hub:
+            target = (via_hub, None)
     if target and target[1] is None:
         data.policy = await fetch_policy(client, target[0], prefetched.get(target[0]))
-    elif target:
+    elif target and target[1] is not None:
         doc = await fetch_policy(client, target[0], prefetched.get(target[0]))
         if doc.fetched and "персональн" in doc.text.lower():
             doc.indirect_label = target[1][:60]
             data.policy = doc
     if base:
-        extra_text = " ".join([data.policy.text, *(h for _, h, _ in data.extra)])
+        own = [h for path, h, _ in data.extra if is_requisites_path(path)]
+        extra_text = " ".join([data.policy.text, *own])
         data.inns, _ = await discover_inns(client, base, html, extra_text)
+        if not data.inns:
+            pages = " ".join([html, *(h for _, h, _ in data.extra)])
+            own_ads = own_ad_inns(pages, urlsplit(base).hostname or "")
+            if own_ads:
+                data.inns, data.inn_from_ad = [own_ads[0][0]], own_ads[0][1]
     if data.inns:
         try:
             data.operator = await rkn_operator(client, data.inns[0])
         except ModuleError as exc:
             data.operator_error = str(exc)
-    return evaluate(data, html)
+    checks = evaluate(data, html)
+    loaded = {p.path: p.loaded_urls for p in extra_pages or []}
+    checks.append(_foreign_login(data, html, loaded_urls or [], loaded, login))
+    recommendations = recommendation_check([html, *(h for _, h, _ in data.extra)])
+    if recommendations:
+        checks.append(recommendations)
+    return checks
+
+
+_HUB_TEXT = re.compile(
+    r"^(?:документ\w*|правовая информация|правовые документы|юридическая информация|"
+    r"правила(?: и лицензии| и документы| сервиса| сайта)?|договор\w*|"
+    r"документы и (?:правила|лицензии)|legal|documents)$",
+    re.I,
+)
+MAX_HUBS = 3
+
+
+def hub_links(pages: list[tuple[str, Page]], base: str) -> list[str]:
+    """The site's own pages that list its legal documents, from link text alone."""
+    site = registrable_domain(urlsplit(base).hostname or "")
+    found: list[str] = []
+    for url, page in pages:
+        for link in page.links:
+            href = link.href.strip()
+            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                continue
+            if not _HUB_TEXT.match(" ".join(link.text.split())):
+                continue
+            absolute = urljoin(url, href)
+            if registrable_domain(urlsplit(absolute).hostname or "") != site:
+                continue
+            if absolute not in found:
+                found.append(absolute)
+    return found[:MAX_HUBS]
+
+
+async def _policy_via_hub(
+    client: httpx.AsyncClient, pages: list[tuple[str, Page]], base: str
+) -> str | None:
+    for url in hub_links(pages, base):
+        doc = await _fetch_html(client, url)
+        if doc is None or detect_page_problem(doc.status, doc.html, rendered=False):
+            continue
+        # The hub's table of contents links to its own sections (#politika...); the
+        # document itself is the link inside that section (beget.com: a PDF).
+        here = urldefrag(doc.url)[0]
+        links = [
+            link
+            for link in parse_page(doc.html).links
+            if urldefrag(urljoin(doc.url, link.href.strip()))[0] != here
+        ]
+        found = find_policy_link(links, doc.url)
+        if found:
+            return found
+    return None
+
+
+async def _login_page(
+    client: httpx.AsyncClient, data: ComplianceInput, prefetched: dict[str, FetchedPage]
+) -> FetchedPage | None:
+    base = data.final_url or ""
+    if not base or data.page_problem:
+        return None
+    url = find_login_page(data.page, base)
+    if not url or urlsplit(url).path in {p for p, _, _ in data.extra}:
+        return None
+    doc = prefetched.get(url) or await _fetch_html(client, url)
+    if doc is None:
+        return None
+    # A redirect to another company's sign-in (Yandex ID, a corporate SSO): its buttons
+    # and its policy link are not this site's.
+    host = (urlsplit(doc.url).hostname or "").lower()
+    if host and registrable_domain(host) != registrable_domain(urlsplit(base).hostname or ""):
+        data.login_external = host
+        return None
+    # A sign-in page is short by nature and often has a captcha, so a bot wall is
+    # told apart by having no field to type a login into (drom.ru redirects to /verify).
+    wall = bot_wall(doc.status, doc.html)
+    fields = {i.type for f in parse_page(doc.html).forms for i in f.inputs}
+    if (doc.status or 200) >= 400 or (wall and not fields & _LOGIN_FIELDS):
+        data.login_blocked = (_where(url, base), wall or f"ответ {doc.status}")
+        return None
+    return doc
+
+
+_LOGIN_FIELDS = frozenset({"text", "email", "tel", "password"})
+
+
+def _foreign_login(
+    data: ComplianceInput,
+    html: str,
+    loaded_urls: list[str],
+    extra_loaded: dict[str, list[str]],
+    doc: FetchedPage | None,
+) -> Check:
+    """Look for foreign sign-in on the pages already fetched and on the sign-in page."""
+    base = data.final_url or ""
+    evidence: list[LoginEvidence] = []
+    pages: list[str] = []
+    if not data.page_problem:
+        evidence += find_evidence(html, data.page, base, "главная", loaded_urls)
+        pages.append("главная")
+    for path, extra_html, extra in data.extra:
+        where = short_path(unquote(path))
+        evidence += find_evidence(
+            extra_html, extra, urljoin(base, path), where, extra_loaded.get(path, [])
+        )
+        if where not in pages:
+            pages.append(where)
+    shell: str | None = None
+    if doc and data.login:
+        where, login_page = data.login
+        evidence += find_evidence(doc.html, login_page, doc.url, where, doc.loaded_urls)
+        pages.insert(1 if pages[:1] == ["главная"] else 0, where)  # shown first
+        if not doc.loaded_urls and len(login_page.text) < 300:
+            shell = where
+    return login_check(
+        evidence, pages, data.page_problem, shell, data.login_blocked, data.login_external
+    )
+
+
+def _where(url: str, base: str) -> str:
+    """Path for people; the host too if it is another subdomain (my.drom.ru/sign)."""
+    parts = urlsplit(url)
+    path = parts.path or "/"
+    same = parts.hostname == urlsplit(base).hostname
+    return short_path(path if same else f"{parts.hostname}{path}")
+
+
+async def _fetch_html(client: httpx.AsyncClient, url: str) -> FetchedPage | None:
+    try:
+        resp = await client.get(url)
+    except httpx.HTTPError:
+        return None
+    if "html" not in resp.headers.get("content-type", "html"):
+        return None
+    return FetchedPage(str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS])

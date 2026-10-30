@@ -20,6 +20,7 @@ type (NOERROR/NODATA or NXDOMAIN). Anything that prevents a trustworthy answer
 from __future__ import annotations
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from typing import Literal
 
@@ -29,7 +30,7 @@ import dns.nameserver
 import dns.resolver
 import httpx
 
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 
 # "ru" never sends a query outside Russia: the system resolver is not used either,
 # since it may forward to anything.
@@ -57,8 +58,11 @@ RR_TYPES = {
     "CAA": 257,
 }
 HEALTH_TIMEOUT = 3.0
-_system_healthy: bool | None = None
-_dot_healthy: bool | None = None
+# Health answers are remembered for the process (batch scans many sites in a row), but a
+# failure only for a while: the nightly run starts as the laptop wakes from sleep, before
+# the network is up, and one early failure sent all 300 sites of 2026-10-23 to Google DoH.
+HEALTH_RETRY = 120.0
+_health: dict[str, tuple[bool, float]] = {}
 
 DOH_ENDPOINTS = ("https://dns.google/resolve", "https://cloudflare-dns.com/dns-query")
 
@@ -76,6 +80,11 @@ class DnsResolver(ABC):
     @abstractmethod
     async def exists(self, domain: str) -> bool:
         """False only on a definitive NXDOMAIN."""
+
+    async def node_exists(self, name: str) -> bool | None:
+        """True on NOERROR, even with no records (an empty non-terminal, RFC 2308);
+        False on NXDOMAIN; None when the answer can't be trusted."""
+        return None
 
     async def is_healthy(self) -> bool:
         async def probe(name: str, rtype: str) -> bool:
@@ -112,7 +121,9 @@ class SystemResolver(DnsResolver):
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             return []
         except (dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
-            raise DnsLookupError(f"DNS lookup {name} {rtype} failed: {type(exc).__name__}") from exc
+            timeout = isinstance(exc, dns.exception.Timeout)
+            why = "не ответил вовремя" if timeout else "вернул ошибку"
+            raise DnsLookupError(f"DNS {why} на запрос {rtype} {name}") from exc
         if rtype == "TXT":
             # TXT records may be split into several 255-byte strings; join them back.
             return [b"".join(r.strings).decode("utf-8", "replace") for r in answer]
@@ -125,6 +136,17 @@ class SystemResolver(DnsResolver):
             return False
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
             return True
+        return True
+
+    async def node_exists(self, name: str) -> bool | None:
+        try:
+            await self._resolver.resolve(name, "TXT")
+        except dns.resolver.NXDOMAIN:
+            return False
+        except dns.resolver.NoAnswer:
+            return True
+        except dns.exception.DNSException:
+            return None
         return True
 
 
@@ -182,7 +204,8 @@ class DohResolver(DnsResolver):
                 return resp.json()
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = exc
-        raise DnsLookupError(f"DoH lookup {name} {rtype} failed: {type(last_error).__name__}")
+        why = describe(last_error) if last_error else "нет ответа"
+        raise DnsLookupError(f"DNS через HTTPS не ответил на запрос {rtype} {name}: {why}")
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         return parse_doh_answer(await self._query(name, rtype), rtype)
@@ -193,6 +216,15 @@ class DohResolver(DnsResolver):
         except DnsLookupError:
             return True
         return payload.get("Status") != 3
+
+    async def node_exists(self, name: str) -> bool | None:
+        try:
+            status = (await self._query(name, "TXT")).get("Status")
+        except DnsLookupError:
+            return None
+        if status == 0:
+            return True
+        return False if status == 3 else None
 
 
 NOTE_DOT = (
@@ -217,16 +249,19 @@ async def create_resolver(
     system = SystemResolver(timeout)
     if mode == "system":
         return system, None
-    # Health probes can wait for a timeout on a filtering network, so their answers
-    # are remembered for the rest of the process (batch scans many sites in a row).
-    global _system_healthy, _dot_healthy
     probe_timeout = min(timeout, HEALTH_TIMEOUT)
-    if _system_healthy is None:
-        _system_healthy = await SystemResolver(probe_timeout).is_healthy()
-    if _system_healthy:
+    if await _healthy("system", SystemResolver(probe_timeout)):
         return system, None
-    if _dot_healthy is None:
-        _dot_healthy = await DotResolver(probe_timeout).is_healthy()
-    if _dot_healthy:
+    if await _healthy("dot", DotResolver(probe_timeout)):
         return DotResolver(timeout), NOTE_DOT
     return DohResolver(client), NOTE_DOH
+
+
+async def _healthy(name: str, resolver: DnsResolver) -> bool:
+    """A probe can wait for a timeout on a filtering network, so its answer is reused."""
+    known = _health.get(name)
+    if known and (known[0] or time.monotonic() - known[1] < HEALTH_RETRY):
+        return known[0]
+    ok = await resolver.is_healthy()
+    _health[name] = (ok, time.monotonic())
+    return ok

@@ -35,3 +35,42 @@ def test_find_inns_in_markup():
 
 def test_find_inns_ignores_bad_checksum():
     assert find_inns("ИНН: 1234567890") == []
+
+
+def test_advertiser_inn_in_an_ad_label_is_not_the_site_owner():
+    from suveren.inn import find_inns
+
+    html = (
+        "<div>Реклама. ООО «Рекламодатель», ИНН 7736207543. erid: 2SDnjeL1abc</div>"
+        "<p>Каталог курсов, отзывы студентов и расписание занятий.</p>"
+        "<footer>ООО «Сайт», ИНН 7707083893</footer>"
+    )
+    assert find_inns(html) == ["7707083893"]
+
+
+def test_a_shop_advertising_itself_names_its_own_inn():
+    from suveren.inn import own_ad_inns
+
+    # metro-cc.ru and megafon.ru: the only ИНН on the page is in their own ad labels.
+    metro = "<div>Реклама. ООО «МЕТРО Кэш энд Керри», ИНН 7704218694. &amp;erid=2VSb5wwGR6A</div>"
+    assert own_ad_inns(metro, "metro-cc.ru") == [("7704218694", "МЕТРО Кэш энд Керри")]
+    megafon = "Реклама АО «МегаФон Ритейл» ИНН: 7825695758 Смартфоны Erid: LjN8KA3JG"
+    assert own_ad_inns(megafon, "www.megafon.ru") == [("7825695758", "МегаФон Ритейл")]
+    # Someone else's ad on the site is not the owner's.
+    other = "<div>Реклама. ООО «Рекламодатель», ИНН 7736207543. erid: 2SDnjeL1abc</div>"
+    assert own_ad_inns(other, "hse.ru") == []
+    # A footer ИНН is not an ad label: find_inns takes it, not this.
+    assert own_ad_inns("ООО «МЕТРО Кэш энд Керри», ИНН 7704218694", "metro-cc.ru") == []
+
+
+def test_a_partner_named_in_a_document_is_not_the_site_owner():
+    from suveren.inn import find_inns
+
+    # rbc.ru's offer: the course platform belongs to a partner, not to the site.
+    offer = (
+        "Доступ к услуге осуществляется посредством платформы productstar.ru, оператором "
+        "которой является партнер Администрации ООО «Тривиум» (ОГРН 1187847013133, "
+        "ИНН 7806297293), при этом процесс оказания услуг не подразумевает…"
+    )
+    assert find_inns(offer) == []
+    assert find_inns(offer + " АО «Сайт», ИНН 7707083893") == ["7707083893"]

@@ -1,0 +1,1934 @@
+{
+ "_about": "База сервисов Suveren: как распознать провайдера и где он зарегистрирован. Поля описаны в src/suveren/services.py. infra — DNS, почта, хостинг, CDN, регистраторы; tls — удостоверяющие центры; page — скрипты, шрифты и виджеты в коде страницы (page — регулярные выражения по HTML в нижнем регистре).",
+ "infra": [
+  {
+   "name": "Cloudflare",
+   "country": "US",
+   "ns": [
+    "ns.cloudflare.com"
+   ],
+   "asn": [
+    13335,
+    209242
+   ],
+   "as_names": [
+    "cloudflare"
+   ],
+   "registrar": [
+    "cloudflare"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Amazon Web Services",
+   "country": "US",
+   "ns": [
+    "*awsdns-*"
+   ],
+   "mx": [
+    "amazonaws.com"
+   ],
+   "asn": [
+    16509,
+    14618
+   ],
+   "as_names": [
+    "amazon"
+   ],
+   "registrar": [
+    "amazon registrar"
+   ]
+  },
+  {
+   "name": "Amazon CloudFront",
+   "country": "US",
+   "cdn": true
+  },
+  {
+   "name": "Google Workspace",
+   "country": "US",
+   "mx": [
+    "google.com",
+    "googlemail.com"
+   ]
+  },
+  {
+   "name": "Google Cloud",
+   "country": "US",
+   "ns": [
+    "googledomains.com"
+   ],
+   "asn": [
+    15169,
+    396982,
+    19527
+   ],
+   "as_names": [
+    "google"
+   ]
+  },
+  {
+   "name": "Microsoft 365",
+   "country": "US",
+   "mx": [
+    "mail.protection.outlook.com",
+    "outlook.com"
+   ]
+  },
+  {
+   "name": "Microsoft Azure",
+   "country": "US",
+   "ns": [
+    "azure-dns.com",
+    "azure-dns.net",
+    "azure-dns.org",
+    "azure-dns.info"
+   ],
+   "asn": [
+    8075
+   ],
+   "as_names": [
+    "microsoft"
+   ]
+  },
+  {
+   "name": "DigitalOcean",
+   "country": "US",
+   "ns": [
+    "digitalocean.com"
+   ],
+   "asn": [
+    14061
+   ],
+   "as_names": [
+    "digitalocean"
+   ]
+  },
+  {
+   "name": "GoDaddy",
+   "country": "US",
+   "ns": [
+    "domaincontrol.com"
+   ],
+   "mx": [
+    "secureserver.net"
+   ],
+   "asn": [
+    26496,
+    398101
+   ],
+   "as_names": [
+    "godaddy"
+   ],
+   "registrar": [
+    "godaddy"
+   ]
+  },
+  {
+   "name": "Namecheap",
+   "country": "US",
+   "ns": [
+    "registrar-servers.com"
+   ],
+   "mx": [
+    "registrar-servers.com",
+    "privateemail.com"
+   ],
+   "registrar": [
+    "namecheap"
+   ],
+   "note": "В 2022 году Namecheap прекратил обслуживать клиентов из России."
+  },
+  {
+   "name": "Hetzner",
+   "country": "DE",
+   "ns": [
+    "hetzner.com",
+    "hetzner.de",
+    "your-server.de"
+   ],
+   "mx": [
+    "your-server.de"
+   ],
+   "asn": [
+    24940,
+    213230
+   ],
+   "as_names": [
+    "hetzner"
+   ]
+  },
+  {
+   "name": "OVHcloud",
+   "country": "FR",
+   "ns": [
+    "ovh.net"
+   ],
+   "mx": [
+    "ovh.net"
+   ],
+   "asn": [
+    16276
+   ],
+   "as_names": [
+    "ovh"
+   ],
+   "registrar": [
+    "ovh"
+   ]
+  },
+  {
+   "name": "Hostinger",
+   "country": "LT",
+   "ns": [
+    "dns-parking.com"
+   ],
+   "mx": [
+    "hostinger.com"
+   ],
+   "asn": [
+    47583
+   ],
+   "as_names": [
+    "hostinger"
+   ],
+   "registrar": [
+    "hostinger"
+   ]
+  },
+  {
+   "name": "IONOS",
+   "country": "DE",
+   "ns": [
+    "ui-dns.com",
+    "ui-dns.de",
+    "ui-dns.org",
+    "ui-dns.biz"
+   ],
+   "mx": [
+    "ionos.com",
+    "ionos.de",
+    "kundenserver.de"
+   ],
+   "asn": [
+    8560
+   ],
+   "registrar": [
+    "ionos",
+    "1&1"
+   ]
+  },
+  {
+   "name": "Gandi",
+   "country": "FR",
+   "ns": [
+    "gandi.net"
+   ],
+   "mx": [
+    "gandi.net"
+   ],
+   "registrar": [
+    "gandi"
+   ]
+  },
+  {
+   "name": "NS1",
+   "country": "US",
+   "ns": [
+    "nsone.net"
+   ]
+  },
+  {
+   "name": "Vercel",
+   "country": "US",
+   "ns": [
+    "vercel-dns.com"
+   ],
+   "as_names": [
+    "vercel"
+   ]
+  },
+  {
+   "name": "Wix",
+   "country": "IL",
+   "category": "builder",
+   "ns": [
+    "wixdns.net"
+   ],
+   "asn": [
+    58182
+   ],
+   "as_names": [
+    "wix"
+   ],
+   "page": [
+    "static\\.wixstatic\\.com",
+    "static\\.parastorage\\.com"
+   ]
+  },
+  {
+   "name": "Tilda",
+   "country": "AE",
+   "category": "builder",
+   "as_names": [
+    "tilda"
+   ],
+   "page": [
+    "tildacdn\\.(?:com|pro|one|net)",
+    "tilda-blocks"
+   ],
+   "note": "Tilda создана российской командой, но её сеть зарегистрирована на компанию в ОАЭ."
+  },
+  {
+   "name": "Webflow",
+   "country": "US",
+   "category": "builder",
+   "page": [
+    "assets\\.website-files\\.com",
+    "cdn\\.prod\\.website-files\\.com"
+   ]
+  },
+  {
+   "name": "Squarespace",
+   "country": "US",
+   "category": "builder",
+   "page": [
+    "static1\\.squarespace\\.com",
+    "squarespace-cdn\\.com"
+   ]
+  },
+  {
+   "name": "Shopify",
+   "country": "CA",
+   "category": "builder",
+   "page": [
+    "cdn\\.shopify\\.com"
+   ]
+  },
+  {
+   "name": "Framer",
+   "country": "NL",
+   "category": "builder",
+   "page": [
+    "framerusercontent\\.com"
+   ]
+  },
+  {
+   "name": "Akamai",
+   "country": "US",
+   "ns": [
+    "akam.net"
+   ],
+   "asn": [
+    20940,
+    16625
+   ],
+   "as_names": [
+    "akamai"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Akamai Linode",
+   "country": "US",
+   "asn": [
+    63949
+   ],
+   "as_names": [
+    "linode"
+   ]
+  },
+  {
+   "name": "Fastly",
+   "country": "US",
+   "asn": [
+    54113
+   ],
+   "as_names": [
+    "fastly"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Vultr",
+   "country": "US",
+   "asn": [
+    20473
+   ],
+   "as_names": [
+    "vultr",
+    "choopa",
+    "the constant company"
+   ]
+  },
+  {
+   "name": "Contabo",
+   "country": "DE",
+   "asn": [
+    51167
+   ],
+   "as_names": [
+    "contabo"
+   ]
+  },
+  {
+   "name": "Leaseweb",
+   "country": "NL",
+   "asn": [
+    60781,
+    16265,
+    28753
+   ],
+   "as_names": [
+    "leaseweb"
+   ]
+  },
+  {
+   "name": "Gcore",
+   "country": "LU",
+   "asn": [
+    199524
+   ],
+   "as_names": [
+    "gcore",
+    "g-core"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Imperva",
+   "country": "US",
+   "asn": [
+    19551
+   ],
+   "as_names": [
+    "incapsula",
+    "imperva"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Sucuri",
+   "country": "US",
+   "asn": [
+    30148
+   ],
+   "as_names": [
+    "sucuri"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Zoho Mail",
+   "country": "IN",
+   "mx": [
+    "zoho.com",
+    "zoho.eu",
+    "zohomail.com"
+   ]
+  },
+  {
+   "name": "Proton Mail",
+   "country": "CH",
+   "mx": [
+    "protonmail.ch"
+   ]
+  },
+  {
+   "name": "Mailgun",
+   "country": "US",
+   "mx": [
+    "mailgun.org"
+   ]
+  },
+  {
+   "name": "SendGrid",
+   "country": "US",
+   "mx": [
+    "sendgrid.net"
+   ]
+  },
+  {
+   "name": "Mimecast",
+   "country": "GB",
+   "mx": [
+    "mimecast.com"
+   ]
+  },
+  {
+   "name": "Proofpoint",
+   "country": "US",
+   "mx": [
+    "pphosted.com",
+    "ppe-hosted.com"
+   ]
+  },
+  {
+   "name": "Barracuda",
+   "country": "US",
+   "mx": [
+    "barracudanetworks.com"
+   ]
+  },
+  {
+   "name": "iCloud Mail",
+   "country": "US",
+   "mx": [
+    "mail.icloud.com"
+   ]
+  },
+  {
+   "name": "Fastmail",
+   "country": "AU",
+   "mx": [
+    "messagingengine.com"
+   ]
+  },
+  {
+   "name": "Yahoo Mail",
+   "country": "US",
+   "mx": [
+    "yahoodns.net"
+   ]
+  },
+  {
+   "name": "Broadcom MessageLabs",
+   "country": "US",
+   "mx": [
+    "messagelabs.com"
+   ]
+  },
+  {
+   "name": "DNS Made Easy",
+   "country": "US",
+   "ns": [
+    "dnsmadeeasy.com"
+   ],
+   "as_names": [
+    "tiggee"
+   ]
+  },
+  {
+   "name": "NetActuate",
+   "country": "US",
+   "as_names": [
+    "netactuate"
+   ]
+  },
+  {
+   "name": "Tucows",
+   "country": "CA",
+   "registrar": [
+    "tucows"
+   ]
+  },
+  {
+   "name": "Porkbun",
+   "country": "US",
+   "registrar": [
+    "porkbun"
+   ]
+  },
+  {
+   "name": "Name.com",
+   "country": "US",
+   "registrar": [
+    "name.com"
+   ]
+  },
+  {
+   "name": "Network Solutions",
+   "country": "US",
+   "registrar": [
+    "network solutions"
+   ]
+  },
+  {
+   "name": "Dynadot",
+   "country": "US",
+   "registrar": [
+    "dynadot"
+   ],
+   "ns": [
+    "dyna-ns.net"
+   ]
+  },
+  {
+   "name": "eNom",
+   "country": "US",
+   "registrar": [
+    "enom"
+   ]
+  },
+  {
+   "name": "MarkMonitor",
+   "country": "US",
+   "registrar": [
+    "markmonitor"
+   ]
+  },
+  {
+   "name": "1API",
+   "country": "DE",
+   "registrar": [
+    "1api"
+   ]
+  },
+  {
+   "name": "Internet Domain Service BS",
+   "country": "BS",
+   "registrar": [
+    "internet domain service bs"
+   ]
+  },
+  {
+   "name": "Squarespace Domains",
+   "country": "US",
+   "registrar": [
+    "squarespace",
+    "google llc"
+   ]
+  },
+  {
+   "name": "PDR (PublicDomainRegistry)",
+   "country": "IN",
+   "registrar": [
+    "publicdomainregistry",
+    "pdr ltd"
+   ]
+  },
+  {
+   "name": "Координационный центр доменов .RU/.РФ",
+   "country": "RU",
+   "registrar": [
+    "cc-ru",
+    "cc-rf"
+   ]
+  },
+  {
+   "name": "Яндекс 360",
+   "country": "RU",
+   "ns": [
+    "yandex.net",
+    "yandex.ru"
+   ],
+   "mx": [
+    "yandex.net",
+    "yandex.ru"
+   ]
+  },
+  {
+   "name": "Yandex Cloud",
+   "country": "RU",
+   "ns": [
+    "yandexcloud.net"
+   ],
+   "asn": [
+    13238,
+    200350
+   ],
+   "as_names": [
+    "yandex"
+   ]
+  },
+  {
+   "name": "VK WorkSpace (Mail.ru)",
+   "country": "RU",
+   "ns": [
+    "mail.ru"
+   ],
+   "mx": [
+    "mail.ru"
+   ]
+  },
+  {
+   "name": "VK Cloud",
+   "country": "RU",
+   "asn": [
+    47764,
+    47541
+   ],
+   "as_names": [
+    "vk-",
+    "vkontakte",
+    "mail-ru",
+    "llc vk"
+   ]
+  },
+  {
+   "name": "Selectel",
+   "country": "RU",
+   "ns": [
+    "selectel.org",
+    "selectel.ru"
+   ],
+   "asn": [
+    49505,
+    50340
+   ],
+   "as_names": [
+    "selectel"
+   ]
+  },
+  {
+   "name": "Timeweb",
+   "country": "RU",
+   "ns": [
+    "timeweb.ru",
+    "timeweb.org"
+   ],
+   "mx": [
+    "timeweb.ru"
+   ],
+   "asn": [
+    9123
+   ],
+   "as_names": [
+    "timeweb"
+   ],
+   "registrar": [
+    "timeweb"
+   ]
+  },
+  {
+   "name": "Beget",
+   "country": "RU",
+   "ns": [
+    "beget.com",
+    "beget.pro",
+    "beget.ru"
+   ],
+   "mx": [
+    "beget.com"
+   ],
+   "asn": [
+    198610
+   ],
+   "as_names": [
+    "beget"
+   ],
+   "registrar": [
+    "beget"
+   ]
+  },
+  {
+   "name": "REG.RU",
+   "country": "RU",
+   "ns": [
+    "reg.ru"
+   ],
+   "mx": [
+    "reg.ru"
+   ],
+   "asn": [
+    197695
+   ],
+   "as_names": [
+    "reg.ru",
+    "regru"
+   ],
+   "registrar": [
+    "regru",
+    "reg.ru"
+   ]
+  },
+  {
+   "name": "RU-CENTER",
+   "country": "RU",
+   "ns": [
+    "nic.ru"
+   ],
+   "mx": [
+    "nic.ru"
+   ],
+   "asn": [
+    48287
+   ],
+   "registrar": [
+    "ru-center",
+    "rucenter",
+    "nic.ru"
+   ]
+  },
+  {
+   "name": "R01",
+   "country": "RU",
+   "registrar": [
+    "r01"
+   ]
+  },
+  {
+   "name": "Регтайм (Webnames)",
+   "country": "RU",
+   "registrar": [
+    "regtime",
+    "webnames"
+   ]
+  },
+  {
+   "name": "Наунет",
+   "country": "RU",
+   "registrar": [
+    "naunet"
+   ]
+  },
+  {
+   "name": "Salenames",
+   "country": "RU",
+   "registrar": [
+    "salenames"
+   ]
+  },
+  {
+   "name": "SpaceWeb",
+   "country": "RU",
+   "ns": [
+    "sweb.ru"
+   ],
+   "mx": [
+    "sweb.ru"
+   ],
+   "as_names": [
+    "spaceweb"
+   ]
+  },
+  {
+   "name": "SprintHost",
+   "country": "RU",
+   "ns": [
+    "sprinthost.ru"
+   ],
+   "as_names": [
+    "sprinthost"
+   ]
+  },
+  {
+   "name": "Джино",
+   "country": "RU",
+   "ns": [
+    "jino.ru"
+   ],
+   "mx": [
+    "jino.ru"
+   ]
+  },
+  {
+   "name": "Мастерхост",
+   "country": "RU",
+   "ns": [
+    "masterhost.ru"
+   ],
+   "as_names": [
+    "masterhost"
+   ]
+  },
+  {
+   "name": "Хостлэнд",
+   "country": "RU",
+   "ns": [
+    "hostland.ru"
+   ],
+   "mx": [
+    "hostland.ru"
+   ]
+  },
+  {
+   "name": "FirstVDS",
+   "country": "RU",
+   "ns": [
+    "firstvds.ru"
+   ],
+   "as_names": [
+    "firstvds"
+   ]
+  },
+  {
+   "name": "DDoS-Guard",
+   "country": "RU",
+   "ns": [
+    "ddos-guard.net"
+   ],
+   "asn": [
+    57724,
+    59692
+   ],
+   "as_names": [
+    "ddos-guard"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Qrator",
+   "country": "RU",
+   "asn": [
+    200449
+   ],
+   "as_names": [
+    "qrator"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "NGENIX",
+   "country": "RU",
+   "as_names": [
+    "ngenix",
+    "sovremennye setevye tekhnologii"
+   ],
+   "cdn": true,
+   "asn": [
+    34879
+   ]
+  },
+  {
+   "name": "Servicepipe",
+   "country": "RU",
+   "as_names": [
+    "servicepipe"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Ростелеком",
+   "country": "RU",
+   "asn": [
+    12389
+   ],
+   "as_names": [
+    "rostelecom"
+   ]
+  },
+  {
+   "name": "МТС",
+   "country": "RU",
+   "asn": [
+    8359
+   ],
+   "as_names": [
+    "mts pjsc"
+   ]
+  }
+ ],
+ "tls": [
+  {
+   "name": "Let's Encrypt",
+   "country": "US",
+   "issuer": [
+    "let's encrypt"
+   ]
+  },
+  {
+   "name": "Google Trust Services",
+   "country": "US",
+   "issuer": [
+    "google trust services"
+   ]
+  },
+  {
+   "name": "Amazon Trust Services",
+   "country": "US",
+   "issuer": [
+    "amazon"
+   ]
+  },
+  {
+   "name": "ZeroSSL",
+   "country": "AT",
+   "issuer": [
+    "zerossl"
+   ]
+  },
+  {
+   "name": "Sectigo",
+   "country": "GB",
+   "issuer": [
+    "sectigo",
+    "comodo"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "DigiCert",
+   "country": "US",
+   "issuer": [
+    "digicert",
+    "geotrust",
+    "thawte",
+    "rapidssl"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "GlobalSign",
+   "country": "BE",
+   "issuer": [
+    "globalsign"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "Entrust",
+   "country": "US",
+   "issuer": [
+    "entrust"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "SSL.com",
+   "country": "US",
+   "issuer": [
+    "ssl corporation",
+    "ssl.com"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "GoDaddy (УЦ)",
+   "country": "US",
+   "issuer": [
+    "godaddy",
+    "starfield"
+   ],
+   "severity": "medium"
+  },
+  {
+   "name": "НУЦ Минцифры",
+   "country": "RU",
+   "issuer": [
+    "russian trusted",
+    "ministry of digital development"
+   ]
+  }
+ ],
+ "page": [
+  {
+   "name": "Google Analytics / Tag Manager",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "googletagmanager\\.com",
+    "google-analytics\\.com"
+   ],
+   "alternative": "Замените на Яндекс Метрику."
+  },
+  {
+   "name": "Meta Pixel (Facebook)",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "connect\\.facebook\\.net/[^\\\"']*fbevents",
+    "fbq\\("
+   ],
+   "severity": "medium",
+   "note": "Meta Platforms признана в России экстремистской организацией, Facebook и Instagram заблокированы.",
+   "alternative": "Замените на пиксель VK Рекламы или Яндекс Метрику."
+  },
+  {
+   "name": "Hotjar",
+   "country": "MT",
+   "category": "analytics",
+   "page": [
+    "(?:static|script)\\.hotjar\\.com"
+   ],
+   "alternative": "Замените на Вебвизор в Яндекс Метрике."
+  },
+  {
+   "name": "Microsoft Clarity",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "clarity\\.ms"
+   ],
+   "alternative": "Замените на Вебвизор в Яндекс Метрике."
+  },
+  {
+   "name": "Mixpanel",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.mxpnl\\.com",
+    "api\\.mixpanel\\.com"
+   ]
+  },
+  {
+   "name": "Amplitude",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.amplitude\\.com"
+   ]
+  },
+  {
+   "name": "Segment",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.segment\\.(?:com|io)"
+   ]
+  },
+  {
+   "name": "Plausible",
+   "country": "EE",
+   "category": "analytics",
+   "page": [
+    "plausible\\.io/js"
+   ]
+  },
+  {
+   "name": "LinkedIn Insight",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "snap\\.licdn\\.com"
+   ],
+   "note": "LinkedIn заблокирован в России с 2016 года."
+  },
+  {
+   "name": "X (Twitter) Pixel",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "static\\.ads-twitter\\.com"
+   ],
+   "note": "X (Twitter) заблокирован в России."
+  },
+  {
+   "name": "TikTok Pixel",
+   "country": "SG",
+   "category": "analytics",
+   "page": [
+    "analytics\\.tiktok\\.com",
+    "tiktokw\\.us"
+   ]
+  },
+  {
+   "name": "Microsoft Bing Ads",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "bat\\.bing\\.com"
+   ]
+  },
+  {
+   "name": "Pinterest Tag",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "s\\.pinimg\\.com/ct"
+   ]
+  },
+  {
+   "name": "Cloudflare Web Analytics",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "static\\.cloudflareinsights\\.com"
+   ]
+  },
+  {
+   "name": "Sentry",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "browser\\.sentry-cdn\\.com",
+    "ingest\\.sentry\\.io"
+   ]
+  },
+  {
+   "name": "Mindbox",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "mindbox\\.ru"
+   ]
+  },
+  {
+   "name": "Gazprom-Media Data",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "gpmdata\\.ru"
+   ]
+  },
+  {
+   "name": "Segmento (Сбер)",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "rutarget\\.ru",
+    "segmento\\.ru"
+   ]
+  },
+  {
+   "name": "Buzzoola",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "buzzoola\\.com"
+   ]
+  },
+  {
+   "name": "Rambler&Co (реклама и счётчики)",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "\\.rambler\\.ru"
+   ]
+  },
+  {
+   "name": "Билайн (реклама)",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "\\.beeline\\.ru"
+   ]
+  },
+  {
+   "name": "Яндекс Метрика",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "mc\\.yandex\\.(?:ru|com)",
+    "webvisor\\.org"
+   ]
+  },
+  {
+   "name": "Top.Mail.ru",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "top-fwz1\\.mail\\.ru",
+    "top\\.mail\\.ru"
+   ]
+  },
+  {
+   "name": "Пиксель VK",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "vk\\.com/rtrg"
+   ]
+  },
+  {
+   "name": "LiveInternet",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "counter\\.yadro\\.ru"
+   ]
+  },
+  {
+   "name": "Rambler Top100",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "counter\\.rambler\\.ru"
+   ]
+  },
+  {
+   "name": "Roistat",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "cloud\\.roistat\\.com"
+   ]
+  },
+  {
+   "name": "Calltouch",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "mod\\.calltouch\\.ru"
+   ]
+  },
+  {
+   "name": "CoMagic",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "app\\.comagic\\.ru"
+   ]
+  },
+  {
+   "name": "Google Ads / AdSense",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "googleadservices\\.com",
+    "googlesyndication\\.com",
+    "doubleclick\\.net"
+   ],
+   "note": "Google прекратил показ рекламы в России в 2022 году."
+  },
+  {
+   "name": "Criteo",
+   "country": "FR",
+   "category": "ads",
+   "page": [
+    "static\\.criteo\\.(?:net|com)"
+   ]
+  },
+  {
+   "name": "Рекламная сеть Яндекса",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "an\\.yandex\\.ru",
+    "yandex\\.ru/ads"
+   ]
+  },
+  {
+   "name": "Adfox",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "(?<![\\w.-])(?:[\\w-]+\\.)*adfox\\.ru"
+   ]
+  },
+  {
+   "name": "AdRiver",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "adriver\\.ru"
+   ]
+  },
+  {
+   "name": "VK Реклама",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "ad\\.mail\\.ru",
+    "ads\\.vk\\.com"
+   ]
+  },
+  {
+   "name": "МТС Ads",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "\\.a\\.mts\\.ru",
+    "ads\\.mts\\.ru"
+   ]
+  },
+  {
+   "name": "1С-Битрикс",
+   "country": "RU",
+   "category": "builder",
+   "page": [
+    "/bitrix/(?:js|templates|cache)/"
+   ]
+  },
+  {
+   "name": "Nethouse",
+   "country": "RU",
+   "category": "builder",
+   "page": [
+    "nethouse\\.ru"
+   ]
+  },
+  {
+   "name": "LPgenerator",
+   "country": "RU",
+   "category": "builder",
+   "page": [
+    "lpgenerator\\.ru"
+   ]
+  },
+  {
+   "name": "InSales",
+   "country": "RU",
+   "category": "builder",
+   "page": [
+    "insales\\.ru",
+    "insales-cdn\\.com"
+   ]
+  },
+  {
+   "name": "Google reCAPTCHA",
+   "country": "US",
+   "category": "captcha",
+   "page": [
+    "google\\.com/recaptcha",
+    "recaptcha\\.net",
+    "gstatic\\.com/recaptcha"
+   ]
+  },
+  {
+   "name": "hCaptcha",
+   "country": "US",
+   "category": "captcha",
+   "page": [
+    "hcaptcha\\.com/1/api",
+    "js\\.hcaptcha\\.com"
+   ]
+  },
+  {
+   "name": "Cloudflare Turnstile",
+   "country": "US",
+   "category": "captcha",
+   "page": [
+    "challenges\\.cloudflare\\.com/turnstile"
+   ]
+  },
+  {
+   "name": "Yandex SmartCaptcha",
+   "country": "RU",
+   "category": "captcha",
+   "page": [
+    "smartcaptcha\\.yandexcloud\\.net",
+    "captcha-api\\.yandex\\.ru"
+   ]
+  },
+  {
+   "name": "Google Fonts",
+   "country": "US",
+   "category": "fonts",
+   "page": [
+    "fonts\\.googleapis\\.com",
+    "fonts\\.gstatic\\.com"
+   ]
+  },
+  {
+   "name": "Adobe Fonts",
+   "country": "US",
+   "category": "fonts",
+   "page": [
+    "use\\.typekit\\.net",
+    "p\\.typekit\\.net"
+   ]
+  },
+  {
+   "name": "Font Awesome",
+   "country": "US",
+   "category": "fonts",
+   "page": [
+    "kit\\.fontawesome\\.com",
+    "use\\.fontawesome\\.com"
+   ]
+  },
+  {
+   "name": "Bunny Fonts",
+   "country": "SI",
+   "category": "fonts",
+   "page": [
+    "fonts\\.bunny\\.net"
+   ]
+  },
+  {
+   "name": "jsDelivr",
+   "country": "PL",
+   "category": "js_cdn",
+   "page": [
+    "cdn\\.jsdelivr\\.net"
+   ]
+  },
+  {
+   "name": "unpkg",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "unpkg\\.com"
+   ]
+  },
+  {
+   "name": "cdnjs (Cloudflare)",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "cdnjs\\.cloudflare\\.com"
+   ]
+  },
+  {
+   "name": "Google Hosted Libraries",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "ajax\\.googleapis\\.com"
+   ]
+  },
+  {
+   "name": "jQuery CDN",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "code\\.jquery\\.com"
+   ]
+  },
+  {
+   "name": "BootstrapCDN",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "(?:stackpath|maxcdn|netdna)\\.bootstrapcdn\\.com"
+   ]
+  },
+  {
+   "name": "polyfill.io",
+   "country": "CN",
+   "category": "js_cdn",
+   "page": [
+    "polyfill\\.io"
+   ],
+   "severity": "high",
+   "note": "В 2024 году домен polyfill.io перешёл к новому владельцу и начал раздавать вредоносный код. Скрипт нужно удалить немедленно.",
+   "alternative": "Удалите скрипт: современным браузерам полифиллы не нужны."
+  },
+  {
+   "name": "Yandex CDN (yastatic)",
+   "country": "RU",
+   "category": "js_cdn",
+   "page": [
+    "yastatic\\.net"
+   ]
+  },
+  {
+   "name": "Яндекс (прочие ресурсы)",
+   "country": "RU",
+   "category": "js_cdn",
+   "page": [
+    "\\.yandex\\.net",
+    "(?:yandex\\.ru|ya\\.ru)/(?:clck|portal)/"
+   ]
+  },
+  {
+   "name": "VK / Mail.ru (прочие ресурсы)",
+   "country": "RU",
+   "category": "js_cdn",
+   "page": [
+    "(?:st\\d*|static|privacy-cs|img\\d*|imgs\\d*)\\.mail\\.ru",
+    "\\.userapi\\.com",
+    "\\.okcdn\\.ru",
+    "(?:st|static|sun\\d+-\\d+)\\.vk\\.(?:com|ru)"
+   ]
+  },
+  {
+   "name": "Intercom",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "widget\\.intercom\\.io",
+    "js\\.intercomcdn\\.com"
+   ]
+  },
+  {
+   "name": "Zendesk",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "static\\.zdassets\\.com"
+   ]
+  },
+  {
+   "name": "Drift",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "js\\.driftt\\.com"
+   ]
+  },
+  {
+   "name": "tawk.to",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "embed\\.tawk\\.to"
+   ]
+  },
+  {
+   "name": "Crisp",
+   "country": "FR",
+   "category": "chat",
+   "page": [
+    "client\\.crisp\\.chat"
+   ]
+  },
+  {
+   "name": "LiveChat",
+   "country": "PL",
+   "category": "chat",
+   "page": [
+    "cdn\\.livechatinc\\.com"
+   ]
+  },
+  {
+   "name": "Tidio",
+   "country": "PL",
+   "category": "chat",
+   "page": [
+    "code\\.tidio\\.co"
+   ]
+  },
+  {
+   "name": "HubSpot",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "js(?:-[a-z]{2}\\d)?\\.hs-scripts\\.com",
+    "js(?:-[a-z]{2}\\d)?\\.hsforms\\.net"
+   ]
+  },
+  {
+   "name": "Jivo",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "(?:code|widget|static)\\.jivosite\\.com",
+    "code\\.jivo\\.ru"
+   ]
+  },
+  {
+   "name": "Битрикс24",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "bitrix24\\.\\w+/upload/crm",
+    "cdn-ru\\.bitrix24\\.ru"
+   ]
+  },
+  {
+   "name": "Carrot quest",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "cdn\\.carrotquest\\.(?:app|io)",
+    "api\\.carrottrack\\.app"
+   ]
+  },
+  {
+   "name": "Talk-Me",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "lcab\\.talk-me\\.ru"
+   ]
+  },
+  {
+   "name": "Callibri",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "cdn\\.callibri\\.ru"
+   ]
+  },
+  {
+   "name": "Envybox",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "cdn\\.envybox\\.io"
+   ]
+  },
+  {
+   "name": "Marquiz",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "script\\.marquiz\\.ru",
+    "marquiz\\.ru/v2"
+   ]
+  },
+  {
+   "name": "amoCRM",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "gso\\.amocrm\\.ru",
+    "forms\\.amocrm\\.ru"
+   ]
+  },
+  {
+   "name": "Яндекс Формы",
+   "country": "RU",
+   "category": "chat",
+   "page": [
+    "forms\\.yandex\\.ru"
+   ]
+  },
+  {
+   "name": "Google Forms",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "docs\\.google\\.com/forms"
+   ],
+   "note": "Ответы в форме хранятся на серверах Google за рубежом.",
+   "alternative": "Замените на Яндекс Формы или форму на собственном сайте."
+  },
+  {
+   "name": "Typeform",
+   "country": "ES",
+   "category": "chat",
+   "page": [
+    "embed\\.typeform\\.com"
+   ]
+  },
+  {
+   "name": "Calendly",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "assets\\.calendly\\.com"
+   ]
+  },
+  {
+   "name": "OneSignal (push)",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "cdn\\.onesignal\\.com"
+   ]
+  },
+  {
+   "name": "Google Maps",
+   "country": "US",
+   "category": "maps",
+   "page": [
+    "maps\\.googleapis\\.com",
+    "google\\.com/maps/embed",
+    "maps\\.google\\.[a-z.]+/maps\\?[^\"']*output=embed"
+   ]
+  },
+  {
+   "name": "Mapbox",
+   "country": "US",
+   "category": "maps",
+   "page": [
+    "api\\.mapbox\\.com"
+   ]
+  },
+  {
+   "name": "Яндекс Карты",
+   "country": "RU",
+   "category": "maps",
+   "page": [
+    "api-maps\\.yandex\\.ru",
+    "yandex\\.ru/map-widget"
+   ]
+  },
+  {
+   "name": "2ГИС",
+   "country": "RU",
+   "category": "maps",
+   "page": [
+    "maps\\.api\\.2gis\\.ru",
+    "widgets\\.2gis\\.com"
+   ]
+  },
+  {
+   "name": "YouTube",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "youtube\\.com/embed/",
+    "youtube-nocookie\\.com/embed",
+    "youtube\\.com/iframe_api"
+   ],
+   "severity": "medium",
+   "note": "Работа YouTube в России сильно замедлена с 2024 года: у большинства посетителей встроенное видео не воспроизводится."
+  },
+  {
+   "name": "Vimeo",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "player\\.vimeo\\.com/video"
+   ]
+  },
+  {
+   "name": "RUTUBE",
+   "country": "RU",
+   "category": "video",
+   "page": [
+    "rutube\\.ru/play/embed"
+   ]
+  },
+  {
+   "name": "VK Видео",
+   "country": "RU",
+   "category": "video",
+   "page": [
+    "vk\\.com/video_ext\\.php",
+    "vkvideo\\.ru/video_ext"
+   ]
+  },
+  {
+   "name": "Stripe",
+   "country": "US",
+   "category": "payments",
+   "page": [
+    "js\\.stripe\\.com"
+   ]
+  },
+  {
+   "name": "PayPal",
+   "country": "US",
+   "category": "payments",
+   "page": [
+    "paypal\\.com/sdk/js",
+    "paypalobjects\\.com"
+   ]
+  },
+  {
+   "name": "ЮKassa",
+   "country": "RU",
+   "category": "payments",
+   "page": [
+    "yookassa\\.ru",
+    "yoomoney\\.ru/checkout"
+   ]
+  },
+  {
+   "name": "CloudPayments",
+   "country": "RU",
+   "category": "payments",
+   "page": [
+    "widget\\.cloudpayments\\.ru"
+   ]
+  },
+  {
+   "name": "Т-Касса",
+   "country": "RU",
+   "category": "payments",
+   "page": [
+    "securepay\\.tinkoff\\.ru"
+   ]
+  },
+  {
+   "name": "Robokassa",
+   "country": "RU",
+   "category": "payments",
+   "page": [
+    "auth\\.robokassa\\.ru"
+   ]
+  },
+  {
+   "name": "Google Sign-In",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "accounts\\.google\\.com/gsi/client",
+    "apis\\.google\\.com/js/platform\\.js"
+   ]
+  },
+  {
+   "name": "Sign in with Apple",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "appleid\\.cdn-apple\\.com"
+   ]
+  },
+  {
+   "name": "Auth0",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "cdn\\.auth0\\.com"
+   ]
+  },
+  {
+   "name": "VK ID",
+   "country": "RU",
+   "category": "auth",
+   "page": [
+    "id\\.vk\\.com",
+    "@vkid/sdk"
+   ]
+  },
+  {
+   "name": "Яндекс ID",
+   "country": "RU",
+   "category": "auth",
+   "page": [
+    "yastatic\\.net/s3/passport-sdk"
+   ]
+  },
+  {
+   "name": "Facebook SDK",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "connect\\.facebook\\.net/[a-z_]+/(?:sdk|all)\\.js"
+   ],
+   "severity": "medium",
+   "note": "Meta Platforms признана в России экстремистской организацией, Facebook и Instagram заблокированы."
+  },
+  {
+   "name": "Instagram embed",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "instagram\\.com/embed\\.js"
+   ],
+   "severity": "medium",
+   "note": "Meta Platforms признана в России экстремистской организацией, Facebook и Instagram заблокированы."
+  },
+  {
+   "name": "X (Twitter) widgets",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "platform\\.twitter\\.com/widgets\\.js"
+   ],
+   "note": "X (Twitter) заблокирован в России."
+  },
+  {
+   "name": "Виджеты VK",
+   "country": "RU",
+   "category": "social",
+   "page": [
+    "vk\\.com/js/api/openapi\\.js"
+   ]
+  },
+  {
+   "name": "Виджеты Одноклассников",
+   "country": "RU",
+   "category": "social",
+   "page": [
+    "connect\\.ok\\.ru"
+   ]
+  },
+  {
+   "name": "Hybrid",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "(?<![\\w.-])(?:[\\w-]+\\.)*hybrid\\.ai"
+   ]
+  },
+  {
+   "name": "Aidata",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "(?<![\\w.-])(?:[\\w-]+\\.)*aidata\\.(?:io|me)"
+   ]
+  },
+  {
+   "name": "UXFeedback",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "uxfeedback\\.ru"
+   ]
+  },
+  {
+   "name": "Mediascope (счётчик)",
+   "country": "RU",
+   "category": "analytics",
+   "page": [
+    "tns-counter\\.ru"
+   ]
+  },
+  {
+   "name": "СберМаркетинг",
+   "country": "RU",
+   "category": "ads",
+   "page": [
+    "sbermarketing\\.ru"
+   ]
+  }
+ ]
+}

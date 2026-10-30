@@ -14,7 +14,13 @@ from suveren.utils import registrable_domain
 _CONTACT_TEXT = re.compile(
     r"реквизит|контакт|о компании|о нас|юридическ|правов|requisites|contacts?|about", re.I
 )
-_CONTACT_HREF = re.compile(r"rekvizit|requisites|contact|kontakt|about|o-nas|company", re.I)
+# The site's own details live on these pages; an ИНН in an article, a company blog
+# (/companies/haulmont/news/...), a product card or a review belongs to someone else.
+_REQUISITES_PATH = re.compile(
+    r"/(?:rekvizit\w*|requisites?|contacts?|kontakt\w*|about(?:-us)?|o-nas|o-kompanii|company"
+    r"|oferta|offer|legal|privacy(?:-policy)?|policy|politika\w*)(?:\.\w{2,4})?/?$",
+    re.I,
+)
 MAX_EXTRA_PAGES = 3
 
 
@@ -35,18 +41,27 @@ def contact_links(page: Page, base: str) -> list[str]:
             score += 3
         if _CONTACT_TEXT.search(link.text):
             score += 2
-        if _CONTACT_HREF.search(href):
+        if is_requisites_path(urlsplit(url).path):
             score += 1
         if score:
             scored[url] = max(score, scored.get(url, 0))
     return [url for url, _ in sorted(scored.items(), key=lambda item: -item[1])]
 
 
+def is_requisites_path(path: str) -> bool:
+    """Whether the page at ``path`` is where a site states its own company details."""
+    return bool(_REQUISITES_PATH.search(path))
+
+
 async def discover_inns(
     client: httpx.AsyncClient, base: str, html: str, extra_text: str = ""
 ) -> tuple[list[str], str | None]:
-    """Return (ИНН list, URL where they were found)."""
-    inns = find_inns(html + " " + extra_text)
+    """Return (ИНН list, URL where they were found). ``extra_text`` must come only from
+    the site's own documents (policy, contacts, requisites), not from any inner page."""
+    # A document names its operator first and the third parties after it: kp.ru's policy
+    # opens with the publisher's ИНН and lists ООО «ВК» twice, for two of its counters.
+    # So the documents go by order, the page by how often an ИНН recurs (its footer).
+    inns = list(dict.fromkeys(find_inns(extra_text, first=True) + find_inns(html)))
     if inns:
         return inns, base
     for url in contact_links(parse_page(html), base)[:MAX_EXTRA_PAGES]:

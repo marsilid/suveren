@@ -1,0 +1,37 @@
+{
+ "_about": "Известные уязвимости JS-библиотек, которые Suveren сопоставляет с явно указанной версией. Диапазоны версий — из NVD API (services.nvd.nist.gov), проверено 2026-10-22: [from, to) — уязвимы версии от from включительно до to, не включая; from = null — с самой первой. Добавляя запись, укажите CVE и ссылку на источник.",
+ "checked": "2026-10-22",
+ "vulns": [
+  {"library": "jquery", "id": "CVE-2012-6708", "ranges": [[null, "1.9.0"]], "severity": "medium",
+   "summary": "XSS: строка с HTML, переданная в $(), выполняется как разметка"},
+  {"library": "jquery", "id": "CVE-2015-9251", "ranges": [[null, "3.0.0"]], "severity": "medium",
+   "summary": "XSS: ответ на кросс-доменный Ajax-запрос выполняется как скрипт"},
+  {"library": "jquery", "id": "CVE-2019-11358", "ranges": [[null, "3.4.0"]], "severity": "medium",
+   "summary": "загрязнение прототипа через jQuery.extend"},
+  {"library": "jquery", "id": "CVE-2020-11022", "ranges": [["1.2", "3.5.0"]], "severity": "medium",
+   "summary": "XSS в методах .html(), .append() даже после очистки HTML"},
+  {"library": "jquery", "id": "CVE-2020-11023", "ranges": [["1.0.3", "3.5.0"]], "severity": "medium",
+   "summary": "XSS через элементы <option> в методах вставки HTML"},
+  {"library": "jquery-ui", "id": "CVE-2021-41182", "ranges": [[null, "1.13.0"]], "severity": "medium",
+   "summary": "XSS через параметры виджетов (altField в Datepicker и др.)"},
+  {"library": "jquery-ui", "id": "CVE-2022-31160", "ranges": [[null, "1.13.2"]], "severity": "medium",
+   "summary": "XSS в checkboxradio при повторной инициализации"},
+  {"library": "bootstrap", "id": "CVE-2018-14040", "ranges": [[null, "3.4.0"], ["4.0.0", "4.1.2"]], "severity": "medium",
+   "summary": "XSS через атрибут data-parent в collapse"},
+  {"library": "bootstrap", "id": "CVE-2019-8331", "ranges": [[null, "3.4.1"], ["4.3.0", "4.3.1"]], "severity": "medium",
+   "summary": "XSS через data-template в tooltip и popover"},
+  {"library": "lodash", "id": "CVE-2019-10744", "ranges": [[null, "4.17.12"]], "severity": "critical",
+   "summary": "загрязнение прототипа через defaultsDeep"},
+  {"library": "lodash", "id": "CVE-2021-23337", "ranges": [[null, "4.17.21"]], "severity": "high",
+   "summary": "внедрение кода через _.template"},
+  {"library": "lodash", "id": "CVE-2025-13465", "ranges": [["4.0.0", "4.17.23"]], "severity": "medium",
+   "summary": "загрязнение прототипа через _.unset и _.omit: можно удалить методы встроенных объектов"},
+  {"library": "moment", "id": "CVE-2022-31129", "ranges": [["2.18.0", "2.29.4"]], "severity": "high",
+   "summary": "отказ в обслуживании (ReDoS) при разборе длинных строк дат"}
+ ],
+ "end_of_life": [
+  {"library": "angularjs", "ranges": [["1.0.0", "2.0.0"]], "since": "2022-01-01",
+   "summary": "AngularJS 1.x не поддерживается с 1 января 2022 года: новые уязвимости не исправляются",
+   "source": "https://docs.angularjs.org/misc/version-support-status"}
+ ]
+}

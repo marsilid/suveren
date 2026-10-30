@@ -1,7 +1,7 @@
 from datetime import date
 
 from suveren.checks import Status
-from suveren.company import CompanyReport, build_checks, render_age
+from suveren.company import CompanyReport, build_checks, pick_record, render_age
 from suveren.registries import EgrulRecord, RknOperator
 from suveren.report import render_company_html
 from suveren.sanctions import Entry, Hit
@@ -59,12 +59,51 @@ def test_not_found():
 def test_sanctions_states():
     entry = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
     report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
     report.company_hits = [Hit(entry, "id", "7707083893")]
     assert statuses(report)["Санкционные списки"] is Status.FAIL
     report.company_hits = [Hit(entry, "partial", "РОМАШКА")]
     assert statuses(report)["Санкционные списки"] is Status.WARN
     assert statuses(report, sanctions_ok=False)["Санкционные списки"] is Status.UNKNOWN
     assert "Санкционные списки" not in statuses(report, sanctions_ok=None)
+
+
+def test_sanctions_with_a_list_missing_are_not_checked():
+    # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded.
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us"]
+    check = next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                 if c.title == "Санкционные списки")  # fmt: skip
+    assert check.status is Status.UNKNOWN and "Не загрузились: ЕС" in check.details
+    # A hit in the lists that did load is still a hit.
+    entry = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
+    report.company_hits = [Hit(entry, "id", "7707083893")]
+    assert statuses(report)["Санкционные списки"] is Status.FAIL
+
+
+def sanctions_check(report):
+    return next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                if c.title == "Санкционные списки")  # fmt: skip
+
+
+def test_an_outdated_copy_of_the_lists_is_not_clean():
+    # A copy kept because the refresh failed was accepted at any age, the check stayed OK.
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    report.sanctions_stale = {"eu": 40}
+    check = sanctions_check(report)
+    assert check.status is Status.UNKNOWN
+    assert "список) — 40 дн." in check.details and "--refresh" in check.recommendation
+
+
+def test_without_egrul_only_the_ids_were_screened():
+    # Most entries have no ИНН: a clean answer by ИНН alone is not a clean answer.
+    report = CompanyReport(query="7707083893", inn="7707083893", egrul_error="нет связи")
+    report.sanctions_sources = ["us", "eu", "uk"]
+    check = sanctions_check(report)
+    assert check.status is Status.UNKNOWN and "ЕГРЮЛ не дал запись" in check.details
+    report.egrul_error = None
+    assert "в ЕГРЮЛ её нет" in sanctions_check(report).details
 
 
 def test_site_without_inn_warns():
@@ -106,7 +145,8 @@ def test_managing_company_is_screened_as_an_organisation():
     entry = Entry("eu", "1", "entity", ["UK VK"], [], "RUS")
     report.person_hits = [Hit(entry, "name", "УК ВК")]
     result = statuses(report)
-    assert result["Управляющая организация в санкционных списках"] is Status.FAIL
+    # By name only, with no ИНН to compare: a lead to check, not a verdict.
+    assert result["Управляющая организация в санкционных списках"] is Status.WARN
     assert "Руководитель в санкционных списках" not in result
 
 
@@ -122,3 +162,74 @@ def test_unreadable_site_is_unknown_not_a_violation():
 def test_nothing_to_screen_is_not_ok():
     report = CompanyReport(query="example.ru", domain="example.ru", site_problem="защита от ботов")
     assert statuses(report)["Санкционные списки"] is Status.UNKNOWN
+
+
+def test_sanctions_levels_by_name_and_ids():
+    """ИНН/ОГРН match: FAIL. Same name, nothing to compare: WARN. Same name, the entry
+    has its own ИНН: another organisation, OK with a note (an «Арсенал» with its own
+    ИНН was "in the sanctions lists" because an LLC ARSENAL with another one is)."""
+    report = CompanyReport(query="x", inn="7812345675", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    listed = Entry("us", "1", "entity", ["LLC ARSENAL"], ["2465316804"], "RUSSIA-EO14024")
+    bare = Entry("eu", "2", "entity", ["Арсенал"], [], "RUS")
+
+    def check():
+        return next(c for c in build_checks(report, sanctions_ok=True, today=TODAY)
+                    if c.title == "Санкционные списки")  # fmt: skip
+
+    report.company_hits = [Hit(listed, "other", "ООО «Арсенал»")]
+    assert check().status is Status.OK and "другими ИНН/ОГРН (1)" in check().details
+    report.company_hits = [Hit(bare, "name", "ООО «Арсенал»")]
+    assert check().status is Status.WARN and "Реквизитов" in check().details
+    report.company_hits = [Hit(listed, "id", "2465316804")]
+    assert check().status is Status.FAIL
+
+
+def test_a_sanctioned_sole_trader_is_found():
+    """A sole trader is a person in the lists: its ИНН was searched among companies only,
+    and its name was screened with "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ" read as the surname."""
+    from suveren.sanctions import SanctionsIndex, screen_company, screen_person
+
+    person = Entry("eu", "7", "person", ["Mikhail Timofeevich VYDUMKIN"], ["770000000082"], "RUS")
+    index = SanctionsIndex([person])
+    rec = record(
+        name_full="ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ Выдумкин Михаил Тимофеевич",
+        name_short=None,
+        inn="770000000082",
+        ogrn="304770000000001",
+        head=None,
+        individual=True,
+    )
+    assert rec.person_name == "Выдумкин Михаил Тимофеевич"
+    hits = screen_company(index, ["770000000082"], [rec.name_full], persons=True)
+    assert [(h.entry.ref, h.how) for h in hits] == [("7", "id")]
+    assert screen_company(index, ["770000000082"], [rec.name_full]) == []  # a company: no
+    assert screen_person(index, rec.person_name)
+
+    report = CompanyReport(query="770000000082", inn="770000000082", egrul=rec)
+    report.sanctions_sources = ["us", "eu", "uk"]
+    report.company_hits = hits
+    assert statuses(report)["Санкционные списки"] is Status.FAIL
+    # The same person by ИНН: not "may be a namesake" next to it.
+    report.person_hits = screen_person(index, rec.person_name)
+    checks = {c.title: c for c in build_checks(report, sanctions_ok=True, today=TODAY)}
+    assert checks["Руководитель в санкционных списках"].status is Status.FAIL
+    assert "тёзка" not in checks["Руководитель в санкционных списках"].recommendation
+    assert checks["Санкционные списки"].details.startswith("Предприниматель")
+
+
+def test_pick_record_prefers_the_active_row_and_no_stranger():
+    # A sole trader who closed and registered again: the first row was the closed one.
+    closed = record(ogrn="304770000000011", terminated=date(2020, 1, 1))
+    active = record(ogrn="320770000000022", registered=date(2020, 3, 1))
+    assert pick_record([closed, active], "7707083893") is active
+    # Without a row of this ИНН, another company was taken in its place.
+    stranger = record(inn="7702070139", ogrn="1027739609391")
+    assert pick_record([stranger], "7707083893") is None
+
+
+def test_a_clean_screening_says_owners_were_not_screened():
+    report = CompanyReport(query="x", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["us", "eu", "uk"]
+    check = sanctions_check(report)
+    assert check.status is Status.OK and "Учредители и владельцы не сверялись" in check.details

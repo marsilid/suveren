@@ -1,0 +1,516 @@
+"""What the privacy policy says, and whether consent is a separate document.
+
+Sources, checked 2026-10-17:
+- Roskomnadzor's recommendations on the operator's policy of 31.07.2017, sections
+  3.1–3.6 (general provisions, purposes, legal grounds, data and subjects, how and how
+  long data is processed, correction, destruction and answers to requests):
+  https://www.garant.ru/products/ipo/prime/doc/71634598/
+- 152-ФЗ, ст. 18.1 ч. 1 п. 2: the policy covers purposes, categories of data and
+  subjects, ways and terms of processing, the order of destruction:
+  https://www.consultant.ru/document/cons_doc_LAW_61801/eeeebe22bf738fd65bb66b95cc278911ae2525ee/
+- 152-ФЗ, ст. 9 ч. 1 as amended by 156-ФЗ of 24.06.2025, in force since 01.09.2025:
+  consent "must be drawn up separately from other information and/or documents that
+  the subject confirms and/or signs":
+  https://www.consultant.ru/document/cons_doc_LAW_61801/6c94959bc017ac80140621762d2ac59f6006b08c/
+  https://www.garant.ru/news/1850806/
+
+Both are keyword heuristics over the text: they point at sections to look at, they
+don't judge whether a section is written well. Nothing here is a "fail".
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from urllib.parse import urljoin
+
+from suveren.checks import GROUP_152, Check, Status
+from suveren.inn import find_inns
+from suveren.page import Form, Link
+from suveren.utils import registrable_domain
+
+RKN_RECOMMENDATIONS = "https://www.garant.ru/products/ipo/prime/doc/71634598/"
+
+# (section, pattern over the lowercased text with ё → е). Each pattern looks for the
+# wording policies actually use, not for one exact heading.
+POLICY_SECTIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "сведения об операторе (наименование, ИНН или адрес)",
+        re.compile(r"\bинн\b|\bогрн\b|\bогрнип\b|юридическ\w* адрес|местонахождени|адрес:"),
+    ),
+    (
+        "цели обработки",
+        re.compile(
+            r"цел\w*\s+(?:сбора|обработки)|в (?:следующих |целях:|целях\s)|цел\w* персональн"
+        ),
+    ),
+    (
+        "правовые основания обработки",
+        re.compile(
+            r"правов\w+\s+основани|основани\w+\s+(?:для\s+)?обработк|"
+            r"на\s+основании\s+(?:договор|согласи|федеральн|закон|устав|ст\.|стать|п\.\s?\d)"
+        ),
+    ),
+    (
+        "какие данные и чьи обрабатываются",
+        re.compile(
+            r"категори\w+\s+(?:обрабатываем\w+\s+)?(?:персональн|субъект)|"
+            r"(?:перечень|состав|объем)\s+(?:обрабатываем\w+\s+)?персональн|"
+            r"обрабатыва\w+\s+следующ\w+\s+(?:персональн|данн)|"
+            r"(?:фамилия|ф\.\s?и\.\s?о\.|фио)[^.]{0,80}(?:телефон|почт)"
+        ),
+    ),
+    (
+        "действия и способы обработки",
+        re.compile(
+            r"сбор\w*,\s*запис|систематизаци|способ\w*\s+обработк|"
+            r"(?:смешанн|автоматизированн)\w*\s+обработк"
+        ),
+    ),
+    (
+        "сроки обработки и хранения",
+        re.compile(
+            r"срок\w*\s+(?:обработки|хранения|действия согласия)|"
+            r"не\s+дольше|до\s+(?:достижения|отзыва)|в течение \d+"
+        ),
+    ),
+    ("порядок уничтожения", re.compile(r"уничтож")),
+    (
+        "права субъекта и отзыв согласия",
+        re.compile(
+            r"прав\w*\s+субъект|отзыв\w*\s+(?:своего\s+)?согласи|отозвать\s+(?:свое\s+)?согласи|"
+            r"вправе\s+(?:требовать|отозвать|получ|направ|запрос)"
+        ),
+    ),
+    (
+        "как направить запрос оператору",
+        re.compile(r"запрос|обращени|электронн\w+\s+почт|e-?mail|[\w.-]+@[\w-]+\.\w"),
+    ),
+    (
+        "меры защиты данных",
+        re.compile(
+            r"мер\w*[^.]{0,60}(?:защит|безопасност)|(?:защит|безопасност)\w*[^.]{0,40}мер|"
+            r"(?:организационн|техническ|правов)\w*\s+(?:и\s+\w+\s+)?мер"
+        ),
+    ),
+)
+_CROSS_BORDER = re.compile(r"трансграничн")
+_DATA_LIST = dict(POLICY_SECTIONS)["какие данные и чьи обрабатываются"]
+_SHORT_POLICY = 2500  # characters: a real policy with these sections is longer
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().replace("ё", "е").split())
+
+
+def missing_sections(text: str, foreign: bool = False) -> list[str]:
+    low = _norm(text)
+    missing = [name for name, rx in POLICY_SECTIONS if not rx.search(low)]
+    if foreign and not _CROSS_BORDER.search(low):
+        missing.append("трансграничная передача (на сайте есть иностранные сервисы)")
+    return missing
+
+
+def policy_content(text: str, foreign: bool, scripted: bool = True) -> Check:
+    """``scripted``: the policy page has scripts, so its text may be drawn by them."""
+    low = _norm(text)
+    if len(re.findall(r"персональн", low)) < 3 and scripted:
+        # The link answered with the site's shell (menu, footer) and the policy itself
+        # is drawn by a script, or this is not the policy at all. A page without scripts
+        # shows all it has: a stub "we respect your privacy" is judged as it is.
+        return Check(
+            GROUP_152,
+            "Содержание политики",
+            Status.UNKNOWN,
+            "Не проверено: на странице политики почти нет текста о персональных данных. "
+            "Вероятно, сам текст подгружается скриптом.",
+            "Проверьте страницу политики вручную или запустите проверку с параметром --browser.",
+        )
+    missing = missing_sections(text, foreign)
+    mentions = len(re.findall(r"персональн", low))
+    if len(missing) >= 7 and mentions * 1500 < len(low) and len(low) >= _SHORT_POLICY:
+        # A long page that hardly speaks of personal data and has none of the sections:
+        # a page that links to the policy (often a PDF), not the policy (banki.ru).
+        return Check(
+            GROUP_152,
+            "Содержание политики",
+            Status.UNKNOWN,
+            "Не проверено: по ссылке открылась страница, похожая на указатель, а не на текст "
+            "политики (например, со ссылкой на PDF).",
+            "Проверьте содержание политики вручную.",
+        )
+    short = len(low) < _SHORT_POLICY
+    if not missing:
+        return Check(
+            GROUP_152,
+            "Содержание политики",
+            Status.OK,
+            "В политике есть все разделы из рекомендаций Роскомнадзора: цели, основания, "
+            "данные, сроки, уничтожение, права субъекта, меры защиты.",
+        )
+    total = len(POLICY_SECTIONS) + (1 if foreign else 0)
+    note = (
+        " Текст политики очень короткий: возможно, это не сама политика, а страница со "
+        "ссылкой на неё."
+        if short
+        else ""
+    )
+    return Check(
+        GROUP_152,
+        "Содержание политики",
+        Status.WARN,
+        f"Не найдено {len(missing)} из {total} разделов, которые Роскомнадзор рекомендует "
+        f"включать в политику: {', '.join(missing)}.{note}",
+        "Дополните политику недостающими разделами (152-ФЗ, ст. 18.1; рекомендации "
+        f"Роскомнадзора от 31.07.2017: {RKN_RECOMMENDATIONS}). Проверка ищет ключевые слова: "
+        "если раздел есть под другим названием, всё в порядке.",
+    )
+
+
+# --- Consent drawn up separately (152-ФЗ, ст. 9 ч. 1, since 01.09.2025) ----------------
+
+CONSENT_TITLE = "Отдельное согласие на обработку"
+_CONSENT_HREF = re.compile(r"soglas|consent|agreement|personal|pdn|152|pd[-_]", re.I)
+_CONSENT_DOC = re.compile(r"^(?:я\s+)?(?:даю\s+)?согласи\w*\s+(?:на|с)\s+обработк", re.I)
+# "согласие на обработку", "согласие Пользователя на обработку".
+_CONSENT_TO = r"соглас\w*(?:\s+[\w-]+){0,3}?\s+(?:на|с)\s+обработк"
+_PROCESSING = re.compile(
+    rf"{_CONSENT_TO}|соглас\w*\s+на\s+сбор|обработк\w*\s+(?:моих\s+)?персональн"
+)
+# Documents a visitor accepts, unlike the policy, which only informs.
+_OTHER_DOC = re.compile(
+    r"оферт|пользовательск\w*\s+соглашени|лицензионн\w*\s+соглашени|"
+    r"услови\w*\s+(?:использования|пользования|договора|оферты|сервиса|участия|акции|доставки)|"
+    r"правил\w*\s+(?:сайта|сервиса|пользования|программы|акции)|договор\w*\s+(?:оферты|оказания)|"
+    # Consent to advertising (38-ФЗ, ст. 18) is another consent, not part of this one.
+    r"(?:получени\w*|на)\s+(?:\w+\s+){0,2}?(?:рекламн\w*|рассылк\w*)",
+)
+_SENTENCE = re.compile(r"[^.!?]+")
+# A capitalised word ("При", "Я"), not an abbreviation ("ПДн", "ИП").
+_CAPITAL = re.compile(r"(?<!\S)[А-ЯЁA-Z](?:[а-яёa-z]|(?=\s))")
+# The document says using the site, registering or sending a form *is* consent:
+# "Использование сайта означает согласие на обработку..." or "Согласие считается
+# данным с момента регистрации...".
+_ACTION = (
+    r"(?:использовани\w*|посещени\w*)\s+(?:сайта|сервиса|ресурса)|регистраци\w+|"
+    r"акцепт\w*|приняти\w+\s+(?:условий|настоящ)|заполнени\w+\s+(?:форм|анкет)|"
+    r"отправк\w+\s+(?:форм|заявк|данных|сообщени)|оформлени\w+\s+заказ"
+)
+_IMPLIED = (
+    re.compile(
+        rf"(?:{_ACTION})[^.;]{{0,150}}?(?:означа\w+|явля\w+|счита\w+|призна\w+|подтвержда\w+|"
+        rf"выража\w+)[^.;]{{0,120}}?{_CONSENT_TO}"
+    ),
+    re.compile(
+        rf"{_CONSENT_TO}[^.;]{{0,150}}?(?:счита\w+|призна\w+)\s+"
+        rf"(?:данн|предоставленн|полученн)\w*[^.;]{{0,80}}?(?:{_ACTION})"
+    ),
+)
+
+
+@dataclass(slots=True)
+class ConsentFinding:
+    where: str
+    quote: str
+    # "form" or "page": consent and another document in one statement; "doc": implied.
+    kind: str
+
+
+def _quote(sentence: str, limit: int = 160) -> str:
+    s = " ".join(sentence.split())
+    return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+def bundled_in_form(form: Form) -> str | None:
+    """The statement where consent to processing is given together with accepting an
+    offer or user agreement ("принимаю условия оферты и даю согласие на обработку")."""
+    for statement in form.statements or [form.text]:
+        found = bundled_in_text(statement)
+        if found:
+            return found
+    return None
+
+
+def _one_statement(original: str, a: re.Match[str], b: re.Match[str]) -> bool:
+    """Both phrases are in one statement: no new sentence or menu separator between
+    them. A footer "Пользовательское соглашение | Политика | Согласие на обработку"
+    or two checkboxes "Я принимаю условия оферты" "Я даю согласие" are separate."""
+    first, second = sorted((a, b), key=lambda m: m.start())
+    gap = original[first.end() : second.start()]
+    return not re.search(r"[|•·]", gap) and not _CAPITAL.search(gap)
+
+
+def bundled_in_text(text: str) -> str | None:
+    """The same, in a short sentence of a page ("При входе вы принимаете условия
+    использования сайта и соглашаетесь на обработку персональных данных")."""
+    # Page text often has no full stops between interface elements, so look around the
+    # consent phrase itself: from the previous full stop, at most 160 characters back.
+    original = " ".join(text.split())
+    low = original.lower().replace("ё", "е")  # same length: indices match the original
+    for match in _PROCESSING.finditer(low):
+        start = max(low.rfind(".", 0, match.start()) + 1, match.start() - 160)
+        end = low.find(".", match.end())
+        end = len(low) if end < 0 else min(end, match.end() + 160)
+        other = next(
+            (o for o in _OTHER_DOC.finditer(low, start, end) if _one_statement(original, o, match)),
+            None,
+        )
+        if other:
+            # Quote from a few words before the first of the two phrases, not from
+            # the menu items that happen to precede it.
+            first = min(other.start(), match.start())
+            cut = low.rfind(" ", start, max(start, first - 30))
+            begin = cut + 1 if cut >= 0 else start
+            # A capitalised word before the phrase usually starts the sentence: the
+            # words before it belong to the menu ("доступ При входе вы принимаете").
+            capital = [m.start() for m in _CAPITAL.finditer(original, begin, first)]
+            if capital:
+                begin = capital[-1]
+            return _quote(original[begin:end].strip())
+    return None
+
+
+def implied_in_document(text: str) -> str | None:
+    """A sentence where using the site or accepting the document counts as consent."""
+    for sentence in _SENTENCE.findall(text):
+        low = _norm(sentence)
+        if len(low) > 600 or not re.search(_CONSENT_TO, low):
+            continue
+        if re.search(r"cookie|куки", low):
+            continue  # a cookie banner's wording, a different question
+        if any(rx.search(low) for rx in _IMPLIED):
+            return _quote(sentence)
+    return None
+
+
+def consent_doc_link(links: list[Link]) -> Link | None:
+    """A link to a separate consent text: "Согласие на обработку персональных данных"."""
+    for link in links:
+        text = " ".join(link.text.split())
+        href = link.href.strip(" #")
+        if not href or href.startswith("javascript:"):
+            continue
+        if len(text) <= 120 and _CONSENT_DOC.search(text):
+            return link
+        # "Я даю <a>согласие</a> на обработку...": only the word is a link.
+        if text.lower() in ("согласие", "согласия", "согласием") and _CONSENT_HREF.search(href):
+            return link
+    return None
+
+
+def consent_check(findings: list[ConsentFinding], separate: str | None, forms: int) -> Check | None:
+    """``separate`` is the URL of a separate consent document; ``forms`` is how many
+    forms with personal data were found. None when there is nothing to say."""
+    fix = (
+        "С 1 сентября 2025 года согласие на обработку персональных данных оформляется "
+        "отдельно от других документов, которые посетитель принимает или подписывает "
+        "(152-ФЗ, ст. 9 ч. 1 в ред. 156-ФЗ). Сделайте отдельный текст согласия и отдельный "
+        "чекбокс для него, не объединяя его с офертой, пользовательским соглашением или "
+        "согласием на рассылку."
+    )
+    if findings:
+        shown = findings[:2]
+        intro = {
+            "form": "в форме ({}) согласие дают вместе с другим документом или согласием",
+            "page": "на странице входа ({}) согласие дают вместе с другим документом или согласием",
+            "doc": "в документе ({}) согласием считается само действие посетителя",
+        }
+        parts = [f"{intro[f.kind].format(f.where)}: «{f.quote}»" for f in shown]
+        return Check(
+            GROUP_152,
+            CONSENT_TITLE,
+            Status.WARN,
+            "Согласие, возможно, оформлено не отдельно: " + "; ".join(parts) + ".",
+            fix,
+        )
+    if separate:
+        return Check(
+            GROUP_152,
+            CONSENT_TITLE,
+            Status.OK,
+            "Текст согласия на обработку персональных данных опубликован отдельным документом.",
+            link=separate,
+        )
+    if forms:
+        return Check(
+            GROUP_152,
+            CONSENT_TITLE,
+            Status.UNKNOWN,
+            "Отдельного документа «Согласие на обработку персональных данных» на проверенных "
+            "страницах не найдено. Если полный текст согласия стоит у чекбокса формы, это "
+            "допустимо.",
+            fix,
+        )
+    return None
+
+
+# --- policy vs reality --------------------------------------------------------------------
+
+REALITY_TITLE = "Политика и реальность"
+# Blanket claims a policy makes, matched on lowercased text with ё as е.
+_NO_THIRD = re.compile(
+    r"не\s+(?:передает|передаем|передают|раскрывает|раскрываем|предоставляет|предоставляем)"
+    r"[^.]{0,80}?треть\w*\s+лиц"
+)
+_NO_CROSS_BORDER = re.compile(
+    r"трансграничн\w*\s+передач\w*[^.]{0,60}?не\s+(?:осуществля\w+|производ\w+|ведет\w*)"
+    r"|не\s+осуществля\w+\s+трансграничн"
+)
+_NO_COOKIES = re.compile(
+    r"не\s+(?:использует|используем|применяет|применяем|собирает|собираем)"
+    r"[^.]{0,30}?(?:cookie|куки)"
+)
+# A sentence with a condition or a purpose is not a blanket claim: "...кроме случаев,
+# предусмотренных законом", "не используем cookie для установления личности" (hh.ru).
+_CONDITION = re.compile(
+    r"исключ|кроме|без\s+(?:\w+\s+){0,2}согласи|если|в\s+случа|предусмотрен|за\s+исключ|"
+    r"иначе|только\s+(?:с|при|в)|(?<!\w)для(?!\w)|чтобы|с\s+цель"
+)
+
+
+def _claim(text: str, rx: re.Pattern[str]) -> str | None:
+    """The first unconditional sentence of the policy that matches ``rx``, as a quote."""
+    for sentence in _SENTENCE.findall(text):
+        low = _norm(sentence)
+        if rx.search(low) and not _CONDITION.search(low):
+            return _quote(sentence, 220)
+    return None
+
+
+# What a form asks for, and the words a policy names it with (lowercase, ё as е). A miss
+# is a hint, not proof: "контактные данные" may cover a phone.
+DATA_WORDS: dict[str, tuple[str, re.Pattern[str]]] = {
+    "phone": ("телефон", re.compile(r"телефон|номер\w*\s+(?:мобильн|сотов|контактн)")),
+    "email": (
+        "адрес электронной почты",
+        re.compile(r"e-?mail|электронн\w*\s+(?:почт|адрес)|адрес\w*\s+почт|почтов\w*\s+ящик"),
+    ),
+    "name": ("имя", re.compile(r"(?<!\w)(?:им(?:я|ени)|фио|ф\.\s?и\.\s?о)(?!\w)|фамили")),
+}
+_COOKIE_WORDS = re.compile(
+    r"cookie|(?<!\w)куки|метрическ\w*\s+(?:программ|сервис)|веб-?аналитик|"
+    r"яндекс\.?\s?метрик|google\s+analytics"
+)
+# "Настоящая политика применяется к сайту other-shop.ru": the site a policy is about.
+_SITE_REF = re.compile(
+    r"(?:сайт\w*|ресурс\w*|портал\w*|доменн\w*\s+им\w*|адрес\w*\s+в\s+сети)"
+    r"[\s:«\"“(]*(?:https?://)?(?:www\.)?"
+    r"((?:[a-z0-9-]+\.)+(?:ru|su|com|net|org|online|site|store|shop|pro|info|biz|io|app))(?![\w.-])"
+)
+# Sites a policy names for reasons of its own: the law, the regulator, big services.
+_REFERENCE_SITES = frozenset(
+    {"consultant.ru", "garant.ru", "pravo.gov.ru", "gosuslugi.ru", "yandex.ru", "google.com",
+     "mail.ru", "vk.com", "kremlin.ru"}
+)  # fmt: skip
+
+
+_COOKIE_DOC = re.compile(r"cookie|куки", re.I)
+
+
+def cookie_doc_link(links: list[Link], base: str, policy: str | None) -> bool:
+    """The site links a document about cookies ("Политика использования файлов cookie")
+    other than the policy itself: a banner's "подробнее о cookie" often leads to it."""
+    policy = (policy or "").split("#", 1)[0].rstrip("/")
+    for link in links:
+        if _COOKIE_DOC.search(f"{link.text} {link.href}") and len(link.text) < 80:
+            target = urljoin(base, link.href.strip()).split("#", 1)[0].rstrip("/")
+            if target != policy and not link.href.startswith(("#", "javascript:")):
+                return True
+    return False
+
+
+def foreign_site_refs(text: str, own: set[str]) -> list[str]:
+    """Other sites the policy says it applies to, when it never names this one: a
+    policy copied from another site (``own``: this site's registrable domains)."""
+    low = _norm(text)
+    if any(domain in low for domain in own):
+        return []
+    found = []
+    for m in _SITE_REF.finditer(low):
+        domain = registrable_domain(m.group(1))
+        if domain in own or domain in _REFERENCE_SITES or m.group(1).endswith(".gov.ru"):
+            continue
+        if domain not in found:
+            found.append(domain)
+    return found
+
+
+def policy_reality(
+    text: str,
+    third: list[str],
+    foreign: list[str],
+    tracking: list[str],
+    *,
+    collected: list[str] | None = None,
+    site_inn: str | None = None,
+    own: set[str] | None = None,
+    cookie_doc: bool = False,
+) -> Check:
+    """What the policy says against what the site does: each contradiction is the
+    policy's own sentence plus the services that prove it otherwise, and each gap is
+    what the site does that the policy does not mention.
+
+    ``third``: services that receive visitor data (analytics, ads, chats, widgets);
+    ``foreign``: those of them abroad; ``tracking``: analytics and ads, which set cookies;
+    ``collected``: what the forms ask for (DATA_WORDS keys); ``site_inn``: the ИНН from
+    the site's own pages, not from the policy; ``own``: the site's registrable domains;
+    ``cookie_doc``: the site links a cookie policy of its own, so this one may be silent.
+    """
+    found = []
+    if third and (quote := _claim(text, _NO_THIRD)):
+        found.append(f"Политика: «{quote}» — а данные посетителей получают {', '.join(third)}.")
+    if foreign and (quote := _claim(text, _NO_CROSS_BORDER)):
+        found.append(f"Политика: «{quote}» — а на сайте иностранные сервисы: {', '.join(foreign)}.")
+    if tracking and (quote := _claim(text, _NO_COOKIES)):
+        found.append(f"Политика: «{quote}» — а cookies ставят {', '.join(tracking)}.")
+    low = _norm(text)
+    # The operator: a policy copied from another company or another site.
+    policy_inns = find_inns(text, first=True)
+    if site_inn and policy_inns and site_inn not in policy_inns:
+        found.append(
+            f"В политике оператор с ИНН {', '.join(policy_inns[:2])}, а в реквизитах сайта — "
+            f"ИНН {site_inn}. Так бывает в группе компаний, но бывает и политика, взятая у "
+            "чужой компании: проверьте, кто оператор данных посетителей этого сайта."
+        )
+    others = foreign_site_refs(text, own or set())
+    if others:
+        found.append(
+            f"Политика говорит о сайте {', '.join(others[:3])}, а этот сайт в ней не назван ни "
+            "разу: проверьте, что она относится к этому сайту (её могли взять у другого сайта "
+            "или у другой компании группы)."
+        )
+    # The list of data (ст. 18.1 ч. 1 п. 2): what the forms ask for must be in it. A
+    # policy with no list at all is "Содержание политики"'s finding, not repeated here.
+    unnamed = [
+        DATA_WORDS[k][0]
+        for k in DATA_WORDS
+        if k in (collected or []) and not DATA_WORDS[k][1].search(low)
+    ]
+    if unnamed and _DATA_LIST.search(low):
+        found.append(
+            f"Формы сайта собирают данные, которых нет в перечне политики: {', '.join(unnamed)}."
+        )
+    silent = not _COOKIE_WORDS.search(low) and not cookie_doc
+    if tracking and silent and not any("cookies ставят" in x for x in found):
+        found.append(
+            f"На сайте {', '.join(tracking)}: они ставят cookies и собирают данные о посещениях, "
+            "а в политике о cookies и веб-аналитике ничего нет."
+        )
+    if not found:
+        return Check(
+            GROUP_152,
+            REALITY_TITLE,
+            Status.OK,
+            "Политика не расходится с тем, что видно на сайте: оператор, данные из форм, "
+            "cookies и сервисы не противоречат ей.",
+        )
+    return Check(
+        GROUP_152,
+        REALITY_TITLE,
+        Status.WARN,
+        " ".join(found) + " Проверка сравнивает слова политики с тем, что найдено на сайте: "
+        "если в политике это сказано другими словами, всё в порядке.",
+        "Приведите политику в соответствие с тем, что делает сайт: оператор с реквизитами "
+        "сайта, все данные, которые собирают формы, cookies, сервисы, которым передаются "
+        "данные, и страны (152-ФЗ, ст. 18.1 ч. 1 п. 2) — или уберите эти сервисы.",
+    )

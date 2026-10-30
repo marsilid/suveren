@@ -15,30 +15,43 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
+from typer.exceptions import TyperException
+
+from suveren import __version__
 
 REPORTS = Path("reports")
 SITES_TEMPLATE = (
     "# Впишите сайты, по одному в строке, сохраните файл и выберите пункт 2 снова.\nexample.ru\n"
 )
+ACCENT, DIM = "#5fb3b3", "grey50"
 
-ITEMS = (
-    ("1", "Проверить сайт (сервисы, 152-ФЗ, блокировки)"),
-    ("2", "Проверить список сайтов"),
-    ("3", "Проверить компанию (ИНН, ОГРН или сайт)"),
-    ("4", "Сравнить два отчёта (JSON)"),
-    ("5", "Показать базу сервисов"),
-    ("6", "Обновить санкционные списки и реестр блокировок"),
-    ("7", "Проверить источники данных"),
-    ("8", "Открыть папку с отчётами"),
-    ("0", "Выход"),
-)
+# (group, ((key, title, hint), ...))
+GROUPS = (
+    ("Проверка", (
+        ("1", "Сайт", "сервисы, 152-ФЗ, безопасность, сценарии атак"),
+        ("2", "Список сайтов", "сводная таблица и отчёт по каждому"),
+        ("3", "Компания", "ЕГРЮЛ, санкции, реестр операторов — по ИНН, ОГРН или сайту"),
+    )),
+    ("Данные", (
+        ("4", "Сравнить два отчёта", "что изменилось после переезда (JSON)"),
+        ("5", "База сервисов", "какие сервисы распознаёт Suveren"),
+        ("6", "Обновить списки", "санкции и реестр блокировок"),
+    )),
+    ("Сервис", (
+        ("7", "Проверить источники", "доступны ли реестры и списки"),
+        ("8", "Папка с отчётами", ""),
+        ("0", "Выход", ""),
+    )),
+)  # fmt: skip
+ITEMS = tuple((key, title) for _, items in GROUPS for key, title, _ in items)
 
 
 def open_path(path: Path) -> None:
     """Open a file or folder in the system's default application."""
     with contextlib.suppress(Exception):
         if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
+            os.startfile(path)  # type: ignore[attr-defined,unused-ignore]  # Windows only
         elif sys.platform == "darwin":
             subprocess.run(["open", str(path)], check=False)
         else:
@@ -48,25 +61,49 @@ def open_path(path: Path) -> None:
 def run_menu(app: typer.Typer, console: Console) -> None:
     def call(*args: str) -> None:
         with contextlib.suppress(SystemExit, typer.Exit, typer.Abort):
-            app(list(args), standalone_mode=False)
+            try:
+                app(list(args), standalone_mode=False)
+            except TyperException as exc:
+                # A mistyped flag ("--json" without a file) is said, not fatal: the menu
+                # runs in its own window, which would close.
+                format_message = getattr(exc, "format_message", None)
+                message = format_message() if format_message else str(exc)
+                console.print(f"  [red]{escape(message)}[/]")
 
     def ask(prompt: str) -> str:
         try:
-            return console.input(f"  {prompt}: ").strip().strip('"')
+            return console.input(f"  [{DIM}]{prompt}[/]  ").strip().strip('"')
         except (EOFError, KeyboardInterrupt):
             return ""
 
     def pause() -> None:
-        ask("\n[dim]Нажмите Enter, чтобы вернуться в меню[/]")
+        console.print()
+        ask("Enter — вернуться в меню")
+
+    def yes(prompt: str) -> bool:
+        answer = ask(f"{prompt}  [{ACCENT}]д[/]/[bold]Н[/]")
+        return answer.lower() in ("д", "да", "y", "yes")
 
     def scan() -> None:
-        target = ask("Домен или ссылка")
-        if target:
-            REPORTS.mkdir(exist_ok=True)
-            call("scan", target, "--browser")
+        # After the address the flags of `suveren scan` may follow, as on the command
+        # line ("сайт.ru --pages 30 --pdf отчёт.pdf"); what they set is not asked again.
+        words = ask("Адрес сайта (можно с флагами, как в командной строке)").split()
+        if not words:
+            return
+        target, flags = words[0], words[1:]
+        REPORTS.mkdir(exist_ok=True)
+        args = ["scan", target]
+        if "--profile" not in flags and "-P" not in flags and "--quick" not in flags:
+            deep = yes("Глубокая проверка (браузер, отключение сервисов, ~1 мин)")
+            args += ["--profile", "deep"] if deep else ["--browser"]
+        if "--pdf" not in flags and yes("Сохранить ещё и PDF"):
+            name = "".join(c if c.isalnum() or c in ".-" else "_" for c in target)
+            args += ["--pdf", str(REPORTS / f"{name}.pdf")]
+        console.print()
+        call(*args, *flags)
 
     def batch() -> None:
-        console.print("  Нужен текстовый файл: по одному сайту в строке.")
+        console.print(f"  [{DIM}]Нужен текстовый файл: по одному сайту в строке.[/]")
         path = ask("Файл со списком (Enter — создать шаблон)")
         if not path:
             REPORTS.mkdir(exist_ok=True)
@@ -79,7 +116,7 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         call("batch", path, "--browser")
 
     def company() -> None:
-        console.print("  [dim]Первая проверка скачивает санкционные списки (около 100 МБ).[/]")
+        console.print(f"  [{DIM}]Первая проверка скачивает санкционные списки (около 100 МБ).[/]")
         target = ask("ИНН, ОГРН или сайт компании")
         if target:
             call("company", target, "--browser")
@@ -108,10 +145,20 @@ def run_menu(app: typer.Typer, console: Console) -> None:
     empty = 0
     while True:
         console.clear()
-        console.print("\n  [bold green]S u v e r e n[/]   [dim]аудит сайта и компании для РФ[/]\n")
-        for key, title in ITEMS:
-            console.print(f"  [bold]{key}[/]  {title}")
-        choice = ask("\nВыберите пункт и нажмите Enter")
+        console.print()
+        console.print(
+            f"[bold {ACCENT}]suveren[/] [{DIM}]{__version__}   аудит сайта и компании для России[/]"
+        )
+        for group, items in GROUPS:
+            console.print()
+            console.print(f"  [bold {DIM}]{group}[/]")
+            for key, title, hint in items:
+                console.print(f"    [bold {ACCENT}]{key}[/]   {title:<22}[{DIM}]{hint}[/]")
+        console.print()
+        try:
+            choice = console.input(f"  [bold {ACCENT}]›[/] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
         if choice == "0":
             return
         if choice not in actions:

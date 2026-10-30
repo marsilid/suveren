@@ -23,7 +23,7 @@ from typing import Any
 
 import httpx
 
-from suveren.cache import cache_dir, fetch_cached
+from suveren.cache import cache_dir, fetch_cached, stale_days
 from suveren.errors import ModuleError
 from suveren.inn import classify
 
@@ -121,6 +121,9 @@ def soft(word: str) -> str:
         w = w.replace(src, dst)
     w = w.replace("y", "i").replace("j", "i")
     w = re.sub(r"^ie", "e", w)
+    # «ье/ьё» and «ё» lose the soft sign in Cyrillic and keep a y in romanisation:
+    # Васильев/Vasilyev/Vasiliev, Соловьёв/Solovyov, Фёдор/Fyodor.
+    w = w.replace("ie", "e").replace("io", "e")
     return re.sub(r"(.)\1+", r"\1", w)
 
 
@@ -131,6 +134,21 @@ def tokens(name: str) -> list[str]:
 
 def name_key(name: str) -> frozenset[str]:
     return frozenset(k for w in tokens(name) if len(k := skeleton(w)) >= 2)
+
+
+# The one word lists translate rather than transliterate: «Сбербанк России» is
+# SBERBANK OF RUSSIA. Other translations differ in their consonants anyway.
+_RUSSIA = frozenset({"rosi", "rosia", "rosiskaia", "rosiskoi", "rosiski", "rusia", "rusian"})
+
+
+def _word(w: str) -> str:
+    s = soft(w)
+    return "rusia" if s in _RUSSIA else s
+
+
+def same_name(a: str, b: str) -> bool:
+    """The same words, vowels and numbers included, across scripts and romanisations."""
+    return frozenset(_word(w) for w in tokens(a)) == frozenset(_word(w) for w in tokens(b))
 
 
 def brand(name: str) -> str | None:
@@ -288,9 +306,16 @@ PARSERS = {"us": parse_ofac_xml, "eu": parse_eu_csv, "uk": parse_uk_csv}
 
 
 class SanctionsIndex:
-    def __init__(self, entries: list[Entry], notes: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        entries: list[Entry],
+        notes: list[str] | None = None,
+        stale: dict[str, int] | None = None,
+    ) -> None:
         self.entries = entries
         self.notes = notes or []
+        # Source key -> age in days of a copy kept because the refresh failed.
+        self.stale = stale or {}
         self.sources = sorted({e.source for e in entries})
         self.by_id: dict[str, list[Entry]] = {}
         self.by_key: dict[frozenset[str], list[Entry]] = {}
@@ -317,7 +342,7 @@ class SanctionsIndex:
 @dataclass(slots=True)
 class Hit:
     entry: Entry
-    how: str  # "id" | "name" | "partial" | "person"
+    how: str  # "id" | "name" | "partial" | "person" | "person_full"
     matched: str
 
     @property
@@ -326,7 +351,9 @@ class Hit:
             "id": "совпадение по ИНН/ОГРН",
             "name": "совпадение по названию",
             "partial": "похожее название",
+            "other": "похожее название, другие ИНН/ОГРН — другая организация",
             "person": "возможное совпадение по ФИО",
+            "person_full": "совпадение по фамилии, имени и отчеству",
         }[self.how]
 
     def to_dict(self) -> dict[str, Any]:
@@ -341,19 +368,48 @@ class Hit:
         }
 
 
+def _other_ids(ours: list[str], theirs: Iterable[str]) -> bool:
+    """True when both sides have an identifier of the same kind (ИНН: 10 or 12 digits,
+    ОГРН: 13 or 15) and none is shared. Our ИНН against an entry with only an ОГРН
+    proves nothing: the UK list gives Kalashnikov Concern its ОГРН alone."""
+    theirs = list(theirs)
+    if set(ours) & set(theirs):
+        return False
+
+    def kind(i: str) -> str:
+        return "inn" if len(i) in (10, 12) else "ogrn" if len(i) in (13, 15) else "?"
+
+    return bool({kind(i) for i in ours} & {kind(i) for i in theirs} - {"?"})
+
+
 def screen_company(
-    index: SanctionsIndex, ids: Iterable[str], names: Iterable[str], max_partial: int = 5
+    index: SanctionsIndex,
+    ids: Iterable[str],
+    names: Iterable[str],
+    max_partial: int = 5,
+    *,
+    persons: bool = False,
 ) -> list[Hit]:
+    """``persons``: a sole trader, whose ИНН is on a person entry; matched by ИНН only,
+    the trader's name goes through screen_person."""
     hits: list[Hit] = []
     seen: set[int] = set()
+    known = [i for i in ids if i]
 
     def add(entry: Entry, how: str, matched: str) -> None:
         if id(entry) not in seen and entry.kind == "entity":
             seen.add(id(entry))
+            # Names repeat (hundreds of «Арсенал»): a listed entry with its own ИНН/ОГРН,
+            # none of them ours, is another organisation. Shown, not a finding.
+            if how != "id" and _other_ids(known, entry.ids):
+                how = "other"
             hits.append(Hit(entry, how, matched))
 
-    for ident in ids:
+    for ident in known:
         for entry in index.by_id.get(ident, []):
+            if persons and entry.kind == "person" and id(entry) not in seen:
+                seen.add(id(entry))
+                hits.append(Hit(entry, "id", ident))
             add(entry, "id", ident)
     names = [n for n in names if n]
     if hits:  # identifier matches are exact; same-name entries would only add noise
@@ -362,36 +418,61 @@ def screen_company(
         key = name_key(name)
         if len(key) >= 1 and sum(len(k) for k in key) >= 4:
             for entry in index.by_key.get(key, []):
-                add(entry, "name", name)
+                # The consonant key is the lookup only: «Гранит» and GARANTIYA share
+                # "grnt", «Арсенал» and «5 ARSENAL» differ by a number it drops.
+                if any(same_name(name, n) for n in entry.names):
+                    add(entry, "name", name)
     if not hits:
         partial = 0
         for name in names:
             mark = brand(name)
             if not mark:
                 continue
-            tok = skeleton(mark)
+            tok, word = skeleton(mark), soft(mark)
             for entry in index.by_token.get(tok, []):
                 if partial >= max_partial:
                     break
-                if entry.kind == "entity" and any(len(name_key(n)) <= 3 for n in entry.names):
+                # The same word, not just its consonants: «Гранит» is not GARANTIYA.
+                if entry.kind == "entity" and any(
+                    len(name_key(n)) <= 3 and word in {soft(w) for w in tokens(n)}
+                    for n in entry.names
+                ):
                     add(entry, "partial", mark)
                     partial += 1
     return hits
 
 
+def _patronymic(word: str) -> bool:
+    """A Russian patronymic in its soft() form, where "h" became "g": Viktorovich ->
+    viktorovicg, Olegovna, Ilyich -> ilicg, Ilyinichna -> ilinicgna."""
+    return bool(re.search(r"(?:vicg|vna|icg|icgna)$", word))
+
+
 def screen_person(index: SanctionsIndex, full_name: str) -> list[Hit]:
-    """'Фамилия Имя Отчество' — surname and first name must both match."""
+    """'Фамилия Имя Отчество' — surname and first name must both match. When both the
+    head and the list entry have a patronymic, a different one is another person (the
+    lists usually write it: "Sergei Viktorovich IVANOV"); the same one is a full match."""
     words = [w for w in re.findall(r"[^\s]+", full_name) if len(w) >= 2]
     if len(words) < 2:
         return []
     surname, given = soft(words[0]), soft(words[1])
+    patronymic = soft(words[2]) if len(words) > 2 and _patronymic(soft(words[2])) else None
     hits = []
     for entry in index.by_person.get(surname, []):
+        best: str | None = None
         for name in entry.names:
             key = {soft(w) for w in tokens(name)}
-            if surname in key and given in key:
-                hits.append(Hit(entry, "person", full_name))
+            if surname not in key or given not in key:
+                continue
+            others = [w for w in key - {surname, given} if _patronymic(w)]
+            if patronymic and patronymic in key:
+                best = "person_full"
                 break
+            if patronymic and others:
+                continue  # this spelling names another patronymic
+            best = best or "person"
+        if best:
+            hits.append(Hit(entry, best, full_name))
     return hits
 
 
@@ -399,6 +480,7 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
     """Download (if stale) and parse all lists; a failed source is skipped with a note."""
     entries: list[Entry] = []
     notes: list[str] = []
+    stale: dict[str, int] = {}
     for source in SOURCES:
         try:
             raw, note = await fetch_cached(client, source.url, source.filename, refresh=refresh)
@@ -407,10 +489,17 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
             continue
         if note:
             notes.append(f"{source.title}: {note}")
-        entries += _cached_entries(source, raw, notes)
+            days = stale_days(raw)
+            if days is not None:
+                stale[source.key] = days
+        found = _cached_entries(source, raw, notes)
+        if not found:
+            # A list in a new format parses to nothing: it must not pass for "checked".
+            notes.append(f"{source.title}: в файле не найдено ни одной записи")
+        entries += found
     if not entries:
         raise ModuleError("не удалось загрузить ни один санкционный список")
-    return SanctionsIndex(entries, notes)
+    return SanctionsIndex(entries, notes, stale)
 
 
 def _cached_entries(source: Source, raw: Path, notes: list[str]) -> list[Entry]:
@@ -424,8 +513,8 @@ def _cached_entries(source: Source, raw: Path, notes: list[str]) -> list[Entry]:
             pass
     try:
         entries = list(PARSERS[source.key](raw))
-    except (OSError, ET.ParseError, csv.Error, UnicodeDecodeError) as exc:
-        notes.append(f"{source.title}: файл не разобран ({type(exc).__name__})")
+    except (OSError, ET.ParseError, csv.Error, UnicodeDecodeError):
+        notes.append(f"{source.title}: файл не разобран, он в неожиданном формате")
         return []
     index_path.write_text(
         json.dumps(

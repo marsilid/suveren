@@ -12,16 +12,19 @@ verdict is built on DMARC and SPF/DKIM are reported as supporting checks.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
+import secrets
 from dataclasses import dataclass, field
 
 import httpx
 
 from suveren import services as db
-from suveren.checks import Check, Status
+from suveren.checks import Check, Evidence, Status
 from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
-from suveren.errors import TIMEOUTS
+from suveren.errors import TIMEOUTS, describe
+from suveren.utils import registrable_domain
 
 GROUP_MAIL = "Защита почты от подделки"
 
@@ -59,6 +62,8 @@ class Spf:
     redirect: str | None = None
     includes: list[str] = field(default_factory=list)
     lookups: int = 0  # DNS-querying terms in this record alone
+    uses_ptr: bool = False  # "ptr" SHOULD NOT be used (RFC 7208, section 5.5)
+    targets: list[tuple[str, str]] = field(default_factory=list)  # ("A", host) for a:host
 
 
 def spf_records(txt: list[str]) -> list[str]:
@@ -83,8 +88,16 @@ def parse_spf(record: str) -> Spf:
             spf.all = qualifier
         elif name == "include" and value:
             spf.includes.append(value.rstrip("."))
+        elif name == "ptr":
+            spf.uses_ptr = True
+        elif name in ("a", "mx") and value and "%{" not in value:
+            spf.targets.append((name.upper(), value.split("/", 1)[0].rstrip(".")))
         if name in _SPF_LOOKUP_TERMS:
             spf.lookups += 1
+    if spf.all is not None and spf.redirect:
+        # With an "all" mechanism the redirect is never evaluated (RFC 7208, section 6.1).
+        spf.redirect = None
+        spf.lookups -= 1
     return spf
 
 
@@ -95,6 +108,8 @@ class SpfResult:
     lookups: int = 0  # total across includes and redirects
     effective_all: str | None = None
     problems: list[str] = field(default_factory=list)
+    void: list[str] = field(default_factory=list)  # a:/mx: names with an empty answer
+    records: list[str] = field(default_factory=list)  # v=spf1 records at the domain, as is
 
 
 async def _txt(resolver: DnsResolver, name: str) -> list[str]:
@@ -104,38 +119,59 @@ async def _txt(resolver: DnsResolver, name: str) -> list[str]:
 async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
     records = spf_records(await _txt(resolver, domain))
     if len(records) != 1:
-        return SpfResult(None, len(records))
+        return SpfResult(None, len(records), records=records)
     spf = parse_spf(records[0])
-    result = SpfResult(spf, 1, effective_all=spf.all)
+    result = SpfResult(spf, 1, records=records)
+    loaded: dict[str, Spf | None] = {}
+    budget = [_MAX_SPF_RECORDS]  # records evaluated, a guard against huge trees
 
-    seen = {domain.lower()}
-    queue = [*spf.includes, *([spf.redirect] if spf.redirect else [])]
-    total = spf.lookups
-    fetched = 0
-    while queue and fetched < _MAX_SPF_RECORDS:
-        name = queue.pop(0).lower()
-        if name in seen or "%{" in name:  # macros can't be expanded without a sender
-            continue
-        seen.add(name)
-        fetched += 1
-        try:
-            found = spf_records(await _txt(resolver, name))
-        except DnsLookupError:
-            result.problems.append(f"{name}: DNS не ответил")
-            continue
-        if len(found) != 1:
-            result.problems.append(
-                f"{name}: нет SPF-записи" if not found else f"{name}: несколько SPF"
-            )
-            continue
-        inner = parse_spf(found[0])
-        total += inner.lookups
-        queue += inner.includes
-        if inner.redirect:
-            queue.append(inner.redirect)
-        if name == (spf.redirect or "").lower() and spf.all is None:
-            result.effective_all = inner.all
-    result.lookups = total
+    async def load(name: str) -> Spf | None:
+        if name not in loaded:
+            loaded[name] = None
+            try:
+                found = spf_records(await _txt(resolver, name))
+            except DnsLookupError:
+                result.problems.append(f"{name}: DNS не ответил")
+                return None
+            if len(found) != 1:
+                result.problems.append(
+                    f"{name}: нет SPF-записи" if not found else f"{name}: несколько SPF"
+                )
+                return None
+            loaded[name] = parse_spf(found[0])
+        return loaded[name]
+
+    async def walk(record: Spf, path: tuple[str, ...]) -> tuple[int, str | None]:
+        """DNS lookups an evaluation of ``record`` makes, and its effective "all".
+
+        A receiver evaluates an include each time it is reached, so a record included
+        twice counts twice (RFC 7208, section 4.6.4); a redirect hands over its target's
+        "all", however long the chain (section 6.1)."""
+        total, effective = record.lookups, record.all
+        for rtype, host in record.targets:
+            # A name with no answer is a "void lookup"; more than two in one evaluation
+            # are a permerror (RFC 7208, section 4.6.4).
+            with contextlib.suppress(DnsLookupError):
+                if not await resolver.resolve(host, rtype) and host not in result.void:
+                    result.void.append(host)
+        targets = [(n, False) for n in record.includes]
+        targets += [(record.redirect, True)] if record.redirect else []
+        for target, is_redirect in targets:
+            name = target.lower()
+            # Macros can't be expanded without a sender; a loop is the record's own error.
+            if "%{" in name or name in path or budget[0] <= 0:
+                continue
+            budget[0] -= 1
+            inner = await load(name)
+            if inner is None:
+                continue
+            lookups, inner_all = await walk(inner, (*path, name))
+            total += lookups
+            if is_redirect:
+                effective = inner_all
+        return total, effective
+
+    result.lookups, result.effective_all = await walk(spf, (domain.lower(),))
     return result
 
 
@@ -149,6 +185,26 @@ class Dmarc:
     subdomain_policy: str | None
     pct: int = 100
     rua: str | None = None
+    ruf: str | None = None
+
+    @property
+    def exact_version(self) -> bool:
+        """The version is "DMARC1" in capitals: RFC 7489, 6.3 says it "MUST match
+        precisely" or the record is ignored, and 6.4 spells it %x44 %x4d…, case and all.
+        The tag name may be "V"; the value may not be "dmarc1"."""
+        return bool(re.match(r"(?i:v)\s*=\s*DMARC1\s*(;|$)", self.record))
+
+    def report_domains(self) -> list[str]:
+        """Domains of the mailto: addresses in rua= and ruf=, in order, once each."""
+        found: list[str] = []
+        for uri in f"{self.rua or ''},{self.ruf or ''}".split(","):
+            # "mailto:a@b.ru!10m": the tail is a size limit, not part of the address.
+            address = uri.strip().split("!")[0]
+            if address.lower().startswith("mailto:") and "@" in address:
+                domain = address.rpartition("@")[2].lower().rstrip(".")
+                if domain and domain not in found:
+                    found.append(domain)
+        return found
 
 
 def parse_dmarc(record: str) -> Dmarc:
@@ -167,7 +223,7 @@ def parse_dmarc(record: str) -> Dmarc:
         pct = max(0, min(100, int(tags.get("pct", "100"))))
     except ValueError:
         pct = 100
-    return Dmarc(record.strip(), policy, sub, pct, tags.get("rua") or None)
+    return Dmarc(record.strip(), policy, sub, pct, tags.get("rua") or None, tags.get("ruf") or None)
 
 
 def dmarc_records(txt: list[str]) -> list[str]:
@@ -185,9 +241,21 @@ class MailFacts:
     dmarc: Dmarc | None
     dmarc_count: int
     dkim: list[str]  # selectors with a published key
+    # _domainkey.<domain> answers NOERROR while a random name under the domain is NXDOMAIN:
+    # some record sits under _domainkey, so a key is probably published with a selector
+    # we did not guess (the test internet.nl uses).
+    dkim_node: bool = False
+    # Outside domains in rua=/ruf= that did not agree to take reports for this domain.
+    dmarc_unauthorized: list[str] = field(default_factory=list)
     mta_sts: str | None = None  # policy mode: enforce / testing / none
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
+    mta_sts_mx: list[str] = field(default_factory=list)  # "mx:" patterns of the policy
+    # Why MTA-STS could not be read (its DNS did not answer), or None. Only MAIL-005 rests
+    # on it: kamaz.ru lost the whole mail section to one _mta-sts timeout (2026-10-25).
+    transport_unknown: str | None = None
+    # The DNS answers the verdicts rest on, as received: "TXT _dmarc.example.ru" -> records.
+    raw: dict[str, list[str]] = field(default_factory=dict)
 
 
 # What each mail provider asks to put in SPF; every name was checked to publish an SPF
@@ -245,7 +313,12 @@ def verdict(m: MailFacts) -> Check:
     title = f"Можно ли подделать письмо от имени @{m.domain}"
     d = m.dmarc
     weak_sub = d is not None and d.subdomain_policy == "none"
-    if d is not None and m.dmarc_count == 1 and d.policy == "reject" and d.pct == 100:
+    # Mail outside pct gets the next lower policy (RFC 7489, section 6.6.4): at pct=0
+    # reject works as quarantine and quarantine as none.
+    policy = d.policy if d is not None else None
+    if d is not None and d.pct == 0:
+        policy = {"reject": "quarantine", "quarantine": "none"}.get(policy or "", policy)
+    if d is not None and m.dmarc_count == 1 and policy == "reject" and d.pct == 100:
         if weak_sub:
             return Check(
                 GROUP_MAIL,
@@ -263,12 +336,15 @@ def verdict(m: MailFacts) -> Check:
             "Нет. DMARC с политикой reject: Gmail, Яндекс, Mail.ru и другие отклонят письмо "
             "с поддельным адресом отправителя.",
         )
-    if d is not None and m.dmarc_count == 1 and d.policy in ("quarantine", "reject"):
-        how = (
-            "попадут в спам, а не будут отклонены"
-            if d.policy == "quarantine"
-            else f"будут отклонены только в {d.pct}% случаев (pct={d.pct})"
-        )
+    if d is not None and m.dmarc_count == 1 and policy in ("quarantine", "reject"):
+        if policy == "reject":
+            how = f"будут отклонены в {d.pct}% случаев (pct={d.pct}), остальные попадут в спам"
+        elif d.pct == 100:
+            how = "попадут в спам, а не будут отклонены"
+        elif d.pct == 0:  # p=reject; pct=0
+            how = "попадут в спам (pct=0 смягчает reject до quarantine), а не будут отклонены"
+        else:
+            how = f"попадут в спам только в {d.pct}% случаев (pct={d.pct}), остальные дойдут"
         return Check(
             GROUP_MAIL,
             title,
@@ -277,7 +353,9 @@ def verdict(m: MailFacts) -> Check:
             "Когда убедитесь по отчётам DMARC, что настоящая почта проходит проверку, "
             "поставьте p=reject и уберите pct.",
         )
-    if d is not None and m.dmarc_count == 1 and d.policy == "none":
+    if d is not None and m.dmarc_count == 1 and d.policy == "quarantine" and policy == "none":
+        reason = "в DMARC стоит pct=0: политика quarantine не применяется ни к одному письму"
+    elif d is not None and m.dmarc_count == 1 and d.policy == "none":
         reason = "DMARC стоит в режиме наблюдения (p=none): почтовые сервисы не отклоняют письма"
     elif m.dmarc_count > 1:
         reason = "DMARC-записей несколько, и почтовые сервисы игнорируют их все"
@@ -318,7 +396,10 @@ def spf_check(m: MailFacts) -> Check:
             title,
             Status.WARN if m.receives_mail else Status.FAIL,
             "SPF-записи нет: почтовые сервисы не знают, с каких серверов домен отправляет "
-            "письма, и чаще отправляют настоящую почту в спам.",
+            "письма, и чаще отправляют настоящую почту в спам."
+            if m.receives_mail
+            else "SPF-записи нет: домен почту не отправляет, но и не запрещает этого, поэтому "
+            "письмо от его имени может отправить любой сервер.",
             f"Опубликуйте TXT-запись для {m.domain}, например {spf_example(m)}."
             if m.receives_mail
             else f'Опубликуйте для {m.domain} TXT-запись "v=spf1 -all": домен не отправляет почту.',
@@ -348,12 +429,16 @@ def spf_check(m: MailFacts) -> Check:
             "замените include на конкретные IP-адреса (ip4:)."
         )
     else:
-        details.append(f"DNS-запросов при проверке: {r.lookups} из {SPF_LOOKUP_LIMIT}.")
+        unread = " (без записей, которые не удалось прочитать)" if r.problems else ""
+        details.append(f"DNS-запросов при проверке: {r.lookups} из {SPF_LOOKUP_LIMIT}{unread}.")
+    redirect = (r.spf.redirect or "").lower()
+    # positive.com: "redirect=" with a broken target; its "all" is unknown, not missing.
+    redirect_broken = bool(redirect) and any(p.split(":", 1)[0] == redirect for p in r.problems)
     if r.effective_all == "+":
         status = Status.FAIL
         details.append("Стоит +all: отправлять почту от имени домена разрешено кому угодно.")
         recommendation = recommendation or "Замените +all на ~all или -all."
-    elif r.effective_all in ("?", None):
+    elif r.effective_all in ("?", None) and not redirect_broken:
         status = max(status, Status.WARN, key=_rank)
         details.append(
             "В конце нет -all или ~all: про остальные серверы SPF ничего не говорит."
@@ -361,9 +446,65 @@ def spf_check(m: MailFacts) -> Check:
             else "Стоит ?all: про остальные серверы SPF ничего не говорит."
         )
         recommendation = recommendation or "Завершите запись на ~all (или -all)."
-    if r.problems:
+    if len(r.void) > 2:
+        status = Status.FAIL
+        details.append(
+            f"Имена {', '.join(r.void[:5])} не отвечают в DNS: больше двух таких запросов — "
+            "ошибка проверки SPF (permerror, RFC 7208, раздел 4.6.4), и SPF не проходят даже "
+            "настоящие письма."
+        )
+        recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
+    elif r.void:
         status = max(status, Status.WARN, key=_rank)
+        one = len(r.void) == 1
+        details.append(
+            f"{'Имя' if one else 'Имена'} {', '.join(r.void)} не "
+            f"{'отвечает' if one else 'отвечают'} в DNS: с адресов, которые "
+            f"за {'ним' if one else 'ними'} стояли, письма уже не проходят SPF, а больше двух "
+            "таких имён — ошибка проверки всей записи (RFC 7208, раздел 4.6.4)."
+        )
+        recommendation = f"{recommendation} Уберите из SPF имена без адресов.".strip()
+    if r.spf.uses_ptr:
+        status = max(status, Status.WARN, key=_rank)
+        details.append(
+            "Есть механизм ptr: стандарт не рекомендует его (RFC 7208, раздел 5.5), он медленный, "
+            "а часть почтовых сервисов его не учитывает, и письма с этих серверов не пройдут SPF."
+        )
+        recommendation = (
+            f"{recommendation} Замените ptr на ip4:/ip6: или a: с адресами ваших серверов."
+        ).strip()
+    if r.problems:
+        # An include or redirect without exactly one SPF record is a permerror for the whole
+        # check (RFC 7208, sections 5.2 and 6.1); a DNS timeout is only our failure to look.
+        broken = any(not p.endswith("DNS не ответил") for p in r.problems)
+        status = max(status, Status.FAIL if broken else Status.WARN, key=_rank)
         details.append("Не удалось разобрать: " + "; ".join(r.problems[:3]) + ".")
+        if broken:
+            details.append(
+                "По стандарту (RFC 7208, разделы 5.2 и 6.1) такая запись даёт ошибку проверки "
+                "(permerror): SPF не проходят даже письма с настоящих серверов, если они не "
+                "перечислены в записи раньше."
+            )
+        fixes = []
+        for problem in r.problems[:3]:
+            name, _, what = problem.partition(": ")
+            term = "redirect" if name == redirect else "include"
+            if "@" in name:
+                # auto.ru: "include:academyautoru@tbank.ru", a mailbox where a domain belongs.
+                fixes.append(
+                    f"В {term} указан адрес почты ({name}), а нужен домен, например "
+                    f"{term}:{name.split('@', 1)[1]}; исправьте или уберите его."
+                )
+            elif what == "несколько SPF":
+                fixes.append(f"У {name} (из {term}) несколько SPF-записей: объедините их в одну.")
+            elif what == "нет SPF-записи":
+                fixes.append(
+                    f"У {name} (из {term}) нет своей SPF-записи: опубликуйте её или уберите "
+                    f"этот {term}."
+                )
+            else:
+                fixes.append(f"Проверьте {name} позже: DNS не ответил.")
+        recommendation = " ".join([recommendation, *dict.fromkeys(fixes)]).strip()
     return Check(GROUP_MAIL, title, status, " ".join(details), recommendation)
 
 
@@ -372,6 +513,35 @@ def _rank(status: Status) -> int:
 
 
 def dmarc_check(m: MailFacts) -> Check:
+    check = _dmarc_policy_check(m)
+    if m.dmarc and not m.dmarc.exact_version and check.status is not Status.FAIL:
+        version = m.dmarc.record.split(";", 1)[0].strip()
+        check.status = Status.WARN
+        check.details += (
+            f" Но версия записана как «{version}»: по стандарту значение должно точно "
+            "совпадать с DMARC1, иначе запись игнорируется (RFC 7489, раздел 6.3). Многие "
+            "почтовые сервисы прощают строчные буквы, но не все."
+        )
+        check.recommendation = (
+            f"{check.recommendation} Напишите версию заглавными: v=DMARC1."
+        ).strip()
+    if m.dmarc_unauthorized and check.status is not Status.FAIL:
+        names = ", ".join(m.dmarc_unauthorized)
+        records = ", ".join(f"{m.domain}._report._dmarc.{d}" for d in m.dmarc_unauthorized)
+        check.status = Status.WARN
+        check.details += (
+            f" Но отчёты адресованы чужому домену ({names}), а он не подтвердил, что "
+            f"принимает их за {m.domain}: нет TXT-записи {records}. Почтовые сервисы, "
+            "которые следуют стандарту, такие отчёты не отправят (RFC 7489, раздел 7.1)."
+        )
+        check.recommendation = (
+            f"{check.recommendation} Опубликуйте в зоне {names} TXT-запись {records} "
+            'со значением "v=DMARC1".'
+        ).strip()
+    return check
+
+
+def _dmarc_policy_check(m: MailFacts) -> Check:
     title = "DMARC: что делать с поддельными письмами"
     if m.dmarc_count > 1:
         return Check(
@@ -390,10 +560,16 @@ def dmarc_check(m: MailFacts) -> Check:
             Status.FAIL,
             "DMARC-записи нет: почтовые сервисы не знают, что делать с письмами, которые "
             "выдают себя за ваш домен, и пропускают их.",
-            _dmarc_hint(m.domain),
+            # A domain without mail has no real letters to watch first: reject at once,
+            # as the verdict says (a gradual p=none start is for domains that send mail).
+            _dmarc_hint(m.domain)
+            if m.receives_mail
+            else f'Добавьте TXT-запись _dmarc.{m.domain} со значением "v=DMARC1; p=reject": '
+            "домен почту не отправляет, поэтому сразу запретите письма от его имени.",
         )
     reports = (
-        f" Отчёты приходят на {d.rua}."
+        # "mailto:a@b.ru!10m": the tail is a size limit, not part of the address.
+        f" Адрес для отчётов: {', '.join(u.strip().split('!')[0] for u in d.rua.split(','))}."
         if d.rua
         else " Адрес для отчётов (rua) не указан: вы не узнаете, кто рассылает письма от "
         "вашего имени."
@@ -434,6 +610,16 @@ def dkim_check(m: MailFacts) -> Check:
             Status.OK,
             "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + ".",
         )
+    if m.dkim_node:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.OK,
+            f"DKIM, вероятно, настроен, селектор неизвестен: узел _domainkey.{m.domain} "
+            "есть в DNS, значит, под ним опубликованы записи, но среди распространённых "
+            "селекторов ключа нет. Чтобы убедиться, посмотрите заголовок DKIM-Signature (s=) "
+            "в любом письме от компании.",
+        )
     return Check(
         GROUP_MAIL,
         title,
@@ -444,9 +630,39 @@ def dkim_check(m: MailFacts) -> Check:
     )
 
 
+def mx_matches(host: str, pattern: str) -> bool:
+    """RFC 8461, section 4.1: "*." stands for exactly one leftmost label."""
+    host, pattern = host.lower().rstrip("."), pattern.lower().rstrip(".")
+    if pattern.startswith("*."):
+        label, _, rest = host.partition(".")
+        return bool(label) and rest == pattern[2:]
+    return host == pattern
+
+
 def transport_check(m: MailFacts) -> Check:
     title = "Шифрование входящей почты (MTA-STS)"
     rpt = " Отчёты TLS-RPT настроены." if m.tls_rpt else ""
+    if m.transport_unknown:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.UNKNOWN,
+            f"Политику MTA-STS прочитать не удалось: {m.transport_unknown}. Остальные проверки "
+            "почты выполнены.",
+        )
+    unmatched = [h for h in m.mx_hosts if not any(mx_matches(h, p) for p in m.mta_sts_mx)]
+    if m.mta_sts == "enforce" and unmatched:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.FAIL,
+            "MTA-STS в режиме enforce, но MX-серверы "
+            + ", ".join(unmatched)
+            + " не перечислены в строках mx: политики. Отправители, которые соблюдают "
+            "MTA-STS (например, Gmail), не доставят на них письма (RFC 8461, раздел 4.1)." + rpt,
+            f"Добавьте эти серверы в строки mx: файла https://mta-sts.{m.domain}/.well-known/"
+            "mta-sts.txt и смените id= в TXT-записи _mta-sts.",
+        )
     if m.mta_sts == "enforce":
         return Check(
             GROUP_MAIL,
@@ -460,18 +676,17 @@ def transport_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.WARN,
-            "MTA-STS в режиме testing: шифрование не обязательно."
-            + rpt
-            + " Когда отчёты покажут, что всё в порядке, поставьте mode: enforce.",
+            "MTA-STS в режиме testing: шифрование не обязательно." + rpt,
+            "Когда отчёты TLS-RPT покажут, что почта доходит, поставьте в политике mode: enforce.",
         )
     return Check(
         GROUP_MAIL,
         title,
         Status.WARN,
         "MTA-STS не настроен: письма к вам можно перехватить, понизив соединение до "
-        "незашифрованного. Это редкая атака, исправлять во вторую очередь: опубликуйте "
-        f"TXT _mta-sts.{m.domain} и файл политики на https://mta-sts.{m.domain}/.well-known/"
-        "mta-sts.txt." + rpt,
+        "незашифрованного. Это редкая атака, исправлять во вторую очередь." + rpt,
+        f"Опубликуйте TXT-запись _mta-sts.{m.domain} и файл политики на "
+        f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt.",
     )
 
 
@@ -479,7 +694,42 @@ def evaluate(m: MailFacts) -> list[Check]:
     checks = [verdict(m), spf_check(m), dmarc_check(m)]
     if m.receives_mail:
         checks += [dkim_check(m), transport_check(m)]
+    for check in checks:
+        check.evidence = evidence(m, check.id)
     return checks
+
+
+# The DNS names each check rests on; the verdict rests on all three of its parts.
+_EVIDENCE_NAMES = {
+    "SUV-MAIL-001": ("TXT {d}", "TXT _dmarc.{d}"),
+    "SUV-MAIL-002": ("TXT {d}",),
+    "SUV-MAIL-003": ("TXT _dmarc.{d}",),
+    "SUV-MAIL-005": ("MX {d}", "TXT _mta-sts.{d}", "TXT _smtp._tls.{d}"),
+}
+
+
+def evidence(m: MailFacts, check_id: str) -> list[Evidence]:
+    """The records a mail check rests on, as DNS returned them; an empty value says the
+    record is not there."""
+    names = [n.format(d=m.domain) for n in _EVIDENCE_NAMES.get(check_id, ())]
+    if check_id == "SUV-MAIL-004":
+        names = [n for n in m.raw if n.endswith(f"._domainkey.{m.domain}")]
+        if not names:
+            tried = ", ".join(DKIM_SELECTORS[:5])
+            more = len(DKIM_SELECTORS) - 5
+            where = f"TXT <селектор>._domainkey.{m.domain} (селекторы {tried} и ещё {more})"
+            return [Evidence("dns", where, "")]
+    found = []
+    for name in names:
+        records = m.raw.get(name)
+        if records is not None:
+            found.append(Evidence("dns", name, "\n".join(records)))
+    if check_id == "SUV-MAIL-005" and m.mta_sts is not None:
+        mx = ", ".join(m.mta_sts_mx)
+        policy = f"mode: {m.mta_sts}" + (f"; mx: {mx}" if mx else "")
+        url = f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt (как её видит отправитель)"
+        found.insert(2, Evidence("url", url, policy))
+    return found
 
 
 # --- Collection -----------------------------------------------------------------------
@@ -488,6 +738,10 @@ def evaluate(m: MailFacts) -> list[Check]:
 def parse_mta_sts_mode(policy: str) -> str | None:
     match = re.search(r"(?im)^\s*mode\s*:\s*(enforce|testing|none)\s*$", policy)
     return match.group(1).lower() if match else None
+
+
+def parse_mta_sts_mx(policy: str) -> list[str]:
+    return [m.lower() for m in re.findall(r"(?im)^\s*mx\s*:\s*(\S+)\s*$", policy)]
 
 
 async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
@@ -503,17 +757,69 @@ async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
     return [s for s, ok in zip(DKIM_SELECTORS, found, strict=True) if ok]
 
 
-async def _mta_sts(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> str | None:
+async def _dkim_node(resolver: DnsResolver, domain: str) -> bool:
+    """_domainkey exists as a node, and the zone (or the resolver) doesn't answer NOERROR
+    for any name: a random label must come back NXDOMAIN, or the sign means nothing."""
+    node, random = await asyncio.gather(
+        resolver.node_exists(f"_domainkey.{domain}"),
+        resolver.node_exists(f"suveren-{secrets.token_hex(6)}.{domain}"),
+    )
+    return node is True and random is False
+
+
+async def _dmarc_unauthorized(resolver: DnsResolver, domain: str, dmarc: Dmarc) -> list[str]:
+    """Report domains outside the organisation without the <domain>._report._dmarc.<dest>
+    record that says they take the reports (RFC 7489, section 7.1)."""
+    own = registrable_domain(domain)
+    outside = [d for d in dmarc.report_domains() if registrable_domain(d) != own]
+
+    async def agreed(dest: str) -> bool:
+        try:
+            txt = await _txt(resolver, f"{domain}._report._dmarc.{dest}")
+        except DnsLookupError:
+            return True  # no answer is no proof of a mistake
+        return bool(dmarc_records(txt))
+
+    found = await asyncio.gather(*(agreed(d) for d in outside))
+    return [d for d, ok in zip(outside, found, strict=True) if not ok]
+
+
+async def _mta_sts(
+    resolver: DnsResolver,
+    client: httpx.AsyncClient,
+    domain: str,
+    raw: dict[str, list[str]] | None = None,
+) -> tuple[str | None, list[str]]:
+    """Policy mode and its mx patterns, fetched the way a sending server does. ``raw``
+    gets the TXT record, for the evidence."""
     txt = await _txt(resolver, f"_mta-sts.{domain}")
-    if not any(t.lower().startswith("v=stsv1") for t in txt):
-        return None
+    sts = [t for t in txt if t.lower().startswith("v=stsv1")]
+    if raw is not None:
+        raw[f"TXT _mta-sts.{domain}"] = sts
+    if not sts:
+        return None, []
+    # Several records, or one without an id, mean "no policy" to senders (RFC 8461, 3.1).
+    if len(sts) > 1 or not re.search(r"(?i);\s*id\s*=\s*[a-z0-9]{1,32}\s*(;|$)", sts[0]):
+        return "none", []
     try:
-        resp = await client.get(f"https://mta-sts.{domain}/.well-known/mta-sts.txt")
+        # Senders must not follow redirects for the policy (RFC 8461, section 3.3).
+        resp = await client.get(
+            f"https://mta-sts.{domain}/.well-known/mta-sts.txt", follow_redirects=False
+        )
     except (httpx.HTTPError, *TIMEOUTS):
-        return "none"
+        return "none", []
     if resp.status_code != 200:
-        return "none"
-    return parse_mta_sts_mode(resp.text) or "none"
+        return "none", []
+    mode, mx = parse_mta_sts_mode(resp.text), parse_mta_sts_mx(resp.text)
+    # Senders ignore a policy that is not text/plain or lacks a required field
+    # (RFC 8461, sections 3.2 and 3.3): for them the domain has no MTA-STS.
+    complete = re.search(r"(?im)^\s*version\s*:\s*STSv1\s*$", resp.text) and re.search(
+        r"(?im)^\s*max_age\s*:\s*\d+\s*$", resp.text
+    )
+    plain = resp.headers.get("content-type", "text/plain").lower().startswith("text/plain")
+    if not (mode and complete and plain) or (mode != "none" and not mx):
+        return "none", []
+    return mode, mx
 
 
 async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> MailFacts:
@@ -522,6 +828,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     receives = any(r.split()[-1] not in (".", "") for r in mx if r.split())
     spf = await check_spf(resolver, domain)
     dmarc_txt = dmarc_records(await _txt(resolver, f"_dmarc.{domain}"))
+    raw = {f"MX {domain}": mx, f"TXT {domain}": spf.records, f"TXT _dmarc.{domain}": dmarc_txt}
     facts = MailFacts(
         domain=domain,
         receives_mail=receives,
@@ -530,12 +837,27 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         dmarc_count=len(dmarc_txt),
         dkim=[],
         mx_hosts=parse_mx(mx),
+        raw=raw,
     )
+    if facts.dmarc:
+        facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
     if receives:
         facts.dkim = await _dkim(resolver, domain)
-        facts.mta_sts = await _mta_sts(resolver, client, domain)
-        rpt = await _txt(resolver, f"_smtp._tls.{domain}")
-        facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
+        if not facts.dkim:
+            facts.dkim_node = await _dkim_node(resolver, domain)
+        try:
+            facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain, raw)
+        except DnsLookupError as exc:
+            facts.transport_unknown = describe(exc)
+        # TLS-RPT only adds a sentence to MAIL-005: without an answer it is left out.
+        with contextlib.suppress(DnsLookupError):
+            rpt = await _txt(resolver, f"_smtp._tls.{domain}")
+            facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
+            raw[f"TXT _smtp._tls.{domain}"] = [t for t in rpt if t.lower().startswith("v=tlsrpt")]
+        for selector in facts.dkim:
+            name = f"{selector}._domainkey.{domain}"
+            with contextlib.suppress(DnsLookupError):
+                raw[f"TXT {name}"] = await _txt(resolver, name)
     return facts
 
 

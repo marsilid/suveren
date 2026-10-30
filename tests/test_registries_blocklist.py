@@ -1,7 +1,12 @@
+import asyncio
 from datetime import date
 
+import httpx
+import pytest
+
 from suveren.blocklist import domain_candidates, find_blocked_domains, find_blocked_ips
-from suveren.registries import parse_egrul_rows, parse_rkn_operators
+from suveren.errors import ModuleError
+from suveren.registries import egrul_search, parse_egrul_rows, parse_rkn_operators, rkn_operator
 
 
 def test_parse_egrul_rows():
@@ -69,9 +74,75 @@ def test_find_blocked_domains_normalizes_entries():
     assert find_blocked_domains(lines, ["example.ru"]) == set()
 
 
+def test_cyrillic_entries_match_a_punycode_host():
+    # ~7 000 register entries are written in Cyrillic; hosts are looked up as punycode,
+    # so a blocked .рф site came out "not blocked". The real lines, as the list has them.
+    from suveren.utils import normalize_domain
+
+    lines = ["0-плюс.рф\n", "01646473-2dbd-41f0-8ce5-501efe09dad9.таксопарк34.рф\n", "x..рф\n"]
+    host = normalize_domain("www.0-плюс.рф")
+    assert find_blocked_domains(lines, domain_candidates(host)) == {"xn--0--6lcpl1f.xn--p1ai"}
+    sub = normalize_domain("01646473-2dbd-41f0-8ce5-501efe09dad9.таксопарк34.рф")
+    assert find_blocked_domains(lines, [sub]) == {sub}
+    assert find_blocked_domains(lines, domain_candidates(normalize_domain("плюс.рф"))) == set()
+
+
 def test_find_blocked_ips():
     lines = ["1.2.3.4\n", "10.0.0.0/8\n", "# comment\n", "garbage\n"]
     assert find_blocked_ips(lines, ["1.2.3.4", "10.1.2.3", "8.8.8.8"]) == {
         "1.2.3.4": "1.2.3.4",
         "10.1.2.3": "10.0.0.0/8",
     }
+
+
+def test_third_party_hosts_blocked_in_russia():
+    from suveren.blocklist import blocked_hosts, third_party_check
+    from suveren.checks import Status
+    from suveren.unknown import third_party_hosts
+
+    urls = [
+        "https://example.ru/app.js",
+        "https://cdn.example.ru/x.css",
+        "https://connect.facebook.net/en_US/fbevents.js",
+        "https://platform.twitter.com/widgets.js",
+        "https://mc.yandex.ru/metrika/tag.js",
+    ]
+    hosts = third_party_hosts(urls, "www.example.ru")
+    assert hosts == {"connect.facebook.net", "platform.twitter.com", "mc.yandex.ru"}
+    register = ["*.facebook.net\n", "twitter.com\n", "other.ru\n"]
+    hits = blocked_hosts(register, hosts)
+    assert hits == {"connect.facebook.net": "facebook.net", "platform.twitter.com": "twitter.com"}
+    check = third_party_check(hits, len(hosts))
+    assert check.id == "SUV-BLK-003" and check.status is Status.WARN
+    assert "facebook.net (connect.facebook.net)" in check.details
+    assert third_party_check({}, 3).status is Status.OK
+
+
+def _registry(handler):
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.parametrize("answer", [{"status": "ok"}, ["a list"], {"rows": "none"}])
+def test_an_unexpected_egrul_answer_is_an_error_not_no_company(answer):
+    # An answer without rows read as "no such company"; a list crashed with AttributeError.
+    def handler(request):
+        if request.method == "POST":
+            return httpx.Response(200, json={"t": "token"})
+        return httpx.Response(200, json=answer)
+
+    async def go():
+        async with _registry(handler) as client:
+            return await egrul_search(client, "7707083893")
+
+    with pytest.raises(ModuleError, match="ЕГРЮЛ"):
+        asyncio.run(go())
+
+
+def test_a_page_without_results_table_is_not_unregistered():
+    async def go(page):
+        async with _registry(lambda r: httpx.Response(200, text=page)) as client:
+            return await rkn_operator(client, "7707083893")
+
+    with pytest.raises(ModuleError, match="без таблицы"):
+        asyncio.run(go("<html><body>Введите код с картинки</body></html>"))
+    assert asyncio.run(go("<html><table><tr><th>Номер</th></tr></table></html>")) is None

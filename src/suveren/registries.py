@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from suveren.errors import ModuleError
+from suveren.errors import ModuleError, describe
 
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -60,6 +60,17 @@ class EgrulRecord:
         return self.head.split(":", 1)[-1].strip() or None
 
     @property
+    def person_name(self) -> str | None:
+        """Whom to screen as a person: the head, or for a sole trader the trader, without
+        the "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ" in front (it was read as surname and name)."""
+        if not self.individual:
+            return self.head_name
+        name = re.sub(
+            r"^\s*(индивидуальный\s+предприниматель|ип)\s+", "", self.name_full, flags=re.I
+        )
+        return name.strip() or None
+
+    @property
     def head_is_org(self) -> bool:
         """The company is run by a managing company rather than a person."""
         name = self.head_name or ""
@@ -83,8 +94,12 @@ class EgrulRecord:
 
 
 def parse_egrul_rows(payload: dict[str, Any]) -> list[EgrulRecord]:
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        # A changed answer used to read as "no such company".
+        raise ModuleError("ЕГРЮЛ ответил в неожиданном формате")
     records = []
-    for row in payload.get("rows", []):
+    for row in rows:
         records.append(
             EgrulRecord(
                 name_full=row.get("n") or row.get("c") or "",
@@ -120,8 +135,8 @@ async def egrul_search(client: httpx.AsyncClient, query: str) -> list[EgrulRecor
             if data.get("status") != "wait":
                 return parse_egrul_rows(data)
             await asyncio.sleep(0.7)
-    except (httpx.HTTPError, ValueError, KeyError) as exc:
-        raise ModuleError(f"ЕГРЮЛ недоступен ({type(exc).__name__})") from exc
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise ModuleError(f"ЕГРЮЛ недоступен ({describe(exc)})") from exc
     raise ModuleError("ЕГРЮЛ не ответил вовремя")
 
 
@@ -194,6 +209,9 @@ async def rkn_operator(client: httpx.AsyncClient, inn: str) -> RknOperator | Non
         resp = await client.get(RKN_URL, params=params, headers={"User-Agent": BROWSER_UA})
         resp.raise_for_status()
     except httpx.HTTPError as exc:
-        raise ModuleError(f"реестр Роскомнадзора недоступен ({type(exc).__name__})") from exc
+        raise ModuleError(f"реестр Роскомнадзора недоступен ({describe(exc)})") from exc
+    if "<table" not in resp.text.lower():
+        # A captcha or a redesigned page has no results table: that is not "not registered".
+        raise ModuleError("реестр Роскомнадзора ответил страницей без таблицы результатов")
     matches = [op for op in parse_rkn_operators(resp.text) if op.inn == inn]
     return matches[0] if matches else None

@@ -1,8 +1,95 @@
 {% extends "base.html.j2" %}
-{% block title %}Suveren — {{ report.target }}{% endblock %}
+{% block title %}{{ brand.name if brand else 'Suveren' }} — {{ report.target }}{% endblock %}
 {% block content %}
+{% set fines = report.fines %}
+{% macro render_group(group, items, index) %}
+{% set fines = report.fines %}
+  <h2 id="checks-{{ index }}">{{ group }}</h2>
+  {% if fines and group.startswith("Персональные") %}
+  {% if fines.counted %}<div class="card fines">{% else %}<details class="card fines calm">{% endif %}
+    {% if fines.counted %}
+    <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
+    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую.</p>
+    {% else %}
+    <summary>Штрафов по найденным проблемам нет · возможны в зависимости от обстоятельств: {{ fines.items | length }}</summary>
+    {% endif %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Нарушение</th><th>Статья</th><th>Юрлицо</th><th>ИП</th><th>Должностное лицо</th><th>Повторно, юрлицо</th></tr></thead>
+      <tbody>
+      {% for i in fines.items %}
+        <tr{% if not i.counted %} class="possible"{% endif %}>
+          <td>{{ i.title }}{% if i.note %}<br><small>{{ i.note }}</small>{% endif %}{% if not i.counted %}<br><small>«внимание»: не входит в сумму</small>{% endif %}</td>
+          <td><a href="{{ i.fine.url }}" target="_blank" rel="noopener">{{ i.fine.article }}</a></td>
+          <td>{{ i.fine.legal | span }}</td>
+          <td>{{ i.fine.sole_trader | span }}</td>
+          <td>{{ i.fine.official | span }}</td>
+          <td>{% if i.fine.repeat_legal %}{{ i.fine.repeat_legal | span }} ({{ i.fine.repeat_article }}){% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted-sum">{{ fines_disclaimer }}</p>
+  {% if fines.counted %}</div>{% else %}</details>{% endif %}
+  {% endif %}
+  {# The data-flow table below lists the countries; cross-border advice is given once. #}
+  {% set has_flow = report.facts.get("dataflow") %}
+  {% set xborder = items | selectattr("id", "equalto", "SUV-PD-006") | selectattr("status.value", "in", ["warn", "fail"]) | list %}
+  <div class="card checks">
+    {% for c in items if c.status.value != "ok" %}
+    {% set flow_row = c.id == "SUV-PD-010" and has_flow %}
+    <div class="check"{% if c.id %} id="{{ c.id }}"{% endif %}>
+      <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
+      <h3>{{ c.title }}{% if c.id %} <span class="cid">{{ c.id }}</span>{% endif %}</h3>
+      {% if flow_row %}<p>Страны и сервисы, которым уходят IP и cookies посетителя, — в таблице ниже.</p>
+      {% elif c.details %}<p>{{ c.details | linkify }}{% if c.link | web_url %} <a href="{{ c.link | web_url }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.recommendation and c.status.value != "ok" and not (flow_row and xborder) %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
+      {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
+      {% if c.evidence %}<details class="evidence"><summary>Доказательство</summary><dl>{% for e in c.evidence %}<dt>{{ e.what }}</dt><dd>{% if e.value %}<code>{{ e.value }}</code>{% else %}нет{% endif %}</dd>{% endfor %}</dl></details>{% endif %}
+    </div>
+    {% endfor %}
+    {% set passed = items | selectattr("status.value", "equalto", "ok") | list %}
+    {% if passed %}
+    <details class="passed">
+      <summary><span class="st-ok">✓</span> {% if passed | length < items | length %}Ещё в порядке: {{ passed | length }}{% else %}Всё в порядке · проверок: {{ passed | length }}{% endif %}</summary>
+      <ul>
+        {% for c in passed %}<li{% if c.id %} id="{{ c.id }}"{% endif %}><b>{{ c.title }}</b> — {{ c.details | linkify }}{% if c.link | web_url %} <a href="{{ c.link | web_url }}" target="_blank" rel="noopener">открыть</a>{% endif %}</li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% set flow = report.facts.get("dataflow") %}
+  {% if group.startswith("Персональные") and flow %}
+  {% set most = flow | map(attribute="services") | map("length") | max %}
+  <div class="card flow">
+    <h3>Куда уходят данные посетителя</h3>
+    <p class="muted-sum">Каждый, кто открывает сайт, передаёт свой IP-адрес и cookies этим сервисам. Страна — юрисдикция владельца сервиса или сети, где стоит сервер.</p>
+    {% for row in flow %}
+    <div class="flow-row{% if row.foreign %} foreign{% endif %}">
+      <span class="flow-name">{{ row.name }}</span>
+      <span class="flow-bar"><i style="width: {{ (row.services | length) * 100 // most }}%"></i></span>
+      <span class="flow-n">{{ row.services | length }}</span>
+      <span class="flow-list">{{ row.services | join(", ") }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if group.startswith("Безопасность") and graph_svg %}
+  <div class="card graph-card">
+    <p class="muted-sum">Кто подключает сторонний код: слева сайт, правее — то, что подключили уже чужие скрипты (выделено).</p>
+    {{ graph_svg }}
+  </div>
+  {% endif %}
+  {% if group.startswith("Отключение") and shots.cutoff_before and shots.cutoff_after and report.facts.get("cutoff", {}).get("blocked") %}
+  <div class="card cutoff">
+    <figure><img src="{{ shots.cutoff_before }}" alt="Сайт как обычно"><figcaption>Как обычно</figcaption></figure>
+    <figure><img src="{{ shots.cutoff_after }}" alt="Сайт без иностранных сервисов"><figcaption>Без иностранных сервисов</figcaption></figure>
+  </div>
+  {% endif %}
+{% endmacro %}
   <header class="top">
-    <span class="brand">Suveren</span>
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren</span>{% endif %}
     <span class="meta">
       {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
     </span>
@@ -10,12 +97,14 @@
   <h1>{{ report.target }}</h1>
 
   <section class="card summary">
-    <div class="grade grade-{{ report.grade }}">{{ report.grade }}</div>
-    <div>
-      <div class="score"><strong>{{ report.score }}</strong> / 100 — независимость от иностранных сервисов</div>
-      <div class="counts">
-        Иностранных сервисов: <b>{{ report.foreign_count }}</b> · российских: <b>{{ report.domestic_count }}</b>
+    <div class="grades">
+      <div class="g">
+        <div class="grade grade-{{ overall.grade }}">{{ overall.grade }}</div>
+        <div><div class="g-title">Общая оценка</div><div class="g-sub">{{ overall.score }} из 100 · {{ overall.scope }}</div></div>
       </div>
+      <div class="g">
+        <div class="grade grade-{{ report.grade }} grade-num">{{ report.score }}</div>
+        <div class="g-body"><div class="g-title">Независимость</div><div class="g-sub">из 100 · иностранных сервисов {{ report.foreign_count }}, российских {{ report.domestic_count }}</div>
       {% if bars %}
       <div class="bar">
         {% for b in bars %}<span style="width: {{ b.share }}%; background: {{ b.color }}" title="{{ b.name }} {{ b.share }}%"></span>{% endfor %}
@@ -24,56 +113,101 @@
         {% for b in bars %}<span><i style="background: {{ b.color }}"></i>{{ b.name }} {{ b.share }}%</span>{% endfor %}
       </div>
       {% endif %}
+        </div>
+      </div>
     </div>
   </section>
 
+  <div class="tiles">
+    {% for tile in tiles %}
+    <a class="tile tone-{{ tile.tone }}" href="{{ tile.href }}"><span class="tile-value{% if not tile.value.isdigit() %} tile-text{% endif %}">{{ tile.value }}</span><span class="tile-label">{{ tile.label }}</span></a>
+    {% endfor %}
+  </div>
+
+  <nav class="toc" aria-label="Разделы отчёта">
+    {% for n in nav %}<a href="{{ n.href }}">{{ n.title }}{% if n.fail %} <b class="c-fail">{{ n.fail }}</b>{% endif %}{% if n.warn %} <b class="c-warn">{{ n.warn }}</b>{% endif %}</a>{% endfor %}
+  </nav>
+
+  {% if history %}
+  <h2 id="since">С прошлой проверки</h2>
+  <div class="card">
+    <p class="muted-note">Сравнение с отчётом от {{ history.since[:16] | replace("T", " ") }} UTC.</p>
+    {% if history.uneven %}<p>Сравнение неравноценное: оценка раньше — {{ history.incomplete[0] | join("; ") or "полная" }}, сейчас — {{ history.incomplete[1] | join("; ") or "полная" }}. Убранное могло быть просто не видно в этот раз.</p>{% endif %}
+    {% if history.empty %}<p>Ничего не изменилось.</p>{% else %}<ul>
+      {% for cat, service, foreign in history.removed %}<li>− убран: {{ cat }} — {{ service }}</li>{% endfor %}
+      {% for cat, service, foreign in history.added %}<li>+ добавлен: {{ cat }} — {{ service }}{% if foreign %} (иностранный){% endif %}</li>{% endfor %}
+      {% for c in history.checks %}<li>{{ "✓" if c.better else "✗" }} {{ c.title }}: {{ c.before }} → {{ c.after }}</li>{% endfor %}
+      {% for title in history.appeared %}<li>• новая проверка: {{ title }}</li>{% endfor %}
+      {% for title in history.vanished %}<li>• проверки больше нет в отчёте: {{ title }}</li>{% endfor %}
+    </ul>{% endif %}
+  </div>
+  {% endif %}
+
   {% if actions %}
-  <h2>Что сделать в первую очередь</h2>
+  <h2 id="todo">Что сделать в первую очередь</h2>
   <ol class="card actions">
     {% for a in actions %}
-    <li class="sev-{{ a.severity.label }}"><span>{{ a.action }}</span><small>{{ a.reason }}</small></li>
+    <li class="sev-{{ a.severity.label }}"><span>{{ a.action | linkify }}</span><small>{% if a.anchor %}<a href="#{{ a.anchor }}">{{ a.reason }}</a>{% else %}{{ a.reason }}{% endif %}</small></li>
     {% endfor %}
   </ol>
   {% endif %}
 
-  {% if report.notes %}
-  <h2>Замечания</h2>
-  {% for note in report.notes %}
-  <p class="card note">{{ note }}</p>
-  {% endfor %}
-  {% endif %}
 
-  <h2>Риски</h2>
+  {% for group, items in report.check_groups if group.startswith("Сценарии") %}
+{{ render_group(group, items, 0) }}
+  {% endfor %}
+
+  <h2 id="risks">Иностранные зависимости</h2>
+  {% set seen = namespace(ids=[]) %}
   {% for f in report.sorted_findings() %}
-  <article class="card finding sev-{{ f.severity.label }}">
+  {% set rid = "risk-" ~ f.category.value %}
+  <article class="card finding sev-{{ f.severity.label }}"{% if rid not in seen.ids %} id="{{ rid }}"{% endif %}>
+  {% set seen.ids = seen.ids + [rid] %}
     <div class="head">
       <span class="badge"><span>{{ f.severity.ru }}</span></span>
       <h3>{{ f.title }}</h3>
     </div>
-    <p>{{ f.description }}</p>
-    <p class="fix">{{ f.recommendation }}</p>
+    <p>{{ f.description | linkify }}</p>
+    <p class="fix">{{ f.recommendation | linkify }}</p>
+    {% set m = moves.get(f.category) %}
+    {% if m %}
+    <details class="move">
+      <summary>Как переехать · {{ m.difficulty_ru }} · {{ m.cost }}</summary>
+      <ol>{% for s in m.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      <p class="muted-sum">Российские варианты: {{ m.alternatives | join(", ") }}.</p>
+    </details>
+    {% endif %}
   </article>
   {% else %}
   <p class="empty">Иностранных зависимостей не найдено.</p>
   {% endfor %}
 
-  {% for group, items in report.check_groups %}
-  <h2 id="checks-{{ loop.index }}">{{ group }}</h2>
-  {% if group.startswith("Персональные") %}<p class="muted-note">Автоматическая проверка по признакам на страницах сайта. Она указывает на возможные проблемы и не заменяет юридическую оценку.</p>{% endif %}
-  <div class="card checks">
-    {% for c in items %}
-    <div class="check">
-      <span class="icon st-{{ c.status.value }}" title="{{ c.status.ru }}"><span>{{ c.status.icon }}</span></span>
-      <h3>{{ c.title }}</h3>
-      {% if c.details %}<p>{{ c.details }}{% if c.link %} <a href="{{ c.link }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
-      {% if c.recommendation and c.status.value != "ok" %}<p class="fix">{{ c.recommendation }}</p>{% endif %}
-      {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
-    </div>
-    {% endfor %}
-  </div>
+  {% for group, items in report.check_groups if not group.startswith("Сценарии") %}
+{{ render_group(group, items, loop.index) }}
   {% endfor %}
 
-  <h2>Все найденные сервисы</h2>
+  {% if plan %}
+  <h2 id="plan">План переезда</h2>
+  <p class="muted-note">Сначала — то, что опаснее и проще перенести. Стоимость ориентировочная: цены провайдеров меняются.</p>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Что перенести</th><th>Риск</th><th>Сложность</th><th>Куда</th></tr></thead>
+      <tbody>
+      {% for m in plan %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><a href="#risk-{{ m.category.value }}">{{ m.category.title }}</a><br><small>{{ m.services | join(", ") }}</small></td>
+          <td><span class="badge sev-{{ m.severity.label }}"><span>{{ m.severity.ru }}</span></span></td>
+          <td>{{ m.difficulty_ru }}<br><small>{{ m.cost }}</small></td>
+          <td>{{ m.alternatives[:3] | join(", ") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <h2 id="services">Все найденные сервисы</h2>
   <div class="card table-wrap">
     <table>
       <thead><tr><th>Сервис</th><th>Страна</th><th>Где найдено</th><th>Риск</th></tr></thead>
@@ -83,22 +217,33 @@
         {% for d in deps %}
         <tr>
           <td>{{ d.service }}</td>
-          <td>{{ d.country_ru }}</td>
+          <td class="country">{{ d.country_ru }}</td>
           <td class="evidence">{{ d.evidence }}</td>
           <td>
-            {% if d.foreign %}<span class="badge sev-{{ d.severity.label }}"><span>{{ d.severity.ru }}</span></span>
+            {# The risk the dependency card above gives (lowered when part is in Russia). #}
+            {% set sev = risk.get(d.category, d.severity) %}
+            {% if d.foreign %}<span class="badge sev-{{ sev.label }}"><span>{{ sev.ru }}</span></span>
             {% elif d.foreign is sameas false %}<span class="badge sev-ok"><span>РФ</span></span>
             {% else %}<span class="empty">—</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
+      {% else %}
+        <tr><td colspan="4" class="empty">Сервисов не найдено.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 
+  {% if report.notes %}
+  <h2 id="notes">Замечания</h2>
+  <ul class="card notes">
+    {% for note in report.notes %}<li>{{ note | linkify }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
   <footer>
-    Отчёт создан Suveren v{{ version }}. Проверка пассивная: публичные DNS-записи, WHOIS,
+    {% if brand %}Отчёт подготовил {% if brand.url %}<a href="{{ brand.url }}">{{ brand.name }}</a>{% else %}{{ brand.name }}{% endif %}. Сделано с помощью Suveren v{{ version }}{% else %}Отчёт создан Suveren v{{ version }}{% endif %}. Проверка пассивная: публичные DNS-записи, WHOIS,
     SSL-сертификат, код главной страницы и открытые реестры. Страна сервиса — юрисдикция компании-владельца.
     Оценка помогает расставить приоритеты и не является юридическим заключением.
   </footer>

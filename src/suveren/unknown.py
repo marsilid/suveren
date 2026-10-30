@@ -42,6 +42,22 @@ def _known(url: str) -> bool:
     return any(rx.search(text) for rx in _PATTERNS)
 
 
+def third_party_hosts(urls: Iterable[str], site: str) -> set[str]:
+    """Host names of URLs outside the site's own registrable domain."""
+    own = registrable_domain(site)
+    hosts = set()
+    for url in urls:
+        host = (urlsplit(url).hostname or "").lower().rstrip(".")
+        if (
+            host
+            and "." in host
+            and not host.replace(".", "").isdigit()
+            and registrable_domain(host) != own
+        ):
+            hosts.add(host)
+    return hosts
+
+
 def unknown_domains(urls: Iterable[str], site: str) -> set[str]:
     """Registrable domains of third-party URLs no service pattern recognises."""
     own = registrable_domain(site)

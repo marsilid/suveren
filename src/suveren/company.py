@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -38,14 +38,19 @@ class CompanyReport:
     inn_source: str | None = None
     egrul: EgrulRecord | None = None
     operator: RknOperator | None = None
+    # Set when a registry did not answer: "not found" then means "not checked".
+    egrul_error: str | None = None
+    operator_error: str | None = None
     company_hits: list[Hit] = field(default_factory=list)
     person_hits: list[Hit] = field(default_factory=list)
     sanctions_sources: list[str] = field(default_factory=list)
+    # Source key -> age in days of an outdated copy the screening had to use.
+    sanctions_stale: dict[str, int] = field(default_factory=dict)
     whois_org: str | None = None
     site_problem: str | None = None
     checks: list[Check] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None
 
     @property
@@ -109,7 +114,18 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     checks: list[Check] = []
     rec = report.egrul
 
-    if rec is None:
+    if rec is None and report.egrul_error:
+        # Offline, Sberbank came out "not found" under a red "ЕСТЬ ПРОБЛЕМЫ".
+        checks.append(
+            Check(
+                GROUP,
+                "ЕГРЮЛ / ЕГРИП",
+                Status.UNKNOWN,
+                f"Не проверено: {report.egrul_error}.",
+                "Повторите проверку позже или найдите компанию на egrul.nalog.ru.",
+            )
+        )
+    elif rec is None:
         checks.append(
             Check(
                 GROUP,
@@ -158,6 +174,23 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             )
 
     sources = ", ".join(SOURCE_TITLES.get(s, s) for s in report.sanctions_sources)
+    # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded:
+    # a clean answer from part of the lists is "not checked", with what is missing.
+    missing = ", ".join(t for k, t in SOURCE_TITLES.items() if k not in report.sanctions_sources)
+    gap = f" Не загрузились: {missing}." if missing else ""
+    # A copy kept because the refresh failed may be weeks old; lists change weekly.
+    old = ", ".join(
+        f"{SOURCE_TITLES.get(k, k)} — {d} дн." for k, d in sorted(report.sanctions_stale.items())
+    )
+    if old:
+        gap += f" Обновить не удалось, использованы старые копии: {old}"
+    # Without ЕГРЮЛ only the ИНН/ОГРН is screened, and most entries in the lists have none.
+    ids_only = rec is None and bool(report.inn or report.ogrn)
+    if ids_only:
+        why = "ЕГРЮЛ не дал запись компании" if report.egrul_error else "в ЕГРЮЛ её нет"
+        gap += f" Сверены только ИНН и ОГРН: {why}, и название сверить не с чем."
+    clean = Status.UNKNOWN if missing or old or ids_only else Status.OK
+    retry = "Повторите проверку позже с --refresh." if clean is Status.UNKNOWN else ""
     if sanctions_ok is None:
         pass
     elif not sanctions_ok:
@@ -172,8 +205,18 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
             )
         )
     else:
-        strong = [h for h in report.company_hits if h.how in ("id", "name")]
+        # FAIL takes the same ИНН/ОГРН: names repeat, and «Арсенал» with its own ИНН was
+        # "in the sanctions lists" because an LLC ARSENAL with another one is.
+        strong = [h for h in report.company_hits if h.how == "id"]
+        named = [h for h in report.company_hits if h.how == "name"]
         partial = [h for h in report.company_hits if h.how == "partial"]
+        others = [h for h in report.company_hits if h.how == "other"]
+        also = (
+            f" Похожие названия у организаций с другими ИНН/ОГРН ({len(others)}) — в таблице "
+            "ниже, это другие компании."
+            if others
+            else ""
+        )
         if strong:
             lists = ", ".join(dict.fromkeys(SOURCE_TITLES[h.entry.source] for h in strong))
             checks.append(
@@ -181,9 +224,23 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     GROUP,
                     "Санкционные списки",
                     Status.FAIL,
-                    f"Организация в санкционных списках: {lists}.",
+                    ("Предприниматель" if rec and rec.individual else "Организация")
+                    + f" в санкционных списках: {lists} (совпали ИНН или ОГРН).",
                     "Сделки с ней несут риск вторичных санкций для банков и партнёров. "
                     "Подробности в таблице ниже.",
+                )
+            )
+        elif named:
+            lists = ", ".join(dict.fromkeys(SOURCE_TITLES[h.entry.source] for h in named))
+            checks.append(
+                Check(
+                    GROUP,
+                    "Санкционные списки",
+                    Status.WARN,
+                    f"Название совпадает с организацией в списках: {lists}. Реквизитов, "
+                    "чтобы сверить, у записи нет или ИНН компании неизвестен.",
+                    "Сверьте адрес и руководителя с записью в таблице ниже: под санкциями "
+                    "бывают и новые юрлица со старым названием.",
                 )
             )
         elif partial:
@@ -201,37 +258,65 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 Check(
                     GROUP,
                     "Санкционные списки",
-                    Status.OK,
-                    f"Не найдена в списках: {sources}." if sources else "Не найдена.",
+                    clean,
+                    (f"Не найдена в списках: {sources}." if sources else "Не найдена.")
+                    + gap
+                    + also
+                    # The OFAC 50% rule reaches through owners, and they are not screened.
+                    + " Учредители и владельцы не сверялись: их нет в открытом ответе ЕГРЮЛ.",
+                    retry,
                 )
             )
-        head = (rec.name_full if rec.individual else rec.head_name) if rec else None
+        head = rec.person_name if rec else None
         if head and rec and rec.head_is_org:
-            strong = any(h.how in ("id", "name") for h in report.person_hits)
+            # Screened by name only (no ИНН of the manager here): a lead, not a verdict.
+            person_strong = any(h.how == "id" for h in report.person_hits)
             title = "Управляющая организация в санкционных списках"
             if report.person_hits:
                 checks.append(
                     Check(
                         GROUP,
                         title,
-                        Status.FAIL if strong else Status.WARN,
+                        Status.FAIL if person_strong else Status.WARN,
                         f"{head}: "
-                        + ("найдена в санкционных списках." if strong else "похожие названия."),
+                        + (
+                            "найдена в санкционных списках."
+                            if person_strong
+                            else "похожие названия."
+                        ),
                         "Подробности в таблице ниже.",
                     )
                 )
             else:
-                checks.append(Check(GROUP, title, Status.OK, f"{head}: совпадений нет."))
+                checks.append(Check(GROUP, title, clean, f"{head}: совпадений нет.{gap}", retry))
         elif head:
-            if report.person_hits:
+            # A sole trader found by ИНН is that very person: "may be a namesake" next to
+            # the ИНН match contradicted it.
+            by_inn = {id(h.entry) for h in strong}
+            if rec and rec.individual and any(id(h.entry) in by_inn for h in report.person_hits):
+                checks.append(
+                    Check(
+                        GROUP,
+                        "Руководитель в санкционных списках",
+                        Status.FAIL,
+                        f"{head}: предприниматель в санкционных списках, совпал ИНН.",
+                        "Подробности в таблице ниже.",
+                    )
+                )
+            elif report.person_hits:
                 checks.append(
                     Check(
                         GROUP,
                         "Руководитель в санкционных списках",
                         Status.WARN,
-                        f"{head}: найдены совпадения по фамилии и имени "
-                        f"({len(report.person_hits)}).",
-                        "Это может быть однофамилец: сверьте дату рождения и должность в списке.",
+                        f"{head}: найдены совпадения "
+                        + (
+                            "по фамилии, имени и отчеству"
+                            if any(h.how == "person_full" for h in report.person_hits)
+                            else "по фамилии и имени"
+                        )
+                        + f" ({len(report.person_hits)}). Записи с другим отчеством не учтены.",
+                        "Это может быть полный тёзка: сверьте дату рождения и должность в списке.",
                     )
                 )
             else:
@@ -239,8 +324,9 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     Check(
                         GROUP,
                         "Руководитель в санкционных списках",
-                        Status.OK,
-                        f"{head}: совпадений нет.",
+                        clean,
+                        f"{head}: совпадений нет.{gap}",
+                        retry,
                     )
                 )
 
@@ -257,6 +343,16 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     link=op.url,
                 )
             )
+        elif report.operator_error:
+            checks.append(
+                Check(
+                    GROUP,
+                    "Реестр операторов персональных данных",
+                    Status.UNKNOWN,
+                    "Не проверено: реестр Роскомнадзора не ответил.",
+                    "Повторите проверку позже или найдите компанию на pd.rkn.gov.ru.",
+                )
+            )
         else:
             checks.append(
                 Check(
@@ -271,12 +367,9 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
 
     if report.domain:
         checks.append(_site_check(report))
-    laws = {
-        "Реестр операторов персональных данных": "152-ФЗ, ст. 22",
-        "Сайт и компания": "ЗоЗПП, ст. 26.1",
-    }
+    laws = {"SUV-CO-006": "152-ФЗ, ст. 22", "SUV-CO-007": "ЗоЗПП, ст. 26.1"}
     for check in checks:
-        check.law = laws.get(check.title)
+        check.law = laws.get(check.id)
     return checks
 
 
@@ -366,6 +459,18 @@ async def _from_site(
     report.whois_org = parse_whois_org(raw) if raw else None
 
 
+def pick_record(rows: list[EgrulRecord], query: str) -> EgrulRecord | None:
+    """The row with this ИНН/ОГРН: an active one first, then the latest registered.
+
+    A sole trader who closed and registered again keeps the ИНН under a new ОГРНИП, and
+    the first row could be the closed one.
+    """
+    exact = [r for r in rows if query in (r.inn, r.ogrn)]
+    if not exact:
+        return None
+    return max(exact, key=lambda r: (r.active, r.registered or date.min))
+
+
 async def run_company(
     target: str,
     *,
@@ -397,9 +502,13 @@ async def run_company(
         if query:
             try:
                 rows = await egrul_search(client, query)
-                exact = [r for r in rows if query in (r.inn, r.ogrn)]
-                report.egrul = (exact or rows or [None])[0]
+                report.egrul = pick_record(rows, query)
+                if rows and report.egrul is None:
+                    # Another company's row would be screened and dated in its place.
+                    report.egrul_error = "ЕГРЮЛ вернул записи с другими ИНН и ОГРН"
+                    report.notes.append(f"ЕГРЮЛ: {report.egrul_error}.")
             except ModuleError as exc:
+                report.egrul_error = str(exc)
                 report.notes.append(f"ЕГРЮЛ: {exc}.")
             if report.egrul:
                 report.inn = report.inn or report.egrul.inn
@@ -408,6 +517,7 @@ async def run_company(
                 try:
                     report.operator = await rkn_operator(client, report.inn)
                 except ModuleError as exc:
+                    report.operator_error = str(exc)
                     report.notes.append(f"Реестр операторов ПДн: {exc}.")
 
         sanctions_ok: bool | None = None
@@ -417,13 +527,17 @@ async def run_company(
                 index = await load_index(client, refresh=refresh)
                 sanctions_ok = True
                 report.sanctions_sources = index.sources
+                report.sanctions_stale = index.stale
                 report.notes += index.notes
                 rec = report.egrul
                 ids = [i for i in (report.inn, report.ogrn) if i]
                 names = [rec.name_full, rec.name_short or ""] if rec else []
                 if ids or names:
-                    report.company_hits = screen_company(index, ids, names)
-                head = (rec.name_full if rec.individual else rec.head_name) if rec else None
+                    # A sole trader is a person in the lists: its ИНН sits on a person entry.
+                    report.company_hits = screen_company(
+                        index, ids, names, persons=bool(rec and rec.individual)
+                    )
+                head = rec.person_name if rec else None
                 if head and rec and rec.head_is_org:
                     # Run by a managing company: screen it as a company, not as a name.
                     report.person_hits = screen_company(index, [], [head])
@@ -432,8 +546,6 @@ async def run_company(
             except ModuleError as exc:
                 report.notes.append(f"Санкционные списки: {exc}.")
 
-    report.checks = build_checks(
-        report, sanctions_ok=sanctions_ok, today=datetime.now(timezone.utc).date()
-    )
-    report.finished_at = datetime.now(timezone.utc)
+    report.checks = build_checks(report, sanctions_ok=sanctions_ok, today=datetime.now(UTC).date())
+    report.finished_at = datetime.now(UTC)
     return report

@@ -237,3 +237,63 @@ def test_tags_attributes_and_inline_scripts_are_checked():
         "Google Fonts",
         "Meta Pixel (Facebook)",
     }
+
+
+def test_data_file_entries_are_valid():
+    """data/services.json is edited by hand: every entry must load and make sense."""
+    import json
+    import re
+    from importlib.resources import files
+
+    from suveren.models import Category, Severity
+
+    raw = json.loads(files("suveren").joinpath("data/services.json").read_text("utf-8"))
+    allowed = {
+        "name", "country", "category", "ns", "mx", "asn", "as_names", "cdn", "registrar",
+        "issuer", "page", "severity", "note", "alternative",
+    }  # fmt: skip
+    names = set()
+    for group in ("infra", "tls", "page"):
+        for d in raw[group]:
+            assert set(d) <= allowed, (d["name"], set(d) - allowed)
+            assert re.fullmatch(r"[A-Z]{2}", d["country"]), d["name"]
+            assert (group, d["name"]) not in names, f"duplicate {d['name']}"
+            names.add((group, d["name"]))
+            if "category" in d:
+                Category(d["category"])
+            if "severity" in d:
+                Severity[d["severity"].upper()]
+            for pattern in d.get("page", ()):
+                re.compile(pattern)
+            if group == "page":
+                assert d.get("page") and "category" in d, d["name"]
+            if group == "tls":
+                assert d.get("issuer"), d["name"]
+
+
+def test_a_plain_link_is_not_a_dependency_a_form_link_is():
+    # "Мы на YouTube" in the footer counted as a YouTube player, a news link as Rambler ads.
+    from suveren.page import page_code
+
+    html = (
+        '<a href="https://www.youtube.com/@shop">YouTube</a>'
+        '<a href="https://news.rambler.ru/a">Новость</a>'
+        '<a href="https://docs.google.com/forms/d/1/viewform">Анкета</a>'
+    )
+    names = {s.name for s, _ in db.scan_page(page_code(html, links=False))}
+    assert "YouTube" not in names and not any("Rambler" in n for n in names)
+    assert any("Google" in n for n in names)  # visitors' answers go to Google
+
+
+def test_ngenix_by_its_network_and_regional_service_hosts():
+    # AS34879 is registered under NGENIX's legal name, without "ngenix" in it.
+    ngenix = db.by_network(34879, "OOO «Sovremennye setevye tekhnologii»")
+    assert ngenix is not None and ngenix.name == "NGENIX" and ngenix.cdn
+    html = (
+        '<script src="https://js-eu1.hs-scripts.com/1.js"></script>'
+        '<script src="https://script.hotjar.com/modules.js"></script>'
+        '<script src="https://static.criteo.com/js/ld/ld.js"></script>'
+        '<script src="//widget.jivosite.com/widget/x"></script>'
+        '<iframe src="https://maps.google.com/maps?q=Moscow&output=embed"></iframe>'
+    )
+    assert {"HubSpot", "Hotjar", "Criteo", "Jivo", "Google Maps"} <= code_names(html)

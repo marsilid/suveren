@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "suveren"
-version = "1.0.0"
+version = "1.1.0"
 description = "Аудит сайта и компании: иностранные сервисы, 152-ФЗ, блокировки РКН, ЕГРЮЛ и санкционные списки"
 readme = "README.md"
-requires-python = ">=3.10"
-license = "MIT"
-license-files = ["LICENSE"]
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE", "COPYRIGHT"]
 keywords = ["osint", "sanctions", "russia", "import-substitution", "152-fz", "egrul", "ofac", "compliance"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -23,7 +23,8 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.27",
-    "dnspython>=2.6",
+    "certifi>=2026.10.19",  # PYSEC-2026-4320 in earlier versions (pip-audit)
+    "dnspython>=2.9",  # CVE-2026-114605 in earlier versions (pip-audit)
     "typer>=0.12",
     "rich>=13.7",
     "jinja2>=3.1",
@@ -31,11 +32,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "coverage>=7.5", "pip-audit>=2.7"]
 browser = ["playwright>=1.45"]
 
 [project.urls]
 Homepage = "https://github.com/marsilid/suveren"
+Documentation = "https://github.com/marsilid/suveren/blob/main/docs/guide.md"
+Changelog = "https://github.com/marsilid/suveren/blob/main/CHANGELOG.md"
+Issues = "https://github.com/marsilid/suveren/issues"
 
 [project.scripts]
 suveren = "suveren.cli:app"
@@ -43,9 +47,17 @@ suveren = "suveren.cli:app"
 [tool.hatch.build.targets.wheel]
 packages = ["src/suveren"]
 
+# The source package on PyPI: the code and what its tests need, not the repo's
+# screenshots, CI and editor settings.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/", "tests/", "tools/",
+    "README.md", "README.en.md", "CHANGELOG.md", "LICENSE", "COPYRIGHT", "pyproject.toml",
+]
+
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.format]
 # README code samples are aligned by hand.
@@ -53,7 +65,22 @@ exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]
+# UP042: StrEnum formats differently from (str, Enum) in f-strings and str(); the
+# JSON and reports rely on the current behaviour.
+ignore = ["RUF001", "RUF002", "RUF003", "UP042"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/suveren"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["src/suveren"]
+
+[tool.coverage.report]
+# The offline end-to-end tests (tests/test_e2e.py and others) keep it above this.
+fail_under = 90
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

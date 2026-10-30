@@ -8,6 +8,7 @@ Network ownership (ASN) comes from Team Cymru's free IP-to-ASN service over DNS.
 from __future__ import annotations
 
 import asyncio
+import codecs
 import contextlib
 import ipaddress
 import re
@@ -15,12 +16,13 @@ import ssl
 from dataclasses import dataclass, field
 from typing import Any
 
+import certifi
 import httpx
 
 from suveren import __version__
-from suveren.crawl import FetchedPage
+from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
-from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError
+from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -84,12 +86,22 @@ class Facts:
     http_problem: str | None = None
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
+    # Who started each script request on the home page (--browser): script URL ->
+    # the URL of the script that loaded it, or "" when the page's own HTML did.
+    initiators: dict[str, str] = field(default_factory=dict)
+    # The home page's response headers as the browser got them (--browser): used when
+    # plain HTTP met a bot wall but the browser got through to the site.
+    browser_headers: dict[str, str] = field(default_factory=dict)
     rendered: bool = False
     # Internal pages fetched besides the home page (contacts, order forms, ...).
     extra_pages: list[FetchedPage] = field(default_factory=list)
     # Pages opened in the browser for later checks (the privacy policy), keyed by URL.
     prefetched: dict[str, FetchedPage] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    # The site's DNS lookups that got no answer ("ns", "mx", "web"): the services behind
+    # them are unseen, not absent. sravni.ru, 2026-10-25: A, NS and MX timed out, four
+    # services vanished and the report still looked complete.
+    dns_unanswered: list[str] = field(default_factory=list)
 
     @property
     def page_problem(self) -> str | None:
@@ -97,6 +109,17 @@ class Facts:
         if not self.html:
             return "главная страница не загрузилась"
         return page_problem(self.page_status, self.html, rendered=self.rendered)
+
+    @property
+    def page_unseen(self) -> str | None:
+        """Why the site's own page was not seen at all: nothing came back, or a bot wall
+        or an error page stood in for it. A thin page built by scripts is seen: its
+        scripts are in the code. After --browser the status and HTML are the browser's."""
+        if not self.html:
+            if self.page_status:
+                return f"сайт ответил кодом {self.page_status} без страницы"
+            return "главная страница не загрузилась"
+        return bot_wall(self.page_status, self.html)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -112,10 +135,14 @@ class Facts:
             "page_status": self.page_status,
             "rendered": self.rendered,
             "page_problem": self.page_problem,
+            "page_unseen": self.page_unseen,
+            "dns_unanswered": list(self.dns_unanswered),
             "extra_pages": [p.url for p in self.extra_pages],
         }
 
 
+# Words of a wall page, looked for in what a visitor reads (text and title): in the code
+# "captcha" or "challenge" is also a reCAPTCHA on an ordinary small site's form.
 _CHALLENGE = re.compile(
     r"captcha|challenge|доступ ограничен|доступ запрещ|проверка безопасности|"
     r"запрос отклонен|пройдите проверку|подтвердите, что вы|checking your browser|"
@@ -123,6 +150,27 @@ _CHALLENGE = re.compile(
     r"enable javascript|включите javascript|user_blocked",
     re.I,
 )
+# Marks of protection services in the code of their wall pages.
+_WALL_CODE = re.compile(
+    r"cdn-cgi/challenge|challenge-platform|_cf_chl|ddos-guard|__ddg|servicepipe|qrator|"
+    r"antibot|user_blocked|checking your browser",
+    re.I,
+)
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+# Answers a protection service gives a robot; a 404 or a 500 is the site's own answer.
+_WALL_STATUSES = frozenset({401, 403, 405, 406, 429, 503})
+
+
+def _challenge(html: str, text: str) -> bool:
+    title = _TITLE.search(html[:30000])
+    seen = text + " " + (title.group(1) if title else "")
+    return bool(_CHALLENGE.search(seen) or _WALL_CODE.search(html[:30000]))
+
+
+def _status_problem(status: int) -> str:
+    if status in _WALL_STATUSES:
+        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+    return f"сайт ответил кодом {status} вместо страницы"
 
 
 def page_problem(status: int | None, html: str, *, rendered: bool = False) -> str | None:
@@ -130,11 +178,13 @@ def page_problem(status: int | None, html: str, *, rendered: bool = False) -> st
     page = parse_page(html)
     # Stub pages are short; they may still carry a phone number or a few links.
     short = len(page.text) < 1500
-    thin = len(page.links) < 10 and len(page.text) < 600
-    challenge = short and bool(_CHALLENGE.search(html[:30000]))
+    # A small page with no scripts at all is simply small, not built by scripts.
+    scripted = "<script" in html.lower()
+    thin = len(page.links) < 10 and len(page.text) < 600 and (scripted or rendered)
+    challenge = short and _challenge(html, page.text)
     # A browser may pass a challenge that first answered 403/503: judge the content then.
     if status is not None and status >= 400 and (thin or challenge or not rendered):
-        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
+        return _status_problem(status)
     if challenge:
         return "сайт показал страницу проверки «вы не робот»"
     if thin:
@@ -151,8 +201,9 @@ def bot_wall(status: int | None, html: str) -> str | None:
     HTML is tiny, but its headers are the site's real headers.
     """
     if status is not None and status >= 400:
-        return f"сайт ответил кодом {status}, вероятно, это защита от ботов"
-    if len(parse_page(html).text) < 1500 and _CHALLENGE.search(html[:30000]):
+        return _status_problem(status)
+    text = parse_page(html).text
+    if len(text) < 1500 and _challenge(html, text):
         return "сайт показал страницу защиты от ботов"
     return None
 
@@ -261,17 +312,25 @@ class Collector:
         if addr.version != 4:
             return info
         arpa = ".".join(reversed(ip.split(".")))
-        with contextlib.suppress(DnsLookupError):
-            origin = await self.resolver.resolve(f"{arpa}.origin.asn.cymru.com", "TXT")
-            if origin:
-                info.asn, info.country = parse_cymru_origin(origin[0])
+        origin = await self._txt_twice(f"{arpa}.origin.asn.cymru.com")
+        if origin:
+            info.asn, info.country = parse_cymru_origin(origin[0])
         if info.asn:
-            with contextlib.suppress(DnsLookupError):
-                names = await self.resolver.resolve(f"AS{info.asn}.asn.cymru.com", "TXT")
-                if names:
-                    as_country, info.as_name = parse_cymru_asname(names[0])
-                    info.country = as_country or info.country
+            names = await self._txt_twice(f"AS{info.asn}.asn.cymru.com")
+            if names:
+                as_country, info.as_name = parse_cymru_asname(names[0])
+                info.country = as_country or info.country
         return info
+
+    async def _txt_twice(self, name: str) -> list[str]:
+        """One retry: a lost answer at night left gosuslugi.ru with no owner for its IPs."""
+        for attempt in range(2):
+            try:
+                return await self.resolver.resolve(name, "TXT")
+            except DnsLookupError:
+                if attempt:
+                    return []
+        return []
 
     async def _host_infos(self, host: str) -> list[HostInfo]:
         """One entry per network the host's addresses live in.
@@ -321,12 +380,16 @@ class Collector:
                     continue
                 client = self.insecure_client
             try:
-                resp = await client.get(url)
+                # Tried again after a timeout: one slow answer under a batch's load made the
+                # site "not opened" one night and fine the next.
+                resp = await get_once_more(client, url)
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
-        raise ModuleError(f"сайт не открылся ({type(last_error).__name__})")
+        raise ModuleError(
+            f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
+        )
 
     @property
     def insecure_client(self) -> httpx.AsyncClient:
@@ -360,9 +423,14 @@ class Collector:
             )
             if not server:
                 return None
-            return parse_whois_registrar(await whois_query(server, domain, self.timeout))
+            try:
+                answer = await whois_query(server, domain, self.timeout)
+            except TIMEOUTS:
+                # The registrar came and went between nights with WHOIS timeouts.
+                answer = await whois_query(server, domain, self.timeout)
+            return parse_whois_registrar(answer)
         except (OSError, *TIMEOUTS) as exc:
-            raise ModuleError(f"WHOIS недоступен ({type(exc).__name__})") from exc
+            raise ModuleError(f"WHOIS недоступен ({describe(exc)})") from exc
 
     async def tls_issuer(self, host: str) -> tuple[str | None, bool | None]:
         """(issuer organisation, trusted by the standard CA bundle)."""
@@ -378,7 +446,7 @@ class Collector:
             return None, None
 
     async def _issuer(self, host: str, *, verify: bool) -> str | None:
-        context = ssl.create_default_context()
+        context = browser_trust()
         if not verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
@@ -441,11 +509,48 @@ async def whois_raw(domain: str, timeout: float) -> str | None:
         return None
 
 
+def browser_trust() -> ssl.SSLContext:
+    """Verify against Mozilla's root list, as httpx does, not the Windows store.
+
+    Windows adds a root only when something first needs it, so the store often lacks
+    newer roots (vk.com's SSL.com 2022, dzen.ru's HARICA 2021) and real chains fail.
+    """
+    return ssl.create_default_context(cafile=certifi.where())
+
+
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)""", re.I)
+
+
+def guess_encoding(content: bytes) -> str:
+    """Encoding of a body whose Content-Type names none (httpx then assumed UTF-8).
+
+    Old Russian sites send windows-1251 with only a <meta charset>, and the page came
+    out as «��»: the 152-ФЗ text checks and the ИНН search read nothing.
+    """
+    if content.startswith(b"\xef\xbb\xbf"):
+        return "utf-8-sig"
+    meta = _META_CHARSET.search(content[:4096])
+    if meta:
+        name = meta.group(1).decode("ascii").lower()
+        try:
+            codecs.lookup(name)
+            return name
+        except LookupError:
+            pass
+    try:
+        content.decode("utf-8")
+        return "utf-8"
+    except UnicodeDecodeError as exc:
+        # A cut multi-byte character at the very end is still UTF-8.
+        return "utf-8" if exc.start >= len(content) - 3 else "cp1251"
+
+
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=True,
         verify=verify,
+        default_encoding=guess_encoding,
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
@@ -480,6 +585,14 @@ def issuer_from_der(der: bytes) -> str | None:
     return None
 
 
+# The site's own DNS lookups and what goes unseen without them, for "оценка неполная".
+DNS_SECTIONS = {
+    "ns": "DNS-серверы",
+    "mx": "почтовые серверы",
+    "web": "IP-адреса и хостинг сайта",
+}
+
+
 async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto") -> Facts:
     domain = registrable_domain(host)
     facts = Facts(host=host, domain=domain)
@@ -490,6 +603,11 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.notes.append(note)
         if not await resolver.exists(domain):
             raise TargetNotFoundError(f"домен {domain} не существует (NXDOMAIN)")
+        # The parent existing is not enough: solar.rt.ru has been gone since the company
+        # moved, yet it got a B, rt.ru's DNS and mail, and a "page" with code 503 that a
+        # proxy made up for a host it could not find.
+        if host != domain and not await resolver.exists(host):
+            raise TargetNotFoundError(f"адреса {host} не существует (NXDOMAIN)")
 
         c = Collector(resolver, client, timeout)
         tasks = {
@@ -508,14 +626,16 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             "registrar": "регистратора",
             "tls": "SSL-сертификат",
         }
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        results: list[Any] = await asyncio.gather(*tasks.values(), return_exceptions=True)
         await c.aclose()
 
     for key, value in zip(tasks, results, strict=True):
         if isinstance(value, BaseException):
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
-            facts.notes.append(f"Не удалось получить {labels[key]}: {value}")
+            facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
+            if key in DNS_SECTIONS:
+                facts.dns_unanswered.append(key)
             continue
         if key == "ns":
             facts.ns = value

@@ -12,7 +12,7 @@ if not exist "%deps_marker%" (
     echo Устанавливаю Suveren и зависимости, это займёт около минуты...
     where python >nul 2>nul || (
         echo.
-        echo Python не найден. Установи Python 3.10+ с https://www.python.org/downloads/
+        echo Python не найден. Установи Python 3.11+ с https://www.python.org/downloads/
         echo и при установке поставь галочку "Add Python to PATH".
         echo Или скачай готовый Suveren.exe: https://github.com/marsilid/suveren/releases
         pause

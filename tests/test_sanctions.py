@@ -36,7 +36,7 @@ def test_ofac_parser():
     assert sber.kind == "entity"
     assert sber.ids == ["1027700132195", "7707083893"]
     assert "SBERBANK ROSSII" in sber.names
-    assert entries["34796"].names[0] == "Herman Oskarovich GREF"
+    assert entries["34796"].names[0] == "Herman Oskarovich BUBLIKOV"
     assert entries["34796"].kind == "person"
 
 
@@ -53,7 +53,7 @@ def test_uk_parser_skips_preamble_and_reads_cyrillic():
     sber = entries["RUS0256"]
     assert "ПАО Сбербанк" in sber.names
     assert set(sber.ids) == {"7707083893", "1027700132195"}
-    assert entries["RUS1057"].names[0] == "Herman Oskarovich GREF"
+    assert entries["RUS1057"].names[0] == "Herman Oskarovich BUBLIKOV"
 
 
 def test_extract_ids():
@@ -75,6 +75,16 @@ def test_soft_keeps_gender_endings():
     assert soft("Олег") != soft("Olga")
     assert soft("Герман") == soft("Herman")
     assert soft("Евгений") == soft("Yevgeniy") == soft("Evgeny")
+
+
+def test_soft_joins_the_soft_sign_and_yo_spellings():
+    # These surnames were missed against the Latin-only OFAC list.
+    assert soft("Васильев") == soft("Vasilyev") == soft("Vasiliev")
+    assert soft("Соловьёв") == soft("Solovyov") == soft("Соловьев")
+    assert soft("Воробьев") == soft("Vorobyov")
+    assert soft("Фёдор") == soft("Fyodor") == soft("Fedor")
+    assert soft("Королёв") == soft("Korolev")
+    assert soft("Васильев") != soft("Васильева")
 
 
 def test_brand():
@@ -112,9 +122,87 @@ def test_clean_company(index):
 
 
 def test_screen_person(index):
-    hits = screen_person(index, "Греф Герман Оскарович")
+    hits = screen_person(index, "Бубликов Герман Оскарович")
     assert {h.entry.source for h in hits} == {"us", "eu", "uk"}
 
 
 def test_screen_person_rejects_feminine_namesake(index):
-    assert screen_person(index, "Любимов Олег Игоревич") == []
+    assert screen_person(index, "Пряников Олег Игоревич") == []
+
+
+def test_screen_person_uses_the_patronymic():
+    from suveren.sanctions import Entry, SanctionsIndex
+
+    index = SanctionsIndex(
+        [
+            Entry("eu", "1", "person", ["Sergei Viktorovich IVANOV"], [], "RUS"),
+            Entry("uk", "2", "person", ["IVANOV, Sergei"], [], "Russia"),
+        ]
+    )
+    # Another patronymic: the EU entry is another man; the UK one has none, so it stays.
+    other = screen_person(index, "Иванов Сергей Петрович")
+    assert [(h.entry.source, h.how) for h in other] == [("uk", "person")]
+    same = screen_person(index, "Иванов Сергей Викторович")
+    assert {(h.entry.source, h.how) for h in same} == {("eu", "person_full"), ("uk", "person")}
+    assert same[0].how_ru
+    # Without a patronymic on our side nothing is ruled out.
+    assert len(screen_person(index, "Иванов Сергей")) == 2
+
+
+def test_a_list_that_parses_to_nothing_is_not_counted(tmp_path, monkeypatch):
+    # A source in a new format gave 0 entries without a word, and the check still said
+    # "Не найдена в списках" as if every list had been searched.
+    import asyncio
+
+    import suveren.sanctions as sanctions
+    from suveren.sanctions import Entry, load_index
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+
+    async def fetch_cached(client, url, name, *, refresh=False):
+        path = tmp_path / name
+        path.write_text("data", encoding="utf-8")
+        return path, None
+
+    one = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
+    monkeypatch.setattr(sanctions, "fetch_cached", fetch_cached)
+    monkeypatch.setattr(
+        sanctions, "PARSERS", {"us": lambda p: [one], "eu": lambda p: [], "uk": lambda p: []}
+    )
+    index = asyncio.run(load_index(None))  # type: ignore[arg-type]
+    assert index.sources == ["us"]
+    assert sum("ни одной записи" in n for n in index.notes) == 2
+
+
+def test_same_consonants_are_not_the_same_name():
+    # The consonant key is only the lookup: «Гранит» and GARANTIYA share "grnt",
+    # «Арсенал» and «5 ARSENAL» differ only by a number the key drops.
+    from suveren.sanctions import Entry, same_name
+
+    assert not same_name("ООО «Гранит»", "LIMITED LIABILITY COMPANY GARANTIYA")
+    assert not same_name("ООО «Арсенал»", "JOINT STOCK COMPANY 5 ARSENAL")
+    assert same_name("ООО «Арсенал»", "LLC ARSENAL")
+    assert same_name("ПАО «Сбербанк России»", "PUBLIC JOINT STOCK COMPANY SBERBANK OF RUSSIA")
+    entries = [
+        Entry("us", "1", "entity", ["LIMITED LIABILITY COMPANY GARANTIYA"], [], "RUSSIA"),
+        Entry("us", "2", "entity", ["JOINT STOCK COMPANY 5 ARSENAL"], [], "RUSSIA"),
+    ]
+    index = SanctionsIndex(entries)
+    assert screen_company(index, [], ["ООО «Гранит»"]) == []
+    # «5 ARSENAL» is still a similar name worth a look, not the same one.
+    assert {h.how for h in screen_company(index, [], ["ООО «Арсенал»"])} == {"partial"}
+
+
+def test_a_listed_entry_with_other_ids_is_another_organisation():
+    from suveren.sanctions import Entry
+
+    index = SanctionsIndex([
+        Entry("us", "1", "entity", ["LLC ARSENAL"], ["2465316804"], "RUSSIA"),
+        Entry("uk", "2", "entity", ["LLC ARSENAL"], ["1142468044179"], "RUS"),
+    ])  # fmt: skip
+    hits = {h.entry.ref: h.how for h in screen_company(index, ["7812345675"], ["ООО «Арсенал»"])}
+    # Our ИНН against the entry's ИНН: other. Our ИНН against an ОГРН alone: can't tell.
+    assert hits == {"1": "other", "2": "name"}
+    both = screen_company(index, ["7812345675", "1027700132195"], ["ООО «Арсенал»"])
+    assert {h.how for h in both} == {"other"}
+    assert {h.how for h in screen_company(index, [], ["ООО «Арсенал»"])} == {"name"}

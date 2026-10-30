@@ -1,0 +1,429 @@
+{
+ "_about": "Сервисы, на которых брошенный пользовательский домен может занять кто-то другой. Источник: «Can I take over XYZ?» (EdOverflow и соавторы, fingerprints.json, CC BY 4.0). Используются только записи Vulnerable и Edge case (vulnerable: false). Где источник не даёт CNAME, подставлен стандартный адрес сервиса. added: true — запись добавлена Suveren, её нет в источнике; seen — тексты-заглушки, которые эти сервисы показывали на дату проверки. fingerprint — регулярное выражение по странице поддомена, HTTP_STATUS=n — код ответа, nxdomain — сам CNAME-адрес больше не существует.",
+ "source": "https://github.com/EdOverflow/can-i-take-over-xyz",
+ "license": "CC BY 4.0",
+ "checked": "2026-10-17",
+ "signatures": [
+  {
+   "service": "AWS Elastic Beanstalk",
+   "cnames": [
+    "elasticbeanstalk.com"
+   ],
+   "nxdomain": true
+  },
+  {
+   "service": "AWS S3",
+   "cnames": [
+    "amazonaws.com"
+   ],
+   "fingerprints": [
+    "The specified bucket does not exist"
+   ]
+  },
+  {
+   "service": "Agile CRM",
+   "cnames": [
+    "agilecrm.com"
+   ],
+   "fingerprints": [
+    "Sorry, this page is no longer available."
+   ]
+  },
+  {
+   "service": "Айри (Airee.ru)",
+   "cnames": [
+    "airee.ru"
+   ],
+   "fingerprints": [
+    "Ошибка 402. Сервис Айри.рф не оплачен"
+   ]
+  },
+  {
+   "service": "Anima",
+   "cnames": [
+    "animaapp.io"
+   ],
+   "fingerprints": [
+    "The page you were looking for does not exist."
+   ]
+  },
+  {
+   "service": "Bitbucket",
+   "cnames": [
+    "bitbucket.io"
+   ],
+   "fingerprints": [
+    "Repository not found"
+   ]
+  },
+  {
+   "service": "Campaign Monitor",
+   "cnames": [
+    "createsend.com"
+   ],
+   "fingerprints": [
+    "Trying to access your account\\?"
+   ]
+  },
+  {
+   "service": "Canny",
+   "cnames": [
+    "canny.io"
+   ],
+   "fingerprints": [
+    "Company Not Found",
+    "There is no such company. Did you enter the right URL\\?"
+   ]
+  },
+  {
+   "service": "Cargo Collective",
+   "cnames": [
+    "cargocollective.com"
+   ],
+   "fingerprints": [
+    "404 Not Found"
+   ]
+  },
+  {
+   "service": "Discourse",
+   "cnames": [
+    "trydiscourse.com"
+   ],
+   "nxdomain": true
+  },
+  {
+   "service": "Frontify",
+   "cnames": [
+    "frontify.com"
+   ],
+   "fingerprints": [
+    "404 - Page Not Found",
+    "Oops… looks like you got lost"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Gemfury",
+   "cnames": [
+    "furyns.com"
+   ],
+   "fingerprints": [
+    "404: This page could not be found."
+   ]
+  },
+  {
+   "service": "Ghost",
+   "cnames": [
+    "ghost.io"
+   ],
+   "fingerprints": [
+    "Site unavailable\\.",
+    "Failed to resolve DNS path for this host"
+   ]
+  },
+  {
+   "service": "GitHub Pages",
+   "cnames": [
+    "github.io"
+   ],
+   "fingerprints": [
+    "There isn't a GitHub Pages site here."
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Help Juice",
+   "cnames": [
+    "helpjuice.com"
+   ],
+   "fingerprints": [
+    "We could not find what you're looking for."
+   ]
+  },
+  {
+   "service": "Help Scout",
+   "cnames": [
+    "helpscoutdocs.com"
+   ],
+   "fingerprints": [
+    "No settings were found for this company:"
+   ]
+  },
+  {
+   "service": "Helprace",
+   "cnames": [
+    "helprace.com"
+   ],
+   "fingerprints": [
+    "HTTP_STATUS=301"
+   ]
+  },
+  {
+   "service": "Heroku",
+   "cnames": [
+    "herokuapp.com",
+    "herokudns.com"
+   ],
+   "fingerprints": [
+    "No such app"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Intercom",
+   "cnames": [
+    "custom.intercom.help"
+   ],
+   "fingerprints": [
+    "Uh oh. That page doesn't exist."
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "JetBrains YouTrack",
+   "cnames": [
+    "youtrack.cloud"
+   ],
+   "fingerprints": [
+    "is not a registered InCloud YouTrack"
+   ]
+  },
+  {
+   "service": "LaunchRock",
+   "cnames": [
+    "launchrock.com"
+   ],
+   "fingerprints": [
+    "HTTP_STATUS=500"
+   ]
+  },
+  {
+   "service": "Microsoft Azure",
+   "cnames": [
+    "cloudapp.net",
+    "cloudapp.azure.com",
+    "azurewebsites.net",
+    "blob.core.windows.net",
+    "azure-api.net",
+    "azurehdinsight.net",
+    "azureedge.net",
+    "azurecontainer.io",
+    "database.windows.net",
+    "azuredatalakestore.net",
+    "search.windows.net",
+    "azurecr.io",
+    "redis.cache.windows.net",
+    "servicebus.windows.net",
+    "visualstudio.com",
+    "trafficmanager.net"
+   ],
+   "nxdomain": true
+  },
+  {
+   "service": "Netlify",
+   "cnames": [
+    "netlify.app",
+    "netlify.com"
+   ],
+   "fingerprints": [
+    "Not Found - Request ID:"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Ngrok",
+   "cnames": [
+    "ngrok.io"
+   ],
+   "fingerprints": [
+    "Tunnel .*.ngrok.io not found"
+   ]
+  },
+  {
+   "service": "Pantheon",
+   "cnames": [
+    "pantheonsite.io"
+   ],
+   "fingerprints": [
+    "404 error unknown site!",
+    "404 - Unknown site"
+   ],
+   "seen": [
+    "404 - Unknown site"
+   ]
+  },
+  {
+   "service": "Pingdom",
+   "cnames": [
+    "stats.pingdom.com"
+   ],
+   "fingerprints": [
+    "Sorry, couldn't find the status page"
+   ]
+  },
+  {
+   "service": "Readme.io",
+   "cnames": [
+    "readme.io"
+   ],
+   "fingerprints": [
+    "The creators of this project are still working on making everything perfect!"
+   ]
+  },
+  {
+   "service": "Read the Docs",
+   "cnames": [
+    "readthedocs.io"
+   ],
+   "fingerprints": [
+    "The link you have followed or the URL that you entered does not exist.",
+    "The project you requested does not exist or may have been removed"
+   ],
+   "seen": [
+    "The project you requested does not exist or may have been removed"
+   ]
+  },
+  {
+   "service": "Shopify",
+   "cnames": [
+    "myshopify.com"
+   ],
+   "fingerprints": [
+    "Sorry, this shop is currently unavailable.",
+    "This store is currently unavailable."
+   ],
+   "vulnerable": false,
+   "seen": [
+    "This store is currently unavailable."
+   ]
+  },
+  {
+   "service": "Strikingly",
+   "cnames": [
+    "strikinglydns.com"
+   ],
+   "fingerprints": [
+    "PAGE NOT FOUND."
+   ]
+  },
+  {
+   "service": "Surge.sh",
+   "cnames": [
+    "surge.sh"
+   ],
+   "fingerprints": [
+    "project not found"
+   ]
+  },
+  {
+   "service": "SurveySparrow",
+   "cnames": [
+    "surveysparrow.com"
+   ],
+   "fingerprints": [
+    "Account not found."
+   ]
+  },
+  {
+   "service": "Tilda",
+   "cnames": [
+    "tilda.ws"
+   ],
+   "fingerprints": [
+    "Please renew your subscription"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Tumblr",
+   "cnames": [
+    "domains.tumblr.com"
+   ],
+   "fingerprints": [
+    "Whatever you were looking for doesn't currently exist at this address"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Uberflip",
+   "cnames": [
+    "read.uberflip.com"
+   ],
+   "fingerprints": [
+    "The URL you've accessed does not provide a hub."
+   ]
+  },
+  {
+   "service": "UptimeRobot",
+   "cnames": [
+    "stats.uptimerobot.com"
+   ],
+   "fingerprints": [
+    "page not found"
+   ]
+  },
+  {
+   "service": "Vercel",
+   "cnames": [
+    "vercel-dns.com",
+    "vercel.app"
+   ],
+   "fingerprints": [
+    "DEPLOYMENT_NOT_FOUND"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Webflow",
+   "cnames": [
+    "proxy-ssl.webflow.com",
+    "proxy.webflow.com"
+   ],
+   "fingerprints": [
+    "The page you are looking for doesn't exist or has been moved."
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "Wix",
+   "cnames": [
+    "wixdns.net"
+   ],
+   "fingerprints": [
+    "Looks Like This Domain Isn't Connected To A Website Yet!"
+   ],
+   "vulnerable": false
+  },
+  {
+   "service": "WordPress.com",
+   "cnames": [
+    "wordpress.com"
+   ],
+   "fingerprints": [
+    "Do you want to register .*.wordpress.com\\?"
+   ]
+  },
+  {
+   "service": "Worksites",
+   "cnames": [
+    "worksites.net"
+   ],
+   "fingerprints": [
+    "Hello! Sorry, but the website you&rsquo;re looking for doesn&rsquo;t exist."
+   ]
+  },
+  {
+   "service": "Yandex Object Storage",
+   "cnames": [
+    "website.yandexcloud.net",
+    "storage.yandexcloud.net"
+   ],
+   "fingerprints": [
+    "NoSuchBucket"
+   ],
+   "vulnerable": false,
+   "added": true,
+   "comment": "Имена бакетов глобальные, как в AWS S3: имя удалённого бакета можно занять снова."
+  }
+ ]
+}

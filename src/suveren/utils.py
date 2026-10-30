@@ -30,6 +30,8 @@ _TWO_LABEL_SUFFIXES = frozenset(
         "pp.ru",
         "msk.ru",
         "spb.ru",
+        # Every agency under gov.ru has its own domain and mail (nalog.gov.ru, mvd.gov.ru).
+        "gov.ru",
         "com.by",
     }
 )
@@ -43,6 +45,19 @@ COUNTRY_NAMES = {
     "GB": "Великобритания",
     "IE": "Ирландия",
     "FI": "Финляндия",
+    # Offshore zones where foreign services often register (Telegram: VG).
+    "VG": "Британские Виргинские острова",
+    "KY": "Каймановы острова",
+    "BZ": "Белиз",
+    "PA": "Панама",
+    "SC": "Сейшелы",
+    "AZ": "Азербайджан",
+    "TW": "Тайвань",
+    "BR": "Бразилия",
+    "MX": "Мексика",
+    "ZA": "ЮАР",
+    "GR": "Греция",
+    "IS": "Исландия",
     "SE": "Швеция",
     "LU": "Люксембург",
     "BE": "Бельгия",

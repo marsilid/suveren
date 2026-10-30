@@ -32,6 +32,39 @@ def test_fully_domestic_site_gets_a():
     assert report.countries == [("RU", 100)]
 
 
+DOMESTIC = {
+    "ns": [HostInfo("ns1.selectel.org", ru_net()), HostInfo("ns2.selectel.org", ru_net())],
+    "mx": [HostInfo("mx.yandex.net", NetInfo("2.2.2.2", 13238, "YANDEX", "RU"))],
+    "web": [ru_net("3.3.3.3")],
+    "registrar": "RU-CENTER-RU",
+}
+
+
+def test_an_unseen_page_caps_the_grades_at_b():
+    """A local proxy answered an unreachable host with a bare 503: no findings, so the
+    site got A 100/100 in --quick, and --fail-under A let it through."""
+    from suveren.advice import PAGE_SECTION, incomplete, overall_grade
+
+    for status, html, why in [
+        (503, "", "кодом 503 без страницы"),
+        (None, "", "не загрузилась"),
+        (403, "<html><body>Access denied</body></html>", "кодом 403"),
+    ]:
+        report = analyze(make_facts(**DOMESTIC, page_status=status, html=html))
+        assert report.findings == [] and why in (report.page_unseen or "")
+        assert (report.grade, report.score) == ("B", 89)
+        assert overall_grade(report) == "B"
+        assert incomplete(report) == [f"не проверены: {PAGE_SECTION}"]
+        assert any("оценки не выше B" in n for n in report.notes)
+        assert report.to_dict()["facts"]["page_unseen"] == report.page_unseen
+
+
+def test_a_thin_script_page_is_seen():
+    # Its scripts are in the code: a small single-page app keeps its A.
+    report = analyze(make_facts(**DOMESTIC, page_status=200, html="<script src=/app.js></script>"))
+    assert report.page_unseen is None and report.grade == "A"
+
+
 def test_google_mail_and_cloudflare_dns_are_high():
     facts = make_facts(
         ns=[HostInfo("ada.ns.cloudflare.com", NetInfo("4.4.4.4", 13335, "CLOUDFLARENET", "US"))],
@@ -62,6 +95,30 @@ def test_cdn_ip_is_cdn_not_hosting():
     assert finding(report, Category.CDN) is not None
     assert finding(report, Category.HOSTING) is None
     assert any("настоящий хостинг скрыт" in n for n in report.notes)
+
+
+def test_cloudfront_in_amazons_network_is_a_cdn():
+    """CloudFront answers from AS16509 like plain AWS hosting: aviasales.ru got "the
+    database is abroad" (SUV-PD-007) and 6 млн ₽ for an edge server."""
+    aws = [NetInfo("13.33.1.1", 16509, "AMAZON-02", "US")]
+    edge = analyze(make_facts(web=aws, headers={"x-amz-cf-id": "abc", "via": "1.1 x (CloudFront)"}))
+    dep = next(d for d in edge.dependencies if d.service == "Amazon CloudFront")
+    assert dep.category is Category.CDN and "x-amz-cf-id" in dep.evidence
+    assert not any(d.category is Category.HOSTING for d in edge.dependencies)
+    assert any("настоящий хостинг скрыт" in n for n in edge.notes)
+    plain = analyze(make_facts(web=aws, headers={"server": "nginx"}))
+    assert any(
+        d.category is Category.HOSTING and d.service == "Amazon Web Services"
+        for d in plain.dependencies
+    )
+
+
+def test_ddos_guard_abroad_network_is_its_cdn():
+    # ddos-guard.net answered from AS59692 (IQWeb FZ-LLC, UAE): hosting "abroad" before.
+    report = analyze(make_facts(web=[NetInfo("186.2.163.1", 59692, "IQWEB-AS", "AE")]))
+    assert [
+        (d.category, d.service) for d in report.dependencies if d.evidence.startswith("IP")
+    ] == [(Category.CDN, "DDoS-Guard")]
 
 
 def test_unknown_network_uses_as_country():
@@ -130,3 +187,31 @@ def test_own_mail_servers_are_a_low_risk_not_a_vendor():
     assert mail.severity is Severity.LOW
     assert "Собственная сеть (Habr Europe OU)" in mail.title
     assert "собственная сеть компании" in mail.description
+
+
+def test_unknown_dns_name_on_a_known_network_names_both():
+    """ns1.dyna-ns.net was reported as Cloudflare: its network, not its operator."""
+    cf = NetInfo("104.16.0.1", 13335, "CLOUDFLARENET", "US")
+    report = analyze(make_facts(ns=[HostInfo("ns1.some-dns.net", cf)]))
+    dns = next(d for d in report.dependencies if d.category is Category.DNS)
+    assert dns.service == "some-dns.net (на сети Cloudflare)" and dns.country == "US"
+    dynadot = analyze(make_facts(ns=[HostInfo("ns1.dyna-ns.net", cf)]))
+    assert [d.service for d in dynadot.dependencies if d.category is Category.DNS] == ["Dynadot"]
+
+
+def test_a_redirect_to_another_domain_is_said():
+    facts = make_facts(final_url="https://www.vtb.ru/personal/")
+    note = next(n for n in analyze(facts).notes if "перенаправляет" in n)
+    assert "vtb.ru" in note and facts.domain in note
+    same = make_facts(final_url=f"https://www.{make_facts().domain}/ru/")
+    assert not any("перенаправляет" in n for n in analyze(same).notes)
+
+
+def test_an_unlisted_ru_registrar_handle_is_russian():
+    def registrar(name):
+        deps = analyze(make_facts(registrar=name)).dependencies
+        return next(d for d in deps if d.category is Category.REGISTRAR)
+
+    assert registrar("MASTERHOST-RU").country == "RU"
+    assert registrar("FLEXBE-RU").country == "RU"
+    assert registrar("Register SPA").country is None  # unknown stays unknown

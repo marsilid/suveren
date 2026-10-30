@@ -18,3 +18,11 @@ reports/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Golden corpus of real sites: local only (tests/golden.py)
+corpus/
+# ...but the data files shipped with the package are code
+!src/suveren/data/*.json
+
+# graphify knowledge graph (local, rebuilt with `graphify update .`)
+graphify-out/

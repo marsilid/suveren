@@ -21,11 +21,11 @@ from typing import Any
 
 import httpx
 
-from suveren.cache import cache_dir, is_fresh
-from suveren.checks import Check, Status
+from suveren.cache import age_text, cache_dir, is_fresh
+from suveren.checks import Check, Evidence, Status
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
-from suveren.errors import TIMEOUTS, ModuleError
+from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.takeover_signatures import SOURCE_URL, Signature, find_signature
 from suveren.utils import registrable_domain
 
@@ -36,6 +36,11 @@ CERTSPOTTER_URL = "https://api.certspotter.com/v1/issuances"
 CRTSH_ATTEMPTS = 2
 CRTSH_RETRY_DELAY = 3.0
 CERTSPOTTER_PAGES = 5
+# The whole stage: certificate logs can take a minute per attempt, and in a batch the
+# stage once pushed alfabank.ru and sovcombank.ru past the per-site deadline, losing
+# the whole report for want of one section.
+STAGE_BUDGET = 120.0
+STALE_TTL = 14 * 24 * 3600  # an old list, used only when both logs are down
 MAX_SUBDOMAINS = 300
 MAX_CNAME_HOPS = 4
 DNS_CONCURRENCY = 20
@@ -118,6 +123,11 @@ async def ct_subdomains(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"names": names, "source": source}), encoding="utf-8")
         return names, source
+    # Both logs fail often at night: a list from the last days beats "not checked", and
+    # the source says how old it is.
+    if path.exists() and is_fresh(path, STALE_TTL):
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        return cached["names"], f"{cached['source']}, сохранённый список ({age_text(path)})"
     raise ModuleError(f"журналы сертификатов недоступны ({'; '.join(errors)}), попробуйте позже")
 
 
@@ -127,7 +137,7 @@ def _why(exc: BaseException) -> str:
         return "слишком много запросов" if code == 429 else f"HTTP {code}"
     if isinstance(exc, (httpx.TimeoutException, *TIMEOUTS)):
         return "не ответил вовремя"
-    return type(exc).__name__
+    return describe(exc)
 
 
 # --- DNS ------------------------------------------------------------------------------
@@ -349,6 +359,15 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             "подключите их к сервису в своём аккаунте.",
             link=SOURCE_URL,
         )
+        # The DNS answer for each candidate: where its CNAME points and what it resolves to.
+        takeover.evidence = [
+            Evidence(
+                "dns",
+                f"CNAME {c.sub.name}",
+                " → ".join(c.sub.cnames) + f" ({', '.join(c.sub.addresses) or 'адреса нет'})",
+            )
+            for c in scan.candidates[:10]
+        ]
     return [inventory, takeover]
 
 
@@ -388,7 +407,20 @@ async def run_subdomain_checks(
 ) -> tuple[list[Check], dict[str, Any]]:
     """Checks for the report and raw data for the JSON facts."""
     try:
-        scan = await scan_subdomains(resolver, client, page_client, domain, refresh=refresh)
+        scan = await asyncio.wait_for(
+            scan_subdomains(resolver, client, page_client, domain, refresh=refresh),
+            STAGE_BUDGET,
+        )
+    except TIMEOUTS:
+        return [
+            Check(
+                GROUP_SUB,
+                "Поддомены и их захват",
+                Status.UNKNOWN,
+                f"Не проверено: журналы сертификатов отвечали дольше {STAGE_BUDGET:.0f} с, "
+                "попробуйте позже.",
+            )
+        ], {}
     except ModuleError as exc:
         return [
             Check(GROUP_SUB, "Поддомены и их захват", Status.UNKNOWN, f"Не проверено: {exc}.")

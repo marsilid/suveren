@@ -1,13 +1,13 @@
 import asyncio
 import ssl
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 
 from suveren import websec
 from suveren.checks import Status
-from suveren.collect import bot_wall
+from suveren.collect import bot_wall, page_problem
 from suveren.websec import (
     TlsInfo,
     WebFacts,
@@ -26,7 +26,7 @@ from suveren.websec import (
     tls_check,
 )
 
-NOW = datetime(2026, 10, 17, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 17, tzinfo=UTC)
 
 
 def web(html="", headers=None, cookies=(), tls=None, https=True, **kwargs) -> WebFacts:
@@ -204,6 +204,24 @@ def test_tls_expiry_and_protocols():
     )
     check = tls_check(web(tls=unknown))
     assert check.status is Status.OK and "проверить не удалось" in check.details
+    # No handshake at all on an HTTPS site: "not checked", not a missing check.
+    check = tls_check(web(tls=TlsInfo("example.ru")))
+    assert check.status is Status.UNKNOWN and "TLS-соединение" in check.details
+    assert tls_check(web(tls=None)) is None  # a site without HTTPS has no TLS to check
+
+
+def test_probe_tls_tries_the_handshake_twice(monkeypatch):
+    calls = []
+
+    async def flaky(host, context, timeout, chain=None):
+        calls.append(host)
+        if len(calls) == 1:
+            raise TimeoutError
+        raise ssl.SSLError("stop here")
+
+    monkeypatch.setattr(websec, "_handshake", flaky)
+    info = asyncio.run(websec.probe_tls("example.ru", 1.0))
+    assert len(calls) == 2 and info.version is None
 
 
 @pytest.mark.parametrize(
@@ -244,6 +262,27 @@ def test_bot_wall_detection():
     assert bot_wall(200, stub)
     shell = '<html><body><div id="root"></div><script src="/app.js"></script></body></html>'
     assert bot_wall(200, shell) is None  # an app shell: its headers are real
+
+
+def test_a_small_site_with_recaptcha_is_not_a_bot_wall():
+    # "captcha" in a reCAPTCHA script of a landing page's form made it "a bot wall": its
+    # inner pages were not read and the headers were "not checked".
+    landing = (
+        "<html><head><title>Окна на заказ</title>"
+        '<script src="https://www.google.com/recaptcha/api.js"></script></head><body>'
+        "<h1>Окна ПВХ</h1><p>Замер бесплатно.</p>"
+        '<form action="/send"><input name="phone"><div class="g-recaptcha"></div></form>'
+        "</body></html>"
+    )
+    assert bot_wall(200, landing) is None
+    assert "робот" not in (page_problem(200, landing) or "")
+    title_wall = "<html><head><title>Just a moment...</title></head><body>Checking your browser"
+    assert bot_wall(200, title_wall)
+    cf = '<html><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v1"></script>'
+    assert bot_wall(200, cf)
+    # The site's own 404 is not a protection service.
+    assert "защита" not in bot_wall(404, "<html>not found</html>")
+    assert "защита" in bot_wall(403, "<html>Forbidden</html>")
 
 
 def test_redirect_to_another_domain_hides_its_headers(monkeypatch):
@@ -325,3 +364,277 @@ def test_advice_names_only_what_is_missing():
     assert frames_ok.recommendation == "Добавьте заголовок X-Content-Type-Options: nosniff."
     both = headers_check(web())
     assert both.recommendation.startswith("Добавьте заголовки X-Frame-Options")
+
+
+def test_browser_headers_stand_in_for_a_bot_wall():
+    import asyncio
+
+    import httpx
+
+    from suveren.collect import Facts
+    from suveren.websec import run_web_checks
+
+    facts = Facts(
+        host="example.ru",
+        domain="example.ru",
+        final_url="http://example.ru/",  # http: no TLS probe in the test
+        page_status=200,
+        html="<html><body>" + "<p>текст</p>" * 200 + "</body></html>",
+        headers={"server": "ddos-guard"},
+        http_problem="сайт показал страницу защиты от ботов",
+        browser_headers={
+            "x-frame-options": "DENY",
+            "x-content-type-options": "nosniff",
+            "set-cookie": "sid=1; Secure; HttpOnly; SameSite=Lax\nlang=ru",
+        },
+        rendered=True,
+    )
+
+    async def go():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda r: httpx.Response(404))
+        ) as c:
+            return await run_web_checks(facts, None, c, 5)
+
+    checks, _ = asyncio.run(go())
+    by_id = {c.id: c for c in checks}
+    assert by_id["SUV-WEB-006"].status.value == "ok"  # protective headers seen
+    assert by_id["SUV-WEB-004"].status.value != "unknown"  # CSP judged, not "not checked"
+
+
+def test_hsts_under_a_day_is_not_zero_days():
+    hour = hsts_check(web(headers={"strict-transport-security": "max-age=3600"}))
+    assert "1 ч." in hour.details and "0 дн." not in hour.details
+    assert "300 с" in hsts_check(web(headers={"strict-transport-security": "max-age=300"})).details
+    off = hsts_check(web(headers={"strict-transport-security": "max-age=0"}))
+    assert off.status is Status.WARN and "выключает HSTS" in off.details
+
+
+def test_script_inventory_warns_only_when_many_domains_can_run_code():
+    few = web(
+        "".join(f'<script src="https://cdn{i}.vendor{i}.ru/a.js"></script>' for i in range(3))
+    )
+    check = websec.scripts_inventory(few)
+    # A short list is information, not an alarm: no "может выполнить любой код" in "в порядке".
+    assert check.status is Status.OK and "любой код" not in check.details
+    many = web(
+        "".join(
+            f'<script src="https://cdn.vendor{i}.ru/a.js"></script>'
+            for i in range(websec.MANY_SCRIPT_DOMAINS)
+        )
+    )
+    check = websec.scripts_inventory(many)
+    assert check.status is Status.WARN and "любой код" in check.details and check.recommendation
+
+
+def test_tls_certificate_browsers_reject_is_a_fail():
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
+    bad = TlsInfo("example.ru", "TLSv1.3", exp, {}, "Hostname mismatch, certificate is not valid")
+    check = tls_check(web(tls=bad))
+    assert check is not None and check.status is Status.FAIL
+    assert "на другое имя" in check.details
+    ru = TlsInfo(
+        "example.ru",
+        "TLSv1.3",
+        exp,
+        {},
+        "self-signed certificate in certificate chain",
+        "CN=Russian Trusted Sub CA,O=The Ministry of Digital Development,C=RU",
+    )
+    check = tls_check(web(tls=ru))
+    assert check is not None and check.status is Status.WARN
+    assert "Минцифры" in check.details
+
+
+def test_x_frame_options_allow_from_does_not_protect():
+    headers = {
+        "x-frame-options": "ALLOW-FROM https://example.ru",
+        "x-content-type-options": "nosniff",
+    }
+    assert headers_check(web(headers=headers)).status is Status.WARN
+    headers["x-frame-options"] = "SAMEORIGIN"
+    assert headers_check(web(headers=headers)).status is Status.OK
+
+
+def test_tls_incomplete_chain_is_a_warning():
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
+    t = TlsInfo("example.ru", "TLSv1.3", exp, {}, "unable to get local issuer certificate")
+    t.chain_incomplete = True  # the AIA link supplied the missing intermediate
+    check = tls_check(web(tls=t))
+    assert check is not None and check.status is Status.WARN
+    assert "fullchain" in check.recommendation
+    # The same message for a private CA's root, which no browser trusts: a problem.
+    t.chain_incomplete = False
+    check = tls_check(web(tls=t))
+    assert check is not None and check.status is Status.FAIL
+
+
+def test_tls_unverified_certificate_is_said_not_hidden():
+    exp = datetime(2027, 1, 1, tzinfo=UTC)
+    t = TlsInfo("example.ru", "TLSv1.3", exp, {})
+    t.verified = False
+    check = tls_check(web(tls=t))
+    assert check is not None and "проверить не удалось" in check.details
+
+
+def test_repeated_hsts_header_is_a_warning():
+    # bi.zone: four Strict-Transport-Security headers, joined by the HTTP client.
+    value = "max-age=15552000;, max-age=31536000, max-age=7200, max-age=15552000;"
+    check = hsts_check(web(headers={"strict-transport-security": value}))
+    assert check is not None and check.status is Status.WARN
+    assert "4 раза" in check.details and "RFC 6797" in check.details
+
+
+# --- OCSP -----------------------------------------------------------------------------
+
+_REAL_CLIENT = httpx.AsyncClient
+
+
+def _ca_and_leaf(ocsp_url: str | None = "http://ocsp.ca.example"):
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import AuthorityInformationAccessOID, NameOID
+
+    def name(cn):
+        return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+
+    now = datetime.now(UTC)
+    ca_key, leaf_key = (
+        ec.generate_private_key(ec.SECP256R1()),
+        ec.generate_private_key(ec.SECP256R1()),
+    )
+    ca = (
+        x509.CertificateBuilder().subject_name(name("Test CA")).issuer_name(name("Test CA"))
+        .public_key(ca_key.public_key()).serial_number(1)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+        .sign(ca_key, hashes.SHA256())
+    )  # fmt: skip
+    builder = (
+        x509.CertificateBuilder().subject_name(name("site.ru")).issuer_name(ca.subject)
+        .public_key(leaf_key.public_key()).serial_number(2)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+    )  # fmt: skip
+    if ocsp_url:
+        builder = builder.add_extension(
+            x509.AuthorityInformationAccess(
+                [x509.AccessDescription(AuthorityInformationAccessOID.OCSP,
+                                        x509.UniformResourceIdentifier(ocsp_url))]
+            ),
+            critical=False,
+        )  # fmt: skip
+    return ca, ca_key, builder.sign(ca_key, hashes.SHA256())
+
+
+def _responder(monkeypatch, ca, ca_key, leaf, status, calls):
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.x509 import ocsp
+
+    now = datetime.now(UTC)
+
+    def handler(request):
+        calls.append(str(request.url))
+        assert request.headers["content-type"] == "application/ocsp-request"
+        ocsp.load_der_ocsp_request(request.content)  # a well-formed request
+        revoked = status is ocsp.OCSPCertStatus.REVOKED
+        answer = (
+            ocsp.OCSPResponseBuilder()
+            .add_response(
+                cert=leaf, issuer=ca, algorithm=hashes.SHA1(), cert_status=status,
+                this_update=now, next_update=now + timedelta(days=1),
+                revocation_time=now - timedelta(days=2) if revoked else None,
+                revocation_reason=None,
+            )
+            .responder_id(ocsp.OCSPResponderEncoding.HASH, ca)
+            .sign(ca_key, hashes.SHA256())
+        )  # fmt: skip
+        return httpx.Response(200, content=answer.public_bytes(serialization.Encoding.DER))
+
+    real = _REAL_CLIENT  # not the one a previous call patched in
+    monkeypatch.setattr(
+        websec.httpx,
+        "AsyncClient",
+        lambda **kw: real(transport=httpx.MockTransport(handler), **kw),
+    )
+
+
+def test_ocsp_revoked_and_good(monkeypatch):
+    from cryptography.x509 import ocsp
+
+    ca, ca_key, leaf = _ca_and_leaf()
+    calls: list[str] = []
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.REVOKED, calls)
+    when = asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0))
+    assert when is not None and calls == ["http://ocsp.ca.example"]
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.GOOD, calls)
+    assert asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0)) is None
+
+
+def test_no_ocsp_responder_means_no_request(monkeypatch):
+    from cryptography.x509 import ocsp
+
+    ca, ca_key, leaf = _ca_and_leaf(None)  # like Let's Encrypt since 2025
+    calls: list[str] = []
+    _responder(monkeypatch, ca, ca_key, leaf, ocsp.OCSPCertStatus.REVOKED, calls)
+    assert asyncio.run(websec.ocsp_revoked(leaf, ca, 5.0)) is None and calls == []
+
+
+def test_revoked_certificate_is_a_failure():
+    info = websec.TlsInfo(
+        "site.ru", "TLSv1.3", datetime.now(UTC) + timedelta(days=200),
+        {"TLS 1.0": False, "TLS 1.1": False},
+        revoked=datetime(2026, 10, 1, tzinfo=UTC),
+    )  # fmt: skip
+    facts = websec.WebFacts("site.ru", True, {}, [], [], [], info)
+    check = websec.tls_check(facts)
+    assert check is not None and check.status is Status.FAIL
+    assert "отозвал сертификат 01.10.2026" in check.details
+    assert "действует ещё" not in check.details
+    assert "новым ключом" in check.recommendation
+
+
+def test_crl_used_when_there_is_no_ocsp(monkeypatch):
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    ca, ca_key, _ = _ca_and_leaf(None)
+    now = datetime.now(UTC)
+    leaf = (
+        x509.CertificateBuilder().subject_name(ca.subject).issuer_name(ca.subject)
+        .public_key(ec.generate_private_key(ec.SECP256R1()).public_key()).serial_number(7)
+        .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=30))
+        .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+            [x509.UniformResourceIdentifier("http://crl.ca.example/1.crl")], None, None, None
+        )]), critical=False)
+        .sign(ca_key, hashes.SHA256())
+    )  # fmt: skip
+
+    def crl(serials, key):
+        builder = (
+            x509.CertificateRevocationListBuilder().issuer_name(ca.subject)
+            .last_update(now).next_update(now + timedelta(days=1))
+        )  # fmt: skip
+        for s in serials:
+            builder = builder.add_revoked_certificate(
+                x509.RevokedCertificateBuilder().serial_number(s)
+                .revocation_date(now - timedelta(days=2)).build()
+            )  # fmt: skip
+        return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
+
+    def serve(body):
+        monkeypatch.setattr(
+            websec.httpx,
+            "AsyncClient",
+            lambda **kw: _REAL_CLIENT(
+                transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body)), **kw
+            ),
+        )
+
+    serve(crl([7], ca_key))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is not None
+    serve(crl([8], ca_key))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is None
+    # A list signed by someone else proves nothing.
+    serve(crl([7], ec.generate_private_key(ec.SECP256R1())))
+    assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is None

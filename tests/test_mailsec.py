@@ -10,6 +10,8 @@ from suveren.mailsec import (
     SpfResult,
     check_spf,
     collect_mail,
+    dkim_check,
+    dmarc_check,
     evaluate,
     parse_dmarc,
     parse_mta_sts_mode,
@@ -31,6 +33,12 @@ class FakeResolver:
         if value == ["SERVFAIL"]:
             raise DnsLookupError("SERVFAIL")
         return value
+
+    async def node_exists(self, name: str) -> bool | None:
+        names = {n for n, _ in self.records}
+        if "*." + name.partition(".")[2] in names:
+            return True
+        return any(n == name or n.endswith("." + name) for n in names)
 
 
 def facts(**kwargs) -> MailFacts:
@@ -190,6 +198,86 @@ def test_collect_mail_reads_every_record():
     assert m.tls_rpt
 
 
+def test_an_mta_sts_timeout_leaves_the_other_mail_checks():
+    # kamaz.ru, 2026-10-25: one _mta-sts timeout made all of MAIL-001…005 "не проверено".
+    records = {
+        ("example.ru", "MX"): ["10 mx.yandex.net."],
+        ("example.ru", "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
+        ("_spf.yandex.net", "TXT"): ["v=spf1 ip4:10.0.0.1 ~all"],
+        ("_dmarc.example.ru", "TXT"): ["v=DMARC1; p=reject"],
+        ("mail._domainkey.example.ru", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEB"],
+        ("_mta-sts.example.ru", "TXT"): ["SERVFAIL"],
+        ("_smtp._tls.example.ru", "TXT"): ["SERVFAIL"],
+    }
+    resolver = FakeResolver(records)
+    checks = asyncio.run(run_mail_checks(resolver, None, "example.ru"))  # type: ignore[arg-type]
+    by_id = {c.id: c for c in checks}
+    assert by_id["SUV-MAIL-005"].status is Status.UNKNOWN
+    assert "MTA-STS прочитать не удалось: SERVFAIL" in by_id["SUV-MAIL-005"].details
+    assert all(by_id[f"SUV-MAIL-00{n}"].status is Status.OK for n in range(1, 5))
+
+
+def test_dkim_node_with_unknown_selector_is_probably_configured():
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("s2026._domainkey.example.ru", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEB"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dkim == [] and m.dkim_node
+    check = dkim_check(m)
+    assert check.status is Status.OK
+    assert "вероятно, настроен, селектор неизвестен" in check.details
+
+
+def test_dkim_node_ignored_when_every_name_answers():
+    # A wildcard (or a resolver that answers NOERROR to everything) makes _domainkey
+    # exist too, so the sign proves nothing.
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("*.example.ru", "TXT"): ["v=spf1 -all"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert not m.dkim_node
+    assert dkim_check(m).status is Status.UNKNOWN
+
+
+def test_dkim_without_node_stays_unknown():
+    records = {("example.ru", "MX"): ["10 mx.example.ru."]}
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert not m.dkim_node
+    assert dkim_check(m).status is Status.UNKNOWN
+
+
+def test_dmarc_reports_to_outside_domain_need_its_consent():
+    # RFC 7489, section 7.1: the outside domain publishes <domain>._report._dmarc.<dest>.
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("_dmarc.example.ru", "TXT"): [
+            "v=DMARC1; p=reject; rua=mailto:d@reports.example.com,mailto:d@ok.example.net!10m;"
+            " ruf=mailto:f@mail.example.ru"
+        ],
+        ("example.ru._report._dmarc.ok.example.net", "TXT"): ["v=DMARC1;"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dmarc is not None
+    assert m.dmarc.report_domains() == ["reports.example.com", "ok.example.net", "mail.example.ru"]
+    assert m.dmarc_unauthorized == ["reports.example.com"]
+    check = dmarc_check(m)
+    assert check.status is Status.WARN
+    assert "example.ru._report._dmarc.reports.example.com" in check.recommendation
+    assert "RFC 7489, раздел 7.1" in check.details
+
+
+def test_dmarc_reports_to_own_domain_need_no_consent():
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("_dmarc.example.ru", "TXT"): ["v=DMARC1; p=reject; rua=mailto:d@example.ru"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.dmarc_unauthorized == []
+    assert dmarc_check(m).status is Status.OK
+
+
 def test_null_mx_means_no_incoming_mail():
     records = {("example.ru", "MX"): ["0 ."]}
     m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
@@ -255,3 +343,123 @@ def test_collect_mail_keeps_mx_hosts_by_priority():
     records = {("example.ru", "MX"): ["20 alt1.aspmx.l.google.com.", "10 aspmx.l.google.com."]}
     m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
     assert m.mx_hosts == ["aspmx.l.google.com", "alt1.aspmx.l.google.com"]
+
+
+def test_a_domain_without_mail_gets_reject_at_once():
+    from suveren.mailsec import dmarc_check
+
+    missing = SpfResult(None, 0, 0, None)
+    spf = spf_check(facts(spf=missing, receives_mail=False))
+    assert "в спам" not in spf.details and "любой сервер" in spf.details
+    dmarc = dmarc_check(facts(receives_mail=False, dmarc=None, dmarc_count=0))
+    assert "p=reject" in dmarc.recommendation and "p=none" not in dmarc.recommendation
+    sending = dmarc_check(facts(dmarc=None, dmarc_count=0))
+    assert "p=none" in sending.recommendation  # a domain with mail starts by watching
+
+
+def test_dmarc_report_address_without_size_limit():
+    from suveren.mailsec import dmarc_check
+
+    record = "v=DMARC1; p=quarantine; rua=mailto:a@example.ru!10m,mailto:b@example.ru"
+    check = dmarc_check(facts(dmarc=parse_dmarc(record)))
+    assert (
+        "mailto:a@example.ru, mailto:b@example.ru." in check.details and "!10m" not in check.details
+    )
+
+
+def test_mta_sts_warning_has_advice_and_comes_last():
+    from suveren.advice import priorities
+    from suveren.mailsec import transport_check
+    from suveren.models import Report, Severity
+
+    check = transport_check(facts(mta_sts=None))
+    assert check.status is Status.WARN and "_mta-sts.example.ru" in check.recommendation
+    report = Report(target="example.ru")
+    report.checks = [check]
+    # "Редкая атака, исправлять во вторую очередь": low urgency, its own topic.
+    assert priorities(report)[0].severity is Severity.LOW
+
+
+def test_spf_include_with_a_mailbox_gets_exact_advice():
+    record = "v=spf1 include:_spf.yandex.net include:academyautoru@tbank.ru -all"
+    spf = SpfResult(
+        parse_spf(record), 1, 2, "-", problems=["academyautoru@tbank.ru: нет SPF-записи"]
+    )
+    check = spf_check(facts(spf=spf))
+    # auto.ru once: an include of a mailbox is a permerror (RFC 7208, section 5.2).
+    assert check.status is Status.FAIL
+    assert "include:tbank.ru" in check.recommendation and "адрес почты" in check.recommendation
+    other = SpfResult(parse_spf(record), 1, 2, "-", problems=["spf.old.ru: нет SPF-записи"])
+    assert "нет своей SPF-записи" in spf_check(facts(spf=other)).recommendation
+
+
+def test_spf_redirect_with_a_broken_target():
+    # positive.com: the whole record is a redirect to a name with two SPF records.
+    spf = parse_spf("v=spf1 redirect=_spf.ptsecurity.com")
+    result = SpfResult(spf, 1, 1, None, problems=["_spf.ptsecurity.com: несколько SPF"])
+    check = spf_check(facts(spf=result))
+    assert check.status is Status.FAIL
+    assert "-all" not in check.details and "~all" not in check.recommendation
+    assert "из redirect" in check.recommendation and "объедините" in check.recommendation
+    assert "include" not in check.recommendation
+
+
+def test_mx_matches_follows_rfc8461_wildcards():
+    from suveren.mailsec import mx_matches, parse_mta_sts_mx
+
+    assert mx_matches("mx.yandex.net.", "mx.yandex.net")
+    assert mx_matches("mx1.example.ru", "*.example.ru")
+    assert not mx_matches("a.mx1.example.ru", "*.example.ru")  # one label only
+    assert not mx_matches("example.ru", "*.example.ru")
+    policy = "version: STSv1\r\nmode: enforce\r\nmx: mx.yandex.net\r\nmx: *.Example.ru\r\n"
+    assert parse_mta_sts_mx(policy) == ["mx.yandex.net", "*.example.ru"]
+
+
+def test_mta_sts_enforce_with_unlisted_mx_fails():
+    from suveren.mailsec import transport_check
+
+    check = transport_check(
+        facts(mta_sts="enforce", mx_hosts=["mx.yandex.net"], mta_sts_mx=["mx.example.ru"])
+    )
+    assert check.status is Status.FAIL
+    assert "mx.yandex.net" in check.details
+    ok = transport_check(
+        facts(mta_sts="enforce", mx_hosts=["mx.yandex.net"], mta_sts_mx=["mx.yandex.net"])
+    )
+    assert ok.status is Status.OK
+
+
+def test_spf_redirect_is_ignored_next_to_all():
+    spf = parse_spf("v=spf1 include:_spf.yandex.net redirect=_spf.example.ru ~all")
+    assert spf.redirect is None and spf.lookups == 1
+    assert parse_spf("v=spf1 redirect=_spf.example.ru").redirect == "_spf.example.ru"
+
+
+def test_spf_ptr_is_a_warning():
+    result = SpfResult(parse_spf("v=spf1 ptr ~all"), 1, 1, "~")
+    check = spf_check(facts(spf=result))
+    assert check.status is Status.WARN
+    assert "ptr" in check.recommendation
+
+
+def test_spf_include_dns_timeout_is_only_a_warning():
+    spf = SpfResult(
+        parse_spf("v=spf1 include:a.ru -all"), 1, 1, "-", problems=["a.ru: DNS не ответил"]
+    )
+    assert spf_check(facts(spf=spf)).status is Status.WARN
+
+
+def test_mta_sts_txt_without_id_or_doubled_is_no_policy():
+    import suveren.mailsec as mailsec
+
+    for txt in (["v=STSv1;"], ["v=STSv1; id=1", "v=STSv1; id=2"]):
+        records = {("_mta-sts.example.ru", "TXT"): txt}
+        mode = asyncio.run(mailsec._mta_sts(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+        assert mode == ("none", [])
+
+
+def test_dmarc_version_must_be_capitals_but_the_tag_name_need_not():
+    assert parse_dmarc("v=DMARC1; p=reject").exact_version
+    assert parse_dmarc("V=DMARC1; p=reject").exact_version
+    assert not parse_dmarc("v=dmarc1; p=reject").exact_version
+    assert not parse_dmarc("v=Dmarc1; p=reject").exact_version

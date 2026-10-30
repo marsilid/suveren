@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum, IntEnum
 from typing import Any
 
+from suveren import __version__
 from suveren.checks import Check
+from suveren.fines import FineEstimate, estimate
+from suveren.history import Changes
 from suveren.utils import country_name
 
 
@@ -66,8 +69,13 @@ class Category(str, Enum):
         return CATEGORIES[self]
 
     @property
-    def title(self) -> str:
+    def title(self) -> str:  # type: ignore[override]  # the category's name, not str.title()
         return CATEGORIES[self].title
+
+    @property
+    def rule_id(self) -> str:
+        """Stable ID of the "foreign dependency" finding, e.g. "SUV-DEP-HOSTING"."""
+        return "SUV-DEP-" + self.name.replace("_", "-")
 
 
 _PD_NOTE = (
@@ -82,21 +90,21 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Зоной управляет иностранный реестр. Реестр и регистраторы обязаны выполнять "
         "санкционные требования своей страны и могут заблокировать домен.",
-        "Зарегистрировать основной или резервный домен в зоне .ru или .рф.",
+        "Зарегистрируйте основной или резервный домен в зоне .ru или .рф.",
     ),
     Category.REGISTRAR: CategoryInfo(
         "Регистратор домена",
         Severity.MEDIUM,
         "Иностранный регистратор может заблокировать аккаунт или отказать в продлении домена. "
         "Например, в 2022 году Namecheap прекратил обслуживать клиентов из России.",
-        "Перенести домен к российскому регистратору: RU-CENTER, REG.RU, R01, Beget.",
+        "Перенесите домен к российскому регистратору: RU-CENTER, REG.RU, R01, Beget.",
     ),
     Category.DNS: CategoryInfo(
         "DNS-серверы",
         Severity.HIGH,
         "Если провайдер DNS заблокирует аккаунт, перестанут работать сразу сайт, почта и все "
         "остальные сервисы домена.",
-        "Перенести DNS в Yandex Cloud DNS, Selectel DNS или к российскому регистратору "
+        "Перенесите DNS в Yandex Cloud DNS, Selectel DNS или к российскому регистратору "
         "(RU-CENTER, REG.RU).",
     ),
     Category.MAIL: CategoryInfo(
@@ -104,16 +112,17 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.HIGH,
         "Отключение почтового сервиса означает потерю входящих писем и доступа к архиву "
         "переписки, а вместе с ним — к восстановлению паролей от других сервисов.",
-        "Перенести почту в Яндекс 360 для бизнеса, VK WorkSpace (Mail.ru для бизнеса) "
+        "Перенесите почту в Яндекс 360 для бизнеса, VK WorkSpace (Mail.ru для бизнеса) "
         "или на собственный сервер в России.",
     ),
     Category.HOSTING: CategoryInfo(
         "Хостинг сайта",
         Severity.HIGH,
         "Сервер сайта у иностранного провайдера. Провайдер может удалить аккаунт или перестать "
-        "принимать оплату из России, и сайт пропадёт вместе с данными. Кроме того, базы с "
-        "персональными данными граждан РФ по закону должны храниться в России (152-ФЗ, ст. 18).",
-        "Перенести сайт к российскому провайдеру: Yandex Cloud, Selectel, VK Cloud, "
+        "принимать оплату из России, и сайт пропадёт вместе с данными. Кроме того, данные "
+        "граждан РФ по закону нельзя записывать и хранить в базах за рубежом (152-ФЗ, "
+        "ст. 18 ч. 5).",
+        "Перенесите сайт к российскому провайдеру: Yandex Cloud, Selectel, VK Cloud, "
         "Timeweb Cloud, Beget.",
     ),
     Category.BUILDER: CategoryInfo(
@@ -122,7 +131,7 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         "Сайт работает на платформе иностранной компании. Если она заблокирует аккаунт или "
         "перестанет принимать оплату из России, сайт перестанет работать, а перенести его "
         "на другую платформу непросто: экспорт обычно неполный.",
-        "Перенести сайт на российскую платформу (Nethouse, LPgenerator, InSales) или на "
+        "Перенесите сайт на российскую платформу (Nethouse, LPgenerator, InSales) или на "
         "собственный хостинг с WordPress или 1С-Битрикс.",
     ),
     Category.CDN: CategoryInfo(
@@ -131,7 +140,7 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         "Весь трафик сайта идёт через иностранную сеть доставки. При отключении сайт будет "
         "недоступен, пока не поменяются DNS-записи. Также фиксировались замедления сайтов за "
         "иностранными CDN для пользователей из России.",
-        "Перейти на российский CDN или защиту от DDoS: DDoS-Guard, Qrator, Servicepipe, "
+        "Перейдите на российский CDN или защиту от DDoS: DDoS-Guard, Qrator, Servicepipe, "
         "NGENIX, Yandex Cloud CDN.",
     ),
     Category.TLS: CategoryInfo(
@@ -139,7 +148,7 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Сертификат выпустил иностранный удостоверяющий центр. Он может отозвать сертификат "
         "или отказать в продлении: в 2022 году так поступали с рядом российских организаций.",
-        "Настроить автоматический выпуск по ACME, чтобы быстро сменить УЦ. Для аудитории "
+        "Настройте автоматический выпуск по ACME, чтобы быстро сменить УЦ. Для аудитории "
         "в России можно дополнительно выпустить сертификат НУЦ Минцифры.",
     ),
     Category.PAYMENTS: CategoryInfo(
@@ -147,49 +156,49 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.MEDIUM,
         "Иностранная платёжная система не принимает карты российских банков и может "
         "заблокировать выплаты." + _PD_NOTE,
-        "Подключить ЮKassa, CloudPayments, Т-Кассу, Robokassa или оплату через СБП.",
+        "Подключите ЮKassa, CloudPayments, Т-Кассу, Robokassa или оплату через СБП.",
         visitor_data=True,
     ),
     Category.AUTH: CategoryInfo(
         "Вход через внешний сервис",
         Severity.MEDIUM,
         "При блокировке сервиса пользователи не смогут войти в свои аккаунты." + _PD_NOTE,
-        "Заменить вход на VK ID, Яндекс ID, Сбер ID или собственную авторизацию.",
+        "Замените вход на VK ID, Яндекс ID, Сбер ID или собственную авторизацию.",
         visitor_data=True,
     ),
     Category.ANALYTICS: CategoryInfo(
         "Аналитика и пиксели",
         Severity.LOW,
         "Данные о посетителях собирает иностранный сервис." + _PD_NOTE,
-        "Заменить на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.",
+        "Замените на Яндекс Метрику, Top.Mail.ru или Matomo на собственном сервере.",
         visitor_data=True,
     ),
     Category.ADS: CategoryInfo(
         "Реклама",
         Severity.LOW,
         "Рекламный скрипт иностранной сети." + _PD_NOTE,
-        "Перейти на Яндекс Директ и РСЯ или VK Рекламу.",
+        "Перейдите на Яндекс Директ и РСЯ или VK Рекламу.",
         visitor_data=True,
     ),
     Category.CAPTCHA: CategoryInfo(
         "Капча",
         Severity.LOW,
         "Если капча не загрузится, посетители не смогут отправить формы." + _PD_NOTE,
-        "Заменить на Yandex SmartCaptcha.",
+        "Замените на Yandex SmartCaptcha.",
         visitor_data=True,
     ),
     Category.CHAT: CategoryInfo(
         "Онлайн-чат и виджеты",
         Severity.LOW,
         "Переписка с клиентами и их контакты хранятся у иностранного сервиса." + _PD_NOTE,
-        "Перейти на Jivo, Битрикс24, Carrot quest или Talk-Me.",
+        "Перейдите на Jivo, Битрикс24, Carrot quest или Talk-Me.",
         visitor_data=True,
     ),
     Category.FONTS: CategoryInfo(
         "Шрифты",
         Severity.LOW,
         "При недоступности сервиса сайт будет выглядеть сломанным." + _PD_NOTE,
-        "Скачать шрифты и раздавать их с собственного сервера.",
+        "Скачайте шрифты и раздавайте их с собственного сервера.",
         visitor_data=True,
     ),
     Category.JS_CDN: CategoryInfo(
@@ -197,7 +206,7 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Если CDN недоступен, перестанут работать меню, формы и кнопки. Чужой CDN — ещё и "
         "риск подмены кода, как случилось с polyfill.io в 2024 году." + _PD_NOTE,
-        "Собрать библиотеки в бандл и раздавать с собственного сервера.",
+        "Соберите библиотеки в бандл и раздавайте с собственного сервера.",
         visitor_data=True,
     ),
     Category.MAPS: CategoryInfo(
@@ -205,21 +214,21 @@ CATEGORIES: dict[Category, CategoryInfo] = {
         Severity.LOW,
         "Карта может перестать загружаться или потребовать оплату, недоступную из России."
         + _PD_NOTE,
-        "Заменить на Яндекс Карты или 2ГИС.",
+        "Замените на Яндекс Карты или 2ГИС.",
         visitor_data=True,
     ),
     Category.VIDEO: CategoryInfo(
         "Встроенное видео",
         Severity.LOW,
         "Видео с иностранной платформы." + _PD_NOTE,
-        "Перенести видео на RUTUBE, VK Видео или Kinescope.",
+        "Перенесите видео на RUTUBE, VK Видео или Kinescope.",
         visitor_data=True,
     ),
     Category.SOCIAL: CategoryInfo(
         "Виджеты соцсетей",
         Severity.LOW,
         "Встроенный виджет иностранной соцсети." + _PD_NOTE,
-        "Заменить на виджеты VK, Telegram или Одноклассников.",
+        "Замените на виджеты VK, Telegram или Одноклассников.",
         visitor_data=True,
     ),
 }
@@ -271,6 +280,7 @@ class Finding:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "id": self.category.rule_id,
             "category": self.category.value,
             "title": self.title,
             "severity": self.severity.label,
@@ -282,6 +292,15 @@ class Finding:
 
 # Penalty per finding; a category produces at most one finding.
 PENALTIES = {Severity.INFO: 0, Severity.LOW: 4, Severity.MEDIUM: 10, Severity.HIGH: 20}
+# A means "checked and clean": a grade resting on unseen parts goes no higher than B.
+UNSEEN_CAP = 89
+# The format of to_dict(), described by data/report.schema.json: the minor number grows
+# with new fields, the major one when a field is removed or renamed.
+# 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
+# 1.4: "evidence" of each check; 1.5: facts.page_unseen; 1.6: history uneven runs;
+# 1.7: facts.dns_unanswered.
+SCHEMA_VERSION = "1.7"
+
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
 
@@ -295,13 +314,17 @@ def grade_for(score: int) -> str:
 @dataclass(slots=True)
 class Report:
     target: str
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None
     dependencies: list[Dependency] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     facts: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
     checks: list[Check] = field(default_factory=list)
+    # Images for the HTML report (the cutoff experiment's screenshots); not in JSON.
+    media: dict[str, bytes] = field(default_factory=dict)
+    # What changed since an earlier report of the site (scan --since).
+    history: Changes | None = None
 
     @property
     def check_groups(self) -> list[tuple[str, list[Check]]]:
@@ -311,8 +334,28 @@ class Report:
         return list(groups.items())
 
     @property
+    def fines(self) -> FineEstimate:
+        """Fines for what the checks found: the maximum risk, not legal advice."""
+        return estimate(self.checks)
+
+    @property
     def score(self) -> int:
-        return max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
+        score = max(0, 100 - sum(PENALTIES[f.severity] for f in self.findings))
+        # Scripts and widgets come from the page, DNS and hosting from the site's DNS:
+        # without them they are unseen, not absent.
+        return min(score, UNSEEN_CAP) if self.page_unseen or self.dns_unanswered else score
+
+    @property
+    def page_unseen(self) -> str | None:
+        """Why the site's own page was not seen (nothing came back, a bot wall or an
+        error page instead), or None when it was."""
+        problem = self.facts.get("page_unseen")
+        return str(problem) if problem else None
+
+    @property
+    def dns_unanswered(self) -> list[str]:
+        """The site's DNS lookups that got no answer: "ns", "mx", "web"."""
+        return [str(k) for k in self.facts.get("dns_unanswered") or ()]
 
     @property
     def grade(self) -> str:
@@ -346,17 +389,28 @@ class Report:
         return sorted(self.findings, key=lambda f: f.severity, reverse=True)
 
     def to_dict(self) -> dict[str, Any]:
+        from suveren.advice import incomplete, overall_score  # advice reads the report
+        from suveren.migration import plan as migration_plan  # migration imports models
+
         return {
             "tool": "suveren",
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": __version__,
             "target": self.target,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "score": self.score,
             "grade": self.grade,
+            "overall_score": overall_score(self),
+            "overall_grade": grade_for(overall_score(self)),
+            "overall_incomplete": incomplete(self),
             "countries": dict(self.countries),
             "findings": [f.to_dict() for f in self.sorted_findings()],
             "dependencies": [d.to_dict() for d in self.dependencies],
             "checks": [c.to_dict() for c in self.checks],
+            "fines": self.fines.to_dict() if self.fines else None,
+            "migration": [m.to_dict() for m in migration_plan(self.findings)],
             "facts": self.facts,
             "notes": self.notes,
+            **({"history": self.history.to_dict()} if self.history else {}),
         }

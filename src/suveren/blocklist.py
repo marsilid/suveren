@@ -4,14 +4,15 @@ republished by antifilter.download (domains, single IPs and aggregated subnets).
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
 
-from suveren.cache import cache_dir, fetch_cached
-from suveren.checks import GROUP_BLOCK, Check, Status
+from suveren.cache import cache_dir, fetch_cached, stale_days
+from suveren.checks import GROUP_BLOCK, Check, Evidence, Status
 from suveren.errors import ModuleError
 
 SOURCE = "https://antifilter.download/list/"
@@ -28,7 +29,13 @@ def domain_candidates(host: str) -> list[str]:
 
 
 def _normalize(line: str) -> str:
-    return line.strip().strip('"').strip().lower().removeprefix("*.").rstrip(".")
+    entry = line.strip().strip('"').strip().lower().removeprefix("*.").rstrip(".")
+    # About 7 000 entries are Cyrillic ("01инвест.рф") while the host we look up is
+    # punycode, as normalize_domain makes it: a blocked .рф site came out "not blocked".
+    if not entry.isascii():
+        with contextlib.suppress(UnicodeError):  # not a valid name: kept, matches nothing
+            entry = entry.encode("idna").decode("ascii")
+    return entry
 
 
 def find_blocked_domains(lines: Iterable[str], candidates: Iterable[str]) -> set[str]:
@@ -78,18 +85,90 @@ async def ensure_lists(
     return sizes, notes
 
 
+def _outdated(old: int | None) -> str:
+    if not old:
+        return ""
+    return (
+        f" Но это по копии реестра {old}-дневной давности: обновить её не удалось, "
+        "повторите проверку с --refresh."
+    )
+
+
+def blocked_hosts(lines: Iterable[str], hosts: Iterable[str]) -> dict[str, str]:
+    """Map of host -> register entry that blocks it (the host or a parent domain)."""
+    candidates = {h: domain_candidates(h) for h in hosts}
+    entries = find_blocked_domains(lines, {c for cs in candidates.values() for c in cs})
+    return {
+        h: next(c for c in cs if c in entries)
+        for h, cs in candidates.items()
+        if any(c in entries for c in cs)
+    }
+
+
+def third_party_check(hits: dict[str, str], checked: int, old: int | None = None) -> Check:
+    """Third-party hosts the page loads that are in the register: for visitors in
+    Russia without a VPN they do not load today, whatever the site does."""
+    title = "Сторонние сервисы в реестре блокировок"
+    if not checked:
+        return Check(
+            GROUP_BLOCK, title, Status.OK, "Сторонних доменов на проверенных страницах нет."
+        )
+    if not hits:
+        return Check(
+            GROUP_BLOCK,
+            title,
+            Status.UNKNOWN if old else Status.OK,
+            f"Ни один из сторонних доменов, с которых грузится сайт ({checked}), не заблокирован."
+            + _outdated(old),
+        )
+    by_entry: dict[str, list[str]] = {}
+    for host, entry in sorted(hits.items()):
+        by_entry.setdefault(entry, []).append(host)
+    shown = "; ".join(
+        entry if hosts == [entry] else f"{entry} ({', '.join(hosts[:3])})"
+        for entry, hosts in by_entry.items()
+    )
+    return Check(
+        GROUP_BLOCK,
+        title,
+        Status.WARN,
+        f"Сайт подключает заблокированные в России домены: {shown}. У посетителей из России "
+        "без VPN эти скрипты, виджеты и картинки уже сейчас не загружаются, а страница может "
+        "ждать их и открываться медленнее.",
+        "Уберите эти подключения или замените сервисы на доступные в России.",
+        link="https://blocklist.rkn.gov.ru/",
+        evidence=[
+            Evidence("registry", f"{host}: запись в выгрузке реестра", entry)
+            for host, entry in sorted(hits.items())[:10]
+        ],
+    )
+
+
 async def run_blocklist(
-    client: httpx.AsyncClient, host: str, ips: list[str], *, refresh: bool = False
+    client: httpx.AsyncClient,
+    host: str,
+    ips: list[str] | None,
+    *,
+    refresh: bool = False,
+    third_party: Iterable[str] | None = None,
 ) -> tuple[list[Check], list[str]]:
+    """``ips``: None when DNS did not answer for them (an empty list: the site has none).
+    ``third_party``: hosts the page loads from; None when the page was not read."""
     try:
         _, notes = await ensure_lists(client, refresh=refresh)
     except ModuleError as exc:
         return [Check(GROUP_BLOCK, "Реестр блокировок Роскомнадзора", Status.UNKNOWN, str(exc))], []
     domains_path = cache_dir() / f"blocklist-{DOMAINS}"
     ip_paths = [cache_dir() / f"blocklist-{name}" for name in IP_LISTS]
+    # A copy kept because the refresh failed: "not blocked" by it is not a clean answer.
+    old = stale_days(domains_path)
+    clean = Status.UNKNOWN if old else Status.OK
 
     checks: list[Check] = []
-    blocked = find_blocked_domains(_lines(domains_path), domain_candidates(host))
+    others = sorted(set(third_party or ()))
+    # One pass over the register for the site and every third-party host.
+    found = blocked_hosts(_lines(domains_path), [host, *others])
+    blocked = {found[host]} if host in found else set()
     if blocked:
         checks.append(
             Check(
@@ -101,16 +180,22 @@ async def run_blocklist(
                 "Выясните причину блокировки на blocklist.rkn.gov.ru и обратитесь в "
                 "Роскомнадзор, если блокировка ошибочна.",
                 link="https://blocklist.rkn.gov.ru/",
+                evidence=[Evidence("registry", "Запись в выгрузке реестра", e) for e in blocked],
             )
         )
     else:
         checks.append(
-            Check(GROUP_BLOCK, "Домен в реестре блокировок", Status.OK, "Домен не заблокирован.")
+            Check(
+                GROUP_BLOCK,
+                "Домен в реестре блокировок",
+                clean,
+                "Домен не заблокирован." + _outdated(old),
+            )
         )
 
     hits: dict[str, str] = {}
     for path in ip_paths:
-        for ip, entry in find_blocked_ips(_lines(path), ips).items():
+        for ip, entry in find_blocked_ips(_lines(path), ips or ()).items():
             hits.setdefault(ip, entry)
     if hits:
         shown = ", ".join(f"{ip} (в списке {entry})" for ip, entry in sorted(hits.items()))
@@ -123,10 +208,29 @@ async def run_blocklist(
                 "CDN, заблокированный из-за другого сайта: часть посетителей сайт не откроет.",
                 "Попросите у хостинга выделенный IP или переезжайте к провайдеру, чьи адреса "
                 "не блокируются.",
+                evidence=[
+                    Evidence("registry", f"IP {ip} в списке", entry)
+                    for ip, entry in sorted(hits.items())
+                ],
             )
         )
     elif ips:
         checks.append(
-            Check(GROUP_BLOCK, "IP-адреса сайта", Status.OK, "IP сайта не заблокированы.")
+            Check(
+                GROUP_BLOCK, "IP-адреса сайта", clean, "IP сайта не заблокированы." + _outdated(old)
+            )
         )
+    elif ips is None:
+        checks.append(
+            Check(
+                GROUP_BLOCK,
+                "IP-адреса сайта",
+                Status.UNKNOWN,
+                "DNS не ответил на запрос IP-адресов сайта, поэтому блокировку по IP "
+                "проверить не удалось. Повторите проверку позже.",
+            )
+        )
+    if third_party is not None:
+        hits3 = {h: found[h] for h in others if h in found}
+        checks.append(third_party_check(hits3, len(others), old))
     return checks, notes

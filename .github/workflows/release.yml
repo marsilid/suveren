@@ -1,7 +1,15 @@
 name: Release
 
-# Pushing a tag like v1.0.0 builds Suveren.exe on Windows and attaches it to a
-# GitHub release, so people without Python can just download and run it.
+# Pushing a tag like v1.0.0 builds Suveren.exe on Windows plus the wheel and sdist,
+# attaches them to a GitHub release, so people without Python can just download and
+# run it, and publishes the wheel and sdist to PyPI (`pip install suveren`) through
+# Trusted Publishing: PyPI trusts this workflow, no token is stored anywhere. A
+# version on PyPI can never be uploaded twice, so the tag must match pyproject.toml.
+# Each release also carries:
+# - suveren-sbom.cdx.json: the CycloneDX SBOM of a clean install (runtime only);
+# - SHA256SUMS.txt: checksums of every file;
+# - build provenance signed with Sigstore (GitHub attestations), checkable with
+#   `gh attestation verify Suveren.exe --repo marsilid/suveren`.
 on:
   push:
     tags: ["v*"]
@@ -9,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write # Sigstore signing of the provenance
+  attestations: write
 
 jobs:
   windows-exe:
@@ -21,8 +31,15 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      - name: Tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: >-
+          python -c "import sys, tomllib;
+          v = tomllib.load(open('pyproject.toml', 'rb'))['project']['version'];
+          tag = '${{ github.ref_name }}';
+          sys.exit(0 if tag == 'v' + v else f'tag {tag} does not match version {v}')"
       - name: Install
-        run: pip install ".[browser]" pyinstaller
+        run: pip install ".[browser]" pyinstaller build cyclonedx-bom
       - name: Build
         run: >-
           pyinstaller --noconfirm --onefile --name Suveren
@@ -32,13 +49,55 @@ jobs:
         run: |
           dist\Suveren.exe --version
           dist\Suveren.exe services
+      - name: README links for PyPI
+        run: python tools/pypi_readme.py README.md --ref ${{ github.ref_name }}
+      - name: Wheel and sdist
+        run: python -m build --outdir dist
+      - name: SBOM of a clean install
+        run: |
+          python -m venv sbomenv
+          sbomenv\Scripts\python.exe -m pip install --quiet .
+          cyclonedx-py environment --of JSON -o dist/suveren-sbom.cdx.json sbomenv\Scripts\python.exe
+      - name: Checksums
+        run: >-
+          python -c "import hashlib, pathlib;
+          files = sorted(p for p in pathlib.Path('dist').iterdir() if p.is_file());
+          pathlib.Path('dist/SHA256SUMS.txt').write_text(''.join(
+          f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files))"
+      - name: Sign build provenance
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/Suveren.exe
+            dist/*.whl
+            dist/*.tar.gz
+            dist/suveren-sbom.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Suveren-windows
-          path: dist/Suveren.exe
+          path: dist/*
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: dist/Suveren.exe
+          files: dist/*
           generate_release_notes: true
+
+  pypi:
+    needs: windows-exe
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/suveren/
+    permissions:
+      id-token: write # Trusted Publishing and PEP 740 attestations
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Suveren-windows
+          path: artifact
+      - name: Only the wheel and sdist
+        run: mkdir dist && mv artifact/*.whl artifact/*.tar.gz dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

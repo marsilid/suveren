@@ -292,3 +292,57 @@ def test_ct_error_names_both_sources():
     checks, _ = run(go())
     assert "crt.sh: HTTP 502" in checks[0].details
     assert "Cert Spotter: слишком много запросов" in checks[0].details
+
+
+def test_takeover_data_file_is_valid():
+    """data/takeover.json is edited by hand: every entry must load and make sense."""
+    import json
+    import re
+    from importlib.resources import files
+
+    raw = json.loads(files("suveren").joinpath("data/takeover.json").read_text("utf-8"))
+    assert raw["source"].startswith("https://github.com/EdOverflow/") and raw["checked"]
+    allowed = {"service", "cnames", "fingerprints", "nxdomain", "vulnerable", "added", "seen",
+               "comment"}  # fmt: skip
+    names = set()
+    for d in raw["signatures"]:
+        assert set(d) <= allowed, d["service"]
+        assert d["service"] not in names
+        names.add(d["service"])
+        assert d["cnames"] and (d.get("fingerprints") or d.get("nxdomain")), d["service"]
+        for fp in d.get("fingerprints", ()):
+            if not fp.startswith("HTTP_STATUS="):
+                re.compile(fp)
+        assert set(d.get("seen", ())) <= set(d.get("fingerprints", ())), d["service"]
+
+
+def test_a_slow_stage_gives_up_on_its_own_section_only(monkeypatch):
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(subdomains, "scan_subdomains", slow)
+    monkeypatch.setattr(subdomains, "STAGE_BUDGET", 0.05)
+    checks, data = asyncio.run(subdomains.run_subdomain_checks(None, None, None, "a.ru"))
+    # alfabank.ru once lost its whole report in a batch; now only this section is unknown.
+    assert checks[0].status is Status.UNKNOWN and "дольше" in checks[0].details and data == {}
+
+
+def test_ct_down_uses_a_recent_saved_list(tmp_path, monkeypatch):
+    import json as _json
+    import os
+    import time
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    saved = tmp_path / "ct" / "example.ru.json"
+    saved.parent.mkdir(parents=True)
+    saved.write_text(_json.dumps({"names": ["promo.example.ru"], "source": "crt.sh"}))
+    three_days = time.time() - 3 * 24 * 3600
+    os.utime(saved, (three_days, three_days))
+
+    async def go():
+        async with client(lambda r: httpx.Response(503)) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    names, source = run(go())
+    assert names == ["promo.example.ru"]
+    assert "сохранённый список" in source and "3 дн" in source
