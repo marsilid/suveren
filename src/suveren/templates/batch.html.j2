@@ -10,17 +10,17 @@
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Сайт</th><th>Общая оценка</th><th>Независимость</th><th>Иностранных / российских</th><th>152-ФЗ</th><th>Главные риски</th></tr>
+        <tr><th>Сайт</th><th>Общая оценка</th><th>Независимость</th><th>Иностранных / российских</th><th class="nowrap">152-ФЗ</th><th>Главные риски</th></tr>
       </thead>
       <tbody>
       {% for row in rows %}
         {% set r = row.report %}
         <tr>
-          <td><a href="{{ r.target }}.html">{{ r.target }}</a>{% if row.blocked %}<br><span class="badge sev-high"><span>заблокирован</span></span>{% endif %}</td>
+          <td class="nowrap"><a href="{{ r.target }}.html">{{ r.target }}</a>{% if row.blocked %}<br><span class="badge sev-high"><span>заблокирован</span></span>{% endif %}</td>
           <td><span class="mini-grade grade-{{ row.grade }}">{{ row.grade }}</span> {{ row.score }}{% if row.missed %}<br><small class="empty">неполная, не проверены: {{ row.missed | join(", ") }}</small>{% elif row.unchecked %}<br><small class="empty">не проверено {{ row.unchecked[0] }} из {{ row.unchecked[1] }}</small>{% endif %}</td>
           <td><span class="grade-{{ r.grade }}">{{ r.score }}</span> / 100</td>
           <td>{{ r.foreign_count }} / {{ r.domestic_count }}</td>
-          <td>
+          <td class="nowrap">
             {% if row.fails %}<span class="st-fail">✗ {{ row.fails }}</span>{% endif %}
             {% if row.warns %}<span class="st-warn">! {{ row.warns }}</span>{% endif %}
             {% if not row.fails and not row.warns %}<span class="st-ok">✓</span>{% endif %}

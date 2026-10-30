@@ -67,6 +67,7 @@ from suveren.view import (
     score_bar,
     section,
 )
+from suveren.websec import plural
 
 # The output uses box-drawing and Cyrillic. A legacy Windows console (cp1251/cp866)
 # can't encode some of it and would crash, so force UTF-8 output.
@@ -780,7 +781,7 @@ def batch(
     console.print(
         header(
             __version__,
-            f"{len(hosts)} сайтов",
+            f"{len(hosts)} {plural(len(hosts), 'сайт', 'сайта', 'сайтов')}",
             f"одновременно {jobs} · {plan_label(plan, 'quick' if quick else profile.value)}",
         )
     )

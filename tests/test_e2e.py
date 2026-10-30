@@ -253,7 +253,7 @@ def test_batch_with_gaps_exits_1_and_lists_them(offline, tmp_path, monkeypatch):
     assert result.exit_code == 1, result.output
     assert "строка 2" in result.output and "Не проверены: 1" in result.output
     # The warning comes under the header, not above it as stray shell output.
-    assert result.output.index("2 сайтов") < result.output.index("строка 2")
+    assert result.output.index("2 сайта") < result.output.index("строка 2")
     with (out / "summary.csv").open(encoding="utf-8-sig", newline="") as fh:
         rows = {r["domain"]: r for r in csv.DictReader(fh)}
     assert rows["lab-good.ru"]["error"] == "" and rows["lab-good.ru"]["overall_grade"]

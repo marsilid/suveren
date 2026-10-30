@@ -1,4 +1,4 @@
-<svg class="rich-terminal" viewBox="0 0 1226 3612.3999999999996" xmlns="http://www.w3.org/2000/svg">
+<svg class="rich-terminal" viewBox="0 0 1226 1392.0" xmlns="http://www.w3.org/2000/svg">
     <!-- Generated with Rich https://www.textualize.io -->
     <style>
 
@@ -19,636 +19,680 @@
         font-weight: 700;
     }
 
-    .terminal-3199762299-matrix {
+    .terminal-1066912735-matrix {
         font-family: Fira Code, monospace;
         font-size: 20px;
         line-height: 24.4px;
         font-variant-east-asian: full-width;
     }
 
-    .terminal-3199762299-title {
+    .terminal-1066912735-title {
         font-size: 18px;
         font-weight: bold;
         font-family: arial;
     }
 
-    .terminal-3199762299-r1 { fill: #5fb3b3;font-weight: bold }
-.terminal-3199762299-r2 { fill: #808080;font-weight: bold }
-.terminal-3199762299-r3 { fill: #c5c8c6 }
-.terminal-3199762299-r4 { fill: #7fb069 }
-.terminal-3199762299-r5 { fill: #808080 }
-.terminal-3199762299-r6 { fill: #585858 }
-.terminal-3199762299-r7 { fill: #ffffff;font-weight: bold }
-.terminal-3199762299-r8 { fill: #c5c8c6;font-weight: bold }
-.terminal-3199762299-r9 { fill: #e6b450 }
-.terminal-3199762299-r10 { fill: #d9822b }
-.terminal-3199762299-r11 { fill: #5fb3b3 }
-.terminal-3199762299-r12 { fill: #b48ead }
-.terminal-3199762299-r13 { fill: #e5534b;font-weight: bold }
-.terminal-3199762299-r14 { fill: #949494 }
-.terminal-3199762299-r15 { fill: #626262 }
-.terminal-3199762299-r16 { fill: #e6b450;font-weight: bold }
-.terminal-3199762299-r17 { fill: #7fb069;font-weight: bold }
-.terminal-3199762299-r18 { fill: #949494;font-weight: bold }
+    .terminal-1066912735-r1 { fill: #5fb3b3;font-weight: bold }
+.terminal-1066912735-r2 { fill: #808080;font-weight: bold }
+.terminal-1066912735-r3 { fill: #c5c8c6 }
+.terminal-1066912735-r4 { fill: #7fb069 }
+.terminal-1066912735-r5 { fill: #808080 }
+.terminal-1066912735-r6 { fill: #585858 }
+.terminal-1066912735-r7 { fill: #ffffff;font-weight: bold }
+.terminal-1066912735-r8 { fill: #c5c8c6;font-weight: bold }
+.terminal-1066912735-r9 { fill: #e6b450 }
+.terminal-1066912735-r10 { fill: #d9822b }
+.terminal-1066912735-r11 { fill: #5fb3b3 }
+.terminal-1066912735-r12 { fill: #b48ead }
+.terminal-1066912735-r13 { fill: #e5534b;font-weight: bold }
+.terminal-1066912735-r14 { fill: #949494 }
+.terminal-1066912735-r15 { fill: #e6b450;font-weight: bold }
+.terminal-1066912735-r16 { fill: #626262 }
+.terminal-1066912735-r17 { fill: #7fb069;font-weight: bold }
+.terminal-1066912735-r18 { fill: #949494;font-weight: bold }
     </style>
 
     <defs>
-    <clipPath id="terminal-3199762299-clip-terminal">
-      <rect x="0" y="0" width="1206.8" height="3561.3999999999996" />
+    <clipPath id="terminal-1066912735-clip-terminal">
+      <rect x="0" y="0" width="1206.8" height="4659.4" />
     </clipPath>
-    <clipPath id="terminal-3199762299-line-0">
+    <clipPath id="terminal-1066912735-line-0">
     <rect x="0" y="1.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-1">
+<clipPath id="terminal-1066912735-line-1">
     <rect x="0" y="25.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-2">
+<clipPath id="terminal-1066912735-line-2">
     <rect x="0" y="50.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-3">
+<clipPath id="terminal-1066912735-line-3">
     <rect x="0" y="74.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-4">
+<clipPath id="terminal-1066912735-line-4">
     <rect x="0" y="99.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-5">
+<clipPath id="terminal-1066912735-line-5">
     <rect x="0" y="123.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-6">
+<clipPath id="terminal-1066912735-line-6">
     <rect x="0" y="147.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-7">
+<clipPath id="terminal-1066912735-line-7">
     <rect x="0" y="172.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-8">
+<clipPath id="terminal-1066912735-line-8">
     <rect x="0" y="196.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-9">
+<clipPath id="terminal-1066912735-line-9">
     <rect x="0" y="221.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-10">
+<clipPath id="terminal-1066912735-line-10">
     <rect x="0" y="245.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-11">
+<clipPath id="terminal-1066912735-line-11">
     <rect x="0" y="269.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-12">
+<clipPath id="terminal-1066912735-line-12">
     <rect x="0" y="294.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-13">
+<clipPath id="terminal-1066912735-line-13">
     <rect x="0" y="318.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-14">
+<clipPath id="terminal-1066912735-line-14">
     <rect x="0" y="343.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-15">
+<clipPath id="terminal-1066912735-line-15">
     <rect x="0" y="367.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-16">
+<clipPath id="terminal-1066912735-line-16">
     <rect x="0" y="391.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-17">
+<clipPath id="terminal-1066912735-line-17">
     <rect x="0" y="416.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-18">
+<clipPath id="terminal-1066912735-line-18">
     <rect x="0" y="440.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-19">
+<clipPath id="terminal-1066912735-line-19">
     <rect x="0" y="465.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-20">
+<clipPath id="terminal-1066912735-line-20">
     <rect x="0" y="489.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-21">
+<clipPath id="terminal-1066912735-line-21">
     <rect x="0" y="513.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-22">
+<clipPath id="terminal-1066912735-line-22">
     <rect x="0" y="538.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-23">
+<clipPath id="terminal-1066912735-line-23">
     <rect x="0" y="562.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-24">
+<clipPath id="terminal-1066912735-line-24">
     <rect x="0" y="587.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-25">
+<clipPath id="terminal-1066912735-line-25">
     <rect x="0" y="611.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-26">
+<clipPath id="terminal-1066912735-line-26">
     <rect x="0" y="635.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-27">
+<clipPath id="terminal-1066912735-line-27">
     <rect x="0" y="660.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-28">
+<clipPath id="terminal-1066912735-line-28">
     <rect x="0" y="684.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-29">
+<clipPath id="terminal-1066912735-line-29">
     <rect x="0" y="709.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-30">
+<clipPath id="terminal-1066912735-line-30">
     <rect x="0" y="733.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-31">
+<clipPath id="terminal-1066912735-line-31">
     <rect x="0" y="757.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-32">
+<clipPath id="terminal-1066912735-line-32">
     <rect x="0" y="782.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-33">
+<clipPath id="terminal-1066912735-line-33">
     <rect x="0" y="806.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-34">
+<clipPath id="terminal-1066912735-line-34">
     <rect x="0" y="831.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-35">
+<clipPath id="terminal-1066912735-line-35">
     <rect x="0" y="855.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-36">
+<clipPath id="terminal-1066912735-line-36">
     <rect x="0" y="879.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-37">
+<clipPath id="terminal-1066912735-line-37">
     <rect x="0" y="904.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-38">
+<clipPath id="terminal-1066912735-line-38">
     <rect x="0" y="928.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-39">
+<clipPath id="terminal-1066912735-line-39">
     <rect x="0" y="953.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-40">
+<clipPath id="terminal-1066912735-line-40">
     <rect x="0" y="977.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-41">
+<clipPath id="terminal-1066912735-line-41">
     <rect x="0" y="1001.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-42">
+<clipPath id="terminal-1066912735-line-42">
     <rect x="0" y="1026.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-43">
+<clipPath id="terminal-1066912735-line-43">
     <rect x="0" y="1050.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-44">
+<clipPath id="terminal-1066912735-line-44">
     <rect x="0" y="1075.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-45">
+<clipPath id="terminal-1066912735-line-45">
     <rect x="0" y="1099.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-46">
+<clipPath id="terminal-1066912735-line-46">
     <rect x="0" y="1123.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-47">
+<clipPath id="terminal-1066912735-line-47">
     <rect x="0" y="1148.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-48">
+<clipPath id="terminal-1066912735-line-48">
     <rect x="0" y="1172.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-49">
+<clipPath id="terminal-1066912735-line-49">
     <rect x="0" y="1197.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-50">
+<clipPath id="terminal-1066912735-line-50">
     <rect x="0" y="1221.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-51">
+<clipPath id="terminal-1066912735-line-51">
     <rect x="0" y="1245.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-52">
+<clipPath id="terminal-1066912735-line-52">
     <rect x="0" y="1270.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-53">
+<clipPath id="terminal-1066912735-line-53">
     <rect x="0" y="1294.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-54">
+<clipPath id="terminal-1066912735-line-54">
     <rect x="0" y="1319.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-55">
+<clipPath id="terminal-1066912735-line-55">
     <rect x="0" y="1343.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-56">
+<clipPath id="terminal-1066912735-line-56">
     <rect x="0" y="1367.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-57">
+<clipPath id="terminal-1066912735-line-57">
     <rect x="0" y="1392.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-58">
+<clipPath id="terminal-1066912735-line-58">
     <rect x="0" y="1416.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-59">
+<clipPath id="terminal-1066912735-line-59">
     <rect x="0" y="1441.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-60">
+<clipPath id="terminal-1066912735-line-60">
     <rect x="0" y="1465.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-61">
+<clipPath id="terminal-1066912735-line-61">
     <rect x="0" y="1489.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-62">
+<clipPath id="terminal-1066912735-line-62">
     <rect x="0" y="1514.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-63">
+<clipPath id="terminal-1066912735-line-63">
     <rect x="0" y="1538.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-64">
+<clipPath id="terminal-1066912735-line-64">
     <rect x="0" y="1563.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-65">
+<clipPath id="terminal-1066912735-line-65">
     <rect x="0" y="1587.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-66">
+<clipPath id="terminal-1066912735-line-66">
     <rect x="0" y="1611.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-67">
+<clipPath id="terminal-1066912735-line-67">
     <rect x="0" y="1636.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-68">
+<clipPath id="terminal-1066912735-line-68">
     <rect x="0" y="1660.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-69">
+<clipPath id="terminal-1066912735-line-69">
     <rect x="0" y="1685.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-70">
+<clipPath id="terminal-1066912735-line-70">
     <rect x="0" y="1709.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-71">
+<clipPath id="terminal-1066912735-line-71">
     <rect x="0" y="1733.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-72">
+<clipPath id="terminal-1066912735-line-72">
     <rect x="0" y="1758.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-73">
+<clipPath id="terminal-1066912735-line-73">
     <rect x="0" y="1782.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-74">
+<clipPath id="terminal-1066912735-line-74">
     <rect x="0" y="1807.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-75">
+<clipPath id="terminal-1066912735-line-75">
     <rect x="0" y="1831.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-76">
+<clipPath id="terminal-1066912735-line-76">
     <rect x="0" y="1855.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-77">
+<clipPath id="terminal-1066912735-line-77">
     <rect x="0" y="1880.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-78">
+<clipPath id="terminal-1066912735-line-78">
     <rect x="0" y="1904.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-79">
+<clipPath id="terminal-1066912735-line-79">
     <rect x="0" y="1929.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-80">
+<clipPath id="terminal-1066912735-line-80">
     <rect x="0" y="1953.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-81">
+<clipPath id="terminal-1066912735-line-81">
     <rect x="0" y="1977.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-82">
+<clipPath id="terminal-1066912735-line-82">
     <rect x="0" y="2002.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-83">
+<clipPath id="terminal-1066912735-line-83">
     <rect x="0" y="2026.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-84">
+<clipPath id="terminal-1066912735-line-84">
     <rect x="0" y="2051.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-85">
+<clipPath id="terminal-1066912735-line-85">
     <rect x="0" y="2075.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-86">
+<clipPath id="terminal-1066912735-line-86">
     <rect x="0" y="2099.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-87">
+<clipPath id="terminal-1066912735-line-87">
     <rect x="0" y="2124.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-88">
+<clipPath id="terminal-1066912735-line-88">
     <rect x="0" y="2148.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-89">
+<clipPath id="terminal-1066912735-line-89">
     <rect x="0" y="2173.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-90">
+<clipPath id="terminal-1066912735-line-90">
     <rect x="0" y="2197.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-91">
+<clipPath id="terminal-1066912735-line-91">
     <rect x="0" y="2221.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-92">
+<clipPath id="terminal-1066912735-line-92">
     <rect x="0" y="2246.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-93">
+<clipPath id="terminal-1066912735-line-93">
     <rect x="0" y="2270.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-94">
+<clipPath id="terminal-1066912735-line-94">
     <rect x="0" y="2295.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-95">
+<clipPath id="terminal-1066912735-line-95">
     <rect x="0" y="2319.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-96">
+<clipPath id="terminal-1066912735-line-96">
     <rect x="0" y="2343.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-97">
+<clipPath id="terminal-1066912735-line-97">
     <rect x="0" y="2368.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-98">
+<clipPath id="terminal-1066912735-line-98">
     <rect x="0" y="2392.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-99">
+<clipPath id="terminal-1066912735-line-99">
     <rect x="0" y="2417.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-100">
+<clipPath id="terminal-1066912735-line-100">
     <rect x="0" y="2441.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-101">
+<clipPath id="terminal-1066912735-line-101">
     <rect x="0" y="2465.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-102">
+<clipPath id="terminal-1066912735-line-102">
     <rect x="0" y="2490.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-103">
+<clipPath id="terminal-1066912735-line-103">
     <rect x="0" y="2514.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-104">
+<clipPath id="terminal-1066912735-line-104">
     <rect x="0" y="2539.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-105">
+<clipPath id="terminal-1066912735-line-105">
     <rect x="0" y="2563.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-106">
+<clipPath id="terminal-1066912735-line-106">
     <rect x="0" y="2587.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-107">
+<clipPath id="terminal-1066912735-line-107">
     <rect x="0" y="2612.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-108">
+<clipPath id="terminal-1066912735-line-108">
     <rect x="0" y="2636.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-109">
+<clipPath id="terminal-1066912735-line-109">
     <rect x="0" y="2661.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-110">
+<clipPath id="terminal-1066912735-line-110">
     <rect x="0" y="2685.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-111">
+<clipPath id="terminal-1066912735-line-111">
     <rect x="0" y="2709.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-112">
+<clipPath id="terminal-1066912735-line-112">
     <rect x="0" y="2734.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-113">
+<clipPath id="terminal-1066912735-line-113">
     <rect x="0" y="2758.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-114">
+<clipPath id="terminal-1066912735-line-114">
     <rect x="0" y="2783.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-115">
+<clipPath id="terminal-1066912735-line-115">
     <rect x="0" y="2807.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-116">
+<clipPath id="terminal-1066912735-line-116">
     <rect x="0" y="2831.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-117">
+<clipPath id="terminal-1066912735-line-117">
     <rect x="0" y="2856.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-118">
+<clipPath id="terminal-1066912735-line-118">
     <rect x="0" y="2880.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-119">
+<clipPath id="terminal-1066912735-line-119">
     <rect x="0" y="2905.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-120">
+<clipPath id="terminal-1066912735-line-120">
     <rect x="0" y="2929.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-121">
+<clipPath id="terminal-1066912735-line-121">
     <rect x="0" y="2953.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-122">
+<clipPath id="terminal-1066912735-line-122">
     <rect x="0" y="2978.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-123">
+<clipPath id="terminal-1066912735-line-123">
     <rect x="0" y="3002.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-124">
+<clipPath id="terminal-1066912735-line-124">
     <rect x="0" y="3027.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-125">
+<clipPath id="terminal-1066912735-line-125">
     <rect x="0" y="3051.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-126">
+<clipPath id="terminal-1066912735-line-126">
     <rect x="0" y="3075.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-127">
+<clipPath id="terminal-1066912735-line-127">
     <rect x="0" y="3100.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-128">
+<clipPath id="terminal-1066912735-line-128">
     <rect x="0" y="3124.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-129">
+<clipPath id="terminal-1066912735-line-129">
     <rect x="0" y="3149.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-130">
+<clipPath id="terminal-1066912735-line-130">
     <rect x="0" y="3173.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-131">
+<clipPath id="terminal-1066912735-line-131">
     <rect x="0" y="3197.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-132">
+<clipPath id="terminal-1066912735-line-132">
     <rect x="0" y="3222.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-133">
+<clipPath id="terminal-1066912735-line-133">
     <rect x="0" y="3246.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-134">
+<clipPath id="terminal-1066912735-line-134">
     <rect x="0" y="3271.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-135">
+<clipPath id="terminal-1066912735-line-135">
     <rect x="0" y="3295.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-136">
+<clipPath id="terminal-1066912735-line-136">
     <rect x="0" y="3319.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-137">
+<clipPath id="terminal-1066912735-line-137">
     <rect x="0" y="3344.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-138">
+<clipPath id="terminal-1066912735-line-138">
     <rect x="0" y="3368.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-139">
+<clipPath id="terminal-1066912735-line-139">
     <rect x="0" y="3393.1" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-140">
+<clipPath id="terminal-1066912735-line-140">
     <rect x="0" y="3417.5" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-141">
+<clipPath id="terminal-1066912735-line-141">
     <rect x="0" y="3441.9" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-142">
+<clipPath id="terminal-1066912735-line-142">
     <rect x="0" y="3466.3" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-143">
+<clipPath id="terminal-1066912735-line-143">
     <rect x="0" y="3490.7" width="1207.8" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-3199762299-line-144">
+<clipPath id="terminal-1066912735-line-144">
     <rect x="0" y="3515.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-145">
+    <rect x="0" y="3539.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-146">
+    <rect x="0" y="3563.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-147">
+    <rect x="0" y="3588.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-148">
+    <rect x="0" y="3612.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-149">
+    <rect x="0" y="3637.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-150">
+    <rect x="0" y="3661.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-151">
+    <rect x="0" y="3685.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-152">
+    <rect x="0" y="3710.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-153">
+    <rect x="0" y="3734.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-154">
+    <rect x="0" y="3759.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-155">
+    <rect x="0" y="3783.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-156">
+    <rect x="0" y="3807.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-157">
+    <rect x="0" y="3832.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-158">
+    <rect x="0" y="3856.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-159">
+    <rect x="0" y="3881.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-160">
+    <rect x="0" y="3905.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-161">
+    <rect x="0" y="3929.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-162">
+    <rect x="0" y="3954.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-163">
+    <rect x="0" y="3978.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-164">
+    <rect x="0" y="4003.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-165">
+    <rect x="0" y="4027.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-166">
+    <rect x="0" y="4051.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-167">
+    <rect x="0" y="4076.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-168">
+    <rect x="0" y="4100.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-169">
+    <rect x="0" y="4125.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-170">
+    <rect x="0" y="4149.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-171">
+    <rect x="0" y="4173.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-172">
+    <rect x="0" y="4198.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-173">
+    <rect x="0" y="4222.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-174">
+    <rect x="0" y="4247.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-175">
+    <rect x="0" y="4271.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-176">
+    <rect x="0" y="4295.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-177">
+    <rect x="0" y="4320.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-178">
+    <rect x="0" y="4344.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-179">
+    <rect x="0" y="4369.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-180">
+    <rect x="0" y="4393.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-181">
+    <rect x="0" y="4417.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-182">
+    <rect x="0" y="4442.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-183">
+    <rect x="0" y="4466.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-184">
+    <rect x="0" y="4491.1" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-185">
+    <rect x="0" y="4515.5" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-186">
+    <rect x="0" y="4539.9" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-187">
+    <rect x="0" y="4564.3" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-188">
+    <rect x="0" y="4588.7" width="1207.8" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1066912735-line-189">
+    <rect x="0" y="4613.1" width="1207.8" height="24.65"/>
             </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1224" height="3610.4" rx="8"/><text class="terminal-3199762299-title" fill="#c5c8c6" text-anchor="middle" x="612" y="27">suveren&#160;scan&#160;habr.com</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1224" height="1390.0" rx="8"/><text class="terminal-1066912735-title" fill="#c5c8c6" text-anchor="middle" x="612" y="27">suveren&#160;scan&#160;habr.com</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
             <circle cx="44" cy="0" r="7" fill="#28c840"/>
             </g>
         
-    <g transform="translate(9, 41)" clip-path="url(#terminal-3199762299-clip-terminal)">
-    <rect fill="#d9822b" x="36.6" y="318.7" width="36.6" height="24.65" shape-rendering="crispEdges"/>
-    <g class="terminal-3199762299-matrix">
-    <text class="terminal-3199762299-r1" x="0" y="20" textLength="85.4" clip-path="url(#terminal-3199762299-line-0)">suveren</text><text class="terminal-3199762299-r2" x="85.4" y="20" textLength="73.2" clip-path="url(#terminal-3199762299-line-0)">&#160;1.1.0</text><text class="terminal-3199762299-r1" x="158.6" y="20" textLength="134.2" clip-path="url(#terminal-3199762299-line-0)">&#160;&#160;&#160;habr.com</text><text class="terminal-3199762299-r2" x="292.8" y="20" textLength="231.8" clip-path="url(#terminal-3199762299-line-0)">&#160;&#160;&#160;профиль&#160;standard</text><text class="terminal-3199762299-r3" x="1207.8" y="20" textLength="12.2" clip-path="url(#terminal-3199762299-line-0)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="44.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-1)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="68.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-2)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="68.8" textLength="597.8" clip-path="url(#terminal-3199762299-line-2)">&#160;&#160;DNS,&#160;почта,&#160;хостинг,&#160;сертификат,&#160;страница&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="68.8" textLength="85.4" clip-path="url(#terminal-3199762299-line-2)">&#160;&#160;4.7&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="68.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-2)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="93.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-3)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="93.2" textLength="597.8" clip-path="url(#terminal-3199762299-line-3)">&#160;&#160;Внутренние&#160;страницы&#160;(до&#160;6)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="93.2" textLength="85.4" clip-path="url(#terminal-3199762299-line-3)">&#160;&#160;1.2&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="93.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-3)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="117.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-4)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="117.6" textLength="597.8" clip-path="url(#terminal-3199762299-line-4)">&#160;&#160;Персональные&#160;данные&#160;(152-ФЗ)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="117.6" textLength="85.4" clip-path="url(#terminal-3199762299-line-4)">&#160;&#160;2.4&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="117.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-4)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="142" textLength="12.2" clip-path="url(#terminal-3199762299-line-5)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="142" textLength="597.8" clip-path="url(#terminal-3199762299-line-5)">&#160;&#160;Реестр&#160;блокировок&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="142" textLength="85.4" clip-path="url(#terminal-3199762299-line-5)">&#160;&#160;0.7&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="142" textLength="12.2" clip-path="url(#terminal-3199762299-line-5)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="166.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-6)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="166.4" textLength="597.8" clip-path="url(#terminal-3199762299-line-6)">&#160;&#160;Защита&#160;почты&#160;от&#160;подделки&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="166.4" textLength="85.4" clip-path="url(#terminal-3199762299-line-6)">&#160;&#160;4.4&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="166.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-6)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="190.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-7)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="190.8" textLength="597.8" clip-path="url(#terminal-3199762299-line-7)">&#160;&#160;Безопасность&#160;сайта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="190.8" textLength="85.4" clip-path="url(#terminal-3199762299-line-7)">&#160;&#160;5.0&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="190.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-7)">
-</text><text class="terminal-3199762299-r4" x="24.4" y="215.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-8)">✓</text><text class="terminal-3199762299-r3" x="36.6" y="215.2" textLength="597.8" clip-path="url(#terminal-3199762299-line-8)">&#160;&#160;Поддомены&#160;и&#160;их&#160;захват&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="634.4" y="215.2" textLength="85.4" clip-path="url(#terminal-3199762299-line-8)">&#160;&#160;1.9&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="215.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-8)">
-</text><text class="terminal-3199762299-r5" x="24.4" y="239.6" textLength="170.8" clip-path="url(#terminal-3199762299-line-9)">готово&#160;за&#160;21&#160;с</text><text class="terminal-3199762299-r3" x="1207.8" y="239.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-9)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="264" textLength="12.2" clip-path="url(#terminal-3199762299-line-10)">
-</text><text class="terminal-3199762299-r6" x="0" y="288.4" textLength="1207.8" clip-path="url(#terminal-3199762299-line-11)">┌─────────────────────────────────────────────────────────────────────────────────────────────────┐</text><text class="terminal-3199762299-r3" x="1207.8" y="288.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-11)">
-</text><text class="terminal-3199762299-r6" x="0" y="312.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-12)">│</text><text class="terminal-3199762299-r6" x="1195.6" y="312.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-12)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="312.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-12)">
-</text><text class="terminal-3199762299-r6" x="0" y="337.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-13)">│</text><text class="terminal-3199762299-r7" x="36.6" y="337.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-13)">&#160;D&#160;</text><text class="terminal-3199762299-r8" x="73.2" y="337.2" textLength="195.2" clip-path="url(#terminal-3199762299-line-13)">&#160;&#160;Независимость&#160;</text><text class="terminal-3199762299-r8" x="268.4" y="337.2" textLength="24.4" clip-path="url(#terminal-3199762299-line-13)">54</text><text class="terminal-3199762299-r5" x="292.8" y="337.2" textLength="48.8" clip-path="url(#terminal-3199762299-line-13)">/100</text><text class="terminal-3199762299-r5" x="341.6" y="337.2" textLength="305" clip-path="url(#terminal-3199762299-line-13)">&#160;&#160;&#160;&#160;иностранных&#160;сервисов&#160;</text><text class="terminal-3199762299-r8" x="646.6" y="337.2" textLength="24.4" clip-path="url(#terminal-3199762299-line-13)">10</text><text class="terminal-3199762299-r5" x="671" y="337.2" textLength="170.8" clip-path="url(#terminal-3199762299-line-13)">&#160;·&#160;российских&#160;</text><text class="terminal-3199762299-r8" x="841.8" y="337.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-13)">4</text><text class="terminal-3199762299-r6" x="1195.6" y="337.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-13)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="337.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-13)">
-</text><text class="terminal-3199762299-r6" x="0" y="361.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-14)">│</text><text class="terminal-3199762299-r9" x="36.6" y="361.6" textLength="207.4" clip-path="url(#terminal-3199762299-line-14)">━━━━━━━━━━━━━━━━━</text><text class="terminal-3199762299-r4" x="244" y="361.6" textLength="207.4" clip-path="url(#terminal-3199762299-line-14)">━━━━━━━━━━━━━━━━━</text><text class="terminal-3199762299-r10" x="451.4" y="361.6" textLength="97.6" clip-path="url(#terminal-3199762299-line-14)">━━━━━━━━</text><text class="terminal-3199762299-r11" x="549" y="361.6" textLength="48.8" clip-path="url(#terminal-3199762299-line-14)">━━━━</text><text class="terminal-3199762299-r12" x="597.8" y="361.6" textLength="48.8" clip-path="url(#terminal-3199762299-line-14)">━━━━</text><text class="terminal-3199762299-r5" x="646.6" y="361.6" textLength="97.6" clip-path="url(#terminal-3199762299-line-14)">━━━━━━━━</text><text class="terminal-3199762299-r6" x="1195.6" y="361.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-14)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="361.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-14)">
-</text><text class="terminal-3199762299-r6" x="0" y="386" textLength="12.2" clip-path="url(#terminal-3199762299-line-15)">│</text><text class="terminal-3199762299-r9" x="36.6" y="386" textLength="122" clip-path="url(#terminal-3199762299-line-15)">США&#160;29%&#160;&#160;&#160;</text><text class="terminal-3199762299-r4" x="158.6" y="386" textLength="158.6" clip-path="url(#terminal-3199762299-line-15)">Россия&#160;29%&#160;&#160;&#160;</text><text class="terminal-3199762299-r10" x="317.2" y="386" textLength="170.8" clip-path="url(#terminal-3199762299-line-15)">Эстония&#160;14%&#160;&#160;&#160;</text><text class="terminal-3199762299-r11" x="488" y="386" textLength="146.4" clip-path="url(#terminal-3199762299-line-15)">Багамы&#160;7%&#160;&#160;&#160;</text><text class="terminal-3199762299-r12" x="634.4" y="386" textLength="170.8" clip-path="url(#terminal-3199762299-line-15)">Германия&#160;7%&#160;&#160;&#160;</text><text class="terminal-3199762299-r5" x="805.2" y="386" textLength="122" clip-path="url(#terminal-3199762299-line-15)">другие&#160;14%</text><text class="terminal-3199762299-r6" x="1195.6" y="386" textLength="12.2" clip-path="url(#terminal-3199762299-line-15)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="386" textLength="12.2" clip-path="url(#terminal-3199762299-line-15)">
-</text><text class="terminal-3199762299-r6" x="0" y="410.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-16)">│</text><text class="terminal-3199762299-r6" x="1195.6" y="410.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-16)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="410.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-16)">
-</text><text class="terminal-3199762299-r6" x="0" y="434.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-17)">│</text><text class="terminal-3199762299-r13" x="36.6" y="434.8" textLength="183" clip-path="url(#terminal-3199762299-line-17)">✗&#160;2&#160;проблемы&#160;&#160;&#160;</text><text class="terminal-3199762299-r9" x="219.6" y="434.8" textLength="183" clip-path="url(#terminal-3199762299-line-17)">!&#160;7&#160;внимание&#160;&#160;&#160;</text><text class="terminal-3199762299-r4" x="402.6" y="434.8" textLength="207.4" clip-path="url(#terminal-3199762299-line-17)">✓&#160;16&#160;в&#160;порядке&#160;&#160;&#160;</text><text class="terminal-3199762299-r14" x="610" y="434.8" textLength="231.8" clip-path="url(#terminal-3199762299-line-17)">?&#160;3&#160;не&#160;проверено&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="1195.6" y="434.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-17)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="434.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-17)">
-</text><text class="terminal-3199762299-r6" x="0" y="459.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-18)">│</text><text class="terminal-3199762299-r5" x="36.6" y="459.2" textLength="85.4" clip-path="url(#terminal-3199762299-line-18)">штрафы&#160;</text><text class="terminal-3199762299-r8" x="122" y="459.2" textLength="158.6" clip-path="url(#terminal-3199762299-line-18)">до&#160;700&#160;тыс.&#160;₽</text><text class="terminal-3199762299-r5" x="329.4" y="459.2" textLength="170.8" clip-path="url(#terminal-3199762299-line-18)">сценарии&#160;атак&#160;</text><text class="terminal-3199762299-r8" x="500.2" y="459.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-18)">1</text><text class="terminal-3199762299-r6" x="1195.6" y="459.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-18)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="459.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-18)">
-</text><text class="terminal-3199762299-r6" x="0" y="483.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-19)">│</text><text class="terminal-3199762299-r6" x="1195.6" y="483.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-19)">│</text><text class="terminal-3199762299-r3" x="1207.8" y="483.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-19)">
-</text><text class="terminal-3199762299-r6" x="0" y="508" textLength="1207.8" clip-path="url(#terminal-3199762299-line-20)">└─────────────────────────────────────────────────────────────────────────────────────────────────┘</text><text class="terminal-3199762299-r3" x="1207.8" y="508" textLength="12.2" clip-path="url(#terminal-3199762299-line-20)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="532.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-21)">
-</text><text class="terminal-3199762299-r8" x="0" y="556.8" textLength="305" clip-path="url(#terminal-3199762299-line-22)">&#160;Иностранные&#160;зависимости&#160;</text><text class="terminal-3199762299-r6" x="317.2" y="556.8" textLength="890.6" clip-path="url(#terminal-3199762299-line-22)">─────────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="556.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-22)">
-</text><text class="terminal-3199762299-r9" x="0" y="581.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-23)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="581.2" textLength="305" clip-path="url(#terminal-3199762299-line-23)">Регистратор&#160;домена&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="581.2" textLength="817.4" clip-path="url(#terminal-3199762299-line-23)">Internet&#160;Domain&#160;Service&#160;BS&#160;(Багамы)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="581.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-23)">
-</text><text class="terminal-3199762299-r9" x="0" y="605.6" textLength="36.6" clip-path="url(#terminal-3199762299-line-24)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="605.6" textLength="305" clip-path="url(#terminal-3199762299-line-24)">DNS-серверы&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="605.6" textLength="817.4" clip-path="url(#terminal-3199762299-line-24)">CLOUD.DOG&#160;OU&#160;(Эстония),&#160;VOLICO&#160;(США),&#160;Hetzner&#160;(Германия),&#160;OVHcloud&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="605.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-24)">
-</text><text class="terminal-3199762299-r3" x="390.4" y="630" textLength="817.4" clip-path="url(#terminal-3199762299-line-25)">(Франция)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="630" textLength="12.2" clip-path="url(#terminal-3199762299-line-25)">
-</text><text class="terminal-3199762299-r9" x="0" y="654.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-26)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="654.4" textLength="305" clip-path="url(#terminal-3199762299-line-26)">SSL-сертификат&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="654.4" textLength="817.4" clip-path="url(#terminal-3199762299-line-26)">Sectigo&#160;(Великобритания)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="654.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-26)">
-</text><text class="terminal-3199762299-r11" x="0" y="678.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-27)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="678.8" textLength="305" clip-path="url(#terminal-3199762299-line-27)">Доменная&#160;зона&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="678.8" textLength="817.4" clip-path="url(#terminal-3199762299-line-27)">.com&#160;—&#160;Verisign&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="678.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-27)">
-</text><text class="terminal-3199762299-r11" x="0" y="703.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-28)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="703.2" textLength="305" clip-path="url(#terminal-3199762299-line-28)">Почта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="703.2" textLength="817.4" clip-path="url(#terminal-3199762299-line-28)">Собственная&#160;сеть&#160;(Habr&#160;Europe&#160;OU)&#160;(Эстония)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="703.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-28)">
-</text><text class="terminal-3199762299-r11" x="0" y="727.6" textLength="36.6" clip-path="url(#terminal-3199762299-line-29)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="727.6" textLength="305" clip-path="url(#terminal-3199762299-line-29)">Шрифты&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="390.4" y="727.6" textLength="817.4" clip-path="url(#terminal-3199762299-line-29)">Google&#160;Fonts&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="727.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-29)">
-</text><text class="terminal-3199762299-r11" x="0" y="752" textLength="36.6" clip-path="url(#terminal-3199762299-line-30)">&#160;&#160;●</text><text class="terminal-3199762299-r5" x="61" y="752" textLength="305" clip-path="url(#terminal-3199762299-line-30)">Библиотеки&#160;с&#160;внешнего&#160;CDN</text><text class="terminal-3199762299-r3" x="390.4" y="752" textLength="817.4" clip-path="url(#terminal-3199762299-line-30)">unpkg&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="752" textLength="12.2" clip-path="url(#terminal-3199762299-line-30)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="776.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-31)">
-</text><text class="terminal-3199762299-r8" x="0" y="800.8" textLength="195.2" clip-path="url(#terminal-3199762299-line-32)">&#160;Сценарии&#160;атак&#160;&#160;</text><text class="terminal-3199762299-r13" x="195.2" y="800.8" textLength="73.2" clip-path="url(#terminal-3199762299-line-32)">✗&#160;1&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="280.6" y="800.8" textLength="927.2" clip-path="url(#terminal-3199762299-line-32)">────────────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="800.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-32)">
-</text><text class="terminal-3199762299-r13" x="0" y="825.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-33)">&#160;&#160;✗</text><text class="terminal-3199762299-r8" x="61" y="825.2" textLength="292.8" clip-path="url(#terminal-3199762299-line-33)">Отключение&#160;сайта&#160;и&#160;почты</text><text class="terminal-3199762299-r15" x="1073.6" y="825.2" textLength="134.2" clip-path="url(#terminal-3199762299-line-33)">SUV-ATK-006</text><text class="terminal-3199762299-r3" x="1207.8" y="825.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-33)">
-</text><text class="terminal-3199762299-r3" x="61" y="849.6" textLength="988.2" clip-path="url(#terminal-3199762299-line-34)">1)&#160;Сайт&#160;держится&#160;на&#160;иностранной&#160;инфраструктуре:&#160;DNS-серверы&#160;(CLOUD.DOG&#160;OU,&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="849.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-34)">
-</text><text class="terminal-3199762299-r3" x="61" y="874" textLength="988.2" clip-path="url(#terminal-3199762299-line-35)">VOLICO,&#160;Hetzner,&#160;OVHcloud).&#160;2)&#160;Почта&#160;домена&#160;тоже&#160;у&#160;иностранного&#160;провайдера&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="874" textLength="12.2" clip-path="url(#terminal-3199762299-line-35)">
-</text><text class="terminal-3199762299-r3" x="61" y="898.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-36)">(Собственная&#160;сеть&#160;(Habr&#160;Europe&#160;OU)):&#160;при&#160;отключении&#160;не&#160;придут&#160;письма&#160;для&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="898.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-36)">
-</text><text class="terminal-3199762299-r3" x="61" y="922.8" textLength="988.2" clip-path="url(#terminal-3199762299-line-37)">восстановления&#160;паролей&#160;от&#160;других&#160;сервисов&#160;компании.&#160;3)&#160;Одно&#160;решение&#160;провайдера&#160;—&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="922.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-37)">
-</text><text class="terminal-3199762299-r3" x="61" y="947.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-38)">и&#160;сайт&#160;с&#160;почтой&#160;пропадают,&#160;а&#160;перенос&#160;займёт&#160;дни.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="947.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-38)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="971.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-39)">
-</text><text class="terminal-3199762299-r8" x="0" y="996" textLength="378.2" clip-path="url(#terminal-3199762299-line-40)">&#160;Персональные&#160;данные&#160;(152-ФЗ)&#160;&#160;</text><text class="terminal-3199762299-r16" x="378.2" y="996" textLength="73.2" clip-path="url(#terminal-3199762299-line-40)">!&#160;2&#160;&#160;&#160;</text><text class="terminal-3199762299-r17" x="451.4" y="996" textLength="73.2" clip-path="url(#terminal-3199762299-line-40)">✓&#160;4&#160;&#160;&#160;</text><text class="terminal-3199762299-r18" x="524.6" y="996" textLength="73.2" clip-path="url(#terminal-3199762299-line-40)">?&#160;2&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="610" y="996" textLength="597.8" clip-path="url(#terminal-3199762299-line-40)">─────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="996" textLength="12.2" clip-path="url(#terminal-3199762299-line-40)">
-</text><text class="terminal-3199762299-r4" x="0" y="1020.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-41)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1020.4" textLength="1000.4" clip-path="url(#terminal-3199762299-line-41)">Политика&#160;обработки&#160;персональных&#160;данных&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1020.4" textLength="122" clip-path="url(#terminal-3199762299-line-41)">SUV-PD-001</text><text class="terminal-3199762299-r3" x="1207.8" y="1020.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-41)">
-</text><text class="terminal-3199762299-r5" x="61" y="1044.8" textLength="268.4" clip-path="url(#terminal-3199762299-line-42)">Политика&#160;опубликована.</text><text class="terminal-3199762299-r3" x="1207.8" y="1044.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-42)">
-</text><text class="terminal-3199762299-r9" x="0" y="1069.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-43)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="1069.2" textLength="231.8" clip-path="url(#terminal-3199762299-line-43)">Содержание&#160;политики</text><text class="terminal-3199762299-r15" x="1085.8" y="1069.2" textLength="122" clip-path="url(#terminal-3199762299-line-43)">SUV-PD-002</text><text class="terminal-3199762299-r3" x="1207.8" y="1069.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-43)">
-</text><text class="terminal-3199762299-r3" x="61" y="1093.6" textLength="1000.4" clip-path="url(#terminal-3199762299-line-44)">Не&#160;найдено&#160;3&#160;из&#160;11&#160;разделов,&#160;которые&#160;Роскомнадзор&#160;рекомендует&#160;включать&#160;в&#160;политику:</text><text class="terminal-3199762299-r3" x="1207.8" y="1093.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-44)">
-</text><text class="terminal-3199762299-r3" x="61" y="1118" textLength="1000.4" clip-path="url(#terminal-3199762299-line-45)">какие&#160;данные&#160;и&#160;чьи&#160;обрабатываются,&#160;меры&#160;защиты&#160;данных,&#160;трансграничная&#160;передача&#160;(на</text><text class="terminal-3199762299-r3" x="1207.8" y="1118" textLength="12.2" clip-path="url(#terminal-3199762299-line-45)">
-</text><text class="terminal-3199762299-r3" x="61" y="1142.4" textLength="1000.4" clip-path="url(#terminal-3199762299-line-46)">сайте&#160;есть&#160;иностранные&#160;сервисы).&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1142.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-46)">
-</text><text class="terminal-3199762299-r14" x="0" y="1166.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-47)">&#160;&#160;?</text><text class="terminal-3199762299-r3" x="61" y="1166.8" textLength="1000.4" clip-path="url(#terminal-3199762299-line-47)">Согласие&#160;на&#160;обработку&#160;в&#160;формах&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1166.8" textLength="122" clip-path="url(#terminal-3199762299-line-47)">SUV-PD-003</text><text class="terminal-3199762299-r3" x="1207.8" y="1166.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-47)">
-</text><text class="terminal-3199762299-r5" x="61" y="1191.2" textLength="1000.4" clip-path="url(#terminal-3199762299-line-48)">На&#160;проверенных&#160;страницах&#160;(6)&#160;нет&#160;форм&#160;с&#160;персональными&#160;данными.&#160;Проверьте&#160;формы&#160;на&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1191.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-48)">
-</text><text class="terminal-3199762299-r5" x="61" y="1215.6" textLength="341.6" clip-path="url(#terminal-3199762299-line-49)">остальных&#160;страницах&#160;вручную.</text><text class="terminal-3199762299-r3" x="1207.8" y="1215.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-49)">
-</text><text class="terminal-3199762299-r4" x="0" y="1240" textLength="36.6" clip-path="url(#terminal-3199762299-line-50)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1240" textLength="1000.4" clip-path="url(#terminal-3199762299-line-50)">Уведомление&#160;о&#160;cookies&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1240" textLength="122" clip-path="url(#terminal-3199762299-line-50)">SUV-PD-005</text><text class="terminal-3199762299-r3" x="1207.8" y="1240" textLength="12.2" clip-path="url(#terminal-3199762299-line-50)">
-</text><text class="terminal-3199762299-r5" x="61" y="1264.4" textLength="1000.4" clip-path="url(#terminal-3199762299-line-51)">Сайт&#160;использует&#160;Яндекс&#160;Метрика,&#160;Рекламная&#160;сеть&#160;Яндекса&#160;и&#160;показывает&#160;уведомление&#160;о&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1264.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-51)">
-</text><text class="terminal-3199762299-r5" x="61" y="1288.8" textLength="97.6" clip-path="url(#terminal-3199762299-line-52)">cookies.</text><text class="terminal-3199762299-r3" x="1207.8" y="1288.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-52)">
-</text><text class="terminal-3199762299-r9" x="0" y="1313.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-53)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="1313.2" textLength="366" clip-path="url(#terminal-3199762299-line-53)">Трансграничная&#160;передача&#160;данных</text><text class="terminal-3199762299-r15" x="1085.8" y="1313.2" textLength="122" clip-path="url(#terminal-3199762299-line-53)">SUV-PD-006</text><text class="terminal-3199762299-r3" x="1207.8" y="1313.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-53)">
-</text><text class="terminal-3199762299-r3" x="61" y="1337.6" textLength="1000.4" clip-path="url(#terminal-3199762299-line-54)">Данные&#160;посетителей&#160;уходят&#160;иностранным&#160;сервисам:&#160;Google&#160;Fonts&#160;(США),&#160;unpkg&#160;(США).&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1337.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-54)">
-</text><text class="terminal-3199762299-r4" x="0" y="1362" textLength="36.6" clip-path="url(#terminal-3199762299-line-55)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1362" textLength="1000.4" clip-path="url(#terminal-3199762299-line-55)">Хранение&#160;данных&#160;в&#160;России&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1362" textLength="122" clip-path="url(#terminal-3199762299-line-55)">SUV-PD-007</text><text class="terminal-3199762299-r3" x="1207.8" y="1362" textLength="12.2" clip-path="url(#terminal-3199762299-line-55)">
-</text><text class="terminal-3199762299-r5" x="61" y="1386.4" textLength="268.4" clip-path="url(#terminal-3199762299-line-56)">Сервер&#160;сайта&#160;в&#160;России.</text><text class="terminal-3199762299-r3" x="1207.8" y="1386.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-56)">
-</text><text class="terminal-3199762299-r4" x="0" y="1410.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-57)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1410.8" textLength="1000.4" clip-path="url(#terminal-3199762299-line-57)">Защищённое&#160;соединение&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1410.8" textLength="122" clip-path="url(#terminal-3199762299-line-57)">SUV-PD-008</text><text class="terminal-3199762299-r3" x="1207.8" y="1410.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-57)">
-</text><text class="terminal-3199762299-r5" x="61" y="1435.2" textLength="280.6" clip-path="url(#terminal-3199762299-line-58)">Сайт&#160;работает&#160;по&#160;HTTPS.</text><text class="terminal-3199762299-r3" x="1207.8" y="1435.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-58)">
-</text><text class="terminal-3199762299-r14" x="0" y="1459.6" textLength="36.6" clip-path="url(#terminal-3199762299-line-59)">&#160;&#160;?</text><text class="terminal-3199762299-r3" x="61" y="1459.6" textLength="1000.4" clip-path="url(#terminal-3199762299-line-59)">Реестр&#160;операторов&#160;персональных&#160;данных&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1085.8" y="1459.6" textLength="122" clip-path="url(#terminal-3199762299-line-59)">SUV-PD-009</text><text class="terminal-3199762299-r3" x="1207.8" y="1459.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-59)">
-</text><text class="terminal-3199762299-r5" x="61" y="1484" textLength="756.4" clip-path="url(#terminal-3199762299-line-60)">ИНН&#160;компании&#160;на&#160;сайте&#160;не&#160;найден,&#160;поэтому&#160;реестр&#160;не&#160;проверялся.</text><text class="terminal-3199762299-r3" x="1207.8" y="1484" textLength="12.2" clip-path="url(#terminal-3199762299-line-60)">
-</text><text class="terminal-3199762299-r13" x="24.4" y="1508.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-61)">₽&#160;&#160;</text><text class="terminal-3199762299-r13" x="61" y="1508.4" textLength="561.2" clip-path="url(#terminal-3199762299-line-61)">Потенциальные&#160;штрафы:&#160;до&#160;700&#160;тыс.&#160;₽&#160;для&#160;юрлица</text><text class="terminal-3199762299-r2" x="622.2" y="1508.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-61)">&#160;(статей:&#160;1</text><text class="terminal-3199762299-r2" x="756.4" y="1508.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-61)">)</text><text class="terminal-3199762299-r2" x="768.6" y="1508.4" textLength="402.6" clip-path="url(#terminal-3199762299-line-61)">.&#160;Оценка&#160;максимального&#160;риска,&#160;не&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1508.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-61)">
-</text><text class="terminal-3199762299-r2" x="24.4" y="1532.8" textLength="280.6" clip-path="url(#terminal-3199762299-line-62)">юридическое&#160;заключение.</text><text class="terminal-3199762299-r3" x="1207.8" y="1532.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-62)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="1557.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-63)">
-</text><text class="terminal-3199762299-r8" x="0" y="1581.6" textLength="341.6" clip-path="url(#terminal-3199762299-line-64)">&#160;Другие&#160;требования&#160;законов&#160;&#160;</text><text class="terminal-3199762299-r13" x="341.6" y="1581.6" textLength="73.2" clip-path="url(#terminal-3199762299-line-64)">✗&#160;1&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="427" y="1581.6" textLength="780.8" clip-path="url(#terminal-3199762299-line-64)">────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="1581.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-64)">
-</text><text class="terminal-3199762299-r13" x="0" y="1606" textLength="36.6" clip-path="url(#terminal-3199762299-line-65)">&#160;&#160;✗</text><text class="terminal-3199762299-r8" x="61" y="1606" textLength="366" clip-path="url(#terminal-3199762299-line-65)">Вход&#160;через&#160;иностранные&#160;сервисы</text><text class="terminal-3199762299-r15" x="1073.6" y="1606" textLength="134.2" clip-path="url(#terminal-3199762299-line-65)">SUV-LAW-001</text><text class="terminal-3199762299-r3" x="1207.8" y="1606" textLength="12.2" clip-path="url(#terminal-3199762299-line-65)">
-</text><text class="terminal-3199762299-r3" x="61" y="1630.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-66)">На&#160;сайте&#160;есть&#160;вход&#160;через&#160;GitHub,&#160;Google,&#160;Facebook,&#160;X&#160;(Twitter):&#160;кнопки&#160;на&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1630.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-66)">
-</text><text class="terminal-3199762299-r3" x="61" y="1654.8" textLength="988.2" clip-path="url(#terminal-3199762299-line-67)">странице&#160;account.habr.com/ru/ident/…&#160;(например,&#160;ссылка&#160;на&#160;вход&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1654.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-67)">
-</text><text class="terminal-3199762299-r3" x="61" y="1679.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-68)">account.habr.com/ru/extidp/github/prompt).&#160;Вход&#160;через&#160;VK&#160;ID,&#160;Яндекс&#160;ID&#160;разрешён.&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1679.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-68)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="1703.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-69)">
-</text><text class="terminal-3199762299-r8" x="0" y="1728" textLength="268.4" clip-path="url(#terminal-3199762299-line-70)">&#160;Блокировки&#160;в&#160;России&#160;&#160;</text><text class="terminal-3199762299-r17" x="268.4" y="1728" textLength="73.2" clip-path="url(#terminal-3199762299-line-70)">✓&#160;2&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="353.8" y="1728" textLength="854" clip-path="url(#terminal-3199762299-line-70)">──────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="1728" textLength="12.2" clip-path="url(#terminal-3199762299-line-70)">
-</text><text class="terminal-3199762299-r4" x="0" y="1752.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-71)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1752.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-71)">Домен&#160;в&#160;реестре&#160;блокировок&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="1752.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-71)">SUV-BLK-001</text><text class="terminal-3199762299-r3" x="1207.8" y="1752.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-71)">
-</text><text class="terminal-3199762299-r5" x="61" y="1776.8" textLength="268.4" clip-path="url(#terminal-3199762299-line-72)">Домен&#160;не&#160;заблокирован.</text><text class="terminal-3199762299-r3" x="1207.8" y="1776.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-72)">
-</text><text class="terminal-3199762299-r4" x="0" y="1801.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-73)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1801.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-73)">IP-адреса&#160;сайта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="1801.2" textLength="134.2" clip-path="url(#terminal-3199762299-line-73)">SUV-BLK-002</text><text class="terminal-3199762299-r3" x="1207.8" y="1801.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-73)">
-</text><text class="terminal-3199762299-r5" x="61" y="1825.6" textLength="317.2" clip-path="url(#terminal-3199762299-line-74)">IP&#160;сайта&#160;не&#160;заблокированы.</text><text class="terminal-3199762299-r3" x="1207.8" y="1825.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-74)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="1850" textLength="12.2" clip-path="url(#terminal-3199762299-line-75)">
-</text><text class="terminal-3199762299-r8" x="0" y="1874.4" textLength="329.4" clip-path="url(#terminal-3199762299-line-76)">&#160;Защита&#160;почты&#160;от&#160;подделки&#160;&#160;</text><text class="terminal-3199762299-r16" x="329.4" y="1874.4" textLength="73.2" clip-path="url(#terminal-3199762299-line-76)">!&#160;3&#160;&#160;&#160;</text><text class="terminal-3199762299-r17" x="402.6" y="1874.4" textLength="73.2" clip-path="url(#terminal-3199762299-line-76)">✓&#160;1&#160;&#160;&#160;</text><text class="terminal-3199762299-r18" x="475.8" y="1874.4" textLength="73.2" clip-path="url(#terminal-3199762299-line-76)">?&#160;1&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="561.2" y="1874.4" textLength="646.6" clip-path="url(#terminal-3199762299-line-76)">─────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="1874.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-76)">
-</text><text class="terminal-3199762299-r9" x="0" y="1898.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-77)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="1898.8" textLength="536.8" clip-path="url(#terminal-3199762299-line-77)">Можно&#160;ли&#160;подделать&#160;письмо&#160;от&#160;имени&#160;@habr.com</text><text class="terminal-3199762299-r15" x="1061.4" y="1898.8" textLength="146.4" clip-path="url(#terminal-3199762299-line-77)">SUV-MAIL-001</text><text class="terminal-3199762299-r3" x="1207.8" y="1898.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-77)">
-</text><text class="terminal-3199762299-r3" x="61" y="1923.2" textLength="976" clip-path="url(#terminal-3199762299-line-78)">Частично.&#160;Поддельные&#160;письма&#160;попадут&#160;в&#160;спам,&#160;а&#160;не&#160;будут&#160;отклонены:&#160;часть&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1923.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-78)">
-</text><text class="terminal-3199762299-r3" x="61" y="1947.6" textLength="976" clip-path="url(#terminal-3199762299-line-79)">получателей&#160;их&#160;всё&#160;равно&#160;увидит.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1947.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-79)">
-</text><text class="terminal-3199762299-r4" x="0" y="1972" textLength="36.6" clip-path="url(#terminal-3199762299-line-80)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="1972" textLength="976" clip-path="url(#terminal-3199762299-line-80)">SPF:&#160;кто&#160;может&#160;отправлять&#160;почту&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1061.4" y="1972" textLength="146.4" clip-path="url(#terminal-3199762299-line-80)">SUV-MAIL-002</text><text class="terminal-3199762299-r3" x="1207.8" y="1972" textLength="12.2" clip-path="url(#terminal-3199762299-line-80)">
-</text><text class="terminal-3199762299-r5" x="61" y="1996.4" textLength="915" clip-path="url(#terminal-3199762299-line-81)">Запись:&#160;v=spf1&#160;include:spf.habramail.net&#160;include:_spf.dashasender.ru&#160;~all.&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="1996.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-81)">
-</text><text class="terminal-3199762299-r5" x="61" y="2020.8" textLength="427" clip-path="url(#terminal-3199762299-line-82)">DNS-запросов&#160;при&#160;проверке:&#160;4&#160;из&#160;10.</text><text class="terminal-3199762299-r3" x="1207.8" y="2020.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-82)">
-</text><text class="terminal-3199762299-r9" x="0" y="2045.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-83)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="2045.2" textLength="488" clip-path="url(#terminal-3199762299-line-83)">DMARC:&#160;что&#160;делать&#160;с&#160;поддельными&#160;письмами</text><text class="terminal-3199762299-r15" x="1061.4" y="2045.2" textLength="146.4" clip-path="url(#terminal-3199762299-line-83)">SUV-MAIL-003</text><text class="terminal-3199762299-r3" x="1207.8" y="2045.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-83)">
-</text><text class="terminal-3199762299-r3" x="61" y="2069.6" textLength="976" clip-path="url(#terminal-3199762299-line-84)">Политика&#160;p=quarantine.&#160;Отчёты&#160;приходят&#160;на&#160;mailto:dmarc-receiver@habramail.net.&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2069.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-84)">
-</text><text class="terminal-3199762299-r14" x="0" y="2094" textLength="36.6" clip-path="url(#terminal-3199762299-line-85)">&#160;&#160;?</text><text class="terminal-3199762299-r3" x="61" y="2094" textLength="976" clip-path="url(#terminal-3199762299-line-85)">DKIM:&#160;цифровая&#160;подпись&#160;писем&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1061.4" y="2094" textLength="146.4" clip-path="url(#terminal-3199762299-line-85)">SUV-MAIL-004</text><text class="terminal-3199762299-r3" x="1207.8" y="2094" textLength="12.2" clip-path="url(#terminal-3199762299-line-85)">
-</text><text class="terminal-3199762299-r5" x="61" y="2118.4" textLength="976" clip-path="url(#terminal-3199762299-line-86)">Ключи&#160;DKIM&#160;не&#160;найдены&#160;среди&#160;распространённых&#160;селекторов.&#160;Это&#160;не&#160;значит,&#160;что&#160;DKIM</text><text class="terminal-3199762299-r3" x="1207.8" y="2118.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-86)">
-</text><text class="terminal-3199762299-r5" x="61" y="2142.8" textLength="976" clip-path="url(#terminal-3199762299-line-87)">нет:&#160;селектор&#160;может&#160;называться&#160;иначе.&#160;Посмотрите&#160;заголовок&#160;DKIM-Signature&#160;(s=)&#160;в</text><text class="terminal-3199762299-r3" x="1207.8" y="2142.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-87)">
-</text><text class="terminal-3199762299-r5" x="61" y="2167.2" textLength="305" clip-path="url(#terminal-3199762299-line-88)">любом&#160;письме&#160;от&#160;компании.</text><text class="terminal-3199762299-r3" x="1207.8" y="2167.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-88)">
-</text><text class="terminal-3199762299-r9" x="0" y="2191.6" textLength="36.6" clip-path="url(#terminal-3199762299-line-89)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="2191.6" textLength="427" clip-path="url(#terminal-3199762299-line-89)">Шифрование&#160;входящей&#160;почты&#160;(MTA-STS)</text><text class="terminal-3199762299-r15" x="1061.4" y="2191.6" textLength="146.4" clip-path="url(#terminal-3199762299-line-89)">SUV-MAIL-005</text><text class="terminal-3199762299-r3" x="1207.8" y="2191.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-89)">
-</text><text class="terminal-3199762299-r3" x="61" y="2216" textLength="976" clip-path="url(#terminal-3199762299-line-90)">MTA-STS&#160;не&#160;настроен:&#160;письма&#160;к&#160;вам&#160;можно&#160;перехватить,&#160;понизив&#160;соединение&#160;до&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2216" textLength="12.2" clip-path="url(#terminal-3199762299-line-90)">
-</text><text class="terminal-3199762299-r3" x="61" y="2240.4" textLength="976" clip-path="url(#terminal-3199762299-line-91)">незашифрованного.&#160;Это&#160;редкая&#160;атака,&#160;исправлять&#160;во&#160;вторую&#160;очередь:&#160;опубликуйте&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2240.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-91)">
-</text><text class="terminal-3199762299-r3" x="61" y="2264.8" textLength="976" clip-path="url(#terminal-3199762299-line-92)">TXT&#160;_mta-sts.habr.com&#160;и&#160;файл&#160;политики&#160;на&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2264.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-92)">
-</text><text class="terminal-3199762299-r3" x="61" y="2289.2" textLength="976" clip-path="url(#terminal-3199762299-line-93)">https://mta-sts.habr.com/.well-known/mta-sts.txt.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2289.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-93)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="2313.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-94)">
-</text><text class="terminal-3199762299-r8" x="0" y="2338" textLength="256.2" clip-path="url(#terminal-3199762299-line-95)">&#160;Безопасность&#160;сайта&#160;&#160;</text><text class="terminal-3199762299-r16" x="256.2" y="2338" textLength="73.2" clip-path="url(#terminal-3199762299-line-95)">!&#160;2&#160;&#160;&#160;</text><text class="terminal-3199762299-r17" x="329.4" y="2338" textLength="73.2" clip-path="url(#terminal-3199762299-line-95)">✓&#160;7&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="414.8" y="2338" textLength="793" clip-path="url(#terminal-3199762299-line-95)">─────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="2338" textLength="12.2" clip-path="url(#terminal-3199762299-line-95)">
-</text><text class="terminal-3199762299-r4" x="0" y="2362.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-96)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2362.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-96)">Сторонний&#160;код&#160;на&#160;сайте&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2362.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-96)">SUV-WEB-001</text><text class="terminal-3199762299-r3" x="1207.8" y="2362.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-96)">
-</text><text class="terminal-3199762299-r5" x="61" y="2386.8" textLength="951.6" clip-path="url(#terminal-3199762299-line-97)">Страницы&#160;загружают&#160;скрипты&#160;с&#160;4&#160;сторонних&#160;адресов&#160;(3&#160;домена):&#160;cdn.skcrtxr.com,&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2386.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-97)">
-</text><text class="terminal-3199762299-r5" x="61" y="2411.2" textLength="951.6" clip-path="url(#terminal-3199762299-line-98)">rap.skcrtxr.com,&#160;unpkg.com,&#160;yandex.ru.&#160;Каждый&#160;из&#160;них&#160;может&#160;выполнить&#160;на&#160;сайте&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2411.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-98)">
-</text><text class="terminal-3199762299-r5" x="61" y="2435.6" textLength="963.8" clip-path="url(#terminal-3199762299-line-99)">любой&#160;код:&#160;прочитать&#160;введённые&#160;данные,&#160;подменить&#160;реквизиты&#160;для&#160;оплаты.&#160;Уберите&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2435.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-99)">
-</text><text class="terminal-3199762299-r5" x="61" y="2460" textLength="280.6" clip-path="url(#terminal-3199762299-line-100)">то,&#160;чем&#160;не&#160;пользуетесь.</text><text class="terminal-3199762299-r3" x="1207.8" y="2460" textLength="12.2" clip-path="url(#terminal-3199762299-line-100)">
-</text><text class="terminal-3199762299-r4" x="0" y="2484.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-101)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2484.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-101)">Скрипты&#160;с&#160;брошенных&#160;и&#160;скомпрометированных&#160;доменов&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2484.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-101)">SUV-WEB-002</text><text class="terminal-3199762299-r3" x="1207.8" y="2484.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-101)">
-</text><text class="terminal-3199762299-r5" x="61" y="2508.8" textLength="317.2" clip-path="url(#terminal-3199762299-line-102)">Таких&#160;скриптов&#160;не&#160;найдено.</text><text class="terminal-3199762299-r3" x="1207.8" y="2508.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-102)">
-</text><text class="terminal-3199762299-r9" x="0" y="2533.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-103)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="2533.2" textLength="512.4" clip-path="url(#terminal-3199762299-line-103)">Контроль&#160;целостности&#160;библиотек&#160;с&#160;CDN&#160;(SRI)</text><text class="terminal-3199762299-r15" x="1073.6" y="2533.2" textLength="134.2" clip-path="url(#terminal-3199762299-line-103)">SUV-WEB-003</text><text class="terminal-3199762299-r3" x="1207.8" y="2533.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-103)">
-</text><text class="terminal-3199762299-r3" x="61" y="2557.6" textLength="988.2" clip-path="url(#terminal-3199762299-line-104)">Библиотеки&#160;с&#160;публичных&#160;CDN&#160;подключены&#160;без&#160;атрибута&#160;integrity:&#160;pwacompat.&#160;Если&#160;CDN</text><text class="terminal-3199762299-r3" x="1207.8" y="2557.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-104)">
-</text><text class="terminal-3199762299-r3" x="61" y="2582" textLength="988.2" clip-path="url(#terminal-3199762299-line-105)">взломают,&#160;как&#160;в&#160;2024&#160;году&#160;polyfill.io,&#160;браузер&#160;выполнит&#160;подменённый&#160;файл.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2582" textLength="12.2" clip-path="url(#terminal-3199762299-line-105)">
-</text><text class="terminal-3199762299-r4" x="0" y="2606.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-106)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2606.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-106)">Ключи&#160;и&#160;секреты&#160;в&#160;коде&#160;сайта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2606.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-106)">SUV-WEB-009</text><text class="terminal-3199762299-r3" x="1207.8" y="2606.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-106)">
-</text><text class="terminal-3199762299-r5" x="61" y="2630.8" textLength="732" clip-path="url(#terminal-3199762299-line-107)">Секретов&#160;и&#160;ключей&#160;не&#160;найдено&#160;(проверено&#160;источников&#160;кода:&#160;7).</text><text class="terminal-3199762299-r3" x="1207.8" y="2630.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-107)">
-</text><text class="terminal-3199762299-r4" x="0" y="2655.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-108)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2655.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-108)">Уязвимые&#160;версии&#160;библиотек&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2655.2" textLength="134.2" clip-path="url(#terminal-3199762299-line-108)">SUV-WEB-010</text><text class="terminal-3199762299-r3" x="1207.8" y="2655.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-108)">
-</text><text class="terminal-3199762299-r5" x="61" y="2679.6" textLength="976" clip-path="url(#terminal-3199762299-line-109)">Библиотек&#160;с&#160;явно&#160;указанной&#160;версией&#160;(jQuery,&#160;Bootstrap,&#160;lodash&#160;и&#160;др.)&#160;не&#160;найдено.</text><text class="terminal-3199762299-r3" x="1207.8" y="2679.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-109)">
-</text><text class="terminal-3199762299-r9" x="0" y="2704" textLength="36.6" clip-path="url(#terminal-3199762299-line-110)">&#160;&#160;!</text><text class="terminal-3199762299-r8" x="61" y="2704" textLength="439.2" clip-path="url(#terminal-3199762299-line-110)">Политика&#160;безопасности&#160;контента&#160;(CSP)</text><text class="terminal-3199762299-r15" x="1073.6" y="2704" textLength="134.2" clip-path="url(#terminal-3199762299-line-110)">SUV-WEB-004</text><text class="terminal-3199762299-r3" x="1207.8" y="2704" textLength="12.2" clip-path="url(#terminal-3199762299-line-110)">
-</text><text class="terminal-3199762299-r3" x="61" y="2728.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-111)">Заголовка&#160;Content-Security-Policy&#160;нет:&#160;если&#160;на&#160;сайт&#160;внедрят&#160;скрипт&#160;(через&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2728.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-111)">
-</text><text class="terminal-3199762299-r3" x="61" y="2752.8" textLength="988.2" clip-path="url(#terminal-3199762299-line-112)">уязвимость&#160;или&#160;взломанный&#160;сторонний&#160;сервис),&#160;браузер&#160;его&#160;выполнит.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2752.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-112)">
-</text><text class="terminal-3199762299-r4" x="0" y="2777.2" textLength="36.6" clip-path="url(#terminal-3199762299-line-113)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2777.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-113)">Принудительный&#160;HTTPS&#160;(HSTS)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2777.2" textLength="134.2" clip-path="url(#terminal-3199762299-line-113)">SUV-WEB-005</text><text class="terminal-3199762299-r3" x="1207.8" y="2777.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-113)">
-</text><text class="terminal-3199762299-r5" x="61" y="2801.6" textLength="280.6" clip-path="url(#terminal-3199762299-line-114)">HSTS&#160;включён&#160;на&#160;365&#160;дн.</text><text class="terminal-3199762299-r3" x="1207.8" y="2801.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-114)">
-</text><text class="terminal-3199762299-r4" x="0" y="2826" textLength="36.6" clip-path="url(#terminal-3199762299-line-115)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2826" textLength="988.2" clip-path="url(#terminal-3199762299-line-115)">Защитные&#160;заголовки&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2826" textLength="134.2" clip-path="url(#terminal-3199762299-line-115)">SUV-WEB-006</text><text class="terminal-3199762299-r3" x="1207.8" y="2826" textLength="12.2" clip-path="url(#terminal-3199762299-line-115)">
-</text><text class="terminal-3199762299-r5" x="61" y="2850.4" textLength="597.8" clip-path="url(#terminal-3199762299-line-116)">Защита&#160;от&#160;встраивания&#160;и&#160;подмены&#160;типа&#160;файлов&#160;есть.</text><text class="terminal-3199762299-r3" x="1207.8" y="2850.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-116)">
-</text><text class="terminal-3199762299-r4" x="0" y="2874.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-117)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2874.8" textLength="988.2" clip-path="url(#terminal-3199762299-line-117)">TLS:&#160;сертификат&#160;и&#160;протоколы&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2874.8" textLength="134.2" clip-path="url(#terminal-3199762299-line-117)">SUV-WEB-008</text><text class="terminal-3199762299-r3" x="1207.8" y="2874.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-117)">
-</text><text class="terminal-3199762299-r5" x="61" y="2899.2" textLength="890.6" clip-path="url(#terminal-3199762299-line-118)">Сервер&#160;habr.com,&#160;соединение&#160;TLS&#160;1.3.&#160;Сертификат&#160;действует&#160;ещё&#160;80&#160;дн.&#160;(до&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="2899.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-118)">
-</text><text class="terminal-3199762299-r5" x="61" y="2923.6" textLength="451.4" clip-path="url(#terminal-3199762299-line-119)">08.01.2027).&#160;TLS&#160;1.0&#160;и&#160;1.1&#160;отключены.</text><text class="terminal-3199762299-r3" x="1207.8" y="2923.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-119)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="2948" textLength="12.2" clip-path="url(#terminal-3199762299-line-120)">
-</text><text class="terminal-3199762299-r8" x="0" y="2972.4" textLength="146.4" clip-path="url(#terminal-3199762299-line-121)">&#160;Поддомены&#160;&#160;</text><text class="terminal-3199762299-r17" x="146.4" y="2972.4" textLength="73.2" clip-path="url(#terminal-3199762299-line-121)">✓&#160;2&#160;&#160;&#160;</text><text class="terminal-3199762299-r6" x="231.8" y="2972.4" textLength="976" clip-path="url(#terminal-3199762299-line-121)">────────────────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="2972.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-121)">
-</text><text class="terminal-3199762299-r4" x="0" y="2996.8" textLength="36.6" clip-path="url(#terminal-3199762299-line-122)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="2996.8" textLength="988.2" clip-path="url(#terminal-3199762299-line-122)">Поддомены&#160;в&#160;публичных&#160;журналах&#160;сертификатов&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="2996.8" textLength="134.2" clip-path="url(#terminal-3199762299-line-122)">SUV-SUB-001</text><text class="terminal-3199762299-r3" x="1207.8" y="2996.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-122)">
-</text><text class="terminal-3199762299-r5" x="61" y="3021.2" textLength="988.2" clip-path="url(#terminal-3199762299-line-123)">Найдено&#160;поддоменов:&#160;5&#160;(источник:&#160;Cert&#160;Spotter).&#160;Сейчас&#160;открываются&#160;5,&#160;через&#160;CNAME</text><text class="terminal-3199762299-r3" x="1207.8" y="3021.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-123)">
-</text><text class="terminal-3199762299-r5" x="61" y="3045.6" textLength="988.2" clip-path="url(#terminal-3199762299-line-124)">на&#160;внешние&#160;сервисы&#160;указывают&#160;1.&#160;Этот&#160;список&#160;видит&#160;любой:&#160;проверьте,&#160;что&#160;среди&#160;них</text><text class="terminal-3199762299-r3" x="1207.8" y="3045.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-124)">
-</text><text class="terminal-3199762299-r5" x="61" y="3070" textLength="500.2" clip-path="url(#terminal-3199762299-line-125)">нет&#160;забытых&#160;тестовых&#160;и&#160;служебных&#160;адресов.</text><text class="terminal-3199762299-r3" x="1207.8" y="3070" textLength="12.2" clip-path="url(#terminal-3199762299-line-125)">
-</text><text class="terminal-3199762299-r4" x="0" y="3094.4" textLength="36.6" clip-path="url(#terminal-3199762299-line-126)">&#160;&#160;✓</text><text class="terminal-3199762299-r3" x="61" y="3094.4" textLength="988.2" clip-path="url(#terminal-3199762299-line-126)">Захват&#160;поддоменов&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r15" x="1073.6" y="3094.4" textLength="134.2" clip-path="url(#terminal-3199762299-line-126)">SUV-SUB-002</text><text class="terminal-3199762299-r3" x="1207.8" y="3094.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-126)">
-</text><text class="terminal-3199762299-r5" x="61" y="3118.8" textLength="585.6" clip-path="url(#terminal-3199762299-line-127)">Признаков&#160;захвата&#160;не&#160;найдено&#160;среди&#160;5&#160;поддоменов.</text><text class="terminal-3199762299-r3" x="1207.8" y="3118.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-127)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="3143.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-128)">
-</text><text class="terminal-3199762299-r8" x="0" y="3167.6" textLength="134.2" clip-path="url(#terminal-3199762299-line-129)">&#160;Замечания&#160;</text><text class="terminal-3199762299-r6" x="146.4" y="3167.6" textLength="1061.4" clip-path="url(#terminal-3199762299-line-129)">───────────────────────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="3167.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-129)">
-</text><text class="terminal-3199762299-r5" x="24.4" y="3192" textLength="1049.2" clip-path="url(#terminal-3199762299-line-130)">Системный&#160;DNS&#160;отвечал&#160;неполно,&#160;поэтому&#160;использовался&#160;Яндекс&#160;DNS&#160;по&#160;защищённому&#160;каналу&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3192" textLength="12.2" clip-path="url(#terminal-3199762299-line-130)">
-</text><text class="terminal-3199762299-r5" x="24.4" y="3216.4" textLength="183" clip-path="url(#terminal-3199762299-line-131)">(DNS-over-TLS).</text><text class="terminal-3199762299-r3" x="1207.8" y="3216.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-131)">
-</text><text class="terminal-3199762299-r5" x="24.4" y="3240.8" textLength="1146.8" clip-path="url(#terminal-3199762299-line-132)">Проверено&#160;страниц:&#160;6&#160;(главная&#160;и&#160;ещё&#160;5).&#160;Скрипты&#160;искались&#160;в&#160;коде&#160;страниц:&#160;то,&#160;что&#160;подгружается&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3240.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-132)">
-</text><text class="terminal-3199762299-r5" x="24.4" y="3265.2" textLength="841.8" clip-path="url(#terminal-3199762299-line-133)">скриптами,&#160;может&#160;не&#160;попасть&#160;в&#160;отчёт&#160;(режим&#160;--browser&#160;находит&#160;больше).</text><text class="terminal-3199762299-r3" x="1207.8" y="3265.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-133)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="3289.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-134)">
-</text><text class="terminal-3199762299-r6" x="0" y="3314" textLength="1207.8" clip-path="url(#terminal-3199762299-line-135)">───────────────────────────────────────────────────────────────────────────────────────────────────</text><text class="terminal-3199762299-r3" x="1207.8" y="3314" textLength="12.2" clip-path="url(#terminal-3199762299-line-135)">
-</text><text class="terminal-3199762299-r3" x="1207.8" y="3338.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-136)">
-</text><text class="terminal-3199762299-r8" x="0" y="3362.8" textLength="244" clip-path="url(#terminal-3199762299-line-137)">&#160;&#160;Что&#160;сделать&#160;первым</text><text class="terminal-3199762299-r3" x="1207.8" y="3362.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-137)">
-</text><text class="terminal-3199762299-r13" x="0" y="3387.2" textLength="48.8" clip-path="url(#terminal-3199762299-line-138)">&#160;&#160;&#160;1</text><text class="terminal-3199762299-r3" x="73.2" y="3387.2" textLength="1134.6" clip-path="url(#terminal-3199762299-line-138)">Цепочку&#160;рвёт&#160;перенос&#160;DNS&#160;к&#160;российскому&#160;провайдеру:&#160;тогда&#160;сайт&#160;и&#160;почту&#160;можно&#160;переключить&#160;за&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3387.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-138)">
-</text><text class="terminal-3199762299-r3" x="73.2" y="3411.6" textLength="1134.6" clip-path="url(#terminal-3199762299-line-139)">минуты,&#160;а&#160;не&#160;за&#160;дни.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3411.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-139)">
-</text><text class="terminal-3199762299-r5" x="73.2" y="3436" textLength="292.8" clip-path="url(#terminal-3199762299-line-140)">Отключение&#160;сайта&#160;и&#160;почты</text><text class="terminal-3199762299-r3" x="1207.8" y="3436" textLength="12.2" clip-path="url(#terminal-3199762299-line-140)">
-</text><text class="terminal-3199762299-r13" x="0" y="3460.4" textLength="48.8" clip-path="url(#terminal-3199762299-line-141)">&#160;&#160;&#160;2</text><text class="terminal-3199762299-r3" x="73.2" y="3460.4" textLength="1134.6" clip-path="url(#terminal-3199762299-line-141)">Для&#160;пользователей&#160;из&#160;России&#160;оставьте&#160;вход&#160;только&#160;по&#160;номеру&#160;телефона,&#160;через&#160;Госуслуги&#160;или&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3460.4" textLength="12.2" clip-path="url(#terminal-3199762299-line-141)">
-</text><text class="terminal-3199762299-r3" x="73.2" y="3484.8" textLength="1134.6" clip-path="url(#terminal-3199762299-line-142)">российские&#160;сервисы&#160;(VK&#160;ID,&#160;Яндекс&#160;ID,&#160;Сбер&#160;ID,&#160;Т-ID).&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3484.8" textLength="12.2" clip-path="url(#terminal-3199762299-line-142)">
-</text><text class="terminal-3199762299-r5" x="73.2" y="3509.2" textLength="366" clip-path="url(#terminal-3199762299-line-143)">Вход&#160;через&#160;иностранные&#160;сервисы</text><text class="terminal-3199762299-r3" x="1207.8" y="3509.2" textLength="12.2" clip-path="url(#terminal-3199762299-line-143)">
-</text><text class="terminal-3199762299-r9" x="0" y="3533.6" textLength="48.8" clip-path="url(#terminal-3199762299-line-144)">&#160;&#160;&#160;3</text><text class="terminal-3199762299-r3" x="73.2" y="3533.6" textLength="1134.6" clip-path="url(#terminal-3199762299-line-144)">Перенести&#160;домен&#160;к&#160;российскому&#160;регистратору:&#160;RU-CENTER,&#160;REG.RU,&#160;R01,&#160;Beget.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-3199762299-r3" x="1207.8" y="3533.6" textLength="12.2" clip-path="url(#terminal-3199762299-line-144)">
-</text><text class="terminal-3199762299-r5" x="73.2" y="3558" textLength="671" clip-path="url(#terminal-3199762299-line-145)">Регистратор&#160;домена:&#160;Internet&#160;Domain&#160;Service&#160;BS&#160;(Багамы)</text><text class="terminal-3199762299-r3" x="1207.8" y="3558" textLength="12.2" clip-path="url(#terminal-3199762299-line-145)">
+    <g transform="translate(9, 41)" clip-path="url(#terminal-1066912735-clip-terminal)">
+    <rect fill="#d9822b" x="36.6" y="318.7" width="36.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#d9822b" x="390.4" y="318.7" width="36.6" height="24.65" shape-rendering="crispEdges"/>
+    <g class="terminal-1066912735-matrix">
+    <text class="terminal-1066912735-r1" x="0" y="20" textLength="85.4" clip-path="url(#terminal-1066912735-line-0)">suveren</text><text class="terminal-1066912735-r2" x="85.4" y="20" textLength="73.2" clip-path="url(#terminal-1066912735-line-0)">&#160;1.1.0</text><text class="terminal-1066912735-r1" x="158.6" y="20" textLength="134.2" clip-path="url(#terminal-1066912735-line-0)">&#160;&#160;&#160;habr.com</text><text class="terminal-1066912735-r2" x="292.8" y="20" textLength="463.6" clip-path="url(#terminal-1066912735-line-0)">&#160;&#160;&#160;профиль&#160;standard&#160;·&#160;браузер&#160;·&#160;7&#160;стр.</text><text class="terminal-1066912735-r3" x="1207.8" y="20" textLength="12.2" clip-path="url(#terminal-1066912735-line-0)">
+</text><text class="terminal-1066912735-r3" x="1207.8" y="44.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-1)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="68.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-2)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="68.8" textLength="597.8" clip-path="url(#terminal-1066912735-line-2)">&#160;&#160;DNS,&#160;почта,&#160;хостинг,&#160;сертификат,&#160;страница&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="68.8" textLength="85.4" clip-path="url(#terminal-1066912735-line-2)">&#160;&#160;4.1&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="68.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-2)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="93.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-3)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="93.2" textLength="597.8" clip-path="url(#terminal-1066912735-line-3)">&#160;&#160;Сайт&#160;в&#160;браузере&#160;(до&#160;7&#160;стр.)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="93.2" textLength="85.4" clip-path="url(#terminal-1066912735-line-3)">&#160;49.8&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="93.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-3)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="117.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-4)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="117.6" textLength="597.8" clip-path="url(#terminal-1066912735-line-4)">&#160;&#160;Персональные&#160;данные&#160;(152-ФЗ)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="117.6" textLength="85.4" clip-path="url(#terminal-1066912735-line-4)">&#160;&#160;4.1&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="117.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-4)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="142" textLength="12.2" clip-path="url(#terminal-1066912735-line-5)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="142" textLength="597.8" clip-path="url(#terminal-1066912735-line-5)">&#160;&#160;Реестр&#160;блокировок&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="142" textLength="85.4" clip-path="url(#terminal-1066912735-line-5)">&#160;14.5&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="142" textLength="12.2" clip-path="url(#terminal-1066912735-line-5)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="166.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-6)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="166.4" textLength="597.8" clip-path="url(#terminal-1066912735-line-6)">&#160;&#160;Защита&#160;почты&#160;от&#160;подделки&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="166.4" textLength="85.4" clip-path="url(#terminal-1066912735-line-6)">&#160;&#160;5.1&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="166.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-6)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="190.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-7)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="190.8" textLength="597.8" clip-path="url(#terminal-1066912735-line-7)">&#160;&#160;Безопасность&#160;сайта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="190.8" textLength="85.4" clip-path="url(#terminal-1066912735-line-7)">&#160;&#160;6.5&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="190.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-7)">
+</text><text class="terminal-1066912735-r4" x="24.4" y="215.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-8)">✓</text><text class="terminal-1066912735-r3" x="36.6" y="215.2" textLength="597.8" clip-path="url(#terminal-1066912735-line-8)">&#160;&#160;Поддомены&#160;и&#160;их&#160;захват&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="634.4" y="215.2" textLength="85.4" clip-path="url(#terminal-1066912735-line-8)">&#160;&#160;3.9&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="215.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-8)">
+</text><text class="terminal-1066912735-r5" x="24.4" y="239.6" textLength="170.8" clip-path="url(#terminal-1066912735-line-9)">готово&#160;за&#160;89&#160;с</text><text class="terminal-1066912735-r3" x="1207.8" y="239.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-9)">
+</text><text class="terminal-1066912735-r3" x="1207.8" y="264" textLength="12.2" clip-path="url(#terminal-1066912735-line-10)">
+</text><text class="terminal-1066912735-r6" x="0" y="288.4" textLength="1207.8" clip-path="url(#terminal-1066912735-line-11)">┌─────────────────────────────────────────────────────────────────────────────────────────────────┐</text><text class="terminal-1066912735-r3" x="1207.8" y="288.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-11)">
+</text><text class="terminal-1066912735-r6" x="0" y="312.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-12)">│</text><text class="terminal-1066912735-r6" x="1195.6" y="312.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-12)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="312.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-12)">
+</text><text class="terminal-1066912735-r6" x="0" y="337.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-13)">│</text><text class="terminal-1066912735-r7" x="36.6" y="337.2" textLength="36.6" clip-path="url(#terminal-1066912735-line-13)">&#160;D&#160;</text><text class="terminal-1066912735-r8" x="73.2" y="337.2" textLength="183" clip-path="url(#terminal-1066912735-line-13)">&#160;&#160;Общая&#160;оценка&#160;</text><text class="terminal-1066912735-r8" x="256.2" y="337.2" textLength="24.4" clip-path="url(#terminal-1066912735-line-13)">44</text><text class="terminal-1066912735-r5" x="280.6" y="337.2" textLength="48.8" clip-path="url(#terminal-1066912735-line-13)">/100</text><text class="terminal-1066912735-r7" x="390.4" y="337.2" textLength="36.6" clip-path="url(#terminal-1066912735-line-13)">&#160;D&#160;</text><text class="terminal-1066912735-r8" x="427" y="337.2" textLength="195.2" clip-path="url(#terminal-1066912735-line-13)">&#160;&#160;Независимость&#160;</text><text class="terminal-1066912735-r8" x="622.2" y="337.2" textLength="24.4" clip-path="url(#terminal-1066912735-line-13)">50</text><text class="terminal-1066912735-r5" x="646.6" y="337.2" textLength="48.8" clip-path="url(#terminal-1066912735-line-13)">/100</text><text class="terminal-1066912735-r6" x="1195.6" y="337.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-13)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="337.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-13)">
+</text><text class="terminal-1066912735-r6" x="0" y="361.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-14)">│</text><text class="terminal-1066912735-r5" x="36.6" y="361.6" textLength="1073.6" clip-path="url(#terminal-1066912735-line-14)">общая&#160;оценка:&#160;проверено:&#160;законы,&#160;блокировки,&#160;почта,&#160;безопасность,&#160;поддомены,&#160;зависимости</text><text class="terminal-1066912735-r6" x="1195.6" y="361.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-14)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="361.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-14)">
+</text><text class="terminal-1066912735-r6" x="0" y="386" textLength="12.2" clip-path="url(#terminal-1066912735-line-15)">│</text><text class="terminal-1066912735-r6" x="1195.6" y="386" textLength="12.2" clip-path="url(#terminal-1066912735-line-15)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="386" textLength="12.2" clip-path="url(#terminal-1066912735-line-15)">
+</text><text class="terminal-1066912735-r6" x="0" y="410.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-16)">│</text><text class="terminal-1066912735-r5" x="36.6" y="410.4" textLength="256.2" clip-path="url(#terminal-1066912735-line-16)">иностранных&#160;сервисов&#160;</text><text class="terminal-1066912735-r8" x="292.8" y="410.4" textLength="24.4" clip-path="url(#terminal-1066912735-line-16)">11</text><text class="terminal-1066912735-r5" x="317.2" y="410.4" textLength="170.8" clip-path="url(#terminal-1066912735-line-16)">&#160;·&#160;российских&#160;</text><text class="terminal-1066912735-r8" x="488" y="410.4" textLength="24.4" clip-path="url(#terminal-1066912735-line-16)">10</text><text class="terminal-1066912735-r6" x="1195.6" y="410.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-16)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="410.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-16)">
+</text><text class="terminal-1066912735-r6" x="0" y="434.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-17)">│</text><text class="terminal-1066912735-r4" x="36.6" y="434.8" textLength="353.8" clip-path="url(#terminal-1066912735-line-17)">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text><text class="terminal-1066912735-r9" x="390.4" y="434.8" textLength="170.8" clip-path="url(#terminal-1066912735-line-17)">━━━━━━━━━━━━━━</text><text class="terminal-1066912735-r10" x="561.2" y="434.8" textLength="73.2" clip-path="url(#terminal-1066912735-line-17)">━━━━━━</text><text class="terminal-1066912735-r11" x="634.4" y="434.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-17)">━━━</text><text class="terminal-1066912735-r12" x="671" y="434.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-17)">━━━</text><text class="terminal-1066912735-r5" x="707.6" y="434.8" textLength="73.2" clip-path="url(#terminal-1066912735-line-17)">━━━━━━</text><text class="terminal-1066912735-r6" x="1195.6" y="434.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-17)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="434.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-17)">
+</text><text class="terminal-1066912735-r6" x="0" y="459.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-18)">│</text><text class="terminal-1066912735-r4" x="36.6" y="459.2" textLength="158.6" clip-path="url(#terminal-1066912735-line-18)">Россия&#160;48%&#160;&#160;&#160;</text><text class="terminal-1066912735-r9" x="195.2" y="459.2" textLength="122" clip-path="url(#terminal-1066912735-line-18)">США&#160;24%&#160;&#160;&#160;</text><text class="terminal-1066912735-r10" x="317.2" y="459.2" textLength="170.8" clip-path="url(#terminal-1066912735-line-18)">Эстония&#160;10%&#160;&#160;&#160;</text><text class="terminal-1066912735-r11" x="488" y="459.2" textLength="146.4" clip-path="url(#terminal-1066912735-line-18)">Багамы&#160;5%&#160;&#160;&#160;</text><text class="terminal-1066912735-r12" x="634.4" y="459.2" textLength="170.8" clip-path="url(#terminal-1066912735-line-18)">Германия&#160;5%&#160;&#160;&#160;</text><text class="terminal-1066912735-r5" x="805.2" y="459.2" textLength="122" clip-path="url(#terminal-1066912735-line-18)">другие&#160;10%</text><text class="terminal-1066912735-r6" x="1195.6" y="459.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-18)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="459.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-18)">
+</text><text class="terminal-1066912735-r6" x="0" y="483.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-19)">│</text><text class="terminal-1066912735-r6" x="1195.6" y="483.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-19)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="483.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-19)">
+</text><text class="terminal-1066912735-r6" x="0" y="508" textLength="12.2" clip-path="url(#terminal-1066912735-line-20)">│</text><text class="terminal-1066912735-r13" x="36.6" y="508" textLength="183" clip-path="url(#terminal-1066912735-line-20)">✗&#160;2&#160;проблемы&#160;&#160;&#160;</text><text class="terminal-1066912735-r9" x="219.6" y="508" textLength="195.2" clip-path="url(#terminal-1066912735-line-20)">!&#160;13&#160;внимание&#160;&#160;&#160;</text><text class="terminal-1066912735-r4" x="414.8" y="508" textLength="207.4" clip-path="url(#terminal-1066912735-line-20)">✓&#160;19&#160;в&#160;порядке&#160;&#160;&#160;</text><text class="terminal-1066912735-r14" x="622.2" y="508" textLength="231.8" clip-path="url(#terminal-1066912735-line-20)">?&#160;2&#160;не&#160;проверено&#160;&#160;&#160;</text><text class="terminal-1066912735-r6" x="1195.6" y="508" textLength="12.2" clip-path="url(#terminal-1066912735-line-20)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="508" textLength="12.2" clip-path="url(#terminal-1066912735-line-20)">
+</text><text class="terminal-1066912735-r6" x="0" y="532.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-21)">│</text><text class="terminal-1066912735-r5" x="36.6" y="532.4" textLength="85.4" clip-path="url(#terminal-1066912735-line-21)">штрафы&#160;</text><text class="terminal-1066912735-r8" x="122" y="532.4" textLength="158.6" clip-path="url(#terminal-1066912735-line-21)">до&#160;700&#160;тыс.&#160;₽</text><text class="terminal-1066912735-r5" x="329.4" y="532.4" textLength="170.8" clip-path="url(#terminal-1066912735-line-21)">сценарии&#160;атак&#160;</text><text class="terminal-1066912735-r8" x="500.2" y="532.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-21)">3</text><text class="terminal-1066912735-r6" x="1195.6" y="532.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-21)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="532.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-21)">
+</text><text class="terminal-1066912735-r6" x="0" y="556.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-22)">│</text><text class="terminal-1066912735-r6" x="1195.6" y="556.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-22)">│</text><text class="terminal-1066912735-r3" x="1207.8" y="556.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-22)">
+</text><text class="terminal-1066912735-r6" x="0" y="581.2" textLength="1207.8" clip-path="url(#terminal-1066912735-line-23)">└─────────────────────────────────────────────────────────────────────────────────────────────────┘</text><text class="terminal-1066912735-r3" x="1207.8" y="581.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-23)">
+</text><text class="terminal-1066912735-r3" x="1207.8" y="605.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-24)">
+</text><text class="terminal-1066912735-r8" x="0" y="630" textLength="305" clip-path="url(#terminal-1066912735-line-25)">&#160;Иностранные&#160;зависимости&#160;</text><text class="terminal-1066912735-r6" x="317.2" y="630" textLength="890.6" clip-path="url(#terminal-1066912735-line-25)">─────────────────────────────────────────────────────────────────────────</text><text class="terminal-1066912735-r3" x="1207.8" y="630" textLength="12.2" clip-path="url(#terminal-1066912735-line-25)">
+</text><text class="terminal-1066912735-r9" x="0" y="654.4" textLength="36.6" clip-path="url(#terminal-1066912735-line-26)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="654.4" textLength="305" clip-path="url(#terminal-1066912735-line-26)">Регистратор&#160;домена&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="654.4" textLength="817.4" clip-path="url(#terminal-1066912735-line-26)">Internet&#160;Domain&#160;Service&#160;BS&#160;(Багамы)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="654.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-26)">
+</text><text class="terminal-1066912735-r9" x="0" y="678.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-27)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="678.8" textLength="305" clip-path="url(#terminal-1066912735-line-27)">DNS-серверы&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="678.8" textLength="817.4" clip-path="url(#terminal-1066912735-line-27)">CLOUD.DOG&#160;OU&#160;(Эстония),&#160;VOLICO&#160;(США),&#160;habradns.net&#160;(на&#160;сети&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="678.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-27)">
+</text><text class="terminal-1066912735-r3" x="390.4" y="703.2" textLength="817.4" clip-path="url(#terminal-1066912735-line-28)">Hetzner)&#160;(Германия),&#160;habradns.net&#160;(на&#160;сети&#160;OVHcloud)&#160;(Франция)&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="703.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-28)">
+</text><text class="terminal-1066912735-r9" x="0" y="727.6" textLength="36.6" clip-path="url(#terminal-1066912735-line-29)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="727.6" textLength="305" clip-path="url(#terminal-1066912735-line-29)">SSL-сертификат&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="727.6" textLength="817.4" clip-path="url(#terminal-1066912735-line-29)">Sectigo&#160;(Великобритания)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="727.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-29)">
+</text><text class="terminal-1066912735-r11" x="0" y="752" textLength="36.6" clip-path="url(#terminal-1066912735-line-30)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="752" textLength="305" clip-path="url(#terminal-1066912735-line-30)">Доменная&#160;зона&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="752" textLength="817.4" clip-path="url(#terminal-1066912735-line-30)">.com&#160;—&#160;Verisign&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="752" textLength="12.2" clip-path="url(#terminal-1066912735-line-30)">
+</text><text class="terminal-1066912735-r11" x="0" y="776.4" textLength="36.6" clip-path="url(#terminal-1066912735-line-31)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="776.4" textLength="305" clip-path="url(#terminal-1066912735-line-31)">Почта&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="776.4" textLength="817.4" clip-path="url(#terminal-1066912735-line-31)">Собственная&#160;сеть&#160;(Habr&#160;Europe&#160;OU)&#160;(Эстония)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="776.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-31)">
+</text><text class="terminal-1066912735-r11" x="0" y="800.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-32)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="800.8" textLength="305" clip-path="url(#terminal-1066912735-line-32)">Капча&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="800.8" textLength="817.4" clip-path="url(#terminal-1066912735-line-32)">Google&#160;reCAPTCHA&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="800.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-32)">
+</text><text class="terminal-1066912735-r11" x="0" y="825.2" textLength="36.6" clip-path="url(#terminal-1066912735-line-33)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="825.2" textLength="305" clip-path="url(#terminal-1066912735-line-33)">Шрифты&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="390.4" y="825.2" textLength="817.4" clip-path="url(#terminal-1066912735-line-33)">Google&#160;Fonts&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="825.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-33)">
+</text><text class="terminal-1066912735-r11" x="0" y="849.6" textLength="36.6" clip-path="url(#terminal-1066912735-line-34)">&#160;&#160;●</text><text class="terminal-1066912735-r5" x="61" y="849.6" textLength="305" clip-path="url(#terminal-1066912735-line-34)">Библиотеки&#160;с&#160;внешнего&#160;CDN</text><text class="terminal-1066912735-r3" x="390.4" y="849.6" textLength="817.4" clip-path="url(#terminal-1066912735-line-34)">unpkg&#160;(США)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="849.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-34)">
+</text><text class="terminal-1066912735-r3" x="1207.8" y="874" textLength="12.2" clip-path="url(#terminal-1066912735-line-35)">
+</text><text class="terminal-1066912735-r8" x="0" y="898.4" textLength="195.2" clip-path="url(#terminal-1066912735-line-36)">&#160;Сценарии&#160;атак&#160;&#160;</text><text class="terminal-1066912735-r13" x="195.2" y="898.4" textLength="73.2" clip-path="url(#terminal-1066912735-line-36)">✗&#160;1&#160;&#160;&#160;</text><text class="terminal-1066912735-r15" x="268.4" y="898.4" textLength="73.2" clip-path="url(#terminal-1066912735-line-36)">!&#160;2&#160;&#160;&#160;</text><text class="terminal-1066912735-r6" x="353.8" y="898.4" textLength="854" clip-path="url(#terminal-1066912735-line-36)">──────────────────────────────────────────────────────────────────────</text><text class="terminal-1066912735-r3" x="1207.8" y="898.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-36)">
+</text><text class="terminal-1066912735-r9" x="0" y="922.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-37)">&#160;&#160;!</text><text class="terminal-1066912735-r8" x="61" y="922.8" textLength="292.8" clip-path="url(#terminal-1066912735-line-37)">Фишинг&#160;от&#160;имени&#160;компании</text><text class="terminal-1066912735-r16" x="1073.6" y="922.8" textLength="134.2" clip-path="url(#terminal-1066912735-line-37)">SUV-ATK-001</text><text class="terminal-1066912735-r3" x="1207.8" y="922.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-37)">
+</text><text class="terminal-1066912735-r3" x="61" y="947.2" textLength="988.2" clip-path="url(#terminal-1066912735-line-38)">1)&#160;Письмо&#160;от&#160;имени&#160;любого&#160;адреса&#160;@habr.com&#160;не&#160;отклоняется&#160;почтовыми&#160;сервисами&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="947.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-38)">
+</text><text class="terminal-1066912735-r3" x="61" y="971.6" textLength="988.2" clip-path="url(#terminal-1066912735-line-39)">(SUV-MAIL-001).&#160;2)&#160;Клиенты&#160;привыкли&#160;вводить&#160;данные&#160;на&#160;сайте:&#160;в&#160;письме&#160;—&#160;ссылка&#160;на</text><text class="terminal-1066912735-r3" x="1207.8" y="971.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-39)">
+</text><text class="terminal-1066912735-r3" x="61" y="996" textLength="988.2" clip-path="url(#terminal-1066912735-line-40)">копию&#160;сайта&#160;и&#160;форму&#160;с&#160;личными&#160;данными.&#160;3)&#160;Письмо&#160;от&#160;«вашего»&#160;адреса&#160;вызывает&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="996" textLength="12.2" clip-path="url(#terminal-1066912735-line-40)">
+</text><text class="terminal-1066912735-r3" x="61" y="1020.4" textLength="988.2" clip-path="url(#terminal-1066912735-line-41)">доверие:&#160;данные&#160;и&#160;деньги&#160;уходят&#160;злоумышленнику.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1020.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-41)">
+</text><text class="terminal-1066912735-r9" x="0" y="1044.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-42)">&#160;&#160;!</text><text class="terminal-1066912735-r8" x="61" y="1044.8" textLength="341.6" clip-path="url(#terminal-1066912735-line-42)">Чужой&#160;код&#160;у&#160;всех&#160;посетителей</text><text class="terminal-1066912735-r16" x="1073.6" y="1044.8" textLength="134.2" clip-path="url(#terminal-1066912735-line-42)">SUV-ATK-002</text><text class="terminal-1066912735-r3" x="1207.8" y="1044.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-42)">
+</text><text class="terminal-1066912735-r3" x="61" y="1069.2" textLength="988.2" clip-path="url(#terminal-1066912735-line-43)">1)&#160;Библиотеки&#160;грузятся&#160;с&#160;публичного&#160;CDN&#160;без&#160;контроля&#160;целостности&#160;(SUV-WEB-003):&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1069.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-43)">
+</text><text class="terminal-1066912735-r3" x="61" y="1093.6" textLength="988.2" clip-path="url(#terminal-1066912735-line-44)">при&#160;взломе&#160;CDN,&#160;как&#160;polyfill.io&#160;в&#160;2024&#160;году,&#160;подменённый&#160;файл&#160;выполнится.&#160;2)&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1093.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-44)">
+</text><text class="terminal-1066912735-r3" x="61" y="1118" textLength="988.2" clip-path="url(#terminal-1066912735-line-45)">Политика&#160;CSP&#160;не&#160;ограничивает,&#160;куда&#160;скрипт&#160;может&#160;отправить&#160;данные&#160;(SUV-WEB-004).&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1118" textLength="12.2" clip-path="url(#terminal-1066912735-line-45)">
+</text><text class="terminal-1066912735-r3" x="61" y="1142.4" textLength="988.2" clip-path="url(#terminal-1066912735-line-46)">3)&#160;Чужой&#160;код&#160;работает&#160;у&#160;каждого&#160;посетителя&#160;и&#160;читает&#160;всё,&#160;что&#160;вводят&#160;посетители.&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1142.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-46)">
+</text><text class="terminal-1066912735-r13" x="0" y="1166.8" textLength="36.6" clip-path="url(#terminal-1066912735-line-47)">&#160;&#160;✗</text><text class="terminal-1066912735-r8" x="61" y="1166.8" textLength="292.8" clip-path="url(#terminal-1066912735-line-47)">Отключение&#160;сайта&#160;и&#160;почты</text><text class="terminal-1066912735-r16" x="1073.6" y="1166.8" textLength="134.2" clip-path="url(#terminal-1066912735-line-47)">SUV-ATK-006</text><text class="terminal-1066912735-r3" x="1207.8" y="1166.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-47)">
+</text><text class="terminal-1066912735-r3" x="61" y="1191.2" textLength="988.2" clip-path="url(#terminal-1066912735-line-48)">1)&#160;Сайт&#160;держится&#160;на&#160;иностранной&#160;инфраструктуре:&#160;DNS-серверы&#160;(CLOUD.DOG&#160;OU,&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1191.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-48)">
+</text><text class="terminal-1066912735-r3" x="61" y="1215.6" textLength="988.2" clip-path="url(#terminal-1066912735-line-49)">VOLICO,&#160;habradns.net&#160;(на&#160;сети&#160;Hetzner),&#160;habradns.net&#160;(на&#160;сети&#160;OVHcloud)).&#160;2)&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1215.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-49)">
+</text><text class="terminal-1066912735-r3" x="61" y="1240" textLength="988.2" clip-path="url(#terminal-1066912735-line-50)">Почта&#160;домена&#160;тоже&#160;у&#160;иностранного&#160;провайдера&#160;(Собственная&#160;сеть&#160;(Habr&#160;Europe&#160;OU)):&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1240" textLength="12.2" clip-path="url(#terminal-1066912735-line-50)">
+</text><text class="terminal-1066912735-r3" x="61" y="1264.4" textLength="988.2" clip-path="url(#terminal-1066912735-line-51)">при&#160;отключении&#160;не&#160;придут&#160;письма&#160;для&#160;восстановления&#160;паролей&#160;от&#160;других&#160;сервисов&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1264.4" textLength="12.2" clip-path="url(#terminal-1066912735-line-51)">
+</text><text class="terminal-1066912735-r3" x="61" y="1288.8" textLength="988.2" clip-path="url(#terminal-1066912735-line-52)">компании.&#160;3)&#160;Одно&#160;решение&#160;провайдера&#160;—&#160;и&#160;сайт&#160;с&#160;почтой&#160;пропадают,&#160;а&#160;перенос&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1288.8" textLength="12.2" clip-path="url(#terminal-1066912735-line-52)">
+</text><text class="terminal-1066912735-r3" x="61" y="1313.2" textLength="988.2" clip-path="url(#terminal-1066912735-line-53)">займёт&#160;дни.&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1066912735-r3" x="1207.8" y="1313.2" textLength="12.2" clip-path="url(#terminal-1066912735-line-53)">
+</text><text class="terminal-1066912735-r3" x="1207.8" y="1337.6" textLength="12.2" clip-path="url(#terminal-1066912735-line-54)">
 </text>
     </g>
     </g>

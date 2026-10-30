@@ -2,7 +2,8 @@
 
 # Suveren
 
-**Website and company audit for doing business in Russia: foreign dependencies, personal-data law, blocking, company registry and sanctions.**
+**Website and company audit for doing business in Russia**<br>
+foreign dependencies · personal-data law (152-FZ) · blocking · mail spoofing · web security · company registry and sanctions
 
 [![CI](https://github.com/marsilid/suveren/actions/workflows/ci.yml/badge.svg)](https://github.com/marsilid/suveren/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
@@ -12,139 +13,202 @@
 
 </div>
 
-Suveren answers six questions:
+Give it a website address and a minute later you have a report: what on the site depends on
+foreign providers, which legal requirements are broken and what fine that can bring, whether
+someone can send mail in the company's name, and what to fix first. Every finding comes with
+its evidence: the DNS record, the response header, the quote from the privacy policy, the
+script URL.
 
-1. **What breaks if foreign providers cut you off?** It finds everything running on
-   infrastructure outside Russia (DNS, mail, hosting, CDN, site builder, registrar, TLS
-   certificate, page scripts and widgets), explains the risk, suggests a Russian alternative and
-   grades independence from **A** to **F**. Every risk comes with a migration plan (steps,
-   Russian alternatives, effort, a cost hint) and the report ends with a site-wide plan,
-   riskiest and easiest first. With `--cutoff` (or `--profile deep`) it is an experiment, not a
-   guess: the page is opened in a browser normally, with every foreign service refused, and
-   normally again, and the report shows both screenshots and what broke — JavaScript errors,
-   vanished buttons, maps and videos, captcha forms that can no longer be sent, images, fonts —
-   plus the foreign resources in `<head>` that would leave the page blank if they hang.
-   With `--form-leaks` (its own flag only) it types test values into the name, phone, e-mail
-   and password fields, never sends the form, and finds which third parties receive them
-   before submission — in the clear, base64, gzip or as MD5/SHA hashes (the method of
-   "Leaky Forms", USENIX Security 2022).
-2. **Does the site comply with Federal Law 152-FZ and is it reachable from Russia?** Privacy
-   policy (with a checklist of the sections Roskomnadzor recommends), consent in forms and whether
-   it is drawn up separately from offers and user agreements (required since 1 September 2025), cookie notice, cross-border transfer, data localisation, the
-   Roskomnadzor register of personal-data operators and the Roskomnadzor block list. It also
-   flags sign-in through Google, Apple, Facebook and other foreign services: since 1 December
-   2023 Russian sites may authorise users in Russia only by a Russian phone number, Gosuslugi,
-   the biometric system or Russian-owned providers (Federal Law 149-FZ, art. 8 part 10), and
-   since 7 July 2026 this is fined under art. 13.55 of the Code of Administrative Offences.
-   Above the 152-FZ section the report estimates the maximum fines (Code of Administrative
-   Offences, art. 13.11 and 13.55) for the problems found, per legal entity, sole trader and
-   official; possible offences are listed but not added up. It is an estimate of the maximum
-   risk, not legal advice; JSON has it in the `fines` field.
-3. **Can someone forge a letter from the company's domain?** SPF, DMARC, DKIM and MTA-STS
-   records, summed up as a plain verdict: yes, partly or no.
-4. **Are there forgotten subdomains someone could take over?** Subdomains from Certificate
-   Transparency logs, checked for CNAMEs to deleted projects or to unregistered domains.
-5. **Whose code runs on the site, and how well are visitors protected?** Third-party scripts,
-   abandoned or compromised script domains, SRI, CSP, HSTS, cookie flags and TLS; secrets in the
-   site's own JavaScript (private keys, bot tokens, AWS/Stripe/GitHub/Slack/OpenAI keys, masked
-   in the report); library versions with known CVEs (jQuery, Bootstrap, lodash, Moment.js,
-   AngularJS — only when the version is written out); and, in `--browser` mode, the chains of
-   scripts loaded by other scripts, which the site's owner never chose.
-6. **Who is behind it?** Company data from the Russian state register (EGRUL) and screening of
-   the company and its head against the US (OFAC SDN), EU and UK sanctions lists.
+The audit is passive: Suveren looks only at what any visitor can see — public DNS records,
+open registries and the site's pages. No port scanning, no password guessing.
 
-The report opens with **attack scenarios**: findings from different modules joined into what
-an attacker would do (phishing in the company's name, third-party code on every visitor,
-subdomain takeover, interception on the first visit, a leaked key, losing site and mail at
-once), each step citing the check ID and the one fix that breaks the chain. Reports can be
-printed to PDF (`--pdf`) and branded with a studio's name and logo (`--brand-name`,
-`--brand-logo`, `--brand-url`); see [docs/checks.md](docs/checks.md) for every check.
+The tool, its reports and the detailed guide are in Russian, as is the law it checks against.
 
-The tool targets Russian businesses, so its interface and reports are in Russian.
+![Suveren in a terminal](docs/demo.svg)
 
-![Terminal output](docs/demo.svg)
+## What it checks
 
-## Install and run
+| | Question | What is looked at |
+|---|---|---|
+| 🌍 | **What breaks with the next wave of sanctions?** | DNS, mail, hosting, CDN, site builder, registrar, TLS certificate, page scripts and widgets. An independence grade from **A** to **F** and a migration plan to Russian providers |
+| ⚖️ | **Does the site comply with 152-FZ?** | the privacy policy and its contents, consent in forms, cookies, cross-border transfer, data localisation, the register of personal-data operators, sign-in through Google and Apple, recommendation technologies. The total of possible fines under the Code of Administrative Offences |
+| 🚫 | **Is the site reachable from Russia?** | the domain and IP addresses in Roskomnadzor's block list, blocked services on the pages |
+| ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM, MTA-STS and a plain answer: yes, partly or no |
+| 🔓 | **Are there forgotten subdomains someone could take over?** | subdomains from Certificate Transparency logs that point to deleted projects on third-party services |
+| 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS |
+| 🏢 | **Who are we dealing with?** | the company in the state register (EGRUL), US, EU and UK sanctions lists, the register of personal-data operators |
+
+About 60 checks in all, each with a permanent ID — see [docs/checks.md](docs/checks.md).
+Findings from different sections are combined into **attack scenarios**: for example "mail can
+be forged" + "the site takes payments" = phishing in the company's name.
+
+## How to run it
+
+### Windows: double click
+
+Download `Suveren.exe` from [Releases](https://github.com/marsilid/suveren/releases) and run it.
+No Python needed. Windows may warn about an unknown publisher: click "More info" → "Run anyway".
+The exe is built from this code by GitHub Actions.
+
+It opens a menu, so no command line is needed:
+
+![Suveren menu](docs/menu.svg)
+
+From the source code, `Suveren.bat` opens the same menu: download the repository
+(Code → Download ZIP), unpack it and run the batch file. On first launch it installs everything
+it needs ([Python 3.10+](https://www.python.org/downloads/) required).
+
+### Any system
 
 ```bash
 pip install "suveren[browser] @ git+https://github.com/marsilid/suveren.git"
-
-suveren scan example.ru --browser    # full check, page rendered in Edge/Chrome
-suveren scan example.ru --quick      # foreign dependencies only (handy in CI)
-suveren batch sites.txt              # many sites: index.html, CSV, a report per site
-suveren company 7707083893           # company by tax ID (INN), OGRN or domain
-suveren diff before.json after.json
-suveren update                       # refresh sanctions and block lists
-suveren checks                       # every check with its stable ID and tags
+suveren scan example.ru
 ```
 
-Every check has a stable ID (`SUV-MAIL-003` is DMARC, `SUV-LAW-001` is sign-in through
-foreign services), shown in the HTML report, JSON and SARIF; foreign dependencies have one
-per category (`SUV-DEP-HOSTING`). Pick checks by ID, prefix or tag, and only the modules
-they need run; profiles are `quick`, `standard` (default) and `deep` (browser, 12 pages):
+### Docker
 
 ```bash
-suveren scan example.ru --checks mail,headers --profile deep
-suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail   # CI
+docker build -t suveren https://github.com/marsilid/suveren.git
+docker run --rm -v "$PWD:/work" suveren scan example.ru
 ```
 
-`--sarif` writes SARIF 2.1.0 for GitHub/GitLab code scanning and DefectDojo. Exit codes:
-0 done, 1 scan failed, 2 bad arguments, 3 overall grade worse than `--fail-under`, 4 checks with
-the `--fail-on` status (`fail`, or `warn` and worse).
+## The report
 
-On Windows you can also run `Suveren.bat`, which installs everything on first launch. A
-`Dockerfile` is included.
+The report is saved to `reports/` and opens in the browser. At the top: the grades, the total of
+possible fines and what to do first; under every problem: the evidence, the article of law and
+how to fix it.
 
-![HTML report](docs/report-screenshot.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/report-dark.png">
+  <img alt="HTML report" src="docs/report-light.png">
+</picture>
 
-![Company check](docs/company-screenshot.png)
+The 152-FZ section: every check links to its article of law and names the possible fine.
 
-## How it works
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/compliance-dark.png">
+  <img alt="152-FZ checks" src="docs/compliance-light.png">
+</picture>
 
-- A service's country is the jurisdiction of the company that runs it: sanctions apply to
-  companies, not data centres. The database has 180+ foreign and Russian services.
-- Each category with a foreign dependency yields one finding: high −20, medium −10, low −4.
-  A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, otherwise F. A Russian server next to a foreign one in the
-  same category lowers the risk one step.
-- The mail verdict follows what receivers enforce: DMARC `p=reject` means a forged From: is
-  rejected, `quarantine` or `pct` < 100 sends it to spam, `p=none` or no DMARC lets it through.
-  SPF is checked for a single record, `+all`/`?all` and the 10-lookup limit across all includes;
-  DKIM keys are looked up under common selectors and a miss is reported as "not verified".
-- Subdomain takeover uses the [can-i-take-over-xyz](https://github.com/EdOverflow/can-i-take-over-xyz)
-  fingerprints (CC BY 4.0). A CNAME to a domain missing from DNS counts as "anyone can buy it"
-  only if the registry (RDAP, WHOIS for .ru) confirms it is free: registered but undelegated
-  domains are common. Every hit says "possible takeover, verify manually".
-- Web security asks for SRI only on public library CDNs (analytics scripts change constantly and
-  can't have it), flags CSP `'unsafe-inline'` only without a nonce or hash, and skips header checks
-  when a bot wall answered or the site redirected to another domain. TLS is probed on the host you
-  asked for, not on a redirect target (yandex.ru → sso.passport.yandex.ru).
-- `--browser` renders the home page with Playwright in the installed Edge or Chrome and counts
-  every network request, so tag-manager-injected scripts are found too. Anti-bot stubs and empty
-  JavaScript shells are detected and reported as "not verified" rather than as failures.
-- Sanctions matching by INN/OGRN is exact. Name matching is transliteration-aware
-  ("СБЕРБАНК РОССИИ" = "Sberbank of Russia"). Matches on a person's name are flagged as possible,
-  because namesakes exist.
-- DNS goes through the system resolver. If it looks filtered, Yandex DNS over TLS is used, and
-  only if that fails too, Google and Cloudflare DNS-over-HTTPS (the report says so). `--dns ru`
-  never sends the checked names abroad.
-- All sources are public and free: Team Cymru IP-to-ASN, RDAP/WHOIS, egrul.nalog.ru,
-  pd.rkn.gov.ru, the Roskomnadzor register dump from antifilter.download, and the official OFAC,
-  EU and UK lists. Lists are cached for a day.
+## Commands
+
+| Command | What it does |
+|---|---|
+| `suveren scan site.ru` | full website audit |
+| `suveren batch sites.txt` | audit a list of sites: summary table, CSV and a report per site |
+| `suveren company <INN, OGRN or site>` | state register, sanctions lists, register of personal-data operators |
+| `suveren diff old.json new.json` | what changed between two audits |
+| `suveren checks [ID or tag]` | all checks with their IDs and tags |
+| `suveren services [filter]` | the database of recognised services |
+| `suveren update` | download fresh sanctions lists and the block list |
+| `suveren doctor` | check that every data source answers |
+| `suveren audit reports/` | do reports contradict themselves |
+| `suveren unknown` | external domains missing from the service database |
+| `suveren menu` | the menu (same as double-clicking the exe) |
+
+Main `scan` options:
+
+| Option | What it does |
+|---|---|
+| `--browser`, `-b` | open the site in a browser (Edge or Chrome) to see scripts loaded at runtime |
+| `--profile quick\|standard\|deep` | `quick` — foreign services only; `standard` — all checks (default); `deep` — in a browser, up to 12 pages, with the `--cutoff` experiment |
+| `--checks mail,SUV-LAW-001` | only the checks you need: by ID, prefix or tag |
+| `--pages N` | how many inner pages to check besides the home page (default 6) |
+| `--cutoff` | experiment: open the site with foreign services cut off and show what breaks |
+| `--form-leaks` | experiment: do form fields reach third parties before submission (your own sites or with the owner's consent only) |
+| `--pdf file.pdf` | also save the report as PDF |
+| `--brand-name`, `--brand-logo`, `--brand-url` | the report under your agency's brand |
+| `--json file.json`, `--sarif file.sarif` | results for `diff`, CI and security scanners |
+| `--since previous.json` | what changed since the previous audit |
+| `--fail-under C`, `--fail-on fail` | non-zero exit code for CI |
+| `--dns ru` | DNS queries through Yandex DNS only: domain names stay in Russia |
+| `--no-mail`, `--no-security`, `--no-subdomains`, `--no-152fz`, `--no-blocklist` | skip a section |
+
+The full list is in `suveren scan --help`; every check is described in the
+[guide](docs/guide.md) (in Russian).
+
+## Company check
+
+```bash
+suveren company 7707083893      # by INN (tax number)
+suveren company 1027700132195   # by OGRN (registration number)
+suveren company example.ru      # the INN is found on the site
+```
+
+State register data (status, registration date, head), the company and its head screened
+against US, EU and UK sanctions lists, the register of personal-data operators and a cross-check
+with the website. Matches by INN and OGRN are exact; matches by name are possible matches to be
+checked by hand.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/company-dark.png">
+  <img alt="Company check" src="docs/company-light.png">
+</picture>
+
+## Many sites at once
+
+For web agencies: a file with one site per line.
+
+```bash
+suveren batch sites.txt --browser
+```
+
+`reports/batch-…` gets a summary table `index.html`, `summary.csv` for Excel and a report per
+site.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/batch-dark.png">
+  <img alt="Summary of a list of sites" src="docs/batch-light.png">
+</picture>
+
+## In CI
+
+```bash
+suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
+```
+
+SARIF is read by GitHub and GitLab code scanning and DefectDojo. Exit codes, the JSON format and
+plugins with your own checks are described in the [guide](docs/guide.md#ci-и-другие-инструменты)
+and [docs/plugins.md](docs/plugins.md).
+
+## Data sources
+
+All sources are open and free, no API keys: DNS, Team Cymru (IP networks), RDAP and WHOIS, EGRUL
+(Federal Tax Service), Roskomnadzor's registers of personal-data operators and of blocked
+resources, Certificate Transparency logs (crt.sh, Cert Spotter), OFAC, EU and UK sanctions lists.
+`suveren doctor` checks that they all answer; on GitHub this runs daily.
 
 ## Limitations
 
-The home page and up to 6 inner pages (`--pages`, contacts and order pages first) are analysed; some sites block
-even the browser mode; a site behind a CDN hides its real hosting; name-based sanctions matches
-need human review. The scan is passive. The report is a triage aid, **not legal advice**.
+- The report helps set priorities and **is not legal advice**. Every 152-FZ check names its
+  article of law with a link to the text, so the conclusion can be verified.
+- The home page and up to 6 inner pages are checked (`--pages`). Services present only on other
+  pages may be missed.
+- If a site blocks robots even in a browser, checks based on page code are "not checked" rather
+  than a false "OK".
+- If the site is behind a CDN, the real hosting is hidden, and Suveren says so.
 
 ## Contributing
 
-Services live in a data file, [`src/suveren/data/services.json`](src/suveren/data/services.json):
-add an entry (no Python needed), add a test to `tests/test_services.py`, and open a pull request. Tests run offline.
+Adding a service needs no programming: the database is a data file,
+[`services.json`](src/suveren/data/services.json) — see the
+[guide](docs/guide.md#как-добавить-сервис-в-базу). Or open an "Add a service" issue. Report
+vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
+```bash
+pip install -e ".[dev,browser]"
+pytest
+ruff check . && ruff format --check .
+```
+
+Tests never touch the network: registry responses and sample lists live in `tests/fixtures`.
 
 ## License
 
-Copyright © 2026 marsilid. From version 1.1, [GNU AGPL-3.0](LICENSE) or later: the code is
-open, and any modified version, including one run as a service, must be open too. A
-commercial licence is available for closed products and SaaS; see [COPYRIGHT](COPYRIGHT).
-Versions up to 1.0.x were published under MIT and remain so.
+Copyright © 2026 marsilid. From version 1.1 — [GNU AGPL-3.0](LICENSE) or later: the code is
+open, and any modified version, including one run as a service, must be open too. A commercial
+licence is available for closed products and SaaS — see [COPYRIGHT](COPYRIGHT). Versions up to
+1.0.x were published under MIT and remain under it.
+
+Related project: [ReconLens](https://github.com/marsilid/reconlens) — passive OSINT
+reconnaissance of a domain with a security grade.
