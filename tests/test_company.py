@@ -190,25 +190,23 @@ def test_a_sanctioned_sole_trader_is_found():
     and its name was screened with "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ" read as the surname."""
     from suveren.sanctions import SanctionsIndex, screen_company, screen_person
 
-    person = Entry(
-        "eu", "7", "person", ["Mikhail Timofeevich KALASHNIKOV"], ["771670606787"], "RUS"
-    )
+    person = Entry("eu", "7", "person", ["Mikhail Timofeevich VYDUMKIN"], ["770000000082"], "RUS")
     index = SanctionsIndex([person])
     rec = record(
-        name_full="ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ Калашников Михаил Тимофеевич",
+        name_full="ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ Выдумкин Михаил Тимофеевич",
         name_short=None,
-        inn="771670606787",
+        inn="770000000082",
         ogrn="304770000000001",
         head=None,
         individual=True,
     )
-    assert rec.person_name == "Калашников Михаил Тимофеевич"
-    hits = screen_company(index, ["771670606787"], [rec.name_full], persons=True)
+    assert rec.person_name == "Выдумкин Михаил Тимофеевич"
+    hits = screen_company(index, ["770000000082"], [rec.name_full], persons=True)
     assert [(h.entry.ref, h.how) for h in hits] == [("7", "id")]
-    assert screen_company(index, ["771670606787"], [rec.name_full]) == []  # a company: no
+    assert screen_company(index, ["770000000082"], [rec.name_full]) == []  # a company: no
     assert screen_person(index, rec.person_name)
 
-    report = CompanyReport(query="771670606787", inn="771670606787", egrul=rec)
+    report = CompanyReport(query="770000000082", inn="770000000082", egrul=rec)
     report.sanctions_sources = ["us", "eu", "uk"]
     report.company_hits = hits
     assert statuses(report)["Санкционные списки"] is Status.FAIL

@@ -36,7 +36,7 @@ def test_ofac_parser():
     assert sber.kind == "entity"
     assert sber.ids == ["1027700132195", "7707083893"]
     assert "SBERBANK ROSSII" in sber.names
-    assert entries["34796"].names[0] == "Herman Oskarovich GREF"
+    assert entries["34796"].names[0] == "Herman Oskarovich BUBLIKOV"
     assert entries["34796"].kind == "person"
 
 
@@ -53,7 +53,7 @@ def test_uk_parser_skips_preamble_and_reads_cyrillic():
     sber = entries["RUS0256"]
     assert "ПАО Сбербанк" in sber.names
     assert set(sber.ids) == {"7707083893", "1027700132195"}
-    assert entries["RUS1057"].names[0] == "Herman Oskarovich GREF"
+    assert entries["RUS1057"].names[0] == "Herman Oskarovich BUBLIKOV"
 
 
 def test_extract_ids():
@@ -122,12 +122,12 @@ def test_clean_company(index):
 
 
 def test_screen_person(index):
-    hits = screen_person(index, "Греф Герман Оскарович")
+    hits = screen_person(index, "Бубликов Герман Оскарович")
     assert {h.entry.source for h in hits} == {"us", "eu", "uk"}
 
 
 def test_screen_person_rejects_feminine_namesake(index):
-    assert screen_person(index, "Любимов Олег Игоревич") == []
+    assert screen_person(index, "Пряников Олег Игоревич") == []
 
 
 def test_screen_person_uses_the_patronymic():
