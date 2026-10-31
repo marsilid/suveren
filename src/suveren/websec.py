@@ -171,6 +171,10 @@ def frame_protected(policies: list[str]) -> bool:
     return False
 
 
+# Sources that let in almost anything.
+WIDE = ("*", "http:", "https:", "data:")
+
+
 def csp_weaknesses(policy: str) -> list[str]:
     """What makes the policy useless against injected scripts, in plain words."""
     d = parse_csp(policy)
@@ -190,10 +194,13 @@ def csp_weaknesses(policy: str) -> list[str]:
     if "'unsafe-eval'" in scripts:
         problems.append("'unsafe-eval' разрешает выполнять код из строк (eval)")
     if not strict_dynamic:
-        wide = [t for t in scripts if t in ("*", "http:", "https:", "data:")]
+        wide = [t for t in scripts if t in WIDE]
         if wide:
             problems.append(f"{', '.join(wide)} в script-src разрешает скрипты почти откуда угодно")
-    if "object-src" not in d and "'none'" not in d.get("default-src", []):
+    # Without object-src the browser uses default-src (CSP3 fallback list): "default-src
+    # 'self'" already keeps plugins to the site's own files.
+    fallback = d.get("default-src")
+    if "object-src" not in d and (fallback is None or any(t in WIDE for t in fallback)):
         problems.append("нет object-src 'none': плагины (object, embed) не запрещены")
     return problems
 

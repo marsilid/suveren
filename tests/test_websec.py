@@ -119,6 +119,8 @@ def test_find_abandoned_asks_the_registry():
         ("default-src https:; object-src 'none'", "https:"),
         ("img-src 'self'", "нет script-src"),
         ("script-src 'self'", "object-src"),
+        ("default-src *", "object-src"),
+        ("default-src https:; script-src 'self'", "object-src"),
     ],
 )
 def test_csp_weaknesses(policy, problem):
@@ -129,6 +131,9 @@ def test_strong_csp_has_no_weaknesses():
     nonce = "script-src 'nonce-r4nd' 'unsafe-inline' 'strict-dynamic' https:; object-src 'none'"
     assert csp_weaknesses(nonce) == []
     assert csp_weaknesses("default-src 'self'; object-src 'none'") == []
+    # object-src falls back to default-src: plugins only from the site itself.
+    assert csp_weaknesses("default-src 'self'") == []
+    assert csp_weaknesses("default-src 'none'; script-src 'self'") == []
 
 
 def test_csp_check():

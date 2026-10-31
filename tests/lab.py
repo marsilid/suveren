@@ -361,6 +361,15 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-csp-default-self",
+        "CSP default-src 'self' без object-src: object-src берётся из default-src, плагины "
+        "только со своего сайта",
+        {"SUV-WEB-004": "ok"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "content-security-policy": "default-src 'self'"},
+        files=site_files(),
+    ),
+    Case(
         "lab-frame-ancestors-any",
         "CSP frame-ancestors * без X-Frame-Options: встроить сайт может кто угодно",
         {"SUV-WEB-006": "warn"},
