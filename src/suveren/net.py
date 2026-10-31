@@ -71,6 +71,27 @@ async def public_addresses(host: str, port: int, timeout: float | None = None) -
     return [str(ip) for ip in addrs]
 
 
+async def open_public(
+    host: str, port: int, timeout: float, **kwargs: Any
+) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """``asyncio.open_connection`` to a checked address of ``host`` (raw sockets:
+    TLS handshakes, WHOIS, the browser's proxy). TLS passes ``server_hostname``, so
+    the certificate is still checked against the name. Refusals are ``OSError``."""
+    try:
+        addrs = await public_addresses(host, port, timeout)
+    except httpcore.ConnectTimeout as exc:
+        raise TimeoutError(str(exc)) from exc
+    except httpcore.ConnectError as exc:
+        raise ConnectionRefusedError(str(exc)) from exc
+    last: Exception | None = None
+    for ip in addrs:
+        try:
+            return await asyncio.wait_for(asyncio.open_connection(ip, port, **kwargs), timeout)
+        except OSError as exc:
+            last = exc
+    raise last or ConnectionRefusedError(f"{host}: нет адресов")
+
+
 class _PublicOnlyBackend(httpcore.AsyncNetworkBackend):
     """Resolves the name itself and connects only to checked addresses."""
 

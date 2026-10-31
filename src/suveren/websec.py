@@ -8,7 +8,6 @@ domains scripts are loaded from. No paths are probed and nothing is sent to form
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import re
 import ssl
@@ -30,6 +29,7 @@ from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
+from suveren.net import open_public
 from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
@@ -233,9 +233,7 @@ async def _handshake(
 ) -> tuple[str | None, bytes | None]:
     """(protocol version, certificate DER), read before the connection is closed. The
     certificates the server sent go to ``chain`` (DER), when asked."""
-    _, writer = await asyncio.wait_for(
-        asyncio.open_connection(host, 443, ssl=ctx, server_hostname=host), timeout
-    )
+    _, writer = await open_public(host, 443, timeout, ssl=ctx, server_hostname=host)
     try:
         sslobj = writer.get_extra_info("ssl_object")
         if sslobj is None:

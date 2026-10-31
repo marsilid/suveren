@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 
 import httpcore
 
+from suveren.egress import EgressProxy
 from suveren.errors import ModuleError
 from suveren.net import BLOCKED, public_addresses
 
@@ -392,6 +393,7 @@ class BrowserSession:
         self._context: Any = None
         self._error: type[Exception] = Exception
         self._public: dict[str, bool] = {}
+        self._egress = EgressProxy(timeout)
 
     async def __aenter__(self) -> BrowserSession:
         try:
@@ -402,12 +404,19 @@ class BrowserSession:
         self._error = PlaywrightError
         self._pw_cm = async_playwright()
         pw = await self._pw_cm.__aenter__()
+        await self._egress.__aenter__()
         for channel in CHANNELS:
             try:
                 self._browser = await pw.chromium.launch(
                     channel=channel,
                     headless=True,
-                    args=["--disable-blink-features=AutomationControlled"],
+                    # Every connection goes through the checked proxy (egress.py);
+                    # Playwright also sends loopback there. WebRTC's UDP would not.
+                    proxy={"server": self._egress.url},
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                    ],
                 )
                 self.browser_name = channel or "chromium"
                 break
@@ -415,6 +424,7 @@ class BrowserSession:
                 continue
         if self._browser is None:
             await self._pw_cm.__aexit__(None, None, None)
+            await self._egress.__aexit__(None, None, None)
             raise ModuleError("не найден браузер: установите Edge или Chrome, " + INSTALL_HINT)
         self._context = await self._browser.new_context(
             user_agent=USER_AGENT,
@@ -429,8 +439,8 @@ class BrowserSession:
 
     async def _only_public(self, route: Any) -> None:
         """Every request of every page, redirects included: none goes to an internal
-        address (see net.py). The browser resolves the name again on its own, so this
-        stops a site's links and scripts, not a DNS answer changed in between."""
+        address (see net.py). An early, clear refusal; the proxy (egress.py) is what
+        also stops a DNS answer changed in between, and WebSockets."""
         host = urlsplit(route.request.url).hostname or ""
         if host not in self._public:
             try:
@@ -449,6 +459,7 @@ class BrowserSession:
             await self._browser.close()
         with contextlib.suppress(Exception):
             await self._pw_cm.__aexit__(None, None, None)
+        await self._egress.__aexit__(None, None, None)
 
     async def open(
         self, url: str, *, settle_ms: int = SETTLE_MS, initiators: bool = False

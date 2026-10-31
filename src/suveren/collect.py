@@ -23,7 +23,7 @@ from suveren import __version__
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
-from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport
+from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport, open_public
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -451,10 +451,7 @@ class Collector:
         if not verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-        _, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, 443, ssl=context, server_hostname=host),
-            self.timeout,
-        )
+        _, writer = await open_public(host, 443, self.timeout, ssl=context, server_hostname=host)
         try:
             sslobj = writer.get_extra_info("ssl_object")
             if sslobj is None:
@@ -471,7 +468,7 @@ class Collector:
 
 
 async def whois_query(server: str, query: str, timeout: float) -> str:
-    reader, writer = await asyncio.wait_for(asyncio.open_connection(server, 43), timeout)
+    reader, writer = await open_public(server, 43, timeout)
     try:
         writer.write(f"{query}\r\n".encode())
         await writer.drain()
