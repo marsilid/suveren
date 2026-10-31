@@ -21,11 +21,23 @@ SITE = (
 )
 
 
+# Not a recording: the list's page could not be fetched outside Russia. Only its words
+# matter to the search (ИНН, ОГРН, a full name in the text).
+FEDSFM = (
+    "<html><body><h1>Перечень террористов и экстремистов</h1><ol>"
+    "<li>1. ПЕТРОВ ПЕТР ПЕТРОВИЧ*, 01.01.1970 г.р., г. ТВЕРЬ</li></ol></body></html>"
+)
+
+
 @pytest.fixture
-def offline(monkeypatch):
+def offline(monkeypatch, tmp_path):
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path / "cache"))
+
     def handler(request):
         if request.url.host == "romashka.ru":
             return httpx.Response(200, text=SITE, headers={"content-type": "text/html"})
+        if request.url.host == "www.fedsfm.ru":
+            return httpx.Response(200, text=FEDSFM, headers={"content-type": "text/html"})
         raise AssertionError(f"a real request to {request.url}")
 
     def make_client(timeout, *, verify=True):
@@ -75,6 +87,9 @@ def test_company_from_a_domain(offline, tmp_path):
 
     assert where("SUV-CO-001")[0].startswith("ЕГРЮЛ (egrul.nalog.ru), запрос от ")
     assert where("SUV-CO-006")[0].startswith("Реестр операторов ПДн Роскомнадзора")
+    assert checks["SUV-CO-008"]["status"] == "ok"
+    assert where("SUV-CO-008")[0].startswith("Перечень террористов и экстремистов")
+    assert any("пока не проверяет" in n for n in data["notes"])
     assert "США (OFAC SDN), выгрузка от 30.10.2026" in where("SUV-CO-003")
     html = (tmp_path / "c.html").read_text(encoding="utf-8")
     assert "Источник: ЕГРЮЛ (egrul.nalog.ru), запрос от " in html

@@ -22,6 +22,8 @@ from suveren.registries import (
     rkn_operator,
 )
 from suveren.render import render
+from suveren.ruregistries import RuScreening, list_check, not_connected_note
+from suveren.ruregistries import screen as ru_screen
 from suveren.sanctions import (
     SOURCE_TITLES,
     Hit,
@@ -57,6 +59,9 @@ class CompanyReport:
     sources: dict[str, str] = field(default_factory=dict)
     whois_org: str | None = None
     site_problem: str | None = None
+    # Russian lists (ruregistries.py); None when screening was switched off.
+    ru_screening: RuScreening | None = None
+    ru_asked: bool = False
     checks: list[Check] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -374,6 +379,11 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 )
             )
 
+    if report.ru_screening is not None:
+        ru = list_check(report.ru_screening, asked=report.ru_asked)
+        if report.ru_screening.source:
+            ru.evidence.append(source(report.ru_screening.source))
+        checks.append(ru)
     if report.domain:
         checks.append(_site_check(report))
     laws = {"SUV-CO-006": "152-ФЗ, ст. 22", "SUV-CO-007": "ЗоЗПП, ст. 26.1"}
@@ -586,6 +596,16 @@ async def run_company(
                     report.person_hits = screen_person(index, head)
             except ModuleError as exc:
                 report.notes.append(f"Санкционные списки: {exc}.")
+            rec = report.egrul
+            ru_ids = {"ИНН": report.inn or "", "ОГРН": report.ogrn or ""}
+            person = rec.person_name if rec and not rec.head_is_org else None
+            report.ru_asked = bool(report.inn or report.ogrn or person)
+            report.ru_screening = (
+                await ru_screen(client, ru_ids, person, refresh=refresh)
+                if report.ru_asked
+                else RuScreening()
+            )
+            report.notes.append(not_connected_note())
 
     report.checks = build_checks(report, sanctions_ok=sanctions_ok, today=datetime.now(UTC).date())
     report.finished_at = datetime.now(UTC)

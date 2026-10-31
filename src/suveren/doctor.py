@@ -29,13 +29,16 @@ from suveren.collect import (
 from suveren.dnsutil import create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.registries import egrul_search, rkn_operator
+from suveren.ruregistries import FEDSFM_URL
 from suveren.sanctions import SOURCES
 from suveren.subdomains import CRTSH_URL, clean_names, parse_crtsh
 from suveren.vulns import RETIRE_URL
 
 PROBE_INN = "7707083893"  # ПАО Сбербанк: present in every registry and sanctions list
 # Sources that may not answer outside Russia at all.
-RU_ONLY = frozenset({"ЕГРЮЛ (ФНС)", "Реестр операторов ПДн (РКН)"})
+RU_ONLY = frozenset(
+    {"ЕГРЮЛ (ФНС)", "Реестр операторов ПДн (РКН)", "Перечень Росфинмониторинга (fedsfm.ru)"}
+)
 
 
 @dataclass(slots=True)
@@ -163,6 +166,7 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
             *((f"Санкции: {s.title}", sanctions(s.url)) for s in SOURCES),
             *((f"Адреса облака: {c.name}", sanctions(c.url)) for c in CLOUD_SOURCES),
             ("База уязвимостей (retire.js)", sanctions(RETIRE_URL)),
+            ("Перечень Росфинмониторинга (fedsfm.ru)", sanctions(FEDSFM_URL)),
             ("Браузер для --browser", browser),
         ]
         return [await _timed(name, fn, abroad=abroad) for name, fn in probes]
