@@ -141,3 +141,18 @@ def test_plugin_with_dataclass_and_future_annotations_loads(tmp_path):
 def test_plugin_that_exits_on_import_is_a_load_error(tmp_path):
     with pytest.raises(PluginError, match="SystemExit"):
         _plugin(tmp_path, "import sys\nsys.exit(1)\n", "exits")
+
+
+def test_plugin_that_finishes_after_the_scan_leaves_no_traceback(tmp_path, monkeypatch):
+    """Cut by the timeout, the plugin's thread ends after the loop is closed."""
+    import threading
+
+    raised: list[BaseException | None] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: raised.append(args.exc_value))
+    plugin = _plugin(tmp_path, "import time\nasync def run(ctx):\n    time.sleep(0.5)\n", "late")
+    [check] = asyncio.run(run_plugin(plugin, ctx(), timeout=0.1))
+    assert "не уложился" in check.details
+    for thread in threading.enumerate():
+        if thread.name == "plugin late":
+            thread.join(5)
+    assert raised == []

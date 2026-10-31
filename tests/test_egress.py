@@ -151,3 +151,15 @@ def test_browser_error_while_reading_a_page_is_a_module_error():
     session._error, session._context = Gone, Context()
     with pytest.raises(ModuleError, match=r"не прочитал .*Execution context was destroyed\)"):
         asyncio.run(session.open("https://site.test/", settle_ms=0))
+
+
+def test_error_with_empty_text_names_its_type():
+    """A page script can ``throw ""``: the message must not crash the handler."""
+    from suveren.render import first_line
+
+    class PageError(Exception):
+        pass
+
+    assert first_line(PageError("")) == "PageError"
+    assert first_line(PageError("  \n")) == "PageError"
+    assert first_line(PageError("Boom\nat line 3")) == "Boom"

@@ -22,6 +22,7 @@ and the report says what happened.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib
 import importlib.util
 import inspect
@@ -129,13 +130,19 @@ async def _in_thread(plugin: Plugin, ctx: PluginContext, timeout: float) -> Any:
         async with collect.make_client(min(timeout, 30.0)) as client:
             return await plugin.module.run(replace(ctx, client=client))
 
+    def report(result: Any, error: BaseException | None) -> None:
+        # A plugin cut by the timeout may finish after the scan closed its loop:
+        # nobody waits for that answer any more.
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(settle, result, error)
+
     def target() -> None:
         try:
             result = asyncio.run(go())
         except BaseException as exc:  # SystemExit too: it ends this thread, not the scan
-            loop.call_soon_threadsafe(settle, None, exc)
+            report(None, exc)
         else:
-            loop.call_soon_threadsafe(settle, result, None)
+            report(result, None)
 
     threading.Thread(target=target, name=f"plugin {plugin.name}", daemon=True).start()
     return await done

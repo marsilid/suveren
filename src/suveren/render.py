@@ -49,6 +49,13 @@ class Rendered:
     headers: dict[str, str] = field(default_factory=dict)  # the page's response headers
 
 
+def first_line(exc: BaseException) -> str:
+    """The first line of an error's text; its type name when the text is empty
+    (a page script can ``throw ""``)."""
+    text = str(exc).strip()
+    return text.splitlines()[0] if text else type(exc).__name__
+
+
 def initiator_url(initiator: dict[str, Any]) -> str:
     """The script that started a request, from a DevTools initiator: the first frame of
     the call stack (or of a parent stack, for async loads) that has a URL; "" when the
@@ -439,7 +446,7 @@ class BrowserSession:
         except PlaywrightError as exc:
             # The browser is running: close it, or it outlives the scan.
             await self.__aexit__(None, None, None)
-            raise ModuleError(f"браузер не запустился ({str(exc).splitlines()[0]})") from exc
+            raise ModuleError(f"браузер не запустился ({first_line(exc)})") from exc
         return self
 
     async def _only_public(self, route: Any) -> None:
@@ -492,7 +499,7 @@ class BrowserSession:
                     url, wait_until="domcontentloaded", timeout=self.timeout * 1000
                 )
             except self._error as exc:
-                raise ModuleError(f"браузер не открыл {url} ({str(exc).splitlines()[0]})") from exc
+                raise ModuleError(f"браузер не открыл {url} ({first_line(exc)})") from exc
             # Let late scripts (tag managers, chats, cookie banners) load.
             with contextlib.suppress(self._error):
                 await page.wait_for_load_state("networkidle", timeout=settle_ms)
@@ -509,7 +516,7 @@ class BrowserSession:
                 # A page that navigates again right now has no content to give.
                 html = await page.content()
             except self._error as exc:
-                raise ModuleError(f"браузер не прочитал {url} ({str(exc).splitlines()[0]})") from exc
+                raise ModuleError(f"браузер не прочитал {url} ({first_line(exc)})") from exc
             return Rendered(
                 final_url=page.url,
                 status=response.status if response else None,
@@ -536,7 +543,7 @@ class BrowserSession:
         page = await self._context.new_page()
         probe = Probe(url)
         page.on("request", lambda req: probe.requests.append(req.url))
-        page.on("pageerror", lambda exc: probe.errors.append(str(exc).splitlines()[0][:200]))
+        page.on("pageerror", lambda exc: probe.errors.append(first_line(exc)[:200]))
 
         async def route(r: Any) -> None:
             if block is not None and block(r.request.url):
@@ -558,7 +565,7 @@ class BrowserSession:
                     timeout=self.timeout * 1000,
                 )
             except self._error as exc:
-                raise ModuleError(f"браузер не открыл {url} ({str(exc).splitlines()[0]})") from exc
+                raise ModuleError(f"браузер не открыл {url} ({first_line(exc)})") from exc
             if hang:
                 try:
                     await page.wait_for_load_state("domcontentloaded", timeout=HANG_WAIT_MS)
@@ -582,7 +589,7 @@ class BrowserSession:
                 probe.screenshot = await page.screenshot(type="jpeg", quality=55)
             return probe
         except self._error as exc:  # e.g. the page navigated away mid-measurement
-            raise ModuleError(f"браузер не измерил {url} ({str(exc).splitlines()[0]})") from exc
+            raise ModuleError(f"браузер не измерил {url} ({first_line(exc)})") from exc
         finally:
             with contextlib.suppress(Exception):
                 await page.close()
@@ -629,16 +636,14 @@ class BrowserSession:
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
             except self._error as exc:
-                raise ModuleError(f"браузер не открыл {url} ({str(exc).splitlines()[0]})") from exc
+                raise ModuleError(f"браузер не открыл {url} ({first_line(exc)})") from exc
             with contextlib.suppress(self._error):
                 await page.wait_for_load_state("networkidle", timeout=settle_ms)
             probe.final_url = page.url
             try:
                 fields = await page.evaluate(_FIND_FIELDS, MAX_FIELDS)
             except self._error as exc:
-                raise ModuleError(
-                    f"браузер не прочитал {url} ({str(exc).splitlines()[0]})"
-                ) from exc
+                raise ModuleError(f"браузер не прочитал {url} ({first_line(exc)})") from exc
             watching = True
             for f in fields:
                 value = values.get(f["kind"], "")
@@ -728,7 +733,7 @@ async def print_pdf(html_path: Path, pdf_path: Path, *, timeout: float = 30.0) -
                 margin={"top": "12mm", "bottom": "12mm", "left": "10mm", "right": "10mm"},
             )
         except session._error as exc:
-            raise ModuleError(f"не удалось напечатать PDF ({str(exc).splitlines()[0]})") from exc
+            raise ModuleError(f"не удалось напечатать PDF ({first_line(exc)})") from exc
         finally:
             with contextlib.suppress(Exception):
                 await page.close()
