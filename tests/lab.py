@@ -1684,8 +1684,9 @@ CASES: list[Case] = [
     # --- advertising labels (38-ФЗ, ст. 18.1): only the facts, no "violation" -------
     Case(
         "lab-ad-erid",
-        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна",
-        {"SUV-LAW-003": "ok"},
+        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна, но вся ли "
+        "реклама промаркирована, снаружи не проверить — «не ясно», а не «в порядке»",
+        {"SUV-LAW-003": "unknown"},
         html=page(
             FORM_OK + '<a href="https://partner.example/?erid=2SDnjcVm4Kd">Реклама. ООО «Партнёр»'
             "</a>"
