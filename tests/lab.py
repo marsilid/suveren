@@ -1693,6 +1693,36 @@ CASES: list[Case] = [
         ),
         files=site_files(),
     ),
+    # --- Instagram and Facebook links without the Meta note (a warning only) --------
+    Case(
+        "lab-meta-noted",
+        "ссылка на Instagram в подвале и пометка: «Meta признана экстремистской "
+        "организацией и запрещена в РФ»",
+        {"SUV-LAW-004": "ok"},
+        html=page(
+            FORM_OK + '<p><a href="https://www.instagram.com/lab/">Мы в Instagram</a>*</p>'
+            "<p><small>* Instagram принадлежит компании Meta, признанной экстремистской "
+            "организацией и запрещённой на территории РФ.</small></p>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-meta-no-note",
+        "ссылки на Instagram и Facebook без пометки о запрете Meta",
+        {"SUV-LAW-004": "warn"},
+        html=page(
+            FORM_OK + '<p><a href="https://instagram.com/lab">Instagram</a> '
+            '<a href="https://www.facebook.com/lab">Facebook</a></p>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-meta-none",
+        "ссылок на Instagram и Facebook нет: проверки нет",
+        {"SUV-LAW-004": "нет проверки"},
+        html=page(FORM_OK + '<p><a href="https://vk.com/lab">Мы ВКонтакте</a></p>'),
+        files=site_files(),
+    ),
     Case(
         "lab-ad-none",
         "рекламы и маркировки не видно: про 38-ФЗ сказать нечего, проверки нет",
