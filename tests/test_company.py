@@ -260,7 +260,7 @@ def test_every_company_check_names_its_register_and_date():
     ]
     assert report.sources["egrul"] in _sources(by_id["SUV-CO-004"])
     html = render_company_html(report)
-    assert "Источник: США (OFAC SDN), выгрузка от 05.10.2026" in html
+    assert "Источники: США (OFAC SDN), выгрузка от 05.10.2026; ЕС" in html
 
 
 def test_a_register_that_did_not_answer_names_no_source():
