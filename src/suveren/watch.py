@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from suveren.errors import SuverenError
 from suveren.history import Changes, compare
 from suveren.models import Report
@@ -107,3 +109,38 @@ def _log(state: Path, stamp: str, results: list[WatchResult]) -> None:
     if lines:
         with (state / "changes.log").open("a", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
+
+
+# --- Telegram -------------------------------------------------------------------------
+
+TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
+TELEGRAM_LIMIT = 4000  # Telegram takes up to 4096 characters a message
+
+
+def changes_message(results: list[WatchResult], when: datetime | None = None) -> str | None:
+    """The text to send, or None when nothing changed: no change, no message."""
+    blocks = []
+    for r in results:
+        if r.changes is not None and not r.changes.empty:
+            blocks.append(r.host + ":\n" + "\n".join(describe(r.changes)))
+    if not blocks:
+        return None
+    head = f"Suveren: изменения на сайтах ({(when or datetime.now()):%d.%m.%Y %H:%M})"
+    text = head + "\n\n" + "\n\n".join(blocks)
+    if len(text) > TELEGRAM_LIMIT:
+        text = text[: TELEGRAM_LIMIT - 40] + "\n… (полностью — в changes.log)"
+    return text
+
+
+async def send_telegram(client: httpx.AsyncClient, token: str, chat: str, text: str) -> None:
+    """Raises SuverenError with a message that never contains the token: an httpx error
+    names the URL, and the token is part of it."""
+    try:
+        resp = await client.post(
+            TELEGRAM_API.format(token=token),
+            json={"chat_id": chat, "text": text, "disable_web_page_preview": True},
+        )
+    except httpx.HTTPError as exc:
+        raise SuverenError(f"Telegram не ответил ({type(exc).__name__})") from None
+    if resp.status_code != 200:
+        raise SuverenError(f"Telegram не принял сообщение (код {resp.status_code})")

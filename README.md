@@ -160,6 +160,34 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
 Полный список — `suveren scan --help`, подробности по каждой проверке —
 в [руководстве](docs/guide.md).
 
+## Слежение за сайтами
+
+`suveren watch sites.txt` проверяет сайты из списка снова и сравнивает с прошлым разом: какие
+сервисы появились или пропали, какие проверки стали лучше или хуже. Изменения пишутся в
+`reports/watch/changes.log`. Если изменений нет, ничего не приходит.
+
+Чтобы изменения приходили в Telegram, создайте бота у @BotFather и задайте его токен и чат
+(токен не попадает ни в отчёты, ни в журнал):
+
+```bash
+suveren watch sites.txt --once --telegram-token 123456:ABC... --telegram-chat 123456789
+# или через переменные окружения (так токена нет в истории команд):
+setx SUVEREN_TELEGRAM_TOKEN "123456:ABC..."
+setx SUVEREN_TELEGRAM_CHAT "123456789"
+```
+
+Каждый день в 9:00 через Планировщик заданий Windows (один круг за запуск):
+
+```bat
+schtasks /Create /SC DAILY /ST 09:00 /TN "Suveren watch" ^
+  /TR "\"C:\Suveren\Suveren.exe\" watch C:\Suveren\sites.txt --once --state C:\Suveren\watch"
+```
+
+Или вручную: Планировщик заданий → «Создать простую задачу» → «Ежедневно» → «Запустить
+программу»: программа `C:\Suveren\Suveren.exe`, аргументы
+`watch C:\Suveren\sites.txt --once --state C:\Suveren\watch`. В меню (`Suveren.exe` или
+`Suveren.bat`) это пункт 9 «Следить за сайтами».
+
 ## Проверка компании
 
 ```bash

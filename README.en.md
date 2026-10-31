@@ -157,6 +157,31 @@ Main `scan` options:
 The full list is in `suveren scan --help`; every check is described in the
 [guide](docs/guide.md) (in Russian).
 
+## Watching sites
+
+`suveren watch sites.txt` audits the sites again and compares them with the last time: which
+services appeared or went away, which checks got better or worse. Changes go to
+`reports/watch/changes.log`; when nothing changed, nothing is sent.
+
+To get the changes in Telegram, create a bot with @BotFather and give its token and the chat
+(the token never goes into reports or the log):
+
+```bash
+suveren watch sites.txt --once --telegram-token 123456:ABC... --telegram-chat 123456789
+# or as environment variables (then the token is not in your shell history):
+setx SUVEREN_TELEGRAM_TOKEN "123456:ABC..."
+setx SUVEREN_TELEGRAM_CHAT "123456789"
+```
+
+Every day at 9:00 with the Windows Task Scheduler (one round per run):
+
+```bat
+schtasks /Create /SC DAILY /ST 09:00 /TN "Suveren watch" ^
+  /TR "\"C:\Suveren\Suveren.exe\" watch C:\Suveren\sites.txt --once --state C:\Suveren\watch"
+```
+
+In the menu (`Suveren.exe` or `Suveren.bat`) it is item 9.
+
 ## Company check
 
 ```bash
