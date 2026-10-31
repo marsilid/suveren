@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import contextlib
 import time
 from collections.abc import Callable
@@ -100,6 +101,41 @@ class Sent:
     method: str = "GET"
     body: bytes = b""
     websocket: bool = False
+
+
+# What the page may hand over through __suverenKeep. The hook in the page keeps to the
+# same limits, but the page's own scripts can call the binding directly, as often and
+# with as much as they like: Python enforces them, or a hostile page fills the memory.
+KEEP_MAX_CALLS = 600
+KEEP_MAX_BODY = 2_000_000  # bytes of one body, decoded
+KEEP_MAX_TOTAL = 20_000_000  # bytes of all bodies together
+KEEP_MAX_URL = 8192
+
+
+@dataclass(slots=True)
+class KeepBudget:
+    """Takes what the page hands to __suverenKeep, within the limits above."""
+
+    calls: int = 0
+    total: int = 0
+
+    def take(self, method: object, to: object, body: object) -> Sent | None:
+        if not (isinstance(method, str) and isinstance(to, str) and isinstance(body, str)):
+            return None
+        if self.calls >= KEEP_MAX_CALLS or len(to) > KEEP_MAX_URL or len(method) > 16:
+            return None
+        # Checked before decoding: base64 is 4 characters for 3 bytes.
+        if len(body) > (KEEP_MAX_BODY + 2) // 3 * 4:
+            return None
+        try:
+            data = base64.b64decode(body, validate=True)
+        except (ValueError, binascii.Error):
+            return None
+        if self.total + len(data) > KEEP_MAX_TOTAL:
+            return None
+        self.calls += 1
+        self.total += len(data)
+        return Sent(to, method, data, websocket=method == "WS")
 
 
 @dataclass(slots=True)
@@ -641,11 +677,13 @@ class BrowserSession:
 
             ws.on("framesent", on_frame)
 
-        def keep(_source: Any, method: str, to: str, body: str) -> None:
+        budget = KeepBudget()
+
+        def keep(_source: Any, method: Any = None, to: Any = None, body: Any = None) -> None:
             if watching:
-                with contextlib.suppress(ValueError):
-                    data = base64.b64decode(body)
-                    probe.sent.append(Sent(to, method, data, websocket=method == "WS"))
+                sent = budget.take(method, to, body)
+                if sent is not None:
+                    probe.sent.append(sent)
 
         page.on("request", on_request)
         page.on("websocket", on_websocket)

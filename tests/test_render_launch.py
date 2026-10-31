@@ -103,3 +103,38 @@ def test_docker_image_does_not_run_as_root():
     entry = next(i for i, line in enumerate(lines) if line.startswith("ENTRYPOINT"))
     last_user = max(i for i, line in enumerate(lines) if line.startswith("USER "))
     assert users and users[-1] not in ("root", "0") and last_user < entry
+
+
+# --- __suverenKeep: limits on the Python side ---------------------------------------
+
+
+def test_keep_budget_takes_what_the_hook_sends():
+    import base64
+
+    from suveren.render import KeepBudget
+
+    budget = KeepBudget()
+    sent = budget.take("POST", "https://t.example/c", base64.b64encode(b"phone=79").decode())
+    assert sent is not None and sent.body == b"phone=79" and not sent.websocket
+    assert budget.take("WS", "wss://t.example/", "AA==").websocket
+
+
+def test_keep_budget_refuses_junk_and_floods(monkeypatch):
+    import base64
+
+    from suveren import render
+    from suveren.render import KeepBudget
+
+    budget = KeepBudget()
+    assert budget.take(None, "u", "AA==") is None  # the page called it with anything
+    assert budget.take("POST", {"x": 1}, "AA==") is None
+    assert budget.take("POST", "u", "not base64!") is None
+    assert budget.take("POST", "u" * 10000, "AA==") is None
+    huge = base64.b64encode(b"x" * (render.KEEP_MAX_BODY + 3)).decode()
+    assert budget.take("POST", "u", huge) is None
+    monkeypatch.setattr(render, "KEEP_MAX_CALLS", 3)
+    assert all(budget.take("POST", "u", "AA==") for _ in range(3))
+    assert budget.take("POST", "u", "AA==") is None
+    monkeypatch.setattr(render, "KEEP_MAX_CALLS", 100)
+    monkeypatch.setattr(render, "KEEP_MAX_TOTAL", budget.total + 2)
+    assert budget.take("POST", "u", base64.b64encode(b"abc").decode()) is None
