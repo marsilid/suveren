@@ -100,6 +100,15 @@ def load(spec: str) -> Plugin:
     return Plugin(str(getattr(module, "NAME", path.stem or spec)), spec, module)
 
 
+class PluginCrashed(Exception):
+    """A plugin ended with a BaseException that is not an Exception (SystemExit,
+    KeyboardInterrupt, CancelledError): raised as is into the scan's loop, it would stop
+    or cancel the whole scan. ``str()`` is the original's repr."""
+
+    def __init__(self, original: BaseException) -> None:
+        super().__init__(repr(original))
+
+
 def _broken(plugin: Plugin, why: str) -> Check:
     return Check(
         GROUP_PLUGINS,
@@ -139,8 +148,10 @@ async def _in_thread(plugin: Plugin, ctx: PluginContext, timeout: float) -> Any:
     def target() -> None:
         try:
             result = asyncio.run(go())
-        except BaseException as exc:  # SystemExit too: it ends this thread, not the scan
+        except Exception as exc:
             report(None, exc)
+        except BaseException as exc:  # SystemExit, Ctrl+C, cancel: they end this thread only
+            report(None, PluginCrashed(exc))
         else:
             report(result, None)
 
@@ -153,7 +164,9 @@ async def run_plugin(plugin: Plugin, ctx: PluginContext, timeout: float = TIMEOU
         result = await asyncio.wait_for(_in_thread(plugin, ctx, timeout), timeout)
     except TimeoutError:
         return [_broken(plugin, f"плагин не уложился в {timeout:.0f} с")]
-    except (Exception, SystemExit) as exc:  # isolate the plugin: its bug is not the scan's
+    except PluginCrashed as exc:
+        return [_broken(plugin, f"плагин завершился с ошибкой {exc!s:.200}")]
+    except Exception as exc:  # isolate the plugin: its bug is not the scan's
         return [_broken(plugin, f"плагин завершился с ошибкой {exc!r:.200}")]
     if not isinstance(result, list) or not all(isinstance(c, Check) for c in result):
         return [_broken(plugin, "плагин вернул не список проверок Check")]

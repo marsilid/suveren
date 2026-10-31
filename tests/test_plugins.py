@@ -158,6 +158,80 @@ def test_plugin_that_finishes_after_the_scan_leaves_no_traceback(tmp_path, monke
     assert raised == []
 
 
+# --- Real failures: what plugins out in the wild actually do -------------------------
+
+
+@pytest.mark.parametrize(
+    ("raise_", "said"),
+    [
+        # Neither is an Exception: raised into the scan's loop they stopped or cancelled
+        # the whole scan.
+        ("KeyboardInterrupt()", "KeyboardInterrupt"),
+        ("asyncio.CancelledError()", "CancelledError"),
+        ("GeneratorExit()", "GeneratorExit"),
+    ],
+)
+def test_plugin_base_exceptions_do_not_stop_the_scan(tmp_path, raise_, said):
+    body = f"import asyncio\nasync def run(ctx):\n    raise {raise_}\n"
+    plugin = _plugin(tmp_path, body, "base")
+
+    async def scan():
+        checks = await run_plugin(plugin, ctx())
+        return checks, "скан продолжился"
+
+    [check], after = asyncio.run(scan())
+    assert after == "скан продолжился"
+    assert check.status is Status.UNKNOWN and said in check.details
+
+
+def test_plugin_whose_request_fails_costs_only_its_verdict(tmp_path, monkeypatch):
+    import httpx
+
+    from suveren import collect
+
+    def refuse(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    monkeypatch.setattr(
+        collect,
+        "make_client",
+        lambda timeout, **kw: httpx.AsyncClient(transport=httpx.MockTransport(refuse)),
+    )
+    body = (
+        "async def run(ctx):\n"
+        "    await ctx.client.get('https://site.ru/.well-known/security.txt')\n"
+        "    return []\n"
+    )
+    [check] = asyncio.run(run_plugin(_plugin(tmp_path, body, "net"), ctx()))
+    assert check.status is Status.UNKNOWN and "ConnectError" in check.details
+
+
+def test_one_broken_plugin_does_not_take_the_next_one_down(tmp_path):
+    from suveren.plugins import run_plugins
+
+    bad = _plugin(tmp_path, "async def run(ctx):\n    raise KeyboardInterrupt\n", "bad")
+    good = _plugin(
+        tmp_path,
+        "from suveren.checks import Check, Status\n"
+        "async def run(ctx):\n"
+        "    return [Check('Плагины', 'Хорошо', Status.OK, id='ACME-WEB-001')]\n",
+        "good",
+    )
+    checks = asyncio.run(run_plugins([bad, good], ctx()))
+    assert [c.id for c in checks] == ["PLUGIN-ERROR-000", "ACME-WEB-001"]
+
+
+def test_a_bad_id_drops_only_that_check(tmp_path):
+    body = (
+        "from suveren.checks import Check, Status\n"
+        "async def run(ctx):\n"
+        "    return [Check('Плагины', 'Хорошо', Status.OK, id='ACME-WEB-001'),\n"
+        "            Check('Плагины', 'Чужой', Status.OK, id='SUV-WEB-004')]\n"
+    )
+    checks = asyncio.run(run_plugin(_plugin(tmp_path, body, "mixed"), ctx()))
+    assert [c.id for c in checks] == ["ACME-WEB-001", "PLUGIN-ERROR-000"]
+
+
 def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: F811
     # Any failed plugin crashed the report: its PLUGIN-ERROR-000 was looked up in the
     # catalogue of our own sections (advice.unchecked).
