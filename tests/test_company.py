@@ -121,6 +121,27 @@ def test_site_whois_match_and_mismatch():
     assert statuses(report)["Сайт и компания"] is Status.WARN
 
 
+def test_site_with_nothing_to_compare_is_not_checked():
+    """Hidden WHOIS or a silent ЕГРЮЛ used to give "в порядке" (review of 1.1.2)."""
+    hidden = CompanyReport(
+        query="example.ru", domain="example.ru", inn="7707083893", egrul=record()
+    )
+    check = next(
+        c
+        for c in build_checks(hidden, sanctions_ok=True, today=TODAY)
+        if c.title == "Сайт и компания"
+    )
+    assert check.status is Status.UNKNOWN and "WHOIS скрыт" in check.details
+    silent = CompanyReport(query="example.ru", domain="example.ru", inn="7707083893")
+    silent.whois_org = 'LLC "Romashka"'
+    check = next(
+        c
+        for c in build_checks(silent, sanctions_ok=True, today=TODAY)
+        if c.title == "Сайт и компания"
+    )
+    assert check.status is Status.UNKNOWN and "ЕГРЮЛ не ответил" in check.details
+
+
 def test_render_age():
     assert render_age(date(2025, 10, 6), TODAY) == "12 мес."
     assert render_age(date(2005, 1, 1), TODAY) == "21 год"

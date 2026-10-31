@@ -48,6 +48,10 @@ def test_pdf_prints_when_a_browser_is_available(tmp_path):
     try:
         pdf = asyncio.run(print_pdf(html, tmp_path / "r.pdf"))
     except ModuleError as exc:
+        # Only a missing browser skips; with a browser installed a failure is a failure
+        # (a blocked file:// left Windows without a PDF and the test silently skipped).
+        if not str(exc).startswith("не найден браузер") or "песочниц" in str(exc):
+            raise
         pytest.skip(f"no browser: {exc}")
     data = pdf.read_bytes()
     assert data.startswith(b"%PDF") and len(data) > 5000

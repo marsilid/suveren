@@ -184,6 +184,34 @@ def test_unknown_record_and_load(tmp_path, monkeypatch):
     assert unknown.load() == {}
 
 
+def test_unknown_tally_is_capped(tmp_path, monkeypatch):
+    """It names the sites that were checked: kept small, the oldest domains go first."""
+    import json
+
+    from suveren import unknown
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    monkeypatch.setattr(unknown, "MAX_DOMAINS", 3)
+    old = {f"old{i}.io": {"count": 9, "sites": ["x.ru"], "last": "2020-01-01"} for i in range(3)}
+    (tmp_path / "unknown-hosts.json").write_text(json.dumps(old), "utf-8")
+    unknown.record({"new1.io", "new2.io"}, "site.ru")
+    data = unknown.load()
+    assert len(data) == 3 and {"new1.io", "new2.io"} <= set(data)
+
+
+def test_docs_do_not_overpromise():
+    """Phrases the review of 1.1.2 found untrue must not come back."""
+    from pathlib import Path
+
+    root = Path(__file__).parent.parent
+    readme = (root / "README.md").read_text("utf-8")
+    security = (root / "SECURITY.md").read_text("utf-8")
+    assert "имена доменов не уходят за рубеж" not in readme
+    assert "User-Agent честно" not in security
+    assert "содержит только общедоступные списки" not in security
+    assert "antifilter.download" in readme
+
+
 def test_page_patterns_are_fast_on_long_tokens():
     r"""A pattern that starts with an unbounded character class (like [\w.-]*x) is
     quadratic on minified JS and once hung a whole batch: keep every pattern linear."""

@@ -841,6 +841,12 @@ def cert_thresholds(t: TlsInfo) -> tuple[timedelta, timedelta]:
     return min(warn, lifetime / 3), min(fail, lifetime / 6)
 
 
+TLS_SHALLOW = (
+    "Проверка TLS поверхностная: срок, доверие браузеров и отзыв сертификата, версии TLS "
+    "1.0/1.1; шифры, длина ключа и уязвимости сервера не проверяются."
+)
+
+
 def tls_check(w: WebFacts) -> Check | None:
     t = w.tls
     if t is None:
@@ -931,6 +937,12 @@ def tls_check(w: WebFacts) -> Check | None:
         details.append(f"Поддержку {', '.join(unknown)} проверить не удалось.")
     else:
         details.append("TLS 1.0 и 1.1 отключены.")
+    # Half a check is not a clean answer: without the browsers' verdict on the
+    # certificate, or without knowing about TLS 1.0/1.1, "в порядке" would overstate it.
+    if status is Status.OK and (not t.verified or (unknown and not old)):
+        status = Status.UNKNOWN
+        recommendation = "Повторите проверку позже."
+    details.append(TLS_SHALLOW)
     return Check(GROUP_WEB, title, status, " ".join(details), recommendation)
 
 

@@ -9,33 +9,6 @@ from suveren.errors import InvalidTargetError
 
 _LABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
-# Public suffixes with two labels that are common enough to matter. A full
-# Public Suffix List would be more accurate; this keeps the tool dependency-free.
-_TWO_LABEL_SUFFIXES = frozenset(
-    {
-        "co.uk",
-        "org.uk",
-        "com.au",
-        "co.jp",
-        "com.br",
-        "com.tr",
-        "com.cn",
-        "co.il",
-        "com.ua",
-        "com.kz",
-        "org.kz",
-        "com.ru",
-        "net.ru",
-        "org.ru",
-        "pp.ru",
-        "msk.ru",
-        "spb.ru",
-        # Every agency under gov.ru has its own domain and mail (nalog.gov.ru, mvd.gov.ru).
-        "gov.ru",
-        "com.by",
-    }
-)
-
 COUNTRY_NAMES = {
     "RU": "Россия",
     "US": "США",
@@ -138,10 +111,11 @@ def normalize_domain(raw: str) -> str:
 
 
 def registrable_domain(domain: str) -> str:
-    """Best-effort 'example.co.uk' from 'www.shop.example.co.uk'."""
-    labels = domain.split(".")
-    size = 3 if ".".join(labels[-2:]) in _TWO_LABEL_SUFFIXES else 2
-    return ".".join(labels[-size:])
+    """'example.co.uk' from 'www.shop.example.co.uk', by the Public Suffix List with its
+    private section: 'mysite.github.io', not 'github.io' (psl.py)."""
+    from suveren.psl import registrable
+
+    return registrable(domain)
 
 
 def host_matches(host: str, pattern: str) -> bool:
@@ -151,3 +125,24 @@ def host_matches(host: str, pattern: str) -> bool:
         regex = re.escape(pattern).replace(r"\*", "[a-z0-9.-]*")
         return re.fullmatch(regex, host) is not None
     return host == pattern or host.endswith("." + pattern)
+
+
+# C0 controls except tab and newline, DEL, C1 controls, and the bidi embeddings and
+# isolates. A site's text (a quote from its policy, a consent label) with ESC sequences
+# would otherwise reach the terminal: OSC 52 rewrites the clipboard, others the screen;
+# bidi controls make "evil.ru" read as "ur.live".
+# Code points, not a regex range: what is removed is listed exactly.
+_CONTROL = dict.fromkeys(
+    [
+        *range(0x00, 0x09),  # C0 before tab
+        *range(0x0B, 0x20),  # C0 after newline (CR included)
+        *range(0x7F, 0xA0),  # DEL and C1
+        *range(0x202A, 0x202F),  # LRE, RLE, PDF, LRO, RLO
+        *range(0x2066, 0x206A),  # LRI, RLI, FSI, PDI
+    ]
+)
+
+
+def clean_text(text: str) -> str:
+    """Text from a site, safe to show: control characters and bidi controls removed."""
+    return text.translate(_CONTROL)

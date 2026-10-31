@@ -12,7 +12,7 @@ from suveren import __version__
 from suveren.checks import Check
 from suveren.fines import FineEstimate, estimate
 from suveren.history import Changes
-from suveren.utils import country_name
+from suveren.utils import clean_text, country_name
 
 
 class Severity(IntEnum):
@@ -245,6 +245,9 @@ class Dependency:
     severity: Severity | None = None  # set for foreign dependencies only
     note: str = ""
     alternative: str = ""
+
+    def __post_init__(self) -> None:
+        self.evidence = clean_text(self.evidence)  # a script or page address of the site
 
     @property
     def foreign(self) -> bool | None:

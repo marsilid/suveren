@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import contextlib
 import time
 from collections.abc import Callable
@@ -100,6 +101,41 @@ class Sent:
     method: str = "GET"
     body: bytes = b""
     websocket: bool = False
+
+
+# What the page may hand over through __suverenKeep. The hook in the page keeps to the
+# same limits, but the page's own scripts can call the binding directly, as often and
+# with as much as they like: Python enforces them, or a hostile page fills the memory.
+KEEP_MAX_CALLS = 600
+KEEP_MAX_BODY = 2_000_000  # bytes of one body, decoded
+KEEP_MAX_TOTAL = 20_000_000  # bytes of all bodies together
+KEEP_MAX_URL = 8192
+
+
+@dataclass(slots=True)
+class KeepBudget:
+    """Takes what the page hands to __suverenKeep, within the limits above."""
+
+    calls: int = 0
+    total: int = 0
+
+    def take(self, method: object, to: object, body: object) -> Sent | None:
+        if not (isinstance(method, str) and isinstance(to, str) and isinstance(body, str)):
+            return None
+        if self.calls >= KEEP_MAX_CALLS or len(to) > KEEP_MAX_URL or len(method) > 16:
+            return None
+        # Checked before decoding: base64 is 4 characters for 3 bytes.
+        if len(body) > (KEEP_MAX_BODY + 2) // 3 * 4:
+            return None
+        try:
+            data = base64.b64decode(body, validate=True)
+        except (ValueError, binascii.Error):
+            return None
+        if self.total + len(data) > KEEP_MAX_TOTAL:
+            return None
+        self.calls += 1
+        self.total += len(data)
+        return Sent(to, method, data, websocket=method == "WS")
 
 
 @dataclass(slots=True)
@@ -389,10 +425,33 @@ _IMAGE_DIFF = """async ([a, b]) => {
 }"""
 
 
+def launch_options(channel: str | None, proxy_url: str) -> dict[str, Any]:
+    """How the browser is started. ``chromium_sandbox=True``: without it Playwright adds
+    --no-sandbox, and a hostile page that breaks the renderer reaches the operator's
+    account (SECURITY.md promises the ordinary sandbox). As root the sandbox does not
+    start, and the launch fails instead of going on unprotected."""
+    return {
+        "channel": channel,
+        "headless": True,
+        "chromium_sandbox": True,
+        # Every connection goes through the checked proxy (egress.py); Playwright also
+        # sends loopback there. WebRTC's UDP would not.
+        "proxy": {"server": proxy_url},
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        ],
+    }
+
+
+# Schemes whose requests never reach the network.
+LOCAL_SCHEMES = frozenset({"data", "about", "blob"})
+
+
 class BrowserSession:
     """``async with BrowserSession() as b: page = await b.open(url)``."""
 
-    def __init__(self, *, timeout: float = 25.0) -> None:
+    def __init__(self, *, timeout: float = 25.0, allow_files: bool = False) -> None:
         self.timeout = timeout
         self.browser_name = ""
         self._pw_cm: Any = None
@@ -401,6 +460,7 @@ class BrowserSession:
         self._error: type[Exception] = Exception
         self._public: dict[str, bool] = {}
         self._egress = EgressProxy(timeout)
+        self.allow_files = allow_files
 
     async def __aenter__(self) -> BrowserSession:
         try:
@@ -412,27 +472,28 @@ class BrowserSession:
         self._pw_cm = async_playwright()
         pw = await self._pw_cm.__aenter__()
         await self._egress.__aenter__()
+        last = ""
         for channel in CHANNELS:
             try:
-                self._browser = await pw.chromium.launch(
-                    channel=channel,
-                    headless=True,
-                    # Every connection goes through the checked proxy (egress.py);
-                    # Playwright also sends loopback there. WebRTC's UDP would not.
-                    proxy={"server": self._egress.url},
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-                    ],
-                )
+                options = launch_options(channel, self._egress.url)
+                self._browser = await pw.chromium.launch(**options)
                 self.browser_name = channel or "chromium"
                 break
-            except PlaywrightError:
+            except PlaywrightError as exc:
+                last = first_line(exc)
                 continue
         if self._browser is None:
             await self._pw_cm.__aexit__(None, None, None)
             await self._egress.__aexit__(None, None, None)
-            raise ModuleError("не найден браузер: установите Edge или Chrome, " + INSTALL_HINT)
+            why = ""
+            if "sandbox" in last.lower():
+                why = (
+                    f" Браузер не запустил песочницу ({last}): Suveren не открывает сайты "
+                    "в браузере без неё. Не запускайте от имени root."
+                )
+            raise ModuleError(
+                "не найден браузер: установите Edge или Chrome, " + INSTALL_HINT + "." + why
+            )
         try:
             self._context = await self._browser.new_context(
                 user_agent=USER_AGENT,
@@ -452,8 +513,20 @@ class BrowserSession:
     async def _only_public(self, route: Any) -> None:
         """Every request of every page, redirects included: none goes to an internal
         address (see net.py). An early, clear refusal; the proxy (egress.py) is what
-        also stops a DNS answer changed in between, and WebSockets."""
-        host = urlsplit(route.request.url).hostname or ""
+        also stops a DNS answer changed in between, and WebSockets.
+
+        data:, about: and blob: never leave the browser. file: is let through only for
+        printing our own report (``allow_files``): without it --pdf printed nothing on
+        Windows, where the report is file:///C:/... (review of 1.1.2)."""
+        parts = urlsplit(route.request.url)
+        scheme = parts.scheme.lower()
+        if scheme in LOCAL_SCHEMES or (scheme == "file" and self.allow_files):
+            await route.fallback()
+            return
+        if scheme == "file":
+            await route.abort("blockedbyclient")
+            return
+        host = parts.hostname or ""
         if host not in self._public:
             try:
                 await public_addresses(host, 443, self.timeout)
@@ -621,11 +694,13 @@ class BrowserSession:
 
             ws.on("framesent", on_frame)
 
-        def keep(_source: Any, method: str, to: str, body: str) -> None:
+        budget = KeepBudget()
+
+        def keep(_source: Any, method: Any = None, to: Any = None, body: Any = None) -> None:
             if watching:
-                with contextlib.suppress(ValueError):
-                    data = base64.b64decode(body)
-                    probe.sent.append(Sent(to, method, data, websocket=method == "WS"))
+                sent = budget.take(method, to, body)
+                if sent is not None:
+                    probe.sent.append(sent)
 
         page.on("request", on_request)
         page.on("websocket", on_websocket)
@@ -719,7 +794,7 @@ class BrowserSession:
 async def print_pdf(html_path: Path, pdf_path: Path, *, timeout: float = 30.0) -> Path:
     """Print an HTML report to an A4 PDF in the same browser as --browser mode, with the
     "Как переехать" blocks open (a printed page cannot be clicked)."""
-    async with BrowserSession(timeout=timeout) as session:
+    async with BrowserSession(timeout=timeout, allow_files=True) as session:
         page = await session._context.new_page()
         try:
             await page.goto(html_path.resolve().as_uri(), wait_until="load")
