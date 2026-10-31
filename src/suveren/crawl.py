@@ -163,6 +163,27 @@ _PATH_PRIORITY = tuple(
 )
 
 
+def _absolute(origin: str, url: str) -> str | None:
+    """A sitemap address from robots.txt or an index as an absolute http(s) URL, or None.
+    Sites write relative paths ("Sitemap: /sitemap.xml") and broken ones ("http://[::1",
+    lone surrogates): fuzzing found that one such line in robots.txt crashed the scan."""
+    try:
+        url.encode("utf-8")
+        full = urljoin(origin + "/", url)
+        parts = urlsplit(full)
+        parts.hostname  # noqa: B018  (validates the brackets of an IPv6 host)
+    except (ValueError, UnicodeError):
+        return None
+    return full if parts.scheme in ("http", "https") and parts.netloc else None
+
+
+def _host(url: str) -> str:
+    try:
+        return _bare(urlsplit(url).hostname or "")
+    except ValueError:
+        return ""
+
+
 async def sitemap_urls(client: httpx.AsyncClient, base: str) -> list[str]:
     """Page URLs from the site's sitemap: the one robots.txt names, else /sitemap.xml;
     an index is followed one level. Compressed (.gz) sitemaps are skipped."""
@@ -180,15 +201,15 @@ async def sitemap_urls(client: httpx.AsyncClient, base: str) -> list[str]:
     fetched = 0
     site = _bare(parts.hostname or "")
     while queue and fetched < _MAX_SITEMAPS:
-        url = queue.pop(0)
+        url = _absolute(origin, queue.pop(0))
         # robots.txt and a sitemap index are the site's words: they may not send the
         # scanner to another host.
-        if url.lower().endswith(".gz") or _bare(urlsplit(url).hostname or "") != site:
+        if url is None or url.lower().endswith(".gz") or _host(url) != site:
             continue
         fetched += 1
         try:
             resp = await client.get(url)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL):
             continue
         if resp.status_code != 200:
             continue
@@ -209,7 +230,10 @@ def pick_from_sitemap(
     seen = {_normalize(base), *(_normalize(u) for u in skip)}
     scored: list[tuple[int, int, str]] = []
     for url in urls:
-        parts = urlsplit(url)
+        try:
+            parts = urlsplit(url)
+        except ValueError:  # "http://[::1" in a sitemap: not a page
+            continue
         if parts.scheme not in ("http", "https") or _bare(parts.hostname or "") != site:
             continue
         if _SKIP_EXT.search(parts.path) or _SKIP_PATH.search(parts.path):
