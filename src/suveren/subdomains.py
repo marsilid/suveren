@@ -114,15 +114,25 @@ async def ct_subdomains(
         cached = json.loads(path.read_text(encoding="utf-8"))
         return cached["names"], cached["source"]
     errors = []
+    # An empty list is not trusted from one log: overloaded crt.sh answers 200 with
+    # "[]" for big sites. The other log is asked, and an empty answer is not cached.
+    empty: str | None = None
     for source, fetch in (("crt.sh", _crtsh), ("Cert Spotter", _certspotter)):
         try:
             names = clean_names(await fetch(client, domain), domain)
         except (httpx.HTTPError, ValueError, AttributeError, *TIMEOUTS) as exc:
             errors.append(f"{source}: {_why(exc)}")
             continue
+        if not names and empty is None:
+            empty = source
+            continue
+        if not names:
+            source = f"{empty} и {source}"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"names": names, "source": source}), encoding="utf-8")
         return names, source
+    if empty:
+        errors.insert(0, f"{empty}: пустой список")
     # Both logs fail often at night: a list from the last days beats "not checked", and
     # the source says how old it is.
     if path.exists() and is_fresh(path, STALE_TTL):
@@ -148,6 +158,8 @@ class Subdomain:
     name: str
     cnames: list[str] = field(default_factory=list)  # CNAME chain, first hop first
     addresses: list[str] = field(default_factory=list)
+    # DNS gave no trustworthy answer: whether the name exists is unknown.
+    failed: bool = False
 
     @property
     def alive(self) -> bool:
@@ -169,7 +181,7 @@ async def resolve_subdomain(resolver: DnsResolver, name: str) -> Subdomain:
             sub.cnames.append(current)
         sub.addresses = await resolver.resolve(name, "A")
     except DnsLookupError:
-        pass
+        sub.failed = True
     return sub
 
 
@@ -255,7 +267,8 @@ async def is_registered(client: httpx.AsyncClient, domain: str) -> bool | None:
 async def find_candidate(
     resolver: DnsResolver, client: httpx.AsyncClient, sub: Subdomain, own: str
 ) -> Candidate | None:
-    if not sub.cnames:
+    # A failed lookup is not a missing resource: no takeover is claimed on it.
+    if not sub.cnames or sub.failed:
         return None
     target = sub.cnames[-1]
     if not sub.alive:
@@ -321,6 +334,7 @@ class SubdomainScan:
 def evaluate(scan: SubdomainScan) -> list[Check]:
     alive = [s for s in scan.resolved if s.alive]
     external = [s for s in scan.resolved if s.cnames]
+    failed = [s for s in scan.resolved if s.failed]
     more = (
         f" Проверены первые {len(scan.resolved)} по алфавиту, всего их {len(scan.names)}."
         if scan.truncated
@@ -340,7 +354,15 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             GROUP_SUB,
             "Захват поддоменов",
             Status.OK,
-            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов.",
+            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов."
+            + (
+                f" DNS не ответил для {len(failed)}, они не проверены: "
+                + ", ".join(s.name for s in failed[:5])
+                + ("…" if len(failed) > 5 else "")
+                + "."
+                if failed
+                else ""
+            ),
         )
     else:
         certain = any(c.certain for c in scan.candidates)

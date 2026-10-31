@@ -346,3 +346,62 @@ def test_ct_down_uses_a_recent_saved_list(tmp_path, monkeypatch):
     names, source = run(go())
     assert names == ["promo.example.ru"]
     assert "сохранённый список" in source and "3 дн" in source
+
+
+def test_empty_crtsh_answer_asks_certspotter():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.host)
+        if request.url.host == "crt.sh":
+            return httpx.Response(200, json=[])
+        if request.url.params.get("after"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json=[{"id": "1", "dns_names": ["api.example.ru"]}])
+
+    async def go():
+        async with client(handler) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    assert run(go()) == (["api.example.ru"], "Cert Spotter")
+
+
+def test_both_logs_empty_is_a_trusted_empty_list():
+    async def go():
+        async with client(lambda r: httpx.Response(200, json=[])) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    assert run(go()) == ([], "crt.sh и Cert Spotter")
+
+
+def test_empty_crtsh_with_certspotter_down_is_not_checked():
+    def handler(request):
+        if request.url.host == "crt.sh":
+            return httpx.Response(200, json=[])
+        return httpx.Response(429)
+
+    async def go():
+        async with client(handler) as c:
+            return await run_subdomain_checks(FakeResolver(), c, c, "example.ru")
+
+    checks, _ = run(go())
+    assert [c.status for c in checks] == [Status.UNKNOWN]
+    assert "пустой список" in checks[0].details
+
+
+def test_failed_dns_lookup_is_no_takeover():
+    sub = Subdomain("promo.example.ru", ["promo.herokuapp.com"], failed=True)
+
+    async def go():
+        async with client(lambda r: httpx.Response(404)) as c:
+            return await find_candidate(FakeResolver(), c, sub, "example.ru")
+
+    assert run(go()) is None
+
+
+def test_unanswered_subdomains_are_named_as_not_checked():
+    scan = _scan()
+    scan.resolved[1].failed = True
+    takeover = evaluate(scan)[1]
+    assert takeover.status is Status.OK
+    assert "DNS не ответил для 1, они не проверены: s1.example.ru." in takeover.details
