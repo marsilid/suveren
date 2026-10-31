@@ -6,7 +6,7 @@ chcp 65001 >nul <nul
 cd /d "%~dp0"
 title Suveren
 rem Bump the marker name whenever dependencies change, so old installs get updated.
-set "deps_marker=.venv\.deps-2"
+set "deps_marker=.venv\.deps-3"
 
 rem Suveren needs Python 3.11+: an older .venv (made for 1.0 by Python 3.10) fails later
 rem with a pip error nobody can read, so say it here.
@@ -26,7 +26,10 @@ if not exist "%deps_marker%" (
     )
     python -c "import sys; sys.exit(sys.version_info < (3, 11))" || goto :old_python
     if not exist ".venv\Scripts\python.exe" python -m venv .venv || goto :install_failed
-    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -e ".[browser]" || goto :install_failed
+    rem Dependencies at the versions and hashes of the lock: a package swapped on PyPI
+    rem fails the install instead of running on your computer. Then Suveren itself.
+    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --require-hashes -r packaging\requirements-browser.txt || goto :install_failed
+    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --no-deps -e . || goto :install_failed
     type nul > "%deps_marker%"
 )
 

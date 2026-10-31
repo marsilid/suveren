@@ -43,6 +43,14 @@ jobs:
         run: mypy
       - name: Vulnerable dependencies
         run: pip-audit --skip-editable
+      # What Suveren.exe, Docker and Suveren.bat actually install: the locks, not the
+      # versions this runner happened to resolve.
+      - name: Vulnerable dependencies in the locks
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: |
+          pip-audit --disable-pip --require-hashes -r packaging/requirements.txt
+          pip-audit --disable-pip --require-hashes -r packaging/requirements-browser.txt
+          pip-audit --disable-pip --require-hashes -r packaging/requirements-release.txt
       - name: Test
         run: |
           coverage run -m pytest -q

@@ -1,8 +1,23 @@
-# Keeps the pinned action SHAs above up to date: Dependabot opens a PR with the new
-# SHA and version comment, so pinning doesn't mean falling behind on fixes.
+# Keeps pinned versions up to date: Dependabot opens a PR with the new version (and
+# hashes), so pinning doesn't mean falling behind on fixes.
 version: 2
 updates:
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  # The locks with hashes (requirements.txt, requirements-release.txt,
+  # requirements-browser.txt) and the ranges in pyproject.toml.
+  - package-ecosystem: pip
+    directory: /packaging
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+  # The base image of the Dockerfile, pinned by digest.
+  - package-ecosystem: docker
     directory: /
     schedule:
       interval: monthly
