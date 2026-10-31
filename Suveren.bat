@@ -28,8 +28,8 @@ if not exist "%deps_marker%" (
     if not exist ".venv\Scripts\python.exe" python -m venv .venv || goto :install_failed
     rem Dependencies at the versions and hashes of the lock: a package swapped on PyPI
     rem fails the install instead of running on your computer. Then Suveren itself.
-    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --require-hashes -r packaging\requirements-browser.txt || goto :install_failed
-    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --no-deps -e . || goto :install_failed
+    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --log .venv\install.log --require-hashes -r packaging\requirements-browser.txt || goto :install_failed
+    ".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check --log .venv\install.log --no-deps -e . || goto :install_failed
     type nul > "%deps_marker%"
 )
 
@@ -53,6 +53,16 @@ exit /b 1
 
 :install_failed
 echo.
-echo Не получилось установить зависимости. Проверь интернет и попробуй ещё раз.
+echo Не получилось установить зависимости. Последние строки журнала установки:
+echo.
+if exist ".venv\install.log" powershell -NoProfile -Command "Get-Content -Tail 12 '.venv\install.log'"
+echo.
+echo Частые причины:
+echo   - нет интернета или он идёт через прокси: проверь, открывается ли https://pypi.org
+echo   - "THESE PACKAGES DO NOT MATCH THE HASHES": файл скачался не целиком или подменён,
+echo     запусти ещё раз; если повторяется, сообщи на github.com/marsilid/suveren/issues
+echo   - антивирус заблокировал файлы в папке .venv: добавь папку Suveren в исключения
+echo Полный журнал: .venv\install.log. Можно скачать готовый Suveren.exe:
+echo https://github.com/marsilid/suveren/releases
 pause
 exit /b 1

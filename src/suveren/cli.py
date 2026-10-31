@@ -26,7 +26,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from suveren import __version__, unknown
+from suveren import __version__, clirus, unknown
 from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
@@ -93,6 +93,8 @@ for _stream in (sys.stdout, sys.stderr):
         with contextlib.suppress(Exception):
             _stream.reconfigure(encoding="utf-8")
 
+clirus.apply()  # --help titles and Typer's errors in Russian
+
 app = typer.Typer(
     add_completion=True,  # --install-completion for bash, zsh, fish and PowerShell
     no_args_is_help=True,
@@ -122,13 +124,20 @@ BrandName = Annotated[
     typer.Option(
         "--brand-name",
         help="Название студии в шапке отчёта вместо Suveren (или SUVEREN_BRAND_NAME).",
+        rich_help_panel="Отчёты",
     ),
 ]
 BrandLogo = Annotated[
     Path | None,
-    typer.Option("--brand-logo", help="Логотип студии: PNG, JPEG или SVG до 512 КБ."),
+    typer.Option(
+        "--brand-logo",
+        help="Логотип студии: PNG, JPEG или SVG до 512 КБ.",
+        rich_help_panel="Отчёты",
+    ),
 ]
-BrandUrl = Annotated[str | None, typer.Option("--brand-url", help="Сайт студии в подвале.")]
+BrandUrl = Annotated[
+    str | None, typer.Option("--brand-url", help="Сайт студии в подвале.", rich_help_panel="Отчёты")
+]
 AllowIncomplete = Annotated[
     bool,
     typer.Option(
@@ -150,11 +159,16 @@ IgnorePath = Annotated[
         "--ignore",
         help="Файл принятых находок: ID, сайт, срок, автор и причина в строке. По умолчанию "
         ".suveren-ignore в текущей папке, если он есть.",
+        rich_help_panel="Для CI",
     ),
 ]
 PdfPath = Annotated[
     Path | None,
-    typer.Option("--pdf", help="Сохранить отчёт в PDF (нужен playwright, как для --browser)."),
+    typer.Option(
+        "--pdf",
+        help="Сохранить отчёт в PDF (нужен playwright, как для --browser).",
+        rich_help_panel="Отчёты",
+    ),
 ]
 
 
@@ -379,10 +393,14 @@ def scan(
             "-b",
             help="Открыть сайт в браузере (Edge/Chrome): находит скрипты, подгружаемые "
             "динамически, и проходит часть защит от ботов. Нужен пакет playwright.",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     details: Annotated[
-        bool, typer.Option("--details", "-d", help="Показать все найденные сервисы.")
+        bool,
+        typer.Option(
+            "--details", "-d", help="Показать все найденные сервисы.", rich_help_panel="Отчёты"
+        ),
     ] = False,
     quiet: Annotated[
         bool,
@@ -390,6 +408,7 @@ def scan(
             "--quiet",
             "-q",
             help="Ничего не печатать: для CI, вместе с --json, --fail-on и --fail-under.",
+            rich_help_panel="Отчёты",
         ),
     ] = False,
     pages: Annotated[
@@ -400,6 +419,7 @@ def scan(
             min=0,
             max=30,
             help="Сколько внутренних страниц проверить помимо главной (0 — только главную).",
+            rich_help_panel="Что проверять",
         ),
     ] = DEFAULT_PAGES,
     quick: Annotated[
@@ -408,10 +428,11 @@ def scan(
             "--quick",
             help="Только иностранные сервисы, без 152-ФЗ, блокировок, почты, поддоменов и "
             "проверок безопасности (то же, что --profile quick).",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     profile: Annotated[
-        Profile, typer.Option("--profile", "-P", help=PROFILE_HELP)
+        Profile, typer.Option("--profile", "-P", help=PROFILE_HELP, rich_help_panel="Что проверять")
     ] = Profile.standard,
     checks: Annotated[
         str | None,
@@ -420,6 +441,7 @@ def scan(
             "-c",
             help="Только эти проверки: ID (SUV-MAIL-003), префиксы (SUV-WEB), теги (mail, "
             "headers, law) через запятую. Список: suveren checks.",
+            rich_help_panel="Что проверять",
         ),
     ] = None,
     cutoff: Annotated[
@@ -428,6 +450,7 @@ def scan(
             "--cutoff",
             help="Эксперимент: открыть сайт в браузере без иностранных сервисов и показать, "
             "что сломается (ещё 3 загрузки, нужен playwright).",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     form_leaks: Annotated[
@@ -437,6 +460,7 @@ def scan(
             help="Эксперимент: ввести тестовые данные в формы сайта (без отправки) и "
             "проверить, не уходят ли они сторонним сервисам. Только для своих сайтов или "
             "с согласия владельца; нужен playwright.",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     form_phone: Annotated[
@@ -445,6 +469,7 @@ def scan(
             "--form-phone",
             help="Для --form-leaks на своём сайте: ваш мобильный номер вместо тестового, если "
             "маска поля принимает только номера на 9. Номера не должно быть на сайте.",
+            rich_help_panel="Что проверять",
         ),
     ] = None,
     plugin: Annotated[
@@ -453,22 +478,37 @@ def scan(
             "--plugin",
             help="Плагин с проверками: файл .py или модуль (можно несколько раз). Код "
             "плагина выполняется: запускайте только те, которым доверяете.",
+            rich_help_panel="Что проверять",
         ),
     ] = None,
     no_152fz: Annotated[
-        bool, typer.Option("--no-152fz", help="Пропустить проверку по 152-ФЗ.")
+        bool,
+        typer.Option(
+            "--no-152fz", help="Пропустить проверку по 152-ФЗ.", rich_help_panel="Что проверять"
+        ),
     ] = False,
     no_blocklist: Annotated[
-        bool, typer.Option("--no-blocklist", help="Пропустить реестр блокировок РКН.")
+        bool,
+        typer.Option(
+            "--no-blocklist",
+            help="Пропустить реестр блокировок РКН.",
+            rich_help_panel="Что проверять",
+        ),
     ] = False,
     no_mail: Annotated[
-        bool, typer.Option("--no-mail", help="Пропустить проверку защиты почты от подделки.")
+        bool,
+        typer.Option(
+            "--no-mail",
+            help="Пропустить проверку защиты почты от подделки.",
+            rich_help_panel="Что проверять",
+        ),
     ] = False,
     no_security: Annotated[
         bool,
         typer.Option(
             "--no-security",
             help="Пропустить проверку безопасности сайта: сторонние скрипты, CSP, HSTS, TLS.",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     no_subdomains: Annotated[
@@ -476,20 +516,30 @@ def scan(
         typer.Option(
             "--no-subdomains",
             help="Пропустить поддомены из журналов сертификатов (crt.sh) и поиск их захвата.",
+            rich_help_panel="Что проверять",
         ),
     ] = False,
     output: Annotated[
         Path | None,
-        typer.Option("--output", "-o", help="Путь к HTML-отчёту (по умолчанию reports/...)."),
+        typer.Option(
+            "--output",
+            "-o",
+            help="Путь к HTML-отчёту (по умолчанию reports/...).",
+            rich_help_panel="Отчёты",
+        ),
     ] = None,
     json_path: Annotated[
-        Path | None, typer.Option("--json", help="Сохранить результат в JSON (нужно для diff).")
+        Path | None,
+        typer.Option(
+            "--json", help="Сохранить результат в JSON (нужно для diff).", rich_help_panel="Отчёты"
+        ),
     ] = None,
     sarif_path: Annotated[
         Path | None,
         typer.Option(
             "--sarif",
             help="Сохранить результат в SARIF 2.1.0 (GitHub/GitLab code scanning, DefectDojo).",
+            rich_help_panel="Отчёты",
         ),
     ] = None,
     since: Annotated[
@@ -497,19 +547,25 @@ def scan(
         typer.Option(
             "--since",
             help="Прошлый JSON-отчёт этого сайта (из --json): показать, что изменилось.",
+            rich_help_panel="Для CI",
         ),
     ] = None,
     ignore_file: IgnorePath = None,
     no_report: Annotated[
-        bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.")
+        bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.", rich_help_panel="Отчёты")
     ] = False,
     open_report: Annotated[
-        bool, typer.Option("--open/--no-open", help="Открыть отчёт в браузере.")
+        bool,
+        typer.Option(
+            "--open/--no-open", help="Открыть отчёт в браузере.", rich_help_panel="Отчёты"
+        ),
     ] = True,
     fail_under: Annotated[
         str | None,
         typer.Option(
-            "--fail-under", help="Код выхода 3, если общая оценка хуже указанной (для CI)."
+            "--fail-under",
+            help="Код выхода 3, если общая оценка хуже указанной (для CI).",
+            rich_help_panel="Для CI",
         ),
     ] = None,
     fail_on: Annotated[
@@ -518,12 +574,19 @@ def scan(
             "--fail-on",
             help="Код выхода 4, если есть проверки с этим статусом или хуже: fail — "
             "только «проблема», warn — ещё и «внимание» (для CI).",
+            rich_help_panel="Для CI",
         ),
     ] = None,
     allow_incomplete: AllowIncomplete = False,
     timeout: Annotated[
         float,
-        typer.Option("--timeout", "-t", min=1.0, help="Таймаут одного сетевого запроса, секунды."),
+        typer.Option(
+            "--timeout",
+            "-t",
+            min=1.0,
+            help="Таймаут одного сетевого запроса, секунды.",
+            rich_help_panel="Сеть",
+        ),
     ] = 10.0,
     max_time: MaxTime = SCAN_DEADLINE,
     dns_mode: Annotated[
@@ -533,13 +596,22 @@ def scan(
             help="DNS: auto (системный, при сбое Яндекс DNS, затем Google), system, "
             "ru (только Яндекс DNS; журналы сертификатов, RDAP и Team Cymru — как обычно) "
             "или doh (Google/Cloudflare).",
+            rich_help_panel="Сеть",
         ),
     ] = DnsChoice.auto,
     refresh: Annotated[
-        bool, typer.Option("--refresh", help="Обновить скачанные списки, не дожидаясь суток.")
+        bool,
+        typer.Option(
+            "--refresh",
+            help="Обновить скачанные списки, не дожидаясь суток.",
+            rich_help_panel="Сеть",
+        ),
     ] = False,
     export_svg: Annotated[
-        Path | None, typer.Option("--export-svg", help="Сохранить вывод терминала в SVG.")
+        Path | None,
+        typer.Option(
+            "--export-svg", help="Сохранить вывод терминала в SVG.", rich_help_panel="Отчёты"
+        ),
     ] = None,
     pdf: PdfPath = None,
     brand_name: BrandName = None,
@@ -551,6 +623,7 @@ def scan(
             "--summary",
             help="Сохранить сводку на одну страницу для руководителя: оценка, главные риски, "
             "штрафы, что сделать (HTML).",
+            rich_help_panel="Отчёты",
         ),
     ] = None,
 ) -> None:
@@ -1199,7 +1272,8 @@ def company(
         table.add_column("Запись")
         table.add_column("Как найдено", style="dim")
         for h in report.hits:
-            table.add_row(f" {SOURCE_TITLES[h.entry.source]}", h.entry.names[0], h.how_ru)
+            # Text: a name from a list is not Rich markup.
+            table.add_row(f" {SOURCE_TITLES[h.entry.source]}", Text(h.entry.names[0]), h.how_ru)
         console.print(table)
     if report.notes:
         section(console, "Замечания")

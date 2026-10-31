@@ -67,3 +67,9 @@ def test_ci_audits_the_locks():
     ci = (ROOT / ".github/workflows/ci.yml").read_text("utf-8")
     for lock in ("requirements.txt", "requirements-browser.txt", "requirements-release.txt"):
         assert f"--require-hashes -r packaging/{lock}" in ci
+
+
+def test_suveren_bat_explains_a_failed_install():
+    bat = (ROOT / "Suveren.bat").read_text("utf-8")
+    assert bat.count("--log .venv\\install.log") == 2
+    assert "Последние строки журнала установки" in bat and "DO NOT MATCH THE HASHES" in bat
