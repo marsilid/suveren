@@ -156,3 +156,29 @@ def test_plugin_that_finishes_after_the_scan_leaves_no_traceback(tmp_path, monke
         if thread.name == "plugin late":
             thread.join(5)
     assert raised == []
+
+
+def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: F811
+    # Any failed plugin crashed the report: its PLUGIN-ERROR-000 was looked up in the
+    # catalogue of our own sections (advice.unchecked).
+    case = offline("lab-good")
+    crash = tmp_path / "crash.py"
+    crash.write_text("async def run(ctx):\n    raise RuntimeError('упал')\n", encoding="utf-8")
+    out = tmp_path / "r.json"
+    result = run_cli(
+        tmp_path,
+        case.host,
+        "--plugin",
+        str(crash),
+        "--json",
+        str(out),
+        "-o",
+        str(tmp_path / "r.html"),
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out.read_text(encoding="utf-8"))
+    ids = {c["id"]: c for c in data["checks"]}
+    assert ids["PLUGIN-ERROR-000"]["status"] == "unknown"
+    assert "упал" in ids["PLUGIN-ERROR-000"]["details"]
+    # The rest of the scan is all there.
+    assert {"SUV-MAIL-001", "SUV-WEB-007", "SUV-PD-001"} <= ids.keys()

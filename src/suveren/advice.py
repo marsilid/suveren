@@ -196,7 +196,9 @@ def unchecked(report: Report) -> tuple[int, int] | None:
         if c.id.startswith("SUV-ATK-"):
             continue
         weight = 1
-        if c.id.endswith("-000") and c.status is Status.UNKNOWN:
+        # A plugin's "PLUGIN-ERROR-000" is one check of its own, not a section of ours:
+        # looking it up in the catalogue crashed the report of any scan with a failed plugin.
+        if c.id.endswith("-000") and c.status is Status.UNKNOWN and c.id in BY_ID:
             # Only the checks of that module: SUV-PD-012 is a separate experiment.
             prefix, module = c.id[:-3], BY_ID[c.id].module
             weight = (
