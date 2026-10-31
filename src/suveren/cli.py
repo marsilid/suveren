@@ -47,6 +47,7 @@ from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.dnsutil import create_resolver
 from suveren.doctor import run_doctor
+from suveren.docx import write_docx
 from suveren.errors import TIMEOUTS, InvalidTargetError, ModuleError, SuverenError
 from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
@@ -628,6 +629,14 @@ def scan(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    docx_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--docx",
+            help="Сохранить отчёт ещё и в Word (DOCX): оценка, что сделать, штрафы, проверки.",
+            rich_help_panel="Отчёты",
+        ),
+    ] = None,
     summary: Annotated[
         Path | None,
         typer.Option(
@@ -754,6 +763,9 @@ def scan(
         if summary is not None:
             write_summary(report, summary, brand)
             files.append(("сводка", summary))
+        if docx_path is not None:
+            write_docx(report, docx_path)
+            files.append(("docx", docx_path))
         if json_path is not None:
             _emit(json_path, json_text(report))
             files.append(("json", json_path))
