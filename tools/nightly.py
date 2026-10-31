@@ -179,7 +179,12 @@ def main(argv: list[str]) -> int:
     )
     new = load(folder)
     issues = [(site, i) for site, r in new.items() for i in audit(r)]
-    last = next((p for p in reversed(previous) if p != folder), None)
+    # A folder with only the analysis notes is not a run: comparing with it marked
+    # every site "новый в списке".
+    last = next(
+        (p for p in reversed(previous) if p != folder and any(p.glob("*.json"))),
+        None,
+    )
     changed = compare(load(last), new) if last else []
 
     text = [f"# Ночной прогон {folder.name}", "", f"Сайтов проверено: {len(new)}.", ""]
