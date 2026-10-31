@@ -96,3 +96,9 @@ def test_pem_header_alone_is_not_a_private_key():
     leaks = find_leaks(pem, "/app.js")
     assert [x.kind for x in leaks] == ["приватный ключ"]
     assert leaks[0].masked == "-----BEGIN RSA PRIVATE KEY-----"
+
+
+def test_inline_script_ends_at_any_closing_tag():
+    # Browsers end a script at "</script foo>" too; the old pattern read past it.
+    html = '<script>var a = 1;</script foo="bar"><p>text</p><script>var b = 2;</script >'
+    assert inline_scripts(html) == "var a = 1;\nvar b = 2;"

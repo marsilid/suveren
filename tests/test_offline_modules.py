@@ -36,6 +36,11 @@ def test_block_lists_from_the_cache(tmp_path, monkeypatch):
         by_id["SUV-BLK-002"].status is Status.WARN and "192.0.2.10" in by_id["SUV-BLK-002"].details
     )
     assert by_id["SUV-BLK-003"].status is not Status.OK  # facebook.com is in the register
+    # The answer names its real source and date, not the register's own site.
+    day = time.strftime("%d.%m.%Y")
+    for check in checks:
+        assert check.link == "https://antifilter.download/list/"
+        assert check.evidence[-1].value == f"antifilter.download, выгрузка реестра РКН от {day}"
 
     checks, _ = asyncio.run(go("blocked.example", ["203.0.113.5"], None))
     by_id = {c.id: c for c in checks}
@@ -47,6 +52,7 @@ def test_block_lists_from_the_cache(tmp_path, monkeypatch):
     checks, _ = asyncio.run(go("site.example", None, None))
     blk2 = {c.id: c for c in checks}["SUV-BLK-002"]
     assert blk2.status is Status.UNKNOWN and "DNS не ответил" in blk2.details
+    assert blk2.link is None and not blk2.evidence  # the list was not consulted
     checks, _ = asyncio.run(go("site.example", [], None))  # no addresses at all
     assert "SUV-BLK-002" not in {c.id for c in checks}
 

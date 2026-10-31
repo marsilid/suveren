@@ -1,0 +1,8 @@
+# Build tools of the release on top of Suveren itself (see release.yml). After a
+# dependency change in pyproject.toml, run in this folder:
+#   uv pip compile ../pyproject.toml --universal --python-version 3.11 --generate-hashes --no-annotate -o requirements.txt
+#   uv pip compile ../pyproject.toml release.in --extra browser --universal --python-version 3.11 --generate-hashes --no-annotate -o requirements-release.txt
+pyinstaller
+build
+hatchling
+cyclonedx-bom

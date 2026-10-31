@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import ipaddress
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -85,6 +86,13 @@ async def ensure_lists(
     return sizes, notes
 
 
+def source_note(path: Path) -> str:
+    """Where the answer comes from: not the register itself (it has no open download)
+    but antifilter's copy of it, as of the day the copy was taken."""
+    day = datetime.fromtimestamp(path.stat().st_mtime).strftime("%d.%m.%Y")
+    return f"antifilter.download, выгрузка реестра РКН от {day}"
+
+
 def _outdated(old: int | None) -> str:
     if not old:
         return ""
@@ -136,7 +144,6 @@ def third_party_check(hits: dict[str, str], checked: int, old: int | None = None
         "без VPN эти скрипты, виджеты и картинки уже сейчас не загружаются, а страница может "
         "ждать их и открываться медленнее.",
         "Уберите эти подключения или замените сервисы на доступные в России.",
-        link="https://blocklist.rkn.gov.ru/",
         evidence=[
             Evidence("registry", f"{host}: запись в выгрузке реестра", entry)
             for host, entry in sorted(hits.items())[:10]
@@ -165,6 +172,7 @@ async def run_blocklist(
     clean = Status.UNKNOWN if old else Status.OK
 
     checks: list[Check] = []
+    no_ips: Check | None = None  # the IP check that had nothing to look up
     others = sorted(set(third_party or ()))
     # One pass over the register for the site and every third-party host.
     found = blocked_hosts(_lines(domains_path), [host, *others])
@@ -179,7 +187,6 @@ async def run_blocklist(
                 "сайт не откроют.",
                 "Выясните причину блокировки на blocklist.rkn.gov.ru и обратитесь в "
                 "Роскомнадзор, если блокировка ошибочна.",
-                link="https://blocklist.rkn.gov.ru/",
                 evidence=[Evidence("registry", "Запись в выгрузке реестра", e) for e in blocked],
             )
         )
@@ -222,7 +229,7 @@ async def run_blocklist(
         )
     elif ips is None:
         checks.append(
-            Check(
+            no_ips := Check(
                 GROUP_BLOCK,
                 "IP-адреса сайта",
                 Status.UNKNOWN,
@@ -233,4 +240,9 @@ async def run_blocklist(
     if third_party is not None:
         hits3 = {h: found[h] for h in others if h in found}
         checks.append(third_party_check(hits3, len(others), old))
+    source = source_note(domains_path)
+    for check in checks:
+        if check is not no_ips:
+            check.link = SOURCE
+            check.evidence.append(Evidence("registry", "Источник", source))
     return checks, notes

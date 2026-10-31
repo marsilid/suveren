@@ -12,6 +12,14 @@ from suveren import render
 from suveren.checks import Status
 from suveren.errors import ModuleError
 from suveren.formleaks import PACKED, PLAIN, Canaries, find_leaks, run_form_leaks
+from suveren.net import ALLOW_PRIVATE_ENV
+
+
+@pytest.fixture(autouse=True)
+def _local_sites(monkeypatch):
+    # The test sites run on 127.0.0.1, which the browser refuses by default.
+    monkeypatch.setenv(ALLOW_PRIVATE_ENV, "1")
+
 
 pytest.importorskip("playwright")
 

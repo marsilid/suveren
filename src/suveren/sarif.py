@@ -104,7 +104,11 @@ def to_sarif(report: Report) -> dict[str, Any]:
                     }
                 },
                 "results": results,
-                "properties": {"target": report.target, "grade": report.grade},
+                "properties": {
+                    "target": report.target,
+                    "grade": report.grade,
+                    **({"plugins": report.plugins} if report.plugins else {}),
+                },
             }
         ],
     }

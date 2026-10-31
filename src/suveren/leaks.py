@@ -73,7 +73,8 @@ SIGNATURES = (
 AWS_ID = "ключ доступа AWS"
 _AWS_SECRET = re.compile(r"(?<![A-Za-z0-9/+])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])")
 _PLACEHOLDER = re.compile(r"x{5,}|X{5,}|example|your|dummy|placeholder|sample|0{10,}", re.I)
-_INLINE = re.compile(r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\s*>", re.I | re.S)
+# Browsers also end a script at "</script foo>": the closing tag runs to ">".
+_INLINE = re.compile(r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\b[^>]*>", re.I | re.S)
 
 
 @dataclass(frozen=True, slots=True)

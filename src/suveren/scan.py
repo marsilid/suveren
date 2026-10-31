@@ -196,6 +196,7 @@ async def run_scan(
             )
 
     if plugins:
+        report.plugins = [{"name": p.name, "source": p.source} for p in plugins]
         async with _stage(progress, "Плагины"), make_client(timeout) as client:
             ctx = PluginContext(
                 host,

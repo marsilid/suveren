@@ -17,8 +17,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
+
+import httpcore
 
 from suveren.errors import ModuleError
+from suveren.net import BLOCKED, public_addresses
 
 INSTALL_HINT = (
     "для режима --browser установите Playwright: pip install playwright "
@@ -387,6 +391,7 @@ class BrowserSession:
         self._browser: Any = None
         self._context: Any = None
         self._error: type[Exception] = Exception
+        self._public: dict[str, bool] = {}
 
     async def __aenter__(self) -> BrowserSession:
         try:
@@ -416,8 +421,28 @@ class BrowserSession:
             locale="ru-RU",
             viewport={"width": 1366, "height": 900},
             ignore_https_errors=True,
+            # A site cannot drop a file on the operator's disk.
+            accept_downloads=False,
         )
+        await self._context.route("**/*", self._only_public)
         return self
+
+    async def _only_public(self, route: Any) -> None:
+        """Every request of every page, redirects included: none goes to an internal
+        address (see net.py). The browser resolves the name again on its own, so this
+        stops a site's links and scripts, not a DNS answer changed in between."""
+        host = urlsplit(route.request.url).hostname or ""
+        if host not in self._public:
+            try:
+                await public_addresses(host, 443, self.timeout)
+                self._public[host] = True
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                # A name that does not resolve fails in the browser anyway.
+                self._public[host] = BLOCKED not in str(exc)
+        if self._public[host]:
+            await route.fallback()
+        else:
+            await route.abort("blockedbyclient")
 
     async def __aexit__(self, *exc: object) -> None:
         with contextlib.suppress(Exception):
@@ -500,7 +525,7 @@ class BrowserSession:
                 with contextlib.suppress(Exception):  # the page may be closed by now
                     await r.abort("timedout" if hang else "connectionrefused")
             else:
-                await r.continue_()
+                await r.fallback()  # on to the context's address check
 
         try:
             await page.route("**/*", route)

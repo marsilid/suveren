@@ -38,8 +38,13 @@ jobs:
           v = tomllib.load(open('pyproject.toml', 'rb'))['project']['version'];
           tag = '${{ github.ref_name }}';
           sys.exit(0 if tag == 'v' + v else f'tag {tag} does not match version {v}')"
+      # Every package of the build at the version and hash in the lock: a package
+      # swapped on PyPI fails the install instead of landing in Suveren.exe.
       - name: Install
-        run: pip install ".[browser]" pyinstaller build cyclonedx-bom
+        run: |
+          pip install --require-hashes -r packaging/requirements-release.txt
+          pip install --no-deps --no-build-isolation .
+          python -m playwright --version
       - name: Build
         run: >-
           pyinstaller --noconfirm --onefile --name Suveren
@@ -52,11 +57,12 @@ jobs:
       - name: README links for PyPI
         run: python tools/pypi_readme.py README.md --ref ${{ github.ref_name }}
       - name: Wheel and sdist
-        run: python -m build --outdir dist
+        run: python -m build --no-isolation --outdir dist
       - name: SBOM of a clean install
         run: |
           python -m venv sbomenv
-          sbomenv\Scripts\python.exe -m pip install --quiet .
+          sbomenv\Scripts\python.exe -m pip install --quiet --require-hashes -r packaging/requirements.txt
+          sbomenv\Scripts\python.exe -m pip install --quiet --no-deps (Get-Item dist\*.whl).FullName
           cyclonedx-py environment --of JSON -o dist/suveren-sbom.cdx.json sbomenv\Scripts\python.exe
       - name: Checksums
         run: >-

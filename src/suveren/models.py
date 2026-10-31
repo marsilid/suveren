@@ -298,8 +298,8 @@ UNSEEN_CAP = 89
 # with new fields, the major one when a field is removed or renamed.
 # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
 # 1.4: "evidence" of each check; 1.5: facts.page_unseen; 1.6: history uneven runs;
-# 1.7: facts.dns_unanswered.
-SCHEMA_VERSION = "1.7"
+# 1.7: facts.dns_unanswered; 1.8: "plugins".
+SCHEMA_VERSION = "1.8"
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
@@ -325,6 +325,8 @@ class Report:
     media: dict[str, bytes] = field(default_factory=dict)
     # What changed since an earlier report of the site (scan --since).
     history: Changes | None = None
+    # Third-party plugins that ran (name, source): their checks are not Suveren's.
+    plugins: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def check_groups(self) -> list[tuple[str, list[Check]]]:
@@ -413,4 +415,5 @@ class Report:
             "facts": self.facts,
             "notes": self.notes,
             **({"history": self.history.to_dict()} if self.history else {}),
+            **({"plugins": self.plugins} if self.plugins else {}),
         }

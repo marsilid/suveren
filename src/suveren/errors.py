@@ -48,6 +48,8 @@ def describe(exc: BaseException) -> str:
         return "не удалось установить защищённое соединение"
     if isinstance(exc, socket.gaierror) or "getaddrinfo" in text or "name or service" in text:
         return "имя сервера не найдено в DNS"
+    if isinstance(exc, httpx.ConnectError) and "внутренний адрес" in text:
+        return str(exc)  # net.public_addresses refused it
     if isinstance(exc, (httpx.ConnectError, ConnectionRefusedError)):
         return "нет связи с сервером"
     if isinstance(exc, (httpx.RemoteProtocolError, httpx.ReadError, ConnectionError)):
