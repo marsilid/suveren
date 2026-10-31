@@ -389,6 +389,25 @@ _IMAGE_DIFF = """async ([a, b]) => {
 }"""
 
 
+def launch_options(channel: str | None, proxy_url: str) -> dict[str, Any]:
+    """How the browser is started. ``chromium_sandbox=True``: without it Playwright adds
+    --no-sandbox, and a hostile page that breaks the renderer reaches the operator's
+    account (SECURITY.md promises the ordinary sandbox). As root the sandbox does not
+    start, and the launch fails instead of going on unprotected."""
+    return {
+        "channel": channel,
+        "headless": True,
+        "chromium_sandbox": True,
+        # Every connection goes through the checked proxy (egress.py); Playwright also
+        # sends loopback there. WebRTC's UDP would not.
+        "proxy": {"server": proxy_url},
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        ],
+    }
+
+
 class BrowserSession:
     """``async with BrowserSession() as b: page = await b.open(url)``."""
 
@@ -412,27 +431,28 @@ class BrowserSession:
         self._pw_cm = async_playwright()
         pw = await self._pw_cm.__aenter__()
         await self._egress.__aenter__()
+        last = ""
         for channel in CHANNELS:
             try:
-                self._browser = await pw.chromium.launch(
-                    channel=channel,
-                    headless=True,
-                    # Every connection goes through the checked proxy (egress.py);
-                    # Playwright also sends loopback there. WebRTC's UDP would not.
-                    proxy={"server": self._egress.url},
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-                    ],
-                )
+                options = launch_options(channel, self._egress.url)
+                self._browser = await pw.chromium.launch(**options)
                 self.browser_name = channel or "chromium"
                 break
-            except PlaywrightError:
+            except PlaywrightError as exc:
+                last = first_line(exc)
                 continue
         if self._browser is None:
             await self._pw_cm.__aexit__(None, None, None)
             await self._egress.__aexit__(None, None, None)
-            raise ModuleError("не найден браузер: установите Edge или Chrome, " + INSTALL_HINT)
+            why = ""
+            if "sandbox" in last.lower():
+                why = (
+                    f" Браузер не запустил песочницу ({last}): Suveren не открывает сайты "
+                    "в браузере без неё. Не запускайте от имени root."
+                )
+            raise ModuleError(
+                "не найден браузер: установите Edge или Chrome, " + INSTALL_HINT + "." + why
+            )
         try:
             self._context = await self._browser.new_context(
                 user_agent=USER_AGENT,
