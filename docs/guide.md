@@ -319,7 +319,9 @@ suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
 - `--sarif файл` — результат в SARIF 2.1.0, стандартном формате сканеров безопасности: его
   читают GitHub и GitLab code scanning, DefectDojo и другие системы. В файл попадают проблемы
   (`error`), «внимание» (`warning`), «не проверено» и иностранные зависимости низкого риска
-  (`note`); пройденные проверки — нет.
+  (`note`); пройденные проверки — нет. Оценки лежат в `runs[0].properties`: общая
+  (`overallGrade`, `overallScore`, `overallIncomplete` — почему неполная) и независимость от
+  иностранных сервисов (`grade`, `score`).
 - `--json -` или `--sarif -` выводят результат в stdout, а всё остальное — в stderr:
   `suveren scan example.ru --json - --no-report | jq .overall_grade`. Ошибки всегда идут в stderr.
 - `--json файл` — полный результат, в том числе пройденные проверки (нужен для `diff`).

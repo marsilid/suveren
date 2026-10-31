@@ -16,7 +16,7 @@ from typing import Any
 from suveren import __version__
 from suveren.catalog import BY_ID
 from suveren.checks import Check, Status
-from suveren.models import Finding, Report, Severity
+from suveren.models import Finding, Report, Severity, grade_for
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 HOME = "https://github.com/marsilid/suveren"
@@ -49,10 +49,13 @@ def _finding_rule(f: Finding) -> dict[str, Any]:
 
 
 def to_sarif(report: Report) -> dict[str, Any]:
+    from suveren.advice import incomplete, overall_score  # advice reads the report
+
     url = report.facts.get("final_url") or f"https://{report.target}/"
     location = [{"physicalLocation": {"artifactLocation": {"uri": url}}}]
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
+    overall = overall_score(report)
 
     for f in report.sorted_findings():
         rules.setdefault(f.category.rule_id, _finding_rule(f))
@@ -104,9 +107,15 @@ def to_sarif(report: Report) -> dict[str, Any]:
                     }
                 },
                 "results": results,
+                # "grade" and "score" are the independence from foreign services; the
+                # overall grade covers every section, as in the HTML and JSON reports.
                 "properties": {
                     "target": report.target,
                     "grade": report.grade,
+                    "score": report.score,
+                    "overallGrade": grade_for(overall),
+                    "overallScore": overall,
+                    "overallIncomplete": incomplete(report),
                     **({"plugins": report.plugins} if report.plugins else {}),
                 },
             }

@@ -67,6 +67,15 @@ def test_sarif_has_rules_results_and_levels():
         assert r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == (
             "https://example.ru/"
         )
+    # Both grades, as in the JSON report: a pipeline can gate on the overall one.
+    data = report.to_dict()
+    props = run["properties"]
+    assert (props["grade"], props["score"]) == (data["grade"], data["score"])
+    assert (props["overallGrade"], props["overallScore"]) == (
+        data["overall_grade"],
+        data["overall_score"],
+    )
+    assert props["overallIncomplete"] == data["overall_incomplete"]
 
 
 def test_fail_on():
