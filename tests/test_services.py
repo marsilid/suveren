@@ -325,3 +325,27 @@ def test_ngenix_by_its_network_and_regional_service_hosts():
         '<iframe src="https://maps.google.com/maps?q=Moscow&output=embed"></iframe>'
     )
     assert {"HubSpot", "Hotjar", "Criteo", "Jivo", "Google Maps"} <= code_names(html)
+
+
+def test_the_database_has_300_services():
+    import json
+    from pathlib import Path
+
+    raw = json.loads(
+        (Path(__file__).parent.parent / "src/suveren/data/services.json").read_text("utf-8")
+    )
+    assert sum(len(raw[k]) for k in ("infra", "tls", "page")) >= 300
+
+
+@pytest.mark.parametrize(
+    ("html", "name"),
+    [
+        ('<script src="https://cdn.heapanalytics.com/js/heap-1.js">', "Heap"),
+        ('<script src="https://consent.cookiebot.com/uc.js">', "Cookiebot"),
+        ('<script src="https://widget.trustpilot.com/bootstrap/v5/tp.widget.js">', "Trustpilot"),
+        ('<iframe src="https://w.soundcloud.com/player/?url=x">', "SoundCloud"),
+        ('<script src="https://x.klarnacdn.net/kp/lib/v1/api.js">', "Klarna"),
+    ],
+)
+def test_new_services_are_recognised(html, name):
+    assert name in {s.name for s, _ in db.scan_page(html.lower())}

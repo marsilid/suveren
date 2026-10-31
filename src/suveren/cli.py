@@ -47,6 +47,7 @@ from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
 from suveren.dnsutil import create_resolver
 from suveren.doctor import run_doctor
+from suveren.docx import write_docx
 from suveren.errors import TIMEOUTS, InvalidTargetError, ModuleError, SuverenError
 from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
@@ -628,6 +629,14 @@ def scan(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    docx_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--docx",
+            help="Сохранить отчёт ещё и в Word (DOCX): оценка, что сделать, штрафы, проверки.",
+            rich_help_panel="Отчёты",
+        ),
+    ] = None,
     summary: Annotated[
         Path | None,
         typer.Option(
@@ -754,6 +763,9 @@ def scan(
         if summary is not None:
             write_summary(report, summary, brand)
             files.append(("сводка", summary))
+        if docx_path is not None:
+            write_docx(report, docx_path)
+            files.append(("docx", docx_path))
         if json_path is not None:
             _emit(json_path, json_text(report))
             files.append(("json", json_path))
@@ -1193,6 +1205,100 @@ def list_checks(
         f"\nВсего: [bold]{len(specs)}[/]. Теги: {', '.join(all_tags())}.\n"
         "Выбрать: [bold]suveren scan сайт.ru --checks mail,SUV-WEB-004[/]"
     )
+
+
+# --- watch ----------------------------------------------------------------------------
+
+
+@app.command()
+def watch(
+    file: Annotated[Path, typer.Argument(help="Текстовый файл: по одному сайту в строке.")],
+    every: Annotated[
+        str, typer.Option("--every", help="Как часто: 24h, 12h, 2d (не чаще раза в час).")
+    ] = "24h",
+    once: Annotated[
+        bool, typer.Option("--once", help="Один круг и выход (для cron и планировщика).")
+    ] = False,
+    state: Annotated[
+        Path, typer.Option("--state", help="Папка с отчётами и журналом изменений.")
+    ] = Path("reports") / "watch",
+    timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+) -> None:
+    """Следить за сайтами: проверять снова и сообщать, что изменилось с прошлого раза."""
+    import time
+
+    from suveren.watch import describe, parse_interval, watch_round
+
+    try:
+        interval = parse_interval(every)
+        hosts, skipped = read_targets(file)
+    except (OSError, SuverenError) as exc:
+        raise _fail(str(exc)) from exc
+    if not hosts:
+        raise _fail("в файле нет доменов")
+    for skip in skipped:
+        console.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
+    plan = make_plan(Profile.standard)
+
+    async def scan_one(host: str) -> Report:
+        return await run_scan(host, timeout=timeout, **plan.kwargs())  # type: ignore[arg-type]
+
+    while True:
+        console.print(
+            f"[grey50]Круг проверки: {len(hosts)} сайтов, {datetime.now():%d.%m %H:%M}[/]"
+        )
+        for r in asyncio.run(watch_round(hosts, state, scan_one)):
+            if r.error:
+                console.print(f"  [#e5534b]✗[/] {esc(r.host)}: {esc(r.error)}")
+            elif r.changes is None:
+                console.print(f"  [grey50]•[/] {esc(r.host)}: первая проверка, сравнивать не с чем")
+            elif r.changes.empty:
+                console.print(f"  [#7fb069]✓[/] {esc(r.host)}: без изменений")
+            else:
+                console.print(f"  [#e6b450]![/] {esc(r.host)}: изменения")
+                for line in describe(r.changes):
+                    console.print(f"      {esc(line)}")
+        if once:
+            return
+        console.print(f"[grey50]Следующий круг через {interval / 3600:.0f} ч (Ctrl+C — выход).[/]")
+        try:
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            return
+
+
+# --- draft ----------------------------------------------------------------------------
+
+
+@app.command()
+def draft(
+    report_path: Annotated[
+        Path, typer.Argument(help="JSON-отчёт suveren scan (--json), по которому писать.")
+    ],
+    kind: Annotated[
+        str, typer.Option("--kind", "-k", help="policy — политика ПДн, consent — согласие.")
+    ] = "policy",
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Куда сохранить (Markdown).")
+    ] = None,
+) -> None:
+    """Черновик политики или согласия по найденному. Только черновик: проверьте с юристом."""
+    from suveren.drafts import KINDS
+    from suveren.drafts import draft as make_draft
+
+    if kind not in KINDS:
+        raise _fail(f"--kind: {kind} — нужно policy или consent")
+    try:
+        data = load_report(report_path)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+    text = make_draft(data, kind)
+    path = output or report_path.with_name(f"{data.get('target', 'site')}-{kind}-черновик.md")
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise _fail(f"не удалось записать файл: {exc}", code=1) from exc
+    console.print(f"[#e6b450]![/] Черновик сохранён: {esc(path)}. Проверьте его с юристом.")
 
 
 # --- verify ---------------------------------------------------------------------------
