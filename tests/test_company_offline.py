@@ -42,7 +42,7 @@ def offline(monkeypatch):
 
     async def load_index(client, *, refresh=False):
         person = Entry("us", "1", "person", ["IVANOV, Ivan Ivanovich"], [], "RUSSIA-EO14024")
-        return SanctionsIndex([person])
+        return SanctionsIndex([person], copies={"us": "США (OFAC SDN), выгрузка от 30.10.2026"})
 
     for name, fake in {
         "make_client": make_client,
@@ -68,6 +68,16 @@ def test_company_from_a_domain(offline, tmp_path):
     assert checks["SUV-CO-001"]["status"] == "ok"  # active in ЕГРЮЛ
     assert checks["SUV-CO-006"]["status"] == "ok"  # in the operators' register
     assert checks["SUV-CO-006"]["law"] == "152-ФЗ, ст. 22"
+
+    # Every register answer says where and when it came from, in JSON and in HTML.
+    def where(cid):
+        return [e["value"] for e in checks[cid]["evidence"] if e["what"] == "Источник"]
+
+    assert where("SUV-CO-001")[0].startswith("ЕГРЮЛ (egrul.nalog.ru), запрос от ")
+    assert where("SUV-CO-006")[0].startswith("Реестр операторов ПДн Роскомнадзора")
+    assert "США (OFAC SDN), выгрузка от 30.10.2026" in where("SUV-CO-003")
+    html = (tmp_path / "c.html").read_text(encoding="utf-8")
+    assert "Источник: ЕГРЮЛ (egrul.nalog.ru), запрос от " in html
     # The director's name matches a sanctioned person: a lead to check, not a verdict.
     assert checks["SUV-CO-004"]["status"] in ("warn", "fail")
     assert (tmp_path / "c.html").read_text(encoding="utf-8").count("7707083893") >= 1
