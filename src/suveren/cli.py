@@ -31,7 +31,15 @@ from suveren.advice import incomplete, missed_sections, overall_grade, overall_s
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
-from suveren.catalog import BY_ID, CATALOG, SelectionError, all_tags, select
+from suveren.catalog import (
+    BY_ID,
+    CATALOG,
+    RUNNER_RISKS,
+    SITE_ACTIONS,
+    SelectionError,
+    all_tags,
+    select,
+)
 from suveren.catalog import markdown as catalog_markdown
 from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
 from suveren.collect import make_client
@@ -997,6 +1005,11 @@ def services(
     console.print(f"\nВсего: [bold]{len(items)}[/] · иностранных {foreign} · российских {domestic}")
 
 
+# The two labels of a check, short enough for an 80-column table.
+_SITE_SHORT = {"none": "нет", "look": "смотрит", "probe": "прощупывает", "input": "вводит"}
+_RUNNER_SHORT = {"none": "—", "ip": "IP", "js": "IP, JS"}
+
+
 @app.command("checks")
 def list_checks(
     query: Annotated[
@@ -1022,20 +1035,33 @@ def list_checks(
         console.print(f"Раздел:  {s.group}")
         console.print(f"Модуль:  {s.module}")
         console.print(f"Теги:    {', '.join(s.tags)}")
+        site, runner = SITE_ACTIONS[s.site], RUNNER_RISKS[s.runner]
+        console.print(f"С сайтом: {site[0]} — {site[1]}")
+        console.print(f"Для вас:  {runner[0]} — {runner[1]}")
         console.print(f"\n{s.summary}")
         return
     table = Table(box=None, header_style="bold", padding=(0, 2))
     table.add_column("ID", no_wrap=True)
     table.add_column("Проверка")
-    table.add_column("Теги", style="dim")
+    table.add_column("С сайтом", style="dim", no_wrap=True)
+    table.add_column("Для вас", style="dim", no_wrap=True)
     group = None
     for s in specs:
         if s.group != group:
             group = s.group
-            table.add_row("", Text(group, style="bold"), "")
-        table.add_row(s.id, s.title if not s.pattern else s.summary, ", ".join(s.tags))
+            table.add_row("", Text(group, style="bold"), "", "")
+        table.add_row(
+            s.id,
+            s.title if not s.pattern else s.summary,
+            _SITE_SHORT[s.site],
+            _RUNNER_SHORT[s.runner],
+        )
     console.print(table)
     console.print(
+        "\nС сайтом: нет — не обращается к сайту, смотрит — как посетитель, прощупывает — "
+        "запросы, которых посетитель не делает, вводит — печатает тестовые данные в формы.\n"
+        "Для вас: «—» — сайт вас не видит, IP — видит ваш IP, JS — в браузере выполняется "
+        "JavaScript сайта. Подробнее: suveren checks ID.\n"
         f"\nВсего: [bold]{len(specs)}[/]. Теги: {', '.join(all_tags())}.\n"
         "Выбрать: [bold]suveren scan сайт.ru --checks mail,SUV-WEB-004[/]"
     )

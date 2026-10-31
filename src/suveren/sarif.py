@@ -33,6 +33,9 @@ def _check_rule(check: Check) -> dict[str, Any]:
         "shortDescription": {"text": spec.summary if spec else check.title},
         "properties": {"tags": list(spec.tags) if spec else [], "group": check.group},
     }
+    if spec:
+        # What the check does to the site and what it costs the one who runs it.
+        rule["properties"] |= {"siteAction": spec.site, "runnerRisk": spec.runner}
     if check.law_url:
         rule["helpUri"] = check.law_url
     return rule
