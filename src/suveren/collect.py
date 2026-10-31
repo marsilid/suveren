@@ -23,6 +23,7 @@ from suveren import __version__
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
+from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -549,14 +550,15 @@ def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=True,
-        verify=verify,
+        transport=guarded_transport(verify=verify),
         default_encoding=guess_encoding,
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Encoding": ACCEPT_ENCODING,
             "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.5",
         },
-        limits=httpx.Limits(max_connections=20),
+        event_hooks={"response": [bound_body]},
     )
 
 

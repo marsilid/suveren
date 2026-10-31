@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from suveren.errors import ModuleError, describe
+from suveren.net import MAX_BODY_KEY
 
 DEFAULT_TTL = 24 * 3600
 # Sanctions lists change weekly and the block register daily: a "not found" against an
@@ -67,7 +68,10 @@ async def fetch_cached(
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".part")
     try:
-        async with client.stream("GET", url, timeout=httpx.Timeout(30.0, read=120.0)) as resp:
+        # Sanctions lists and the block list are far bigger than a page.
+        big = {MAX_BODY_KEY: 1 << 30}
+        timeout = httpx.Timeout(30.0, read=120.0)
+        async with client.stream("GET", url, timeout=timeout, extensions=big) as resp:
             resp.raise_for_status()
             with tmp.open("wb") as fh:
                 async for chunk in resp.aiter_bytes(1 << 16):

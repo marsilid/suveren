@@ -178,9 +178,12 @@ async def sitemap_urls(client: httpx.AsyncClient, base: str) -> list[str]:
     queue = queue or [f"{origin}/sitemap.xml"]
     pages: list[str] = []
     fetched = 0
+    site = _bare(parts.hostname or "")
     while queue and fetched < _MAX_SITEMAPS:
         url = queue.pop(0)
-        if url.lower().endswith(".gz"):
+        # robots.txt and a sitemap index are the site's words: they may not send the
+        # scanner to another host.
+        if url.lower().endswith(".gz") or _bare(urlsplit(url).hostname or "") != site:
             continue
         fetched += 1
         try:
