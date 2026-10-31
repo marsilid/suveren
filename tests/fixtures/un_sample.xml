@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Written for the tests after the schema of the UN Security Council consolidated list
+     (scsanctions.un.org/resources/xml/en/consolidated.xml); not a copy of the list. -->
+<CONSOLIDATED_LIST dateGenerated="2026-10-30T00:00:00">
+  <INDIVIDUALS>
+    <INDIVIDUAL>
+      <DATAID>9900001</DATAID>
+      <FIRST_NAME>IVAN</FIRST_NAME>
+      <SECOND_NAME>PETROVICH</SECOND_NAME>
+      <THIRD_NAME>SIDOROV</THIRD_NAME>
+      <UN_LIST_TYPE>Test</UN_LIST_TYPE>
+      <INDIVIDUAL_ALIAS><QUALITY>Good</QUALITY><ALIAS_NAME>Ivan Sidorov</ALIAS_NAME></INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_DOCUMENT><TYPE_OF_DOCUMENT>Passport</TYPE_OF_DOCUMENT><NUMBER>1234567890</NUMBER></INDIVIDUAL_DOCUMENT>
+    </INDIVIDUAL>
+  </INDIVIDUALS>
+  <ENTITIES>
+    <ENTITY>
+      <DATAID>9900002</DATAID>
+      <FIRST_NAME>EXAMPLE TRADING LLC</FIRST_NAME>
+      <UN_LIST_TYPE>Test</UN_LIST_TYPE>
+      <ENTITY_ALIAS><QUALITY>a.k.a.</QUALITY><ALIAS_NAME>EXAMPLE TRADE</ALIAS_NAME></ENTITY_ALIAS>
+    </ENTITY>
+  </ENTITIES>
+</CONSOLIDATED_LIST>

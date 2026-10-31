@@ -25,6 +25,7 @@ from suveren.render import render
 from suveren.ruregistries import RuScreening, list_check, not_connected_note
 from suveren.ruregistries import screen as ru_screen
 from suveren.sanctions import (
+    REQUIRED,
     SOURCE_TITLES,
     Hit,
     load_index,
@@ -190,7 +191,7 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     sources = ", ".join(SOURCE_TITLES.get(s, s) for s in report.sanctions_sources)
     # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded:
     # a clean answer from part of the lists is "not checked", with what is missing.
-    missing = ", ".join(t for k, t in SOURCE_TITLES.items() if k not in report.sanctions_sources)
+    missing = ", ".join(SOURCE_TITLES[k] for k in REQUIRED if k not in report.sanctions_sources)
     gap = f" Не загрузились: {missing}." if missing else ""
     # A copy kept because the refresh failed may be weeks old; lists change weekly.
     old = ", ".join(

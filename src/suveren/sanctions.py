@@ -37,6 +37,10 @@ class Source:
     title: str
     url: str
     filename: str
+    # A required list that did not load makes a clean answer "not checked". The extra
+    # ones are added when they load: their files could not be checked against the
+    # parser from the cloud where they were added (2026-10-31).
+    required: bool = True
 
 
 SOURCES = (
@@ -59,7 +63,23 @@ SOURCES = (
         "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv",
         "sanctions-uk.csv",
     ),
+    Source(
+        "un",
+        "ООН (сводный список Совета Безопасности)",
+        "https://scsanctions.un.org/resources/xml/en/consolidated.xml",
+        "sanctions-un.xml",
+        required=False,
+    ),
+    Source(
+        "us-cons",
+        "США (OFAC, списки вне SDN)",
+        "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/"
+        "CONSOLIDATED.XML",
+        "sanctions-us-cons.xml",
+        required=False,
+    ),
 )
+REQUIRED = tuple(s.key for s in SOURCES if s.required)
 SOURCE_TITLES = {s.key: s.title for s in SOURCES}
 
 
@@ -303,7 +323,49 @@ def parse_uk_csv(path: Path) -> Iterator[Entry]:
             )  # fmt: skip
 
 
-PARSERS = {"us": parse_ofac_xml, "eu": parse_eu_csv, "uk": parse_uk_csv}
+def parse_un_xml(path: Path) -> Iterator[Entry]:
+    """The UN Security Council consolidated list: INDIVIDUAL and ENTITY elements with
+    FIRST_NAME…FOURTH_NAME, aliases (ALIAS_NAME) and documents (NUMBER)."""
+    for _, elem in ET.iterparse(path, events=("end",)):
+        tag = _local(elem.tag)
+        if tag not in ("INDIVIDUAL", "ENTITY"):
+            continue
+        get = {_local(c.tag): (c.text or "").strip() for c in elem}
+        parts = [get.get(k, "") for k in ("FIRST_NAME", "SECOND_NAME", "THIRD_NAME", "FOURTH_NAME")]
+        names = [" ".join(p for p in parts if p)]
+        ids: list[str] = []
+        for child in elem:
+            ctag = _local(child.tag)
+            if ctag.endswith("_ALIAS"):
+                alias = next(
+                    ((x.text or "").strip() for x in child if _local(x.tag) == "ALIAS_NAME"), ""
+                )
+                if alias:
+                    names.append(alias)
+            elif ctag.endswith("_DOCUMENT"):
+                for x in child:
+                    if _local(x.tag) == "NUMBER":
+                        ids += extract_ids(x.text or "")
+        kind = "person" if tag == "INDIVIDUAL" else "entity"
+        program = get.get("UN_LIST_TYPE", "")
+        elem.clear()
+        if names[0]:
+            yield Entry("un", get.get("DATAID", ""), kind, _unique(names), ids, program)
+
+
+def parse_ofac_cons_xml(path: Path) -> Iterator[Entry]:
+    """OFAC's lists outside SDN come in the same format as SDN.XML."""
+    for entry in parse_ofac_xml(path):
+        yield Entry("us-cons", entry.ref, entry.kind, entry.names, entry.ids, entry.programs)
+
+
+PARSERS = {
+    "us": parse_ofac_xml,
+    "eu": parse_eu_csv,
+    "uk": parse_uk_csv,
+    "un": parse_un_xml,
+    "us-cons": parse_ofac_cons_xml,
+}
 
 
 class SanctionsIndex:

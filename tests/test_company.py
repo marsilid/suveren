@@ -288,3 +288,16 @@ def test_a_register_that_did_not_answer_names_no_source():
     report = CompanyReport(query="7707083893", inn="7707083893", egrul_error="таймаут")
     checks = build_checks(report, sanctions_ok=None, today=TODAY)
     assert all(not _sources(c) for c in checks)
+
+
+def test_an_extra_list_that_did_not_load_keeps_the_answer_clean():
+    """The UN and OFAC non-SDN lists are extras: without them the answer is not
+    downgraded to "not checked"; the required three are."""
+    report = CompanyReport(query="7707083893", inn="7707083893", egrul=record())
+    report.sanctions_sources = ["eu", "uk", "us"]
+    checks = {c.title: c for c in build_checks(report, sanctions_ok=True, today=date(2026, 10, 31))}
+    assert checks["Санкционные списки"].status is Status.OK
+    assert "Не загрузились" not in checks["Санкционные списки"].details
+    report.sanctions_sources = ["eu", "us"]
+    checks = {c.title: c for c in build_checks(report, sanctions_ok=True, today=date(2026, 10, 31))}
+    assert checks["Санкционные списки"].status is Status.UNKNOWN
