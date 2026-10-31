@@ -194,6 +194,9 @@ class Candidate:
     reason: str
     certain: bool  # the target domain is unregistered: anyone can buy it
     service: str | None = None
+    # "Edge case" in the source: the service has hurdles (such as a domain check),
+    # and takeover works only sometimes. Listed after the plain cases.
+    edge: bool = False
 
 
 def page_text(body: str) -> str:
@@ -297,9 +300,10 @@ async def find_candidate(
         return Candidate(
             sub,
             f"CNAME ведёт на {target} ({sig.service}), но такого ресурса больше нет: его "
-            "можно создать заново в чужом аккаунте",
+            "можно создать заново в чужом аккаунте" + _edge_note(sig),
             certain=False,
             service=sig.service,
+            edge=not sig.vulnerable,
         )
     if not sub.alive or not sig.fingerprints:
         return None
@@ -309,9 +313,19 @@ async def find_candidate(
     return Candidate(
         sub,
         f"CNAME ведёт на {target} ({sig.service}), а сервис отвечает, что такого проекта "
-        "у него нет: подключить этот поддомен может другой клиент сервиса",
+        "у него нет: подключить этот поддомен может другой клиент сервиса" + _edge_note(sig),
         certain=False,
         service=sig.service,
+        edge=not sig.vulnerable,
+    )
+
+
+def _edge_note(sig: Signature) -> str:
+    if sig.vulnerable:
+        return ""
+    return (
+        f". Захват на {sig.service} удаётся не всегда: у сервиса есть ограничения, "
+        "например подтверждение владения доменом («Edge case» в «Can I take over XYZ?»)"
     )
 
 
@@ -415,7 +429,7 @@ async def scan_subdomains(
     resolved = list(await asyncio.gather(*(resolve(n) for n in names[:MAX_SUBDOMAINS])))
     found = await asyncio.gather(*(check(s) for s in resolved))
     candidates = [c for c in found if c is not None]
-    candidates.sort(key=lambda c: (not c.certain, c.sub.name))
+    candidates.sort(key=lambda c: (not c.certain, c.edge, c.sub.name))
     return SubdomainScan(domain, names, source, resolved, candidates)
 
 
@@ -452,7 +466,13 @@ async def run_subdomain_checks(
         "total": len(scan.names),
         "checked": [s.to_dict() for s in scan.resolved],
         "takeover": [
-            {"name": c.sub.name, "reason": c.reason, "certain": c.certain, "service": c.service}
+            {
+                "name": c.sub.name,
+                "reason": c.reason,
+                "certain": c.certain,
+                "service": c.service,
+                "edge": c.edge,
+            }
             for c in scan.candidates
         ],
     }

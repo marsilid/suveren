@@ -211,6 +211,14 @@ def test_github_pages_fingerprint():
     assert found is not None and not found.certain
     assert found.service == "GitHub Pages"
     assert _candidate(sub, page=(200, "<h1>Docs</h1>")) is None
+    # GitHub Pages is an "Edge case" in the source: the report says takeover may fail.
+    assert found.edge and "Edge case" in found.reason
+
+
+def test_vulnerable_service_is_not_an_edge_case():
+    dead = Subdomain("app.example.ru", ["example-app.azurewebsites.net"])
+    found = _candidate(dead)
+    assert found is not None and not found.edge and "Edge case" not in found.reason
 
 
 def test_nxdomain_signature():
