@@ -19,8 +19,10 @@ someone can send mail in the company's name, and what to fix first. Every findin
 its evidence: the DNS record, the response header, the quote from the privacy policy, the
 script URL.
 
-The audit is passive: Suveren looks only at what any visitor can see — public DNS records,
-open registries and the site's pages. No port scanning, no password guessing.
+Suveren mostly looks at what any visitor can see: public DNS records, open registries and the
+site's pages. No port scanning, no password guessing, no hunting for exposed `.git` or `.env`.
+What each check does to the site and what you risk by running it is
+[below](#what-suveren-does-to-the-site).
 
 The tool, its reports and the detailed guide are in Russian, as is the law it checks against.
 
@@ -44,6 +46,24 @@ addresses and IPs replaced, so no real company is shown.</sub>
 About 60 checks in all, each with a permanent ID — see [docs/checks.md](docs/checks.md).
 Findings from different sections are combined into **attack scenarios**: for example "mail can
 be forged" + "the site takes payments" = phishing in the company's name.
+
+## What Suveren does to the site
+
+Every check carries two labels (in [docs/checks.md](docs/checks.md) and `suveren checks ID`):
+what it does to the site and what the person running it risks.
+
+| Run | To the site | For you |
+|---|---|---|
+| `suveren company` by INN or OGRN | no contact: only the state register, the RKN register and sanctions lists | the site does not see you |
+| `scan --profile quick` | only looks: the home page and DNS | the site sees your IP, as on any visit |
+| `scan` (default) | looks at the home page, up to 6 inner pages and the MTA-STS file. It **probes** in two places: it tries the outdated TLS 1.0 and 1.1, and it opens subdomain pages that point to outside services | the site sees your IP; such connections may show up in its security logs |
+| `--browser`, `--cutoff`, `--profile deep` | the same, but a browser opens the pages | **the site's JavaScript runs** in a browser on your computer. The browser cannot reach your local network or save files, but the scripts run as for any visitor |
+| `--form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Only for your own sites or with the owner's consent |
+| `--plugin file.py` | whatever the plugin does | **the plugin's code runs with your rights**: use only plugins you trust |
+
+Mail checks, the block register and certificate logs do not contact the site, but every `scan`
+still opens the home page: the foreign services are read from it. `--dns ru` sends DNS queries
+through Yandex DNS so that domain names stay in Russia.
 
 ## How to run it
 
