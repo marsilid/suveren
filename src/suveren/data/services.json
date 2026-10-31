@@ -907,6 +907,183 @@
    "as_names": [
     "mts pjsc"
    ]
+  },
+  {
+   "name": "Alibaba Cloud",
+   "country": "CN",
+   "asn": [
+    45102
+   ],
+   "as_names": [
+    "alibaba"
+   ]
+  },
+  {
+   "name": "Tencent Cloud",
+   "country": "CN",
+   "asn": [
+    45090,
+    132203
+   ],
+   "as_names": [
+    "tencent"
+   ]
+  },
+  {
+   "name": "Oracle Cloud",
+   "country": "US",
+   "asn": [
+    31898
+   ],
+   "as_names": [
+    "oracle-bmc"
+   ]
+  },
+  {
+   "name": "IBM Cloud (SoftLayer)",
+   "country": "US",
+   "asn": [
+    36351
+   ],
+   "as_names": [
+    "softlayer"
+   ]
+  },
+  {
+   "name": "Scaleway",
+   "country": "FR",
+   "asn": [
+    12876
+   ],
+   "as_names": [
+    "scaleway",
+    "online s.a.s"
+   ]
+  },
+  {
+   "name": "Bunny CDN",
+   "country": "SI",
+   "asn": [
+    200325
+   ],
+   "as_names": [
+    "bunnyway"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "CDN77",
+   "country": "GB",
+   "asn": [
+    60068
+   ],
+   "as_names": [
+    "cdn77",
+    "datacamp"
+   ],
+   "cdn": true
+  },
+  {
+   "name": "Rackspace",
+   "country": "US",
+   "asn": [
+    27357,
+    19994
+   ],
+   "as_names": [
+    "rackspace"
+   ]
+  },
+  {
+   "name": "Newfold Digital (Bluehost, HostGator)",
+   "country": "US",
+   "asn": [
+    46606
+   ],
+   "as_names": [
+    "unifiedlayer"
+   ]
+  },
+  {
+   "name": "Hurricane Electric",
+   "country": "US",
+   "asn": [
+    6939
+   ],
+   "as_names": [
+    "hurricane"
+   ],
+   "ns": [
+    "he.net"
+   ]
+  },
+  {
+   "name": "ClouDNS",
+   "country": "BG",
+   "ns": [
+    "cloudns.net"
+   ]
+  },
+  {
+   "name": "UltraDNS (Vercara)",
+   "country": "US",
+   "ns": [
+    "ultradns.net",
+    "ultradns.com",
+    "ultradns.org",
+    "ultradns.info",
+    "ultradns.biz"
+   ]
+  },
+  {
+   "name": "Oracle Dyn",
+   "country": "US",
+   "ns": [
+    "dynect.net"
+   ]
+  },
+  {
+   "name": "Constellix",
+   "country": "US",
+   "ns": [
+    "constellix.com",
+    "constellix.net"
+   ]
+  },
+  {
+   "name": "FreeDNS (afraid.org)",
+   "country": "US",
+   "ns": [
+    "afraid.org"
+   ]
+  },
+  {
+   "name": "NetAngels",
+   "country": "RU",
+   "ns": [
+    "netangels.ru"
+   ]
+  },
+  {
+   "name": "hoster.by",
+   "country": "BY",
+   "ns": [
+    "hoster.by"
+   ]
+  },
+  {
+   "name": "PS Cloud (ps.kz)",
+   "country": "KZ",
+   "ns": [
+    "ps.kz"
+   ]
+  },
+  {
+   "name": "Majordomo",
+   "country": "RU",
+   "ns": [
+    "majordomo.ru"
+   ]
   }
  ],
  "tls": [
@@ -1928,6 +2105,682 @@
    "category": "ads",
    "page": [
     "sbermarketing\\.ru"
+   ]
+  },
+  {
+   "name": "Heap",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.heapanalytics\\.com"
+   ]
+  },
+  {
+   "name": "FullStory",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "edge\\.fullstory\\.com",
+    "fullstory\\.com/s/fs\\.js"
+   ]
+  },
+  {
+   "name": "Matomo Cloud",
+   "country": "NZ",
+   "category": "analytics",
+   "page": [
+    "\\.matomo\\.cloud"
+   ]
+  },
+  {
+   "name": "Smartlook",
+   "country": "CZ",
+   "category": "analytics",
+   "page": [
+    "web-sdk\\.smartlook\\.com",
+    "rec\\.smartlook\\.com"
+   ]
+  },
+  {
+   "name": "Mouseflow",
+   "country": "DK",
+   "category": "analytics",
+   "page": [
+    "cdn\\.mouseflow\\.com"
+   ]
+  },
+  {
+   "name": "Lucky Orange",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "luckyorange\\.(?:com|net)"
+   ]
+  },
+  {
+   "name": "Crazy Egg",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "script\\.crazyegg\\.com"
+   ]
+  },
+  {
+   "name": "Quantcast",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "quantserve\\.com"
+   ]
+  },
+  {
+   "name": "Comscore",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "scorecardresearch\\.com"
+   ]
+  },
+  {
+   "name": "Adobe Analytics",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "\\.omtrdc\\.net",
+    "assets\\.adobedtm\\.com"
+   ]
+  },
+  {
+   "name": "Optimizely",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.optimizely\\.com"
+   ]
+  },
+  {
+   "name": "VWO",
+   "country": "IN",
+   "category": "analytics",
+   "page": [
+    "visualwebsiteoptimizer\\.com"
+   ]
+  },
+  {
+   "name": "New Relic",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "js-agent\\.newrelic\\.com",
+    "bam\\.nr-data\\.net"
+   ]
+  },
+  {
+   "name": "Datadog RUM",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "datadoghq-browser-agent\\.com"
+   ]
+  },
+  {
+   "name": "LogRocket",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.logrocket\\.(?:io|com)",
+    "cdn\\.lr-ingest\\.io"
+   ]
+  },
+  {
+   "name": "PostHog",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "i\\.posthog\\.com",
+    "posthog\\.com/static"
+   ]
+  },
+  {
+   "name": "Snap Pixel",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "sc-static\\.net/scevent"
+   ]
+  },
+  {
+   "name": "Reddit Pixel",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "redditstatic\\.com/ads"
+   ]
+  },
+  {
+   "name": "Quora Pixel",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "a\\.quora\\.com/qevents"
+   ]
+  },
+  {
+   "name": "Taboola",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "cdn\\.taboola\\.com"
+   ]
+  },
+  {
+   "name": "Outbrain",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "widgets\\.outbrain\\.com"
+   ]
+  },
+  {
+   "name": "Amazon Ads",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "amazon-adsystem\\.com"
+   ]
+  },
+  {
+   "name": "Xandr (AppNexus)",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "adnxs\\.com"
+   ]
+  },
+  {
+   "name": "The Trade Desk",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "adsrvr\\.org"
+   ]
+  },
+  {
+   "name": "AdRoll",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "s\\.adroll\\.com"
+   ]
+  },
+  {
+   "name": "Marketo",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "munchkin\\.marketo\\.net"
+   ]
+  },
+  {
+   "name": "Salesforce Pardot",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "pi\\.pardot\\.com"
+   ]
+  },
+  {
+   "name": "Klaviyo",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "static\\.klaviyo\\.com"
+   ]
+  },
+  {
+   "name": "Mailchimp",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "chimpstatic\\.com",
+    "list-manage\\.com"
+   ]
+  },
+  {
+   "name": "Cookiebot",
+   "country": "DK",
+   "category": "analytics",
+   "page": [
+    "consent\\.cookiebot\\.com"
+   ]
+  },
+  {
+   "name": "OneTrust",
+   "country": "US",
+   "category": "analytics",
+   "page": [
+    "cdn\\.cookielaw\\.org"
+   ]
+  },
+  {
+   "name": "Usercentrics",
+   "country": "DE",
+   "category": "analytics",
+   "page": [
+    "app\\.usercentrics\\.eu"
+   ]
+  },
+  {
+   "name": "Didomi",
+   "country": "FR",
+   "category": "analytics",
+   "page": [
+    "sdk\\.privacy-center\\.org"
+   ]
+  },
+  {
+   "name": "Trustpilot",
+   "country": "DK",
+   "category": "social",
+   "page": [
+    "widget\\.trustpilot\\.com"
+   ]
+  },
+  {
+   "name": "Disqus",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "disqus\\.com/embed\\.js",
+    "\\.disqus\\.com/count\\.js"
+   ]
+  },
+  {
+   "name": "AddThis",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "s7\\.addthis\\.com"
+   ]
+  },
+  {
+   "name": "ShareThis",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "platform-api\\.sharethis\\.com"
+   ]
+  },
+  {
+   "name": "Uptolike",
+   "country": "RU",
+   "category": "social",
+   "page": [
+    "w\\.uptolike\\.com"
+   ]
+  },
+  {
+   "name": "Pinterest widgets",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "assets\\.pinterest\\.com/js/pinit"
+   ]
+  },
+  {
+   "name": "LinkedIn widgets",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "platform\\.linkedin\\.com/in\\.js"
+   ]
+  },
+  {
+   "name": "Reddit embed",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "embed\\.reddit\\.com"
+   ]
+  },
+  {
+   "name": "Telegram widget",
+   "country": "AE",
+   "category": "social",
+   "page": [
+    "telegram\\.org/js/telegram-widget"
+   ]
+  },
+  {
+   "name": "Spotify embed",
+   "country": "SE",
+   "category": "video",
+   "page": [
+    "open\\.spotify\\.com/embed"
+   ]
+  },
+  {
+   "name": "SoundCloud",
+   "country": "DE",
+   "category": "video",
+   "page": [
+    "w\\.soundcloud\\.com/player"
+   ]
+  },
+  {
+   "name": "Wistia",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "fast\\.wistia\\.(?:com|net)"
+   ]
+  },
+  {
+   "name": "JW Player",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "jwplatform\\.com",
+    "jwpcdn\\.com"
+   ]
+  },
+  {
+   "name": "Dailymotion",
+   "country": "FR",
+   "category": "video",
+   "page": [
+    "dailymotion\\.com/embed"
+   ]
+  },
+  {
+   "name": "Twitch",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "player\\.twitch\\.tv"
+   ]
+  },
+  {
+   "name": "Brightcove",
+   "country": "US",
+   "category": "video",
+   "page": [
+    "players\\.brightcove\\.net"
+   ]
+  },
+  {
+   "name": "Google Translate (виджет)",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "translate\\.google\\.com/translate_a/element\\.js"
+   ]
+  },
+  {
+   "name": "Google Calendar (встраивание)",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "calendar\\.google\\.com/calendar/embed"
+   ]
+  },
+  {
+   "name": "OpenStreetMap (тайлы)",
+   "country": "GB",
+   "category": "maps",
+   "page": [
+    "tile\\.openstreetmap\\.org"
+   ]
+  },
+  {
+   "name": "HERE Maps",
+   "country": "NL",
+   "category": "maps",
+   "page": [
+    "js\\.api\\.here\\.com"
+   ]
+  },
+  {
+   "name": "Bing Maps",
+   "country": "US",
+   "category": "maps",
+   "page": [
+    "bing\\.com/api/maps"
+   ]
+  },
+  {
+   "name": "Algolia",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "algolianet\\.com",
+    "\\.algolia\\.net"
+   ]
+  },
+  {
+   "name": "Cloudinary",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "res\\.cloudinary\\.com"
+   ]
+  },
+  {
+   "name": "imgix",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "\\.imgix\\.net"
+   ]
+  },
+  {
+   "name": "Gravatar",
+   "country": "US",
+   "category": "social",
+   "page": [
+    "gravatar\\.com/avatar"
+   ]
+  },
+  {
+   "name": "Klarna",
+   "country": "SE",
+   "category": "payments",
+   "page": [
+    "x\\.klarnacdn\\.net"
+   ]
+  },
+  {
+   "name": "Adyen",
+   "country": "NL",
+   "category": "payments",
+   "page": [
+    "checkoutshopper-live\\.adyen\\.com"
+   ]
+  },
+  {
+   "name": "Braintree",
+   "country": "US",
+   "category": "payments",
+   "page": [
+    "js\\.braintreegateway\\.com"
+   ]
+  },
+  {
+   "name": "Square",
+   "country": "US",
+   "category": "payments",
+   "page": [
+    "web\\.squarecdn\\.com"
+   ]
+  },
+  {
+   "name": "Google Pay",
+   "country": "US",
+   "category": "payments",
+   "page": [
+    "pay\\.google\\.com/gp/p/js"
+   ]
+  },
+  {
+   "name": "Okta",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "oktacdn\\.com"
+   ]
+  },
+  {
+   "name": "Microsoft Sign-In",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "alcdn\\.msauth\\.net"
+   ]
+  },
+  {
+   "name": "Firebase",
+   "country": "US",
+   "category": "auth",
+   "page": [
+    "gstatic\\.com/firebasejs",
+    "\\.firebaseapp\\.com"
+   ]
+  },
+  {
+   "name": "Freshworks (Freshchat)",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "wchat\\.freshchat\\.com",
+    "widget\\.freshworks\\.com"
+   ]
+  },
+  {
+   "name": "Help Scout",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "beacon-v2\\.helpscout\\.net"
+   ]
+  },
+  {
+   "name": "Olark",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "static\\.olark\\.com"
+   ]
+  },
+  {
+   "name": "Smartsupp",
+   "country": "CZ",
+   "category": "chat",
+   "page": [
+    "smartsuppchat\\.com"
+   ]
+  },
+  {
+   "name": "Userlike",
+   "country": "DE",
+   "category": "chat",
+   "page": [
+    "userlike-cdn-widgets"
+   ]
+  },
+  {
+   "name": "Zoho SalesIQ",
+   "country": "IN",
+   "category": "chat",
+   "page": [
+    "salesiq\\.zoho\\.(?:com|eu)"
+   ]
+  },
+  {
+   "name": "Pipedrive LeadBooster",
+   "country": "US",
+   "category": "chat",
+   "page": [
+    "leadbooster-chat\\.pipedrive\\.com"
+   ]
+  },
+  {
+   "name": "Friendly Captcha",
+   "country": "DE",
+   "category": "captcha",
+   "page": [
+    "friendlycaptcha"
+   ]
+  },
+  {
+   "name": "GeeTest",
+   "country": "CN",
+   "category": "captcha",
+   "page": [
+    "static\\.geetest\\.com"
+   ]
+  },
+  {
+   "name": "Arkose Labs",
+   "country": "US",
+   "category": "captcha",
+   "page": [
+    "arkoselabs\\.com"
+   ]
+  },
+  {
+   "name": "Monotype Fonts",
+   "country": "US",
+   "category": "fonts",
+   "page": [
+    "fast\\.fonts\\.net"
+   ]
+  },
+  {
+   "name": "Fontshare",
+   "country": "IN",
+   "category": "fonts",
+   "page": [
+    "api\\.fontshare\\.com"
+   ]
+  },
+  {
+   "name": "Microsoft Ajax CDN",
+   "country": "US",
+   "category": "js_cdn",
+   "page": [
+    "ajax\\.aspnetcdn\\.com"
+   ]
+  },
+  {
+   "name": "Staticfile CDN",
+   "country": "CN",
+   "category": "js_cdn",
+   "page": [
+    "cdn\\.staticfile\\.org"
+   ]
+  },
+  {
+   "name": "BootCDN",
+   "country": "CN",
+   "category": "js_cdn",
+   "page": [
+    "cdn\\.bootcdn\\.net"
+   ]
+  },
+  {
+   "name": "TikTok embed",
+   "country": "SG",
+   "category": "social",
+   "page": [
+    "tiktok\\.com/embed"
+   ]
+  },
+  {
+   "name": "Yahoo Ads",
+   "country": "US",
+   "category": "ads",
+   "page": [
+    "sp\\.analytics\\.yahoo\\.com"
    ]
   }
  ]
