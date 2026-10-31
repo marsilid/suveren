@@ -186,6 +186,9 @@ class Dmarc:
     pct: int = 100
     rua: str | None = None
     ruf: str | None = None
+    # What is wrong with p= or sp= ("нет политики p="), or None. RFC 7489, 6.6.3:
+    # such a record with a valid rua= is read as p=none, without rua= it is ignored.
+    invalid: str | None = None
 
     @property
     def exact_version(self) -> bool:
@@ -213,17 +216,36 @@ def parse_dmarc(record: str) -> Dmarc:
         key, sep, value = part.partition("=")
         if sep:
             tags[key.strip().lower()] = value.strip()
-    policy = tags.get("p", "").lower() or None
-    if policy not in ("none", "quarantine", "reject"):
-        policy = None
-    sub = tags.get("sp", "").lower() or None
-    if sub not in ("none", "quarantine", "reject"):
+    known = ("none", "quarantine", "reject")
+    policy: str | None = tags.get("p", "").lower()
+    sub: str | None = tags.get("sp", "").lower() if "sp" in tags else None
+    invalid = None
+    if policy not in known:
+        invalid = f"неверная политика p={tags['p']}" if tags.get("p") else "нет политики p="
+    elif sub is not None and sub not in known:
+        invalid = f"неверное значение sp={tags['sp']}"
+    rua = tags.get("rua") or None
+    if invalid:
+        # RFC 7489, 6.6.3: a record without a valid p= or with a bad sp= is read as
+        # p=none when rua= holds a valid reporting URI, and otherwise not applied at all.
+        policy = "none" if _report_uris(rua) else None
         sub = None
     try:
         pct = max(0, min(100, int(tags.get("pct", "100"))))
     except ValueError:
         pct = 100
-    return Dmarc(record.strip(), policy, sub, pct, tags.get("rua") or None, tags.get("ruf") or None)
+    return Dmarc(record.strip(), policy, sub, pct, rua, tags.get("ruf") or None, invalid)
+
+
+def _report_uris(value: str | None) -> list[str]:
+    """Syntactically valid URIs of rua=/ruf= (RFC 7489, 6.4): mailto: with an address or
+    http(s): with a host; the "!10m" size tail is dropped."""
+    found = []
+    for uri in (value or "").split(","):
+        uri = uri.strip().split("!")[0]
+        if re.fullmatch(r"(?i)mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https?://[^\s/]+\S*", uri):
+            found.append(uri)
+    return found
 
 
 def dmarc_records(txt: list[str]) -> list[str]:
@@ -355,12 +377,17 @@ def verdict(m: MailFacts) -> Check:
         )
     if d is not None and m.dmarc_count == 1 and d.policy == "quarantine" and policy == "none":
         reason = "в DMARC стоит pct=0: политика quarantine не применяется ни к одному письму"
+    elif d is not None and m.dmarc_count == 1 and d.policy == "none" and d.invalid:
+        reason = (
+            f"в DMARC-записи {d.invalid}, и почтовые сервисы читают её как режим наблюдения "
+            "(p=none): письма не отклоняются"
+        )
     elif d is not None and m.dmarc_count == 1 and d.policy == "none":
         reason = "DMARC стоит в режиме наблюдения (p=none): почтовые сервисы не отклоняют письма"
     elif m.dmarc_count > 1:
         reason = "DMARC-записей несколько, и почтовые сервисы игнорируют их все"
     elif d is not None:
-        reason = "в DMARC-записи нет корректной политики p="
+        reason = f"в DMARC-записи {d.invalid or 'нет корректной политики p='}, и её не применяют"
     else:
         reason = "у домена нет DMARC-записи"
     tail = (
@@ -575,19 +602,29 @@ def _dmarc_policy_check(m: MailFacts) -> Check:
         "вашего имени."
     )
     if d.policy is None:
+        what = d.invalid or "нет корректной политики p="
         return Check(
             GROUP_MAIL,
             title,
             Status.FAIL,
-            f"Запись есть, но в ней нет корректной политики p=: {d.record}.",
-            "Укажите p=none, p=quarantine или p=reject.",
+            f"Запись есть, но в ней {what}, а адреса для отчётов (rua) нет: почтовые "
+            f"сервисы такую запись не применяют (RFC 7489, раздел 6.6.3). Запись: {d.record}.",
+            "Укажите sp=none, sp=quarantine или sp=reject или уберите sp."
+            if "sp=" in what
+            else "Укажите p=none, p=quarantine или p=reject.",
         )
     if d.policy == "none":
+        implied = (
+            f"В записи {d.invalid}, но есть адрес для отчётов, поэтому почтовые сервисы "
+            "читают её как p=none (RFC 7489, раздел 6.6.3). "
+            if d.invalid
+            else ""
+        )
         return Check(
             GROUP_MAIL,
             title,
             Status.WARN,
-            "Режим наблюдения (p=none): поддельные письма доходят." + reports,
+            f"{implied}Режим наблюдения (p=none): поддельные письма доходят." + reports,
             "Изучите отчёты DMARC и переведите политику на p=quarantine, затем на p=reject.",
         )
     status = Status.OK if d.policy == "reject" and d.pct == 100 else Status.WARN

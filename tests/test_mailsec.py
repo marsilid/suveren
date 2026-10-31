@@ -84,6 +84,39 @@ def test_parse_dmarc_tags():
     assert parse_dmarc("v=DMARC1; p=reject; pct=abc").pct == 100
 
 
+@pytest.mark.parametrize(
+    ("record", "policy", "invalid"),
+    [
+        # RFC 7489, 6.6.3: no valid p= but a valid rua= reads as p=none ...
+        ("v=DMARC1; rua=mailto:d@example.ru", "none", "нет политики p="),
+        ("v=DMARC1; p=bogus; rua=mailto:d@example.ru!10m", "none", "неверная политика p=bogus"),
+        ("v=DMARC1; p=reject; sp=bad; rua=https://r.example.ru/dmarc", "none", "sp=bad"),
+        # ... and without one the record is not applied at all.
+        ("v=DMARC1; rua=d@example.ru", None, "нет политики p="),
+        ("v=DMARC1; p=reject; sp=bad", None, "sp=bad"),
+        ("v=DMARC1; p=reject; sp=none", "reject", None),
+    ],
+)
+def test_parse_dmarc_without_valid_policy(record, policy, invalid):
+    d = parse_dmarc(record)
+    assert d.policy == policy
+    assert (d.invalid is None) if invalid is None else (invalid in (d.invalid or ""))
+    if d.invalid:
+        assert d.subdomain_policy is None
+
+
+def test_dmarc_with_rua_but_no_policy_is_monitoring_not_broken():
+    from suveren.mailsec import dmarc_check
+
+    check = dmarc_check(facts(dmarc=parse_dmarc("v=DMARC1; rua=mailto:d@example.ru")))
+    assert check.status is Status.WARN
+    assert "p=none" in check.details and "6.6.3" in check.details
+    broken = dmarc_check(facts(dmarc=parse_dmarc("v=DMARC1; p=reject; sp=bad")))
+    assert broken.status is Status.FAIL and "sp=" in broken.recommendation
+    spoof = verdict(facts(dmarc=parse_dmarc("v=DMARC1; rua=mailto:d@example.ru")))
+    assert spoof.status is Status.FAIL and "режим наблюдения" in spoof.details
+
+
 def test_parse_mta_sts_mode():
     policy = "version: STSv1\nmode: enforce\nmx: mx.example.ru\nmax_age: 86400\n"
     assert parse_mta_sts_mode(policy) == "enforce"

@@ -1097,6 +1097,26 @@ CASES: list[Case] = [
             ("lab-dmarc-rua-outside-ok.ru._report._dmarc.reports.example", "TXT"): ["v=DMARC1"],
         },
     ),
+    Case(
+        "lab-dmarc-rua-no-policy",
+        "DMARC без p=, но с rua=: по RFC 7489 (6.6.3) это p=none, а не сломанная запись",
+        {"SUV-MAIL-001": "fail", "SUV-MAIL-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_dmarc.lab-dmarc-rua-no-policy.ru", "TXT"): [
+                "v=DMARC1; rua=mailto:dmarc@lab-dmarc-rua-no-policy.ru"
+            ]
+        },
+    ),
+    Case(
+        "lab-dmarc-bad-sp",
+        "DMARC p=reject с неверным sp= и без rua=: запись не применяется (RFC 7489, 6.6.3)",
+        {"SUV-MAIL-001": "fail", "SUV-MAIL-003": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_dmarc.lab-dmarc-bad-sp.ru", "TXT"): ["v=DMARC1; p=reject; sp=all"]},
+    ),
     # --- DKIM without a known selector (RFC 2308: an empty non-terminal is NOERROR) ---
     Case(
         "lab-dkim-odd-selector",
