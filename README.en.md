@@ -63,7 +63,8 @@ what it does to the site and what the person running it risks.
 
 Mail checks, the block register and certificate logs do not contact the site, but every `scan`
 still opens the home page: the foreign services are read from it. `--dns ru` sends DNS queries
-through Yandex DNS so that domain names stay in Russia.
+through Yandex DNS, but only DNS: the site's name still goes to the certificate logs (crt.sh,
+Cert Spotter, for the subdomain check) and to rdap.org, and IP addresses to Team Cymru (USA).
 
 ## How to run it
 
@@ -145,7 +146,7 @@ Main `scan` options:
 | `--since previous.json` | what changed since the previous audit |
 | `--fail-under C`, `--fail-on fail` | non-zero exit code for CI |
 | `--ignore file` | accepted findings with a reason, an author and an end date (default `.suveren-ignore`) |
-| `--dns ru` | DNS queries through Yandex DNS only: domain names stay in Russia |
+| `--dns ru` | DNS queries through Yandex DNS only. Other sources stay the same: the site's name goes to crt.sh, Cert Spotter and rdap.org, IP addresses to Team Cymru |
 | `--no-mail`, `--no-security`, `--no-subdomains`, `--no-152fz`, `--no-blocklist` | skip a section |
 
 The full list is in `suveren scan --help`; every check is described in the

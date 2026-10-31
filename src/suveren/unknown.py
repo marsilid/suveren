@@ -25,6 +25,9 @@ _RESOURCE = re.compile(
 )
 _PATTERNS = tuple(rx for s in ALL_SERVICES for rx in s._page_re)
 MAX_EXAMPLES = 5
+# The tally names the sites that were checked, so it is kept small: the domains seen
+# most recently, then most often, stay.
+MAX_DOMAINS = 2000
 
 
 def resource_urls(html: str, base: str) -> list[str]:
@@ -98,6 +101,10 @@ def record(domains: Iterable[str], site: str) -> None:
             if len(entry["sites"]) < MAX_EXAMPLES:
                 entry["sites"].append(site)
         entry["last"] = today
+    if len(data) > MAX_DOMAINS:
+        keep = sorted(data, key=lambda d: (data[d].get("last", ""), data[d].get("count", 0)))
+        for domain in keep[: len(data) - MAX_DOMAINS]:
+            del data[domain]
     with contextlib.suppress(OSError):
         _store().parent.mkdir(parents=True, exist_ok=True)
         _store().write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -525,7 +525,8 @@ def scan(
         typer.Option(
             "--dns",
             help="DNS: auto (системный, при сбое Яндекс DNS, затем Google), system, "
-            "ru (только Яндекс DNS, запросы не уходят за рубеж) или doh (Google/Cloudflare).",
+            "ru (только Яндекс DNS; журналы сертификатов, RDAP и Team Cymru — как обычно) "
+            "или doh (Google/Cloudflare).",
         ),
     ] = DnsChoice.auto,
     refresh: Annotated[
@@ -750,7 +751,7 @@ def batch(
         DnsChoice,
         typer.Option(
             "--dns",
-            help="DNS, как у scan: ru — только Яндекс DNS, имена сайтов не уходят за рубеж.",
+            help="DNS, как у scan: ru — DNS-запросы только через Яндекс DNS.",
         ),
     ] = DnsChoice.auto,
     refresh: Annotated[bool, typer.Option("--refresh", help="Обновить списки.")] = False,
