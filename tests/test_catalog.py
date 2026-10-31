@@ -94,12 +94,13 @@ def test_check_gets_its_id():
 def test_select_by_id_prefix_tag_and_module():
     assert select("SUV-MAIL-003") == {"SUV-MAIL-003"}
     assert select("suv-mail") == {s.id for s in CATALOG if s.id.startswith("SUV-MAIL-")}
-    assert select("headers") == {"SUV-WEB-004", "SUV-WEB-005", "SUV-WEB-006"}
+    assert select("headers") == {"SUV-WEB-004", "SUV-WEB-005", "SUV-WEB-006", "SUV-WEB-015"}
     assert select("subdomains") == {
         "SUV-SUB-000",
         "SUV-SUB-001",
         "SUV-SUB-002",
         "SUV-SUB-003",
+        "SUV-SUB-004",
         "SUV-ATK-003",
     }
     assert select("dkim, SUV-LAW-001") == {"SUV-MAIL-004", "SUV-MAIL-006", "SUV-LAW-001"}

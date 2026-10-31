@@ -274,6 +274,11 @@ class Case:
     # subdomain page not in ``files`` does not answer at all.
     subdomains: list[str] | None = None
     clouds_down: bool = False  # the clouds' address lists do not download
+    # What http://<host>/ does when the site is on HTTPS: "redirect" to https, "page"
+    # (serves the site in plain text), "closed" (nothing listens on port 80).
+    plain_http: str = "redirect"
+    # Domains DNS answers NXDOMAIN for, and the registry (RDAP) says are free.
+    missing: frozenset[str] = frozenset()
 
     @property
     def host(self) -> str:
@@ -312,6 +317,8 @@ CASES: list[Case] = [
             "SUV-MAIL-006": "ok",
             "SUV-WEB-012": "ok",
             "SUV-WEB-013": "ok",
+            "SUV-WEB-014": "ok",
+            "SUV-WEB-015": "ok",
         },
         html=page(FORM_OK + '<script src="/app.js"></script>'),
         files=site_files({"/app.js": "console.log('ok');"}),
@@ -1519,6 +1526,80 @@ CASES: list[Case] = [
         clouds_down=True,
         dns={("old.lab-cloud-lists-down.ru", "A"): ["3.5.140.7"]},
     ),
+    # --- HTTP to HTTPS, Referrer-Policy, base-uri (OWASP, W3C Referrer Policy) --------
+    Case(
+        "lab-http-no-redirect",
+        "по http:// сайт отдаёт ту же страницу без перенаправления на HTTPS",
+        {"SUV-WEB-014": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        plain_http="page",
+    ),
+    Case(
+        "lab-http-closed",
+        "порт 80 закрыт: открытого текста сайт не отдаёт вовсе",
+        {"SUV-WEB-014": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        plain_http="closed",
+    ),
+    Case(
+        "lab-referrer-unsafe",
+        "Referrer-Policy: unsafe-url — полный адрес страницы с параметрами уходит всем сайтам",
+        {"SUV-WEB-015": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "referrer-policy": "unsafe-url"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-referrer-downgrade",
+        "Referrer-Policy: no-referrer-when-downgrade — полный адрес уходит сторонним сайтам",
+        {"SUV-WEB-015": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "referrer-policy": "no-referrer-when-downgrade"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-referrer-meta",
+        "заголовка нет, но <meta name=referrer content=strict-origin-when-cross-origin>",
+        {"SUV-WEB-015": "ok"},
+        html=page(FORM_OK).replace(
+            "<title>", '<meta name="referrer" content="strict-origin-when-cross-origin"><title>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-csp-nonce-no-base-uri",
+        "CSP на nonce без base-uri: внедрённый <base> подменит адреса скриптов",
+        {"SUV-WEB-004": "warn"},
+        html=page(FORM_OK),
+        headers={
+            **GOOD_HEADERS,
+            "content-security-policy": "script-src 'nonce-r4nd0m' 'strict-dynamic'; "
+            "object-src 'none'",
+        },
+        files=site_files(),
+    ),
+    # --- dangling NS (Can I take over XYZ?, "NS delegation") ---------------------------
+    Case(
+        "lab-ns-dangling",
+        "поддомен old. делегирован на NS-серверы в домене, который никто не продлил",
+        {"SUV-SUB-004": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        dns={("old.lab-ns-dangling.ru", "NS"): ["ns1.expired-dns-host.com."]},
+        missing=frozenset({"expired-dns-host.com"}),
+    ),
+    Case(
+        "lab-ns-fine",
+        "поддомен делегирован на живые NS-серверы",
+        {"SUV-SUB-004": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["dev"],
+        dns={("dev.lab-ns-fine.ru", "NS"): ["ns1.selectel.org."]},
+    ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
         "lab-mta-sts-silent",
@@ -1572,8 +1653,11 @@ KNOWN: dict[tuple[str, str], str] = {}
 class FakeResolver:
     kind = "lab"
 
-    def __init__(self, records: dict[tuple[str, str], list[str]]) -> None:
+    def __init__(
+        self, records: dict[tuple[str, str], list[str]], missing: frozenset[str] = frozenset()
+    ) -> None:
         self.records = records
+        self.missing = missing
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         records = self.records.get((name, rtype), [])
@@ -1582,7 +1666,7 @@ class FakeResolver:
         return records
 
     async def exists(self, domain: str) -> bool:
-        return True
+        return domain not in self.missing
 
     async def node_exists(self, name: str) -> bool | None:
         # A name exists when it, or a name under it, holds records (RFC 2308), or a
@@ -1611,6 +1695,15 @@ def _transport(case: Case) -> httpx.MockTransport:
             )
         if request.url.host.endswith("." + case.host) and url not in bodies:
             raise httpx.ConnectError("lab: nothing listens", request=request)
+        if not case.http and url in (f"http://{case.host}/", f"http://{case.host}"):
+            if case.plain_http == "closed":
+                raise httpx.ConnectError("lab: port 80 closed", request=request)
+            if case.plain_http == "redirect":
+                return httpx.Response(301, headers={"location": f"https://{case.host}/"})
+            return httpx.Response(200, headers=case.headers, text=case.html)
+        if request.url.host == "rdap.org":
+            name = url.rsplit("/", 1)[-1]
+            return httpx.Response(404 if name in case.missing else 200, json={})
         if case.https_error and url == f"https://{case.host}/":
             raise case.https_error("lab", request=request)
         if url in (base, base + "/"):
@@ -1672,7 +1765,7 @@ async def _run_case(case: Case) -> dict[str, Check]:
             facts.extra_pages = await fetch_pages(client, links)
             if case.https_error:
                 # The real fallback from HTTPS to HTTP, to see why HTTPS failed.
-                collector = Collector(FakeResolver(records), client, 5)
+                collector = Collector(FakeResolver(records, case.missing), client, 5)
                 await collector.homepage(host)
                 facts.https_unanswered = collector.https_unanswered
             report = analyze(facts)
@@ -1684,12 +1777,18 @@ async def _run_case(case: Case) -> dict[str, Check]:
                 extra_pages=facts.extra_pages,
                 https_unanswered=facts.https_unanswered,
             )
-            web, _ = await run_web_checks(facts, FakeResolver(records), client, 5)
+            web, _ = await run_web_checks(facts, FakeResolver(records, case.missing), client, 5)
             checks += web
-            checks += await run_zone_checks(FakeResolver(records), host, https=not case.http)
-            checks += mail_checks(await collect_mail(FakeResolver(records), client, host))
+            checks += await run_zone_checks(
+                FakeResolver(records, case.missing), host, https=not case.http
+            )
+            checks += mail_checks(
+                await collect_mail(FakeResolver(records, case.missing), client, host)
+            )
             if case.subdomains is not None:
-                sub, _ = await run_subdomain_checks(FakeResolver(records), client, client, host)
+                sub, _ = await run_subdomain_checks(
+                    FakeResolver(records, case.missing), client, client, host
+                )
                 checks += sub
     finally:
         websec.probe_tls = saved

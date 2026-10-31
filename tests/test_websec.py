@@ -128,12 +128,29 @@ def test_csp_weaknesses(policy, problem):
 
 
 def test_strong_csp_has_no_weaknesses():
-    nonce = "script-src 'nonce-r4nd' 'unsafe-inline' 'strict-dynamic' https:; object-src 'none'"
+    nonce = (
+        "script-src 'nonce-r4nd' 'unsafe-inline' 'strict-dynamic' https:; object-src 'none'; "
+        "base-uri 'none'"
+    )
     assert csp_weaknesses(nonce) == []
     assert csp_weaknesses("default-src 'self'; object-src 'none'") == []
     # object-src falls back to default-src: plugins only from the site itself.
     assert csp_weaknesses("default-src 'self'") == []
     assert csp_weaknesses("default-src 'none'; script-src 'self'") == []
+
+
+def test_nonce_policy_needs_base_uri():
+    """An injected <base> moves relative scripts elsewhere; their nonce still works."""
+    nonce = "script-src 'nonce-r4nd' 'strict-dynamic'; object-src 'none'"
+    [problem] = csp_weaknesses(nonce)
+    assert problem.startswith("нет base-uri")
+    hashed = "script-src 'sha256-abc'; object-src 'none'"
+    assert csp_weaknesses(hashed)[0].startswith("нет base-uri")
+    assert csp_weaknesses(hashed + "; base-uri 'self'") == []
+    # A host allowlist is not fooled by <base>: no base-uri needed.
+    assert csp_weaknesses("script-src 'self'; object-src 'none'") == []
+    check = csp_check(web(headers={"content-security-policy": nonce}))
+    assert "base-uri 'none'" in check.recommendation
 
 
 def test_csp_check():
@@ -720,3 +737,84 @@ def test_crl_used_when_there_is_no_ocsp(monkeypatch):
     # A list signed by someone else proves nothing.
     serve(crl([7], ec.generate_private_key(ec.SECP256R1())))
     assert asyncio.run(websec.crl_revoked(leaf, ca, 5.0)) is None
+
+
+# --- Referrer-Policy and HTTP -> HTTPS (1.2) ------------------------------------------
+
+
+def test_referrer_policy_last_valid_token_wins():
+    from suveren.websec import referrer_policy
+
+    assert referrer_policy("no-referrer, unsafe-url") == "unsafe-url"
+    assert referrer_policy("unsafe-url, bogus") == "unsafe-url"
+    assert referrer_policy("Strict-Origin-When-Cross-Origin") == "strict-origin-when-cross-origin"
+    assert referrer_policy("bogus") is None and referrer_policy("") is None
+
+
+def test_referrer_check():
+    from suveren.websec import referrer_check
+
+    assert referrer_check(web()).status is Status.OK  # browsers' safe default
+    leaky = referrer_check(web(headers={"referrer-policy": "unsafe-url"}))
+    assert leaky.status is Status.WARN and "strict-origin-when-cross-origin" in (
+        leaky.recommendation
+    )
+    w = web(headers={"referrer-policy": "unsafe-url"})
+    w.referrer_meta = "same-origin"  # the meta tag overrides the header
+    check = referrer_check(w)
+    assert check.status is Status.OK and "в теге meta" in check.details
+
+
+def test_redirect_check_statuses():
+    from suveren.websec import redirect_check
+
+    w = web()
+    for state, status in (
+        ("redirect", Status.OK),
+        ("closed", Status.OK),
+        ("error", Status.OK),
+        ("page", Status.WARN),
+        (None, Status.UNKNOWN),
+    ):
+        w.plain_http = state
+        assert redirect_check(w).status is status, state
+    w.plain_http = "page"
+    w.headers = {"strict-transport-security": "max-age=31536000"}
+    assert "только после первого захода" in redirect_check(w).details
+    w.https = False
+    assert redirect_check(w) is None
+
+
+def test_probe_plain_http_follows_redirects_by_hand():
+    import asyncio
+
+    import httpx
+
+    from suveren.websec import probe_plain_http
+
+    def run(handler):
+        async def go():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+                return await probe_plain_http(c, "site.ru")
+
+        return asyncio.run(go())
+
+    def hop(request):
+        if request.url.path == "/":
+            return httpx.Response(302, headers={"location": "http://www.site.ru/x"})
+        return httpx.Response(301, headers={"location": "https://www.site.ru/x"})
+
+    assert run(hop) == ("redirect", "")
+    assert run(lambda r: httpx.Response(200, text="hi")) == ("page", "")
+    assert run(lambda r: httpx.Response(403)) == ("error", "")
+    loop = run(lambda r: httpx.Response(302, headers={"location": "http://site.ru/"}))
+    assert loop == (None, "перенаправлений слишком много")
+
+    def refuse(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    def slow(request):
+        raise httpx.ReadTimeout("slow", request=request)
+
+    assert run(refuse) == ("closed", "")
+    assert run(slow) == (None, "")

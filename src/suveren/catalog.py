@@ -164,6 +164,10 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-WEB-013", WEB, "Подпись DNS (DNSSEC)", "security", "web dns",
           "Подписана ли зона и сходится ли запись DS у регистратора с ключом зоны "
           "(RFC 4035, RFC 8624)."),
+    _spec("SUV-WEB-014", WEB, "Перенаправление с HTTP на HTTPS", "security", "web tls",
+          "Отправляет ли http:// сразу на HTTPS, а не отдаёт сайт в открытом виде."),
+    _spec("SUV-WEB-015", WEB, "Политика Referrer-Policy", "security", "web headers",
+          "Не уходит ли полный адрес страницы (с параметрами) сторонним сайтам."),
     # --- subdomains ---------------------------------------------------------------------
     _spec("SUV-SUB-000", SUB, "Поддомены и их захват", "subdomains", "subdomains",
           "Проверка поддоменов не выполнена."),
@@ -175,6 +179,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "subdomains takeover cloud",
           "Поддомены с адресом из списков AWS, Google Cloud, Oracle, DigitalOcean, которые "
           "не отвечают: адрес мог перейти к другому клиенту облака (только предупреждение)."),
+    _spec("SUV-SUB-004", SUB, "Висящие NS-записи", "subdomains", "subdomains takeover dns",
+          "Домен или поддомен делегирован на NS-серверы в домене, который свободен для "
+          "регистрации: его можно купить и отвечать за ваши имена."),
     # --- attack scenarios (reasoning over the other checks) ----------------------------
     _spec("SUV-ATK-001", ATTACK, "Фишинг от имени компании", "mail", "scenario mail",
           "Подделываемая почта + формы или оплата на сайте: фишинг клиентов."),
@@ -328,6 +335,7 @@ LABELS = {
     "SUV-SUB-000": ("probe", "ip"),
     "SUV-SUB-002": ("probe", "ip"),  # opens the pages of subdomains pointing to services
     "SUV-SUB-003": ("probe", "ip"),  # opens the pages of subdomains on cloud addresses
+    "SUV-SUB-004": ("none", "none"),  # NS records and the registry (RDAP/WHOIS)
     "SUV-ATK-001": ("look", "ip"),  # mail records plus the site's forms
     "SUV-ATK-003": ("probe", "ip"),
     "SUV-CUT-002": ("look", "js"),  # the page in a browser, foreign services refused
