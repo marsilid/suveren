@@ -41,9 +41,9 @@ addresses and IPs replaced, so no real company is shown.</sub>
 | ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM and its key length, MTA-STS and a plain answer: yes, partly or no |
 | 🔓 | **Are there forgotten subdomains someone could take over?** | subdomains from Certificate Transparency logs that point to deleted projects on third-party services |
 | 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS, CAA and DNSSEC |
-| 🏢 | **Who are we dealing with?** | the company in the state register (EGRUL), US, EU and UK sanctions lists, the register of personal-data operators |
+| 🏢 | **Who are we dealing with?** | the company in the state register (EGRUL), US (SDN), EU and UK sanctions lists, plus UN and OFAC non-SDN, the Rosfinmonitoring list, the register of personal-data operators |
 
-About 60 checks in all, each with a permanent ID — see [docs/checks.md](docs/checks.md).
+About 70 checks and a database of 300+ services, each with a permanent ID — see [docs/checks.md](docs/checks.md).
 Findings from different sections are combined into **attack scenarios**: for example "mail can
 be forged" + "the site takes payments" = phishing in the company's name.
 
@@ -59,7 +59,7 @@ what it does to the site and what the person running it risks.
 | `scan` (default) | looks at the home page, up to 6 inner pages and the MTA-STS file. It **probes** in two places: it tries the outdated TLS 1.0 and 1.1, and it opens subdomain pages that point to outside services or to cloud addresses | the site sees your IP; such connections may show up in its security logs |
 | `--browser`, `--cutoff`, `--profile deep` | the same, but a browser opens the pages | **the site's JavaScript runs** in a browser on your computer. The browser cannot reach your local network or save files, but the scripts run as for any visitor |
 | `--own-site` (after `suveren verify`) | **probes your own site**: `.git` and `.env`, weak TLS ciphers, STARTTLS of the mail servers | only for a site whose ownership is proven by a TXT record or a file; never in batch |
-| `--own-site --form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Only for your own sites or with the owner's consent |
+| `--own-site --form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Never runs without proven ownership |
 | `--plugin file.py` | whatever the plugin does | **the plugin's code runs with your rights**: use only plugins you trust |
 
 Mail checks, the block register and certificate logs do not contact the site, but every `scan`
@@ -129,6 +129,9 @@ The 152-FZ section: every check links to its article of law and names the possib
 | `suveren doctor` | check that every data source answers |
 | `suveren audit reports/` | do reports contradict themselves |
 | `suveren unknown` | external domains missing from the service database |
+| `suveren watch sites.txt --every 24h` | watch sites: audit again and report what changed |
+| `suveren draft report.json` | a draft privacy policy or consent from the findings (check it with a lawyer) |
+| `suveren verify site.ru` | prove the site is yours, for `--own-site` and `--form-leaks` |
 | `suveren menu` | the menu (same as double-clicking the exe) |
 
 Main `scan` options:
@@ -140,7 +143,8 @@ Main `scan` options:
 | `--checks mail,SUV-LAW-001` | only the checks you need: by ID, prefix or tag |
 | `--pages N` | how many inner pages to check besides the home page (default 6) |
 | `--cutoff` | experiment: open the site with foreign services cut off and show what breaks |
-| `--form-leaks` | experiment: do form fields reach third parties before submission (your own sites or with the owner's consent only) |
+| `--form-leaks` | experiment: do form fields reach third parties before submission (only with `--own-site`, after `suveren verify`) |
+| `--own-site` | own-site mode: `.git` and `.env`, TLS ciphers, mail STARTTLS (after `suveren verify`) |
 | `--pdf file.pdf` | also save the report as PDF |
 | `--brand-name`, `--brand-logo`, `--brand-url` | the report under your agency's brand |
 | `--json file.json`, `--sarif file.sarif` | results for `diff`, CI and security scanners |
@@ -162,7 +166,7 @@ suveren company example.ru      # the INN is found on the site
 ```
 
 State register data (status, registration date, head), the company and its head screened
-against US, EU and UK sanctions lists, the register of personal-data operators and a cross-check
+against US, EU, UK and UN sanctions lists, the Rosfinmonitoring list, the register of personal-data operators and a cross-check
 with the website. Matches by INN and OGRN are exact; matches by name are possible matches to be
 checked by hand.
 
