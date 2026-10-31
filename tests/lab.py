@@ -631,6 +631,15 @@ CASES: list[Case] = [
         ),
     ),
     Case(
+        "lab-requisites-inn-kpp",
+        "реквизиты «ИНН/КПП: 7700000016/770001001», в политике оператор с другим ИНН",
+        {"SUV-PD-011": "warn"},
+        html=page(FORM_OK + "<p>ООО «Лаборатория», ИНН/КПП: 7700000016/770001001</p>"),
+        files=site_files(
+            {"/privacy": page(POLICY_FULL.replace("ИНН 7700000000", "ИНН 7700000023"))}
+        ),
+    ),
+    Case(
         "lab-policy-no-email",
         "форма просит e-mail, а в перечне данных политики его нет",
         {"SUV-PD-011": "warn"},
