@@ -25,3 +25,5 @@ AGPL обязывает открыть исходный код любой изм
 -------------------
 - src/suveren/data/takeover.json — признаки захвата поддоменов из проекта
   «Can I take over XYZ?» (EdOverflow and contributors), лицензия CC BY 4.0.
+- src/suveren/data/public_suffix_list.dat — Public Suffix List (https://publicsuffix.org),
+  Mozilla Public License 2.0; файл не изменён, обновляется tools/update_psl.py.

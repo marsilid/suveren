@@ -9,33 +9,6 @@ from suveren.errors import InvalidTargetError
 
 _LABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
-# Public suffixes with two labels that are common enough to matter. A full
-# Public Suffix List would be more accurate; this keeps the tool dependency-free.
-_TWO_LABEL_SUFFIXES = frozenset(
-    {
-        "co.uk",
-        "org.uk",
-        "com.au",
-        "co.jp",
-        "com.br",
-        "com.tr",
-        "com.cn",
-        "co.il",
-        "com.ua",
-        "com.kz",
-        "org.kz",
-        "com.ru",
-        "net.ru",
-        "org.ru",
-        "pp.ru",
-        "msk.ru",
-        "spb.ru",
-        # Every agency under gov.ru has its own domain and mail (nalog.gov.ru, mvd.gov.ru).
-        "gov.ru",
-        "com.by",
-    }
-)
-
 COUNTRY_NAMES = {
     "RU": "Россия",
     "US": "США",
@@ -138,10 +111,11 @@ def normalize_domain(raw: str) -> str:
 
 
 def registrable_domain(domain: str) -> str:
-    """Best-effort 'example.co.uk' from 'www.shop.example.co.uk'."""
-    labels = domain.split(".")
-    size = 3 if ".".join(labels[-2:]) in _TWO_LABEL_SUFFIXES else 2
-    return ".".join(labels[-size:])
+    """'example.co.uk' from 'www.shop.example.co.uk', by the Public Suffix List with its
+    private section: 'mysite.github.io', not 'github.io' (psl.py)."""
+    from suveren.psl import registrable
+
+    return registrable(domain)
 
 
 def host_matches(host: str, pattern: str) -> bool:
