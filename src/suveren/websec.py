@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509 import ocsp
 
 from suveren.checks import Check, Evidence, Status
-from suveren.collect import Facts, browser_trust
+from suveren.collect import Facts, browser_trust, make_client
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
@@ -284,7 +284,8 @@ async def _issuer_from_aia(cert: x509.Certificate, timeout: float) -> str | None
     if not urls:
         return None
     try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        # The address comes from the site's certificate: the same limits as for pages.
+        async with make_client(timeout) as client:
             resp = await client.get(urls[0])
         if resp.status_code != 200:
             return None
@@ -326,7 +327,7 @@ async def ocsp_revoked(
         .public_bytes(serialization.Encoding.DER)
     )
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with make_client(timeout) as client:
             resp = await client.post(
                 url, content=request, headers={"Content-Type": "application/ocsp-request"}
             )
@@ -366,7 +367,7 @@ async def crl_revoked(
         return None
     try:
         async with (
-            httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client,
+            make_client(timeout) as client,
             client.stream("GET", urls[0]) as resp,
         ):
             if resp.status_code != 200:

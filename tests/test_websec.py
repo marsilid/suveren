@@ -552,9 +552,7 @@ def _responder(monkeypatch, ca, ca_key, leaf, status, calls):
 
     real = _REAL_CLIENT  # not the one a previous call patched in
     monkeypatch.setattr(
-        websec.httpx,
-        "AsyncClient",
-        lambda **kw: real(transport=httpx.MockTransport(handler), **kw),
+        websec, "make_client", lambda timeout: real(transport=httpx.MockTransport(handler))
     )
 
 
@@ -624,10 +622,10 @@ def test_crl_used_when_there_is_no_ocsp(monkeypatch):
 
     def serve(body):
         monkeypatch.setattr(
-            websec.httpx,
-            "AsyncClient",
-            lambda **kw: _REAL_CLIENT(
-                transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body)), **kw
+            websec,
+            "make_client",
+            lambda timeout: _REAL_CLIENT(
+                transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body))
             ),
         )
 
