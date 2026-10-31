@@ -252,7 +252,7 @@ def _scan(candidates=(), names=3, checked=3):
 
 
 def test_evaluate_statuses():
-    inventory, takeover = evaluate(_scan())
+    inventory, takeover, _ = evaluate(_scan())
     assert inventory.status is Status.OK and "Найдено поддоменов: 3" in inventory.details
     assert takeover.status is Status.OK
 
@@ -265,7 +265,7 @@ def test_evaluate_statuses():
 
 
 def test_evaluate_says_when_the_list_was_cut():
-    inventory, _ = evaluate(_scan(names=500, checked=300))
+    inventory, *_ = evaluate(_scan(names=500, checked=300))
     assert "Проверены первые 300" in inventory.details
 
 

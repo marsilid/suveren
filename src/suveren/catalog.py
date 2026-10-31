@@ -170,6 +170,10 @@ CATALOG: tuple[CheckSpec, ...] = (
           "subdomains ct", "Поддомены из журналов Certificate Transparency."),
     _spec("SUV-SUB-002", SUB, "Захват поддоменов", "subdomains", "subdomains takeover",
           "Поддомены, указывающие на удалённые проекты или свободные домены."),
+    _spec("SUV-SUB-003", SUB, "Висящие A-записи на облачные адреса", "subdomains",
+          "subdomains takeover cloud",
+          "Поддомены с адресом из списков AWS, Google Cloud, Oracle, DigitalOcean, которые "
+          "не отвечают: адрес мог перейти к другому клиенту облака (только предупреждение)."),
     # --- attack scenarios (reasoning over the other checks) ----------------------------
     _spec("SUV-ATK-001", ATTACK, "Фишинг от имени компании", "mail", "scenario mail",
           "Подделываемая почта + формы или оплата на сайте: фишинг клиентов."),
@@ -322,6 +326,7 @@ LABELS = {
     "SUV-WEB-013": ("none", "none"),  # DS and DNSKEY records, DNS only
     "SUV-SUB-000": ("probe", "ip"),
     "SUV-SUB-002": ("probe", "ip"),  # opens the pages of subdomains pointing to services
+    "SUV-SUB-003": ("probe", "ip"),  # opens the pages of subdomains on cloud addresses
     "SUV-ATK-001": ("look", "ip"),  # mail records plus the site's forms
     "SUV-ATK-003": ("probe", "ip"),
     "SUV-CUT-002": ("look", "js"),  # the page in a browser, foreign services refused

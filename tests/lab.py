@@ -16,7 +16,9 @@ misses in KNOWN, each with the reason; so the table in docs stays honest.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -37,6 +39,7 @@ from suveren.dnszone import run_zone_checks
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
+from suveren.subdomains import run_subdomain_checks
 from suveren.websec import TlsInfo, run_web_checks
 
 NOW = datetime.now(UTC)
@@ -228,6 +231,23 @@ def good_dns(host: str) -> dict[tuple[str, str], list[str]]:
 MTA_STS_OK = "version: STSv1\nmode: enforce\nmx: mx.yandex.net\nmax_age: 604800\n"
 
 
+# The address lists of the clouds, cut down to a few prefixes in the published formats.
+CLOUD_LISTS = {
+    "https://ip-ranges.amazonaws.com/ip-ranges.json": (
+        '{"syncToken": "1", "createDate": "2026-10-30-20-00-00", "prefixes": ['
+        '{"ip_prefix": "3.5.140.0/22", "region": "ap-northeast-2", "service": "EC2"},'
+        '{"ip_prefix": "13.32.0.0/15", "region": "GLOBAL", "service": "CLOUDFRONT"}],'
+        ' "ipv6_prefixes": []}'
+    ),
+    "https://www.gstatic.com/ipranges/cloud.json": (
+        '{"syncToken": "1", "prefixes": [{"ipv4Prefix": "34.0.0.0/15", "scope": "us"}]}'
+    ),
+    "https://docs.oracle.com/en-us/iaas/tools/public_ip_ranges.json": (
+        '{"regions": [{"region": "eu-frankfurt-1", "cidrs": [{"cidr": "130.61.0.0/16"}]}]}'
+    ),
+    "https://digitalocean.com/geo/google.csv": "104.131.0.0/18,US,US-NY,New York,10001\n",
+}
+
 # A DNS record whose lookup times out (put as the value in Case.dns).
 NO_ANSWER: list[str] = ["<нет ответа>"]
 
@@ -248,6 +268,10 @@ class Case:
     http: bool = False  # the site answers over plain HTTP
     # With ``http``: how its HTTPS fails instead of a 404 (httpx.ConnectTimeout, ...).
     https_error: type[httpx.HTTPError] | None = None
+    # Subdomains in the certificate logs; the subdomain checks run only when set. A
+    # subdomain page not in ``files`` does not answer at all.
+    subdomains: list[str] | None = None
+    clouds_down: bool = False  # the clouds' address lists do not download
 
     @property
     def host(self) -> str:
@@ -1378,6 +1402,53 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("lab-dnssec-silent.ru", "DS"): NO_ANSWER},
     ),
+    # --- dangling A records on cloud addresses (warning only) -------------------------
+    Case(
+        "lab-cloud-silent",
+        "old. указывает на адрес AWS, а там никто не отвечает: адрес мог уйти другому",
+        {"SUV-SUB-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        dns={("old.lab-cloud-silent.ru", "A"): ["3.5.140.7"]},
+    ),
+    Case(
+        "lab-cloud-alive",
+        "app. на адресе Google Cloud отвечает: подозревать нечего",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files({"https://app.lab-cloud-alive.ru/": page("<p>Кабинет</p>")}),
+        subdomains=["app"],
+        dns={("app.lab-cloud-alive.ru", "A"): ["34.1.2.3"]},
+    ),
+    Case(
+        "lab-cloud-elsewhere",
+        "vpn. молчит, но адрес не облачный (свой сервер): адрес не раздаётся другим",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["vpn"],
+        dns={("vpn.lab-cloud-elsewhere.ru", "A"): ["198.51.100.20"]},
+    ),
+    Case(
+        "lab-cloud-cdn",
+        "cdn. на адресе CloudFront молчит: это общий фронт AWS, а не адрес клиента",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["cdn"],
+        dns={("cdn.lab-cloud-cdn.ru", "A"): ["13.32.1.1"]},
+    ),
+    Case(
+        "lab-cloud-lists-down",
+        "списки адресов облаков не скачались: про old. ничего сказать нельзя",
+        {"SUV-SUB-003": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        clouds_down=True,
+        dns={("old.lab-cloud-lists-down.ru", "A"): ["3.5.140.7"]},
+    ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
         "lab-mta-sts-silent",
@@ -1460,6 +1531,16 @@ def _transport(case: Case) -> httpx.MockTransport:
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("#")[0]
+        if url in CLOUD_LISTS:
+            if case.clouds_down:
+                return httpx.Response(503, text="")
+            return httpx.Response(200, text=CLOUD_LISTS[url])
+        if request.url.host == "crt.sh":
+            return httpx.Response(
+                200, json=[{"name_value": f"{n}.{case.host}"} for n in case.subdomains or []]
+            )
+        if request.url.host.endswith("." + case.host) and url not in bodies:
+            raise httpx.ConnectError("lab: nothing listens", request=request)
         if case.https_error and url == f"https://{case.host}/":
             raise case.https_error("lab", request=request)
         if url in (base, base + "/"):
@@ -1517,6 +1598,20 @@ async def run_case(case: Case) -> dict[str, Check]:
             checks += web
             checks += await run_zone_checks(FakeResolver(records), host, https=not case.http)
             checks += mail_checks(await collect_mail(FakeResolver(records), client, host))
+            if case.subdomains is not None:
+                with tempfile.TemporaryDirectory() as cache:
+                    saved_cache = os.environ.get("SUVEREN_CACHE")
+                    os.environ["SUVEREN_CACHE"] = cache
+                    try:
+                        sub, _ = await run_subdomain_checks(
+                            FakeResolver(records), client, client, host
+                        )
+                    finally:
+                        if saved_cache is None:
+                            os.environ.pop("SUVEREN_CACHE", None)
+                        else:
+                            os.environ["SUVEREN_CACHE"] = saved_cache
+                checks += sub
     finally:
         websec.probe_tls = saved
     return {c.id: c for c in checks if c.id}

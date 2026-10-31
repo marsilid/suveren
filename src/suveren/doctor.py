@@ -19,6 +19,7 @@ import httpx
 
 from suveren.blocklist import DOMAINS
 from suveren.blocklist import SOURCE as BLOCK_SOURCE
+from suveren.cloud import SOURCES as CLOUD_SOURCES
 from suveren.collect import (
     Collector,
     make_client,
@@ -159,6 +160,7 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
             ("Реестр блокировок", blocklist),
             ("Журналы сертификатов (crt.sh)", crtsh),
             *((f"Санкции: {s.title}", sanctions(s.url)) for s in SOURCES),
+            *((f"Адреса облака: {c.name}", sanctions(c.url)) for c in CLOUD_SOURCES),
             ("Браузер для --browser", browser),
         ]
         return [await _timed(name, fn, abroad=abroad) for name, fn in probes]
