@@ -144,6 +144,7 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
 | `--json файл.json`, `--sarif файл.sarif` | результат для `diff`, CI и сканеров безопасности |
 | `--since прошлый.json` | что изменилось с прошлой проверки |
 | `--fail-under C`, `--fail-on fail` | ненулевой код выхода для CI |
+| `--ignore файл` | принятые находки с причиной, автором и сроком (по умолчанию `.suveren-ignore`) |
 | `--dns ru` | DNS-запросы только через Яндекс DNS: имена доменов не уходят за рубеж |
 | `--no-mail`, `--no-security`, `--no-subdomains`, `--no-152fz`, `--no-blocklist` | пропустить раздел |
 
@@ -188,6 +189,9 @@ suveren batch sites.txt --browser
 ```bash
 suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
 ```
+
+Находку, с которой решили жить, можно принять в файле `.suveren-ignore`: ID, сайт, срок,
+автор и причина в строке. Она остаётся в отчёте, но не валит CI, а после срока снова считается.
 
 SARIF читают GitHub и GitLab code scanning и DefectDojo. Коды выхода, формат JSON и плагины со
 своими проверками описаны в [руководстве](docs/guide.md#ci-и-другие-инструменты) и

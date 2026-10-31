@@ -144,6 +144,7 @@ Main `scan` options:
 | `--json file.json`, `--sarif file.sarif` | results for `diff`, CI and security scanners |
 | `--since previous.json` | what changed since the previous audit |
 | `--fail-under C`, `--fail-on fail` | non-zero exit code for CI |
+| `--ignore file` | accepted findings with a reason, an author and an end date (default `.suveren-ignore`) |
 | `--dns ru` | DNS queries through Yandex DNS only: domain names stay in Russia |
 | `--no-mail`, `--no-security`, `--no-subdomains`, `--no-152fz`, `--no-blocklist` | skip a section |
 
@@ -189,6 +190,10 @@ site.
 ```bash
 suveren scan example.ru --no-open --sarif suveren.sarif --fail-on fail
 ```
+
+A finding you decided to live with can be accepted in `.suveren-ignore`: the ID, the site, the
+end date, the author and the reason on one line. It stays in the report but does not fail CI, and
+counts again after the end date.
 
 SARIF is read by GitHub and GitLab code scanning and DefectDojo. Exit codes, the JSON format and
 plugins with your own checks are described in the [guide](docs/guide.md#ci-и-другие-инструменты)
