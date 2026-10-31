@@ -58,7 +58,14 @@ from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
 from suveren.render import print_pdf
-from suveren.report import json_text, write_batch_html, write_company, write_html, write_json
+from suveren.report import (
+    json_text,
+    write_batch_html,
+    write_company,
+    write_html,
+    write_json,
+    write_summary,
+)
 from suveren.sanctions import SOURCE_TITLES, load_index
 from suveren.sanctions import SOURCES as SANCTION_SOURCES
 from suveren.sarif import sarif_text
@@ -538,6 +545,14 @@ def scan(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    summary: Annotated[
+        Path | None,
+        typer.Option(
+            "--summary",
+            help="Сохранить сводку на одну страницу для руководителя: оценка, главные риски, "
+            "штрафы, что сделать (HTML).",
+        ),
+    ] = None,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
     brand = _brand(brand_name, brand_logo, brand_url)
@@ -643,6 +658,9 @@ def scan(
                 html_path.unlink(missing_ok=True)  # only needed to print the PDF
             elif open_report:
                 _open(html_path)
+        if summary is not None:
+            write_summary(report, summary, brand)
+            files.append(("сводка", summary))
         if json_path is not None:
             _emit(json_path, json_text(report))
             files.append(("json", json_path))

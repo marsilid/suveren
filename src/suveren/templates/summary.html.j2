@@ -1,0 +1,58 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ report.target }} — сводка для руководителя{% endblock %}
+{% block content %}
+<main class="summary">
+  <header class="top">
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren · сводка для руководителя</span>{% endif %}
+    <span class="meta">{{ report.started_at.strftime("%d.%m.%Y") }}</span>
+  </header>
+  <h1>{{ report.target }}</h1>
+
+  <section class="card summary-grade">
+    <div class="grade g-{{ overall.grade | lower }}">{{ overall.grade }}</div>
+    <div>
+      <h2>Общая оценка: {{ overall.score }} из 100</h2>
+      <p class="muted-sum">{{ overall.scope | capitalize }}. Иностранных сервисов: {{ report.foreign_count }}, независимость {{ report.grade }} ({{ report.score }}/100).</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Главные риски и что сделать</h2>
+    {% if actions %}
+    <ol class="summary-risks">
+      {% for a in actions %}
+      <li class="sev-{{ a.severity.name | lower }}"><strong>{{ a.action }}</strong><br><span class="muted-sum">{{ a.reason }}</span></li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p>Серьёзных рисков не найдено.</p>
+    {% endif %}
+  </section>
+
+  {% if fines %}
+  <section class="card">
+    <h2>Штрафы</h2>
+    {% if fines.counted %}
+    <p><strong>До {{ fines.total("legal") | rub }}</strong> для юрлица по найденным нарушениям (статей: {{ fines.counted | length }}).</p>
+    {% else %}
+    <p>Безусловных штрафов по найденному нет.</p>
+    {% endif %}
+    {% if fines.listed %}<p class="muted-sum">Ещё возможны при условиях, которые снаружи не видны: {{ fines.listed | length }} (в сумму не входят).</p>{% endif %}
+    <p class="muted-sum">{{ fines_disclaimer }}</p>
+  </section>
+  {% endif %}
+
+  <p class="muted-sum">Подробности, доказательства и ссылки на законы — в полном отчёте. Suveren {{ version }}.</p>
+</main>
+<style>
+  .summary { max-width: 820px; margin: 0 auto; padding: 32px 16px; }
+  .summary-grade { display: flex; gap: 20px; align-items: center; }
+  .summary-grade .grade { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; border: 5px solid currentColor; flex: none; }
+  .g-a { color: var(--grade-a); } .g-b { color: var(--grade-b); } .g-c { color: var(--grade-c); }
+  .g-d { color: var(--grade-d); } .g-f { color: var(--grade-f); }
+  .summary-risks li { margin: 0 0 12px; }
+  .summary-risks .sev-high strong { color: var(--high); }
+  .summary-risks .sev-medium strong { color: var(--medium); }
+  @media print { .summary { padding: 0; } }
+</style>
+{% endblock %}

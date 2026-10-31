@@ -126,3 +126,17 @@ def test_recommendation_rules_fine_is_listed_not_counted():
     fines = estimate([feed])
     assert [i.fine.article for i in fines.listed] == ["КоАП, ст. 13.56 ч. 3"]
     assert fines.listed[0].fine.legal == (500_000, 700_000) and fines.total() == 0
+
+
+def test_one_page_summary_for_a_director():
+    from suveren.report import render_summary_html
+
+    report = Report("example.ru", checks=list(VIOLATIONS))
+    html = render_summary_html(report)
+    assert "сводка для руководителя" in html
+    assert "Общая оценка:" in html and "Главные риски и что сделать" in html
+    assert "До 60 тыс. ₽" in html and "при условиях" in html
+    assert html.count("<li") <= 5
+    assert "Content-Security-Policy" in html
+    clean = render_summary_html(Report("example.ru"))
+    assert "Серьёзных рисков не найдено" in clean and "Штрафы" not in clean

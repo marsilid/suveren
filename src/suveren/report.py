@@ -244,6 +244,29 @@ def navigation(report: Report, has_plan: bool) -> list[dict[str, object]]:
     return nav
 
 
+def render_summary_html(report: Report, brand: Brand | None = None) -> str:
+    """One page for a director: the grade, the 3–5 main risks with what to do, the fines."""
+    template = _environment().get_template("summary.html.j2")
+    return template.render(
+        report=report,
+        brand=brand,
+        version=__version__,
+        actions=priorities(report)[:5],
+        fines=report.fines,
+        overall={
+            "score": overall_score(report),
+            "grade": overall_grade(report),
+            "scope": overall_scope(report),
+        },
+    )
+
+
+def write_summary(report: Report, path: Path, brand: Brand | None = None) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_summary_html(report, brand), encoding="utf-8")
+    return path
+
+
 def write_html(report: Report, path: Path, brand: Brand | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_html(report, brand), encoding="utf-8")

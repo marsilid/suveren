@@ -117,6 +117,16 @@ def test_scan_writes_a_consistent_report(offline, tmp_path, name):
     assert case.host in html and "<script>alert" not in html
 
 
+def test_scan_writes_a_one_page_summary(offline, tmp_path):
+    case = offline("lab-hosting-abroad")
+    summary = tmp_path / "s.html"
+    result = run_cli(tmp_path, case.host, "--no-report", "--summary", str(summary))
+    assert result.exit_code == 0, result.output
+    html = summary.read_text(encoding="utf-8")
+    assert case.host in html and "Главные риски и что сделать" in html
+    assert "сводка" in result.output
+
+
 def test_an_unreachable_site_does_not_pass_fail_under_a(offline, tmp_path, monkeypatch):
     # The proxy's bare 503 for a host that doesn't answer gave A 100/100 and exit 0.
     case = offline("lab-good")
