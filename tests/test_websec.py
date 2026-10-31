@@ -230,7 +230,22 @@ def test_tls_expiry_and_protocols():
         "example.ru", "TLSv1.3", NOW + timedelta(days=200), {"TLS 1.0": None, "TLS 1.1": None}
     )
     check = tls_check(web(tls=unknown))
-    assert check.status is Status.OK and "проверить не удалось" in check.details
+    # Half checked is not "в порядке" (review of 1.1.2).
+    assert check.status is Status.UNKNOWN and "проверить не удалось" in check.details
+    unverified = TlsInfo(
+        "example.ru",
+        "TLSv1.3",
+        NOW + timedelta(days=200),
+        {"TLS 1.0": False, "TLS 1.1": False},
+        verified=False,
+    )
+    check = tls_check(web(tls=unverified))
+    assert check.status is Status.UNKNOWN and "поверхностная" in check.details
+    clean = TlsInfo(
+        "example.ru", "TLSv1.3", NOW + timedelta(days=200), {"TLS 1.0": False, "TLS 1.1": False}
+    )
+    check = tls_check(web(tls=clean))
+    assert check.status is Status.OK and "шифры" in check.details
     # No handshake at all on an HTTPS site: "not checked", not a missing check.
     check = tls_check(web(tls=TlsInfo("example.ru")))
     assert check.status is Status.UNKNOWN and "TLS-соединение" in check.details
