@@ -128,6 +128,10 @@
     {% for n in nav %}<a href="{{ n.href }}">{{ n.title }}{% if n.fail %} <b class="c-fail">{{ n.fail }}</b>{% endif %}{% if n.warn %} <b class="c-warn">{{ n.warn }}</b>{% endif %}</a>{% endfor %}
   </nav>
 
+  {% if report.plugins %}
+  <p class="card plugins-note"><b>Отчёт с плагинами:</b> {% for p in report.plugins %}{{ p.name }} ({{ p.source }}){% if not loop.last %}, {% endif %}{% endfor %}. Их проверки написаны не авторами Suveren и выполнялись на компьютере проверяющего; за их результаты Suveren не отвечает.</p>
+  {% endif %}
+
   {% if history %}
   <h2 id="since">С прошлой проверки</h2>
   <div class="card">
