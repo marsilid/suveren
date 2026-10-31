@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from suveren.utils import clean_text
+
 
 class Status(str, Enum):
     OK = "ok"
@@ -65,6 +67,8 @@ class Evidence:
     value: str = ""
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "what", clean_text(self.what))
+        object.__setattr__(self, "value", clean_text(self.value))
         if self.kind not in EVIDENCE_KINDS:
             raise ValueError(f"unknown evidence kind: {self.kind}")
         if len(self.value) > EVIDENCE_MAX:
@@ -109,6 +113,10 @@ class Check:
     accepted: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
+        # Details quote the site (its policy, consent labels, script addresses).
+        self.title = clean_text(self.title)
+        self.details = clean_text(self.details)
+        self.recommendation = clean_text(self.recommendation)
         if not self.id:
             from suveren.catalog import spec_for
 

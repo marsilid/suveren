@@ -69,6 +69,7 @@ from suveren.view import (
     ACCENT,
     DIM,
     GRADE_STYLE,
+    esc,
     header,
     print_changes,
     print_checks,
@@ -163,7 +164,7 @@ def _pdf(html_path: Path, pdf_path: Path, *, spin: bool = True) -> bool:
         with _spinner("[grey50]Печатаю PDF…[/]") if spin else contextlib.nullcontext():
             asyncio.run(print_pdf(html_path, pdf_path))
     except SuverenError as exc:
-        console.print(f"  [#e6b450]![/] PDF не создан: {exc}")
+        console.print(f"  [#e6b450]![/] PDF не создан: {esc(exc)}")
         return False
     return True
 
@@ -260,7 +261,7 @@ def main(
 def _fail(message: str, code: int = 2) -> typer.Exit:
     # Errors go to stderr always: under -q a bad --checks used to land on stdout, since
     # it was refused before -q took effect.
-    errors_console.print(f"[bold #e5534b]✗[/] {message}")
+    errors_console.print(f"[bold #e5534b]✗[/] {esc(message)}")
     return typer.Exit(code)
 
 
@@ -792,7 +793,7 @@ def batch(
     warn = errors_console if quiet else console
     if not hosts:
         for skip in skipped:
-            warn.print(f"  [#e6b450]![/] пропущена {skip}")
+            warn.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
         raise _fail("в файле нет доменов")
     try:
         plan = make_plan(Profile.quick if quick else profile, checks, browser=browser, pages=pages)
@@ -810,7 +811,7 @@ def batch(
     )
     # After the header: printed before it, the warnings read as part of the shell's output.
     for skip in skipped:
-        warn.print(f"  [#e6b450]![/] пропущена {skip}")
+        warn.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
     console.print()
 
     results: list[tuple[str, Report | None, str | None]] = []
@@ -824,7 +825,7 @@ def batch(
                 async with make_client(30.0) as client:
                     await ensure_lists(client, refresh=refresh)
             except ModuleError as exc:
-                console.print(f"[yellow]Реестр блокировок недоступен: {exc}.[/]")
+                console.print(f"[yellow]Реестр блокировок недоступен: {esc(exc)}.[/]")
 
         async def one(host: str) -> tuple[str, Report | None, str | None]:
             try:
@@ -840,7 +841,7 @@ def batch(
                 )
             except (SuverenError, *TIMEOUTS) as exc:
                 reason = str(exc) or f"не уложилась в {max_time} с (--max-time)"
-                warn.print(f"  [#e5534b]✗[/] {host:<32} [grey50]{reason}[/]")
+                warn.print(f"  [#e5534b]✗[/] {esc(host):<32} [grey50]{esc(reason)}[/]")
                 return host, None, reason
             report.notes += apply_ignore(report.checks, accepted, host, date.today())
             write_html(report, folder / f"{host}.html", brand)
@@ -976,7 +977,7 @@ def audit_reports(
                     f"[grey50]{issue.rule}[/]: {issue.text}"
                 )
     for problem in problems:
-        errors_console.print(f"  [#e6b450]![/] {problem}")
+        errors_console.print(f"  [#e6b450]![/] {esc(problem)}")
     if found:
         console.print(f"\n[bold #e5534b]Противоречий: {found}[/] в {checked} отчётах.")
         raise typer.Exit(5)
@@ -1228,14 +1229,14 @@ def update() -> None:
             with _spinner("[grey50]Санкционные списки…[/]"):
                 index = await load_index(client, refresh=True)
             for note in index.notes:
-                console.print(f"  [#e6b450]![/] {note}")
+                console.print(f"  [#e6b450]![/] {esc(note)}")
             for source in SANCTION_SOURCES:
                 count = sum(1 for e in index.entries if e.source == source.key)
                 console.print(f"  [#7fb069]✓[/] {source.title}: {count} записей")
             with _spinner("[grey50]Реестр блокировок…[/]"):
                 sizes, notes = await ensure_lists(client, refresh=True)
             for note in notes:
-                console.print(f"  [#e6b450]![/] {note}")
+                console.print(f"  [#e6b450]![/] {esc(note)}")
             total = sum(sizes.values()) / 1_048_576
             console.print(f"  [#7fb069]✓[/] Реестр блокировок РКН: {total:.1f} МБ")
         console.print(f"\n[grey50]Кэш: {cache_dir()}[/]")

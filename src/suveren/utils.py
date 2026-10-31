@@ -151,3 +151,15 @@ def host_matches(host: str, pattern: str) -> bool:
         regex = re.escape(pattern).replace(r"\*", "[a-z0-9.-]*")
         return re.fullmatch(regex, host) is not None
     return host == pattern or host.endswith("." + pattern)
+
+
+# C0 controls except tab and newline, DEL, C1 controls, and the bidi embeddings and
+# isolates. A site's text (a quote from its policy, a consent label) with ESC sequences
+# would otherwise reach the terminal: OSC 52 rewrites the clipboard, others the screen;
+# bidi controls make "evil.ru" read as "ur.live".
+_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+
+
+def clean_text(text: str) -> str:
+    """Text from a site, safe to show: control characters and bidi controls removed."""
+    return _CONTROL.sub("", text)
