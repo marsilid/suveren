@@ -4,4 +4,4 @@ Copyright (C) 2026 marsilid. Licensed under the GNU AGPL-3.0-or-later; see COPYR
 LICENSE. Versions up to 1.0.x were published under MIT.
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
