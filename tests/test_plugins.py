@@ -256,3 +256,17 @@ def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: 
     assert "упал" in ids["PLUGIN-ERROR-000"]["details"]
     # The rest of the scan is all there.
     assert {"SUV-MAIL-001", "SUV-WEB-007", "SUV-PD-001"} <= ids.keys()
+
+
+def test_cancelling_the_scan_still_cancels_the_plugin(tmp_path):
+    body = "import asyncio\nasync def run(ctx):\n    await asyncio.sleep(30)\n"
+    plugin = load(str(plugin_file(tmp_path, body)))
+
+    async def scan():
+        task = asyncio.create_task(run_plugin(plugin, ctx()))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await task
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(scan())
