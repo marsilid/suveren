@@ -1255,6 +1255,40 @@ def watch(
             return
 
 
+# --- draft ----------------------------------------------------------------------------
+
+
+@app.command()
+def draft(
+    report_path: Annotated[
+        Path, typer.Argument(help="JSON-отчёт suveren scan (--json), по которому писать.")
+    ],
+    kind: Annotated[
+        str, typer.Option("--kind", "-k", help="policy — политика ПДн, consent — согласие.")
+    ] = "policy",
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Куда сохранить (Markdown).")
+    ] = None,
+) -> None:
+    """Черновик политики или согласия по найденному. Только черновик: проверьте с юристом."""
+    from suveren.drafts import KINDS
+    from suveren.drafts import draft as make_draft
+
+    if kind not in KINDS:
+        raise _fail(f"--kind: {kind} — нужно policy или consent")
+    try:
+        data = load_report(report_path)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+    text = make_draft(data, kind)
+    path = output or report_path.with_name(f"{data.get('target', 'site')}-{kind}-черновик.md")
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise _fail(f"не удалось записать файл: {exc}", code=1) from exc
+    console.print(f"[#e6b450]![/] Черновик сохранён: {esc(path)}. Проверьте его с юристом.")
+
+
 # --- verify ---------------------------------------------------------------------------
 
 
