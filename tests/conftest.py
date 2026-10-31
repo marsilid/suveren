@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 # Every check a module produces must be in catalog.py (see suveren.checks.STRICT_IDS).
 os.environ["SUVEREN_STRICT_CHECK_IDS"] = "1"
@@ -10,3 +11,7 @@ os.environ["SUVEREN_STRICT_CHECK_IDS"] = "1"
 for name in ("GITHUB_ACTIONS", "FORCE_COLOR", "PY_COLORS"):
     os.environ.pop(name, None)
 os.environ["COLUMNS"] = "200"
+
+# Downloaded databases and lists (retire.js, cloud ranges, sanctions) are read from the
+# cache: tests must not see what the developer's own scans left there.
+os.environ["SUVEREN_CACHE"] = tempfile.mkdtemp(prefix="suveren-test-cache-")

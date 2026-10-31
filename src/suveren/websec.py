@@ -35,9 +35,9 @@ from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
 from suveren.subdomains import is_registered
-from suveren.utils import registrable_domain
+from suveren.utils import plural, registrable_domain
 from suveren.vulns import TITLE as VULN_TITLE
-from suveren.vulns import detect, vuln_check
+from suveren.vulns import bundled, detect, load_database, vuln_check
 
 GROUP_WEB = "Безопасность сайта"
 
@@ -210,6 +210,13 @@ def csp_weaknesses(policy: str) -> list[str]:
     fallback = d.get("default-src")
     if "object-src" not in d and (fallback is None or any(t in WIDE for t in fallback)):
         problems.append("нет object-src 'none': плагины (object, embed) не запрещены")
+    # A nonce or hash trusts the script's tag, not its address: an injected <base href>
+    # moves every relative script to another site, and the nonce still lets it run
+    # (CSP Evaluator, "missing base-uri"). An allowlist of hosts is not fooled so.
+    if (nonce_or_hash or strict_dynamic) and "base-uri" not in d:
+        problems.append(
+            "нет base-uri: внедрённый тег <base> перенаправит скрипты с nonce на чужой сайт"
+        )
     return problems
 
 
@@ -545,6 +552,12 @@ class WebFacts:
     page_problem: str | None = None
     http_problem: str | None = None
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
+    referrer_meta: str | None = None  # <meta name="referrer" content="...">
+    host: str = ""  # the address that was asked for (domain may be its registrable part)
+    # What http://<host>/ does: "redirect" (to HTTPS), "page" (the site in plain text),
+    # "closed" (nothing on port 80), "error" (an error page, no site), None (no answer).
+    plain_http: str | None = None
+    plain_http_note: str = ""
 
     @property
     def third_party(self) -> list[Resource]:
@@ -553,15 +566,6 @@ class WebFacts:
 
 def _hosts(resources: list[Resource]) -> list[str]:
     return sorted({r.host for r in resources})
-
-
-def plural(n: int, one: str, few: str, many: str) -> str:
-    """Russian plural form: 1 домен, 2 домена, 5 доменов, 21 домен."""
-    if n % 10 == 1 and n % 100 != 11:
-        return one
-    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
-        return few
-    return many
 
 
 def _list(items: list[str], limit: int = 8) -> str:
@@ -709,6 +713,8 @@ def _csp_fix(problems: list[str]) -> str:
             fixes.append("перечислите конкретные домены вместо *, http: и https:")
         elif problem.startswith("нет object-src"):
             fixes.append("добавьте object-src 'none'")
+        elif problem.startswith("нет base-uri"):
+            fixes.append("добавьте base-uri 'none' (или 'self')")
     text = ", ".join(fixes) or "ограничьте источники скриптов"
     return text[0].upper() + text[1:] + "."
 
@@ -792,6 +798,137 @@ def headers_check(w: WebFacts) -> Check:
         + " и ".join(fixes)
         + ".",
     )
+
+
+REFERRER_POLICIES = frozenset(
+    {
+        "no-referrer",
+        "no-referrer-when-downgrade",
+        "same-origin",
+        "origin",
+        "strict-origin",
+        "origin-when-cross-origin",
+        "strict-origin-when-cross-origin",
+        "unsafe-url",
+    }
+)
+# Policies that send the whole address (path and query) to other sites.
+REFERRER_LEAKY = {
+    "unsafe-url": "полный адрес страницы, с путём и параметрами, уходит любому сайту, даже по HTTP",
+    "no-referrer-when-downgrade": "полный адрес страницы, с путём и параметрами, уходит "
+    "всем сторонним сайтам по HTTPS",
+}
+
+
+def referrer_policy(value: str) -> str | None:
+    """The policy a browser applies: the last valid token of the header (W3C Referrer
+    Policy, "parse a referrer policy from a Referrer-Policy header")."""
+    found = None
+    for token in value.lower().split(","):
+        if token.strip() in REFERRER_POLICIES:
+            found = token.strip()
+    return found
+
+
+def referrer_check(w: WebFacts) -> Check:
+    """What the browser tells other sites about the page a visitor came from. Addresses
+    often carry personal data (?email=, /order/12345, search words)."""
+    title = "Политика Referrer-Policy"
+    header = referrer_policy(w.headers.get("referrer-policy", ""))
+    meta = referrer_policy(w.referrer_meta or "")
+    policy = meta or header  # <meta name="referrer"> overrides the header
+    where = "в теге meta" if meta else "в заголовке"
+    if policy in REFERRER_LEAKY:
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.WARN,
+            f"Referrer-Policy {where}: {policy} — {REFERRER_LEAKY[policy]}. Если в адресах "
+            "бывают телефон, почта, номер заказа или поисковый запрос, они попадают к "
+            "счётчикам и рекламным сетям.",
+            "Поставьте Referrer-Policy: strict-origin-when-cross-origin (или no-referrer).",
+        )
+    if policy:
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.OK,
+            f"Referrer-Policy {where}: {policy}: полный адрес "
+            "страницы другим сайтам не передаётся.",
+        )
+    return Check(
+        GROUP_WEB,
+        title,
+        Status.OK,
+        "Referrer-Policy не задана: современные браузеры по умолчанию применяют "
+        "strict-origin-when-cross-origin и отдают другим сайтам только домен.",
+    )
+
+
+def redirect_check(w: WebFacts) -> Check | None:
+    """Someone who types the address without https:// first lands on HTTP: it must send
+    them to HTTPS at once (OWASP Transport Layer Security Cheat Sheet)."""
+    if not w.https:
+        return None  # a site without HTTPS is PD-008's
+    title = "Перенаправление с HTTP на HTTPS"
+    note = f" {w.plain_http_note}" if w.plain_http_note else ""
+    if w.plain_http == "page":
+        hsts = (
+            " HSTS у сайта есть, но он действует только после первого захода по HTTPS."
+            if w.headers.get("strict-transport-security")
+            else ""
+        )
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.WARN,
+            "По адресу http:// сайт открывается без перенаправления на HTTPS: кто наберёт "
+            "адрес без https://, получит страницу в открытом виде, и её можно подменить по "
+            f"дороге (например, в общественном Wi-Fi).{hsts}{note}",
+            "Настройте постоянное перенаправление (301) со всех адресов http:// на https://.",
+        )
+    if w.plain_http == "redirect":
+        return Check(GROUP_WEB, title, Status.OK, f"http:// перенаправляет на HTTPS.{note}")
+    if w.plain_http in ("closed", "error"):
+        what = "порт 80 закрыт" if w.plain_http == "closed" else "по HTTP отвечает ошибкой"
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.OK,
+            f"По http:// сайт не отдаётся ({what}): открытого текста нет. Посетитель, "
+            "набравший адрес без https://, увидит ошибку; перенаправление удобнее.",
+        )
+    return Check(
+        GROUP_WEB,
+        title,
+        Status.UNKNOWN,
+        f"Не проверено: http:// не ответил вовремя.{note}",
+    )
+
+
+PLAIN_HOPS = 5
+
+
+async def probe_plain_http(client: httpx.AsyncClient, host: str) -> tuple[str | None, str]:
+    """What a visitor who types http://host gets, following redirects by hand."""
+    url = f"http://{host}/"
+    for _ in range(PLAIN_HOPS):
+        try:
+            resp = await client.get(url, follow_redirects=False)
+        except (httpx.TimeoutException, *TIMEOUTS):
+            return None, ""
+        except httpx.HTTPError:
+            return "closed", ""
+        if resp.is_redirect:
+            target = urljoin(url, resp.headers.get("location", ""))
+            if target.lower().startswith("https://"):
+                return "redirect", ""
+            url = target
+            continue
+        if resp.status_code >= 400:
+            return "error", ""
+        return "page", ""
+    return None, "перенаправлений слишком много"
 
 
 def cookies_check(w: WebFacts) -> Check | None:
@@ -994,6 +1131,7 @@ def evaluate(w: WebFacts) -> list[Check]:
         )
     else:
         checks += [csp_check(w), hsts_check(w), headers_check(w), cookies_check(w)]
+        checks += [referrer_check(w), redirect_check(w)]
     checks.append(tls_check(w))
     found = [c for c in checks if c is not None]
     for check in found:
@@ -1005,7 +1143,8 @@ def evaluate(w: WebFacts) -> list[Check]:
 _HEADER_EVIDENCE = {
     "SUV-WEB-004": ("content-security-policy", "content-security-policy-report-only"),
     "SUV-WEB-005": ("strict-transport-security",),
-    "SUV-WEB-006": ("x-frame-options", "x-content-type-options", "referrer-policy"),
+    "SUV-WEB-006": ("x-frame-options", "x-content-type-options"),
+    "SUV-WEB-015": ("referrer-policy",),
 }
 _SHOWN_EVIDENCE = 10
 
@@ -1018,6 +1157,16 @@ def evidence(w: WebFacts, check_id: str) -> list[Evidence]:
         if name.endswith("report-only") and name not in w.headers:
             continue
         found.append(Evidence("header", f"Заголовок {_header_name(name)}", w.headers.get(name, "")))
+    if check_id == "SUV-WEB-015" and w.referrer_meta is not None:
+        found.append(Evidence("html", "<meta name=referrer>", w.referrer_meta))
+    if check_id == "SUV-WEB-014" and w.plain_http:
+        what = {
+            "page": "отдаёт страницу, без перенаправления",
+            "redirect": "перенаправляет на HTTPS",
+            "closed": "соединение не открылось",
+            "error": "отвечает ошибкой",
+        }[w.plain_http]
+        found.append(Evidence("url", f"http://{w.host or w.domain}/", what))
     if check_id == "SUV-WEB-004":
         meta = "<meta http-equiv=Content-Security-Policy>"
         found += [Evidence("html", meta, c) for c in w.csp_meta]
@@ -1139,6 +1288,13 @@ async def run_web_checks(
     final_host = urlsplit(facts.final_url or "").hostname or ""
     if final_host and registrable_domain(final_host) != facts.domain and not w.http_problem:
         w.http_problem = f"сайт перенаправил на другой домен, {final_host}"
+    meta = re.search(r"""(?is)<meta\s[^>]*name\s*=\s*["']?referrer["']?[^>]*>""", facts.html or "")
+    if meta:
+        content = re.search(r"""(?i)content\s*=\s*["']?([^"'>\s]+)""", meta.group(0))
+        w.referrer_meta = content.group(1) if content else None
+    w.host = facts.host
+    if https:
+        w.plain_http, w.plain_http_note = await probe_plain_http(client, facts.host)
     w.abandoned = await find_abandoned(
         resolver, client, _hosts([r for r in w.third_party if r.kind == "script"]), facts.domain
     )
@@ -1194,7 +1350,8 @@ async def run_web_checks(
         scripts += [u for u in facts.loaded_urls if urlsplit(u).path.endswith(".js")]
         libs = detect(list(dict.fromkeys(scripts)), heads)
         data["libraries"] = [{"name": x.name, "version": x.version, "where": x.where} for x in libs]
-        code_checks = [leak_check(leaks, sources), vuln_check(libs)]
+        db = await load_database(client) if libs else bundled()
+        code_checks = [leak_check(leaks, sources), vuln_check(libs, db)]
         if facts.initiators:  # --browser mode only: the browser said who loaded what
             graph = build_graph(facts.initiators, w.domain)
             code_checks.append(graph_check(graph))

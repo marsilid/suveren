@@ -24,6 +24,7 @@ import httpx
 from suveren.cache import age_text, cache_dir, is_fresh
 from suveren.checks import Check, Evidence, Status, asked, copy_of
 from suveren.checks import source as source_evidence
+from suveren.cloud import CloudRanges, load_ranges
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
@@ -45,6 +46,7 @@ STALE_TTL = 14 * 24 * 3600  # an old list, used only when both logs are down
 MAX_SUBDOMAINS = 300
 MAX_CNAME_HOPS = 4
 DNS_CONCURRENCY = 20
+MAX_CLOUD_PROBES = 20  # subdomains on cloud addresses whose page is opened
 PAGE_BYTES = 200_000
 RU_WHOIS = "whois.tcinet.ru"  # .ru, .su and .рф
 WHOIS_TIMEOUT = 10.0
@@ -330,6 +332,186 @@ def _edge_note(sig: Signature) -> str:
     )
 
 
+# --- Dangling A records ---------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class CloudHost:
+    sub: Subdomain
+    cloud: str
+    address: str
+    silent: bool  # neither HTTPS nor HTTP answered
+
+
+async def find_cloud_hosts(
+    client: httpx.AsyncClient, ranges: CloudRanges, subs: list[Subdomain]
+) -> tuple[list[CloudHost], int]:
+    """Subdomains whose own A record (no CNAME) is a cloud pool address, with whether
+    their page answers; the first MAX_CLOUD_PROBES are opened. Also how many there are."""
+    found = []
+    for sub in subs:
+        if sub.cnames or sub.failed:
+            continue
+        for address in sub.addresses:
+            cloud = ranges.cloud_of(address)
+            if cloud:
+                found.append((sub, cloud, address))
+                break
+    probed = found[:MAX_CLOUD_PROBES]
+    pages = await asyncio.gather(*(_fetch(client, sub.name) for sub, _, _ in probed))
+    hosts = [
+        CloudHost(s, c, a, page is None) for (s, c, a), page in zip(probed, pages, strict=True)
+    ]
+    return hosts, len(found)
+
+
+def dangling_check(scan: SubdomainScan) -> Check:
+    title = "Висящие A-записи на облачные адреса"
+    ranges = scan.ranges
+    if ranges is None:
+        return Check(
+            GROUP_SUB,
+            title,
+            Status.OK,
+            "Ни один поддомен не указывает A-записью прямо на IP-адрес: проверять нечего.",
+        )
+    sources = [source_evidence(s) for s in ranges.sources]
+    if ranges.empty:
+        return Check(
+            GROUP_SUB,
+            title,
+            Status.UNKNOWN,
+            "Не проверено: списки адресов облаков (" + ", ".join(ranges.missing) + ") не "
+            "загрузились.",
+        )
+    missing = (
+        f" Список {', '.join(ranges.missing)} не загрузился, эти облака не проверены."
+        if ranges.missing
+        else ""
+    )
+    more = (
+        f" Открыты первые {len(scan.cloud)} из {scan.cloud_total}."
+        if scan.cloud_total > len(scan.cloud)
+        else ""
+    )
+    silent = [h for h in scan.cloud if h.silent]
+    if silent:
+        lines = "; ".join(f"{h.sub.name} → {h.address} ({h.cloud})" for h in silent[:5])
+        if len(silent) > 5:
+            lines += f"; и ещё {len(silent) - 5}"
+        check = Check(
+            GROUP_SUB,
+            title,
+            Status.WARN,
+            "Поддомены указывают на адреса облаков, а на этих адресах никто не отвечает ни "
+            f"по HTTPS, ни по HTTP: {lines}. Если сервер удалён, а запись осталась, адрес "
+            "вернулся в облако и может достаться другому клиенту: тогда на вашем поддомене "
+            "окажется его "
+            "сервер. Это только подозрение: сервер мог быть почтовым, VPN или закрытым для "
+            f"внешних запросов.{more}{missing}",
+            "Проверьте в консоли облака, что эти адреса ещё закреплены за вашим аккаунтом; "
+            "записи на освобождённые адреса удалите.",
+        )
+        check.evidence = [
+            Evidence("dns", f"A {h.sub.name}", ", ".join(h.sub.addresses)) for h in silent[:10]
+        ]
+        check.evidence += sources
+        return check
+    if not scan.cloud:
+        details = "Ни один поддомен не указывает на адреса AWS, Google Cloud, Oracle Cloud и "
+        details += "DigitalOcean из их опубликованных списков."
+    else:
+        clouds = ", ".join(sorted({h.cloud for h in scan.cloud}))
+        details = (
+            f"Поддоменов на адресах облаков ({clouds}): {scan.cloud_total}, все открытые "
+            f"отвечают.{more}"
+        )
+    check = Check(GROUP_SUB, title, Status.OK, details + missing)
+    check.evidence = sources
+    return check
+
+
+# --- Dangling NS ----------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class DanglingNs:
+    name: str  # the delegated name: the domain itself or a subdomain
+    ns: str  # the name server host
+    domain: str  # its registrable domain, missing from DNS
+    certain: bool  # the registry says the domain is free
+
+
+async def find_dangling_ns(
+    resolver: DnsResolver, client: httpx.AsyncClient, names: list[str], own: str
+) -> list[DanglingNs]:
+    """Names delegated to name servers whose domain no longer exists. Whoever registers
+    that domain answers for the delegated names: the site, its mail, certificates (Can I
+    take over XYZ?, "NS delegation takeover")."""
+    semaphore = asyncio.Semaphore(DNS_CONCURRENCY)
+
+    async def ns_of(name: str) -> list[str]:
+        async with semaphore:
+            try:
+                return [r.rstrip(".").lower() for r in await resolver.resolve(name, "NS")]
+            except DnsLookupError:
+                return []
+
+    delegations = await asyncio.gather(*(ns_of(n) for n in names))
+    checked: dict[str, bool | None] = {}  # NS domain -> registered?
+
+    async def registered(domain: str) -> bool | None:
+        if domain not in checked:
+            if await resolver.exists(domain):
+                checked[domain] = True
+            else:
+                checked[domain] = await is_registered(client, domain)
+        return checked[domain]
+
+    found = []
+    for name, servers in zip(names, delegations, strict=True):
+        for ns in servers:
+            domain = registrable_domain(ns)
+            if domain == own or "." not in domain:
+                continue
+            state = await registered(domain)
+            if state is not True:
+                found.append(DanglingNs(name, ns, domain, certain=state is False))
+    return found
+
+
+def dangling_ns_check(scan: SubdomainScan) -> Check:
+    title = "Висящие NS-записи"
+    if not scan.dangling_ns:
+        return Check(
+            GROUP_SUB,
+            title,
+            Status.OK,
+            f"Делегирований на несуществующие NS-домены нет ({scan.domain} и "
+            f"{len(scan.resolved)} поддоменов).",
+        )
+    certain = any(d.certain for d in scan.dangling_ns)
+    lines = "; ".join(
+        f"{d.name} → {d.ns} (домен {d.domain} "
+        + ("свободен" if d.certain else "не найден в DNS, реестр не ответил")
+        + ")"
+        for d in scan.dangling_ns[:5]
+    )
+    check = Check(
+        GROUP_SUB,
+        title,
+        Status.FAIL if certain else Status.WARN,
+        f"Имена делегированы на NS-серверы в несуществующем домене: {lines}. Кто "
+        "зарегистрирует этот домен, будет отвечать за эти имена: покажет свой сайт, "
+        "получит почту, выпустит сертификат.",
+        "Уберите NS-записи, которые указывают на этот домен, или замените их на рабочие "
+        "серверы вашего DNS-хостинга.",
+        link=SOURCE_URL,
+    )
+    check.evidence = [Evidence("dns", f"NS {d.name}", d.ns) for d in scan.dangling_ns[:10]]
+    return check
+
+
 # --- Checks ---------------------------------------------------------------------------
 
 
@@ -340,6 +522,11 @@ class SubdomainScan:
     source: str
     resolved: list[Subdomain]
     candidates: list[Candidate]
+    cloud: list[CloudHost] = field(default_factory=list)
+    cloud_total: int = 0
+    # None: no subdomain has its own A record, so the lists were not needed.
+    ranges: CloudRanges | None = None
+    dangling_ns: list[DanglingNs] = field(default_factory=list)
 
     @property
     def truncated(self) -> bool:
@@ -407,7 +594,7 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
         ]
     # A clean answer rests on the signatures too: services added since are not known.
     takeover.evidence.append(source_evidence(database_source()))
-    return [inventory, takeover]
+    return [inventory, takeover, dangling_check(scan), dangling_ns_check(scan)]
 
 
 async def scan_subdomains(
@@ -433,7 +620,13 @@ async def scan_subdomains(
     found = await asyncio.gather(*(check(s) for s in resolved))
     candidates = [c for c in found if c is not None]
     candidates.sort(key=lambda c: (not c.certain, c.edge, c.sub.name))
-    return SubdomainScan(domain, names, source, resolved, candidates)
+    scan = SubdomainScan(domain, names, source, resolved, candidates)
+    delegated = [domain] + [s.name for s in resolved if not s.failed]
+    scan.dangling_ns = await find_dangling_ns(resolver, client, delegated, domain)
+    if any(s.alive and not s.cnames for s in resolved):
+        scan.ranges = await load_ranges(client, refresh=refresh)
+        scan.cloud, scan.cloud_total = await find_cloud_hosts(page_client, scan.ranges, resolved)
+    return scan
 
 
 async def run_subdomain_checks(
@@ -468,6 +661,14 @@ async def run_subdomain_checks(
         "source": scan.source,
         "total": len(scan.names),
         "checked": [s.to_dict() for s in scan.resolved],
+        "dangling_ns": [
+            {"name": d.name, "ns": d.ns, "domain": d.domain, "certain": d.certain}
+            for d in scan.dangling_ns
+        ],
+        "cloud": [
+            {"name": h.sub.name, "address": h.address, "cloud": h.cloud, "silent": h.silent}
+            for h in scan.cloud
+        ],
         "takeover": [
             {
                 "name": c.sub.name,

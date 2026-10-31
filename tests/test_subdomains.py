@@ -252,7 +252,7 @@ def _scan(candidates=(), names=3, checked=3):
 
 
 def test_evaluate_statuses():
-    inventory, takeover = evaluate(_scan())
+    inventory, takeover, *_ = evaluate(_scan())
     assert inventory.status is Status.OK and "Найдено поддоменов: 3" in inventory.details
     assert takeover.status is Status.OK
 
@@ -265,7 +265,7 @@ def test_evaluate_statuses():
 
 
 def test_evaluate_says_when_the_list_was_cut():
-    inventory, _ = evaluate(_scan(names=500, checked=300))
+    inventory, *_ = evaluate(_scan(names=500, checked=300))
     assert "Проверены первые 300" in inventory.details
 
 
@@ -430,3 +430,51 @@ def test_page_text_drops_scripts_and_styles_up_to_their_own_end_tag():
     text = page_text(body)
     assert "No such app" not in text and "color" not in text
     assert text == "There isn't a GitHub Pages site here. end"
+
+
+def test_dangling_ns_delegations():
+    from suveren.subdomains import SubdomainScan, dangling_ns_check, find_dangling_ns
+
+    resolver = FakeResolver(
+        {
+            ("old.example.ru", "NS"): ["ns1.gone-dns.com.", "ns2.gone-dns.com."],
+            ("dev.example.ru", "NS"): ["ns1.selectel.org."],
+            ("example.ru", "NS"): ["ns1.example.ru.", "ns.silent-dns.com."],
+        },
+        missing={"gone-dns.com", "silent-dns.com"},
+    )
+
+    def handler(request):
+        if request.url.host == "rdap.org":
+            return httpx.Response(404 if "gone-dns" in str(request.url) else 503)
+        return httpx.Response(404)
+
+    async def go():
+        async with client(handler) as c:
+            names = ["example.ru", "old.example.ru", "dev.example.ru"]
+            return await find_dangling_ns(resolver, c, names, "example.ru")
+
+    found = run(go())
+    assert [(d.name, d.ns, d.certain) for d in found] == [
+        ("example.ru", "ns.silent-dns.com", False),
+        ("old.example.ru", "ns1.gone-dns.com", True),
+        ("old.example.ru", "ns2.gone-dns.com", True),
+    ]
+    scan = SubdomainScan("example.ru", [], "crt.sh", [], [], dangling_ns=found)
+    check = dangling_ns_check(scan)
+    assert check.id == "SUV-SUB-004" and check.status is Status.FAIL
+    assert "свободен" in check.details and check.evidence[0].what == "NS example.ru"
+    warn = dangling_ns_check(SubdomainScan("example.ru", [], "x", [], [], dangling_ns=found[:1]))
+    assert warn.status is Status.WARN and "реестр не ответил" in warn.details
+    assert dangling_ns_check(SubdomainScan("example.ru", [], "x", [], [])).status is Status.OK
+
+
+def test_ns_lookup_failure_is_no_finding():
+    from suveren.dnsutil import DnsLookupError
+    from suveren.subdomains import find_dangling_ns
+
+    class Broken(FakeResolver):
+        async def resolve(self, name, rtype):
+            raise DnsLookupError("timeout")
+
+    assert run(find_dangling_ns(Broken(), None, ["a.example.ru"], "example.ru")) == []

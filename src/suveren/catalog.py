@@ -126,6 +126,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "Ключи DKIM среди распространённых селекторов, иначе узел _domainkey в DNS."),
     _spec("SUV-MAIL-005", MAIL, "Шифрование входящей почты (MTA-STS)", "mail",
           "mail tls", "MTA-STS и TLS-RPT: защита входящей почты от понижения до открытого текста."),
+    _spec("SUV-MAIL-006", MAIL, "DKIM: длина ключа", "mail", "mail dkim",
+          "Найденные ключи DKIM: RSA не короче 1024 бит (лучше 2048), не только SHA-1 "
+          "(RFC 8301)."),
     # --- web security -------------------------------------------------------------------
     _spec("SUV-WEB-000", WEB, "Заголовки безопасности (CSP, HSTS и другие)", "security",
           "web", "Проверка безопасности сайта не выполнена."),
@@ -151,10 +154,20 @@ CATALOG: tuple[CheckSpec, ...] = (
           "web secrets scripts",
           "Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель."),
     _spec("SUV-WEB-010", WEB, "Уязвимые версии библиотек", "security", "web scripts cve",
-          "jQuery, Bootstrap, lodash и др. с явной версией, у которой есть известные CVE."),
+          "jQuery, Bootstrap, lodash и др. с явной версией, уязвимой по базе retire.js."),
     _spec("SUV-WEB-011", WEB, "Цепочки сторонних скриптов", "security",
           "web scripts supply-chain browser",
           "Код, который подключил не сайт, а чужие скрипты (только в режиме --browser)."),
+    _spec("SUV-WEB-012", WEB, "Ограничение центров сертификации (CAA)", "security",
+          "web tls dns", "Запись CAA: какие центры сертификации могут выпускать сертификаты "
+          "сайта (RFC 8659)."),
+    _spec("SUV-WEB-013", WEB, "Подпись DNS (DNSSEC)", "security", "web dns",
+          "Подписана ли зона и сходится ли запись DS у регистратора с ключом зоны "
+          "(RFC 4035, RFC 8624)."),
+    _spec("SUV-WEB-014", WEB, "Перенаправление с HTTP на HTTPS", "security", "web tls",
+          "Отправляет ли http:// сразу на HTTPS, а не отдаёт сайт в открытом виде."),
+    _spec("SUV-WEB-015", WEB, "Политика Referrer-Policy", "security", "web headers",
+          "Не уходит ли полный адрес страницы (с параметрами) сторонним сайтам."),
     # --- subdomains ---------------------------------------------------------------------
     _spec("SUV-SUB-000", SUB, "Поддомены и их захват", "subdomains", "subdomains",
           "Проверка поддоменов не выполнена."),
@@ -162,6 +175,13 @@ CATALOG: tuple[CheckSpec, ...] = (
           "subdomains ct", "Поддомены из журналов Certificate Transparency."),
     _spec("SUV-SUB-002", SUB, "Захват поддоменов", "subdomains", "subdomains takeover",
           "Поддомены, указывающие на удалённые проекты или свободные домены."),
+    _spec("SUV-SUB-003", SUB, "Висящие A-записи на облачные адреса", "subdomains",
+          "subdomains takeover cloud",
+          "Поддомены с адресом из списков AWS, Google Cloud, Oracle, DigitalOcean, которые "
+          "не отвечают: адрес мог перейти к другому клиенту облака (только предупреждение)."),
+    _spec("SUV-SUB-004", SUB, "Висящие NS-записи", "subdomains", "subdomains takeover dns",
+          "Домен или поддомен делегирован на NS-серверы в домене, который свободен для "
+          "регистрации: его можно купить и отвечать за ваши имена."),
     # --- attack scenarios (reasoning over the other checks) ----------------------------
     _spec("SUV-ATK-001", ATTACK, "Фишинг от имени компании", "mail", "scenario mail",
           "Подделываемая почта + формы или оплата на сайте: фишинг клиентов."),
@@ -195,6 +215,9 @@ CATALOG: tuple[CheckSpec, ...] = (
           "company sanctions", "Управляющая организация в санкционных списках."),
     _spec("SUV-CO-006", COMPANY, "Реестр операторов персональных данных", "company",
           "company pd", "Есть ли компания в реестре операторов персональных данных РКН."),
+    _spec("SUV-CO-008", COMPANY, "Перечень террористов и экстремистов", "company",
+          "company ru-registries",
+          "Компания (ИНН, ОГРН) или руководитель (полное ФИО) в перечне Росфинмониторинга."),
     _spec("SUV-CO-007", COMPANY, "Сайт и компания", "company", "company",
           "Связан ли сайт с компанией: ИНН на сайте и домен в ЕГРЮЛ."),
 )  # fmt: skip
@@ -310,8 +333,12 @@ LABELS = {
     "SUV-MAIL-005": ("look", "ip"),  # fetches https://mta-sts.<domain>/.well-known/...
     "SUV-WEB-008": ("probe", "ip"),  # handshakes with TLS 1.0 and 1.1 on purpose
     "SUV-WEB-011": ("look", "js"),  # only with --browser
+    "SUV-WEB-012": ("none", "none"),  # CAA records, DNS only
+    "SUV-WEB-013": ("none", "none"),  # DS and DNSKEY records, DNS only
     "SUV-SUB-000": ("probe", "ip"),
     "SUV-SUB-002": ("probe", "ip"),  # opens the pages of subdomains pointing to services
+    "SUV-SUB-003": ("probe", "ip"),  # opens the pages of subdomains on cloud addresses
+    "SUV-SUB-004": ("none", "none"),  # NS records and the registry (RDAP/WHOIS)
     "SUV-ATK-001": ("look", "ip"),  # mail records plus the site's forms
     "SUV-ATK-003": ("probe", "ip"),
     "SUV-CUT-002": ("look", "js"),  # the page in a browser, foreign services refused

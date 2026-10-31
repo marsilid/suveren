@@ -226,3 +226,39 @@ def test_a_whois_timeout_is_tried_once_more(monkeypatch):
             return await Collector(Resolver({}), client, 5).registrar("example.ru")
 
     assert asyncio.run(go()) == "RU-CENTER-RU"
+
+
+def test_web_servers_include_ipv6_and_its_network():
+    """A site in Russia by A and abroad by AAAA sends IPv6 visitors abroad (PD-007)."""
+    import ipaddress
+
+    v6 = "2a01:4f8::10"
+    nibbles = ipaddress.ip_address(v6).reverse_pointer.rsplit(".", 2)[0]
+    records = {
+        **DNS,
+        ("example.com", "AAAA"): [v6],
+        (f"{nibbles}.origin6.asn.cymru.com", "TXT"): [
+            "24940 | 2a01:4f8::/32 | DE | ripencc | 2005"
+        ],
+        ("AS24940.asn.cymru.com", "TXT"): ["24940 | DE | ripencc | 2002 | HETZNER-AS, DE"],
+    }
+
+    async def go():
+        return await Collector(Resolver(records), None, 5).web("example.com")  # type: ignore[arg-type]
+
+    nets = asyncio.run(go())
+    assert [(n.ip, n.country) for n in nets] == [("192.0.2.10", "RU"), (v6, "DE")]
+    assert nets[1].asn == 24940
+
+
+def test_aaaa_that_does_not_answer_leaves_ipv4():
+    from suveren.dnsutil import DnsLookupError
+
+    class Silent6(Resolver):
+        async def resolve(self, name, rtype):
+            if rtype == "AAAA":
+                raise DnsLookupError("timeout")
+            return await super().resolve(name, rtype)
+
+    nets = asyncio.run(Collector(Silent6(DNS), None, 5).web("example.com"))  # type: ignore[arg-type]
+    assert [n.ip for n in nets] == ["192.0.2.10"]

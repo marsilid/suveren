@@ -38,9 +38,9 @@ addresses and IPs replaced, so no real company is shown.</sub>
 | 🌍 | **What breaks with the next wave of sanctions?** | DNS, mail, hosting, CDN, site builder, registrar, TLS certificate, page scripts and widgets. An independence grade from **A** to **F** and a migration plan to Russian providers |
 | ⚖️ | **Does the site comply with 152-FZ?** | the privacy policy and its contents, consent in forms, cookies, cross-border transfer, data localisation, the register of personal-data operators, sign-in through Google and Apple, recommendation technologies. The total of possible fines under the Code of Administrative Offences |
 | 🚫 | **Is the site reachable from Russia?** | the domain and IP addresses in Roskomnadzor's block list, blocked services on the pages |
-| ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM, MTA-STS and a plain answer: yes, partly or no |
+| ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM and its key length, MTA-STS and a plain answer: yes, partly or no |
 | 🔓 | **Are there forgotten subdomains someone could take over?** | subdomains from Certificate Transparency logs that point to deleted projects on third-party services |
-| 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS |
+| 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS, CAA and DNSSEC |
 | 🏢 | **Who are we dealing with?** | the company in the state register (EGRUL), US, EU and UK sanctions lists, the register of personal-data operators |
 
 About 60 checks in all, each with a permanent ID — see [docs/checks.md](docs/checks.md).
@@ -56,7 +56,7 @@ what it does to the site and what the person running it risks.
 |---|---|---|
 | `suveren company` by INN or OGRN | no contact: only the state register, the RKN register and sanctions lists | the site does not see you |
 | `scan --profile quick` | only looks: the home page and DNS | the site sees your IP, as on any visit |
-| `scan` (default) | looks at the home page, up to 6 inner pages and the MTA-STS file. It **probes** in two places: it tries the outdated TLS 1.0 and 1.1, and it opens subdomain pages that point to outside services | the site sees your IP; such connections may show up in its security logs |
+| `scan` (default) | looks at the home page, up to 6 inner pages and the MTA-STS file. It **probes** in two places: it tries the outdated TLS 1.0 and 1.1, and it opens subdomain pages that point to outside services or to cloud addresses | the site sees your IP; such connections may show up in its security logs |
 | `--browser`, `--cutoff`, `--profile deep` | the same, but a browser opens the pages | **the site's JavaScript runs** in a browser on your computer. The browser cannot reach your local network or save files, but the scripts run as for any visitor |
 | `--form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Only for your own sites or with the owner's consent |
 | `--plugin file.py` | whatever the plugin does | **the plugin's code runs with your rights**: use only plugins you trust |
@@ -204,7 +204,9 @@ and [docs/plugins.md](docs/plugins.md).
 
 All sources are open and free, no API keys: DNS, Team Cymru (IP networks), RDAP and WHOIS, EGRUL
 (Federal Tax Service), Roskomnadzor's registers of personal-data operators and of blocked
-resources, Certificate Transparency logs (crt.sh, Cert Spotter), OFAC, EU and UK sanctions lists.
+resources, Certificate Transparency logs (crt.sh, Cert Spotter), OFAC, EU and UK sanctions lists,
+the retire.js database of vulnerable libraries, the address lists of AWS, Google Cloud, Oracle and
+DigitalOcean.
 `suveren doctor` checks that they all answer; on GitHub this runs daily.
 
 ## Limitations

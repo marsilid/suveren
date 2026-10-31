@@ -180,6 +180,8 @@ def test_update_downloads_every_list(tmp_path, monkeypatch):
             return httpx.Response(200, content=(fixtures / "eu_sample.csv").read_bytes())
         if "fcdo" in host:
             return httpx.Response(200, content=(fixtures / "uk_sample.csv").read_bytes())
+        if "un.org" in host:
+            return httpx.Response(200, content=(fixtures / "un_sample.xml").read_bytes())
         if "antifilter" in host:
             return httpx.Response(200, text="blocked.example\n")
         raise AssertionError(f"a real request to {request.url}")

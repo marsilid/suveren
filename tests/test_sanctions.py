@@ -167,11 +167,13 @@ def test_a_list_that_parses_to_nothing_is_not_counted(tmp_path, monkeypatch):
     one = Entry("us", "1", "entity", ["ROMASHKA"], ["7707083893"], "RUSSIA-EO14024")
     monkeypatch.setattr(sanctions, "fetch_cached", fetch_cached)
     monkeypatch.setattr(
-        sanctions, "PARSERS", {"us": lambda p: [one], "eu": lambda p: [], "uk": lambda p: []}
+        sanctions,
+        "PARSERS",
+        {k: (lambda p: [one]) if k == "us" else (lambda p: []) for k in sanctions.PARSERS},
     )
     index = asyncio.run(load_index(None))  # type: ignore[arg-type]
     assert index.sources == ["us"]
-    assert sum("ни одной записи" in n for n in index.notes) == 2
+    assert sum("ни одной записи" in n for n in index.notes) == len(sanctions.PARSERS) - 1
     # Only the list that was screened is named as a source, with the day of its copy.
     assert list(index.copies) == ["us"] and index.copies["us"].startswith(
         "США (OFAC SDN), выгрузка от "
@@ -210,3 +212,25 @@ def test_a_listed_entry_with_other_ids_is_another_organisation():
     both = screen_company(index, ["7812345675", "1027700132195"], ["ООО «Арсенал»"])
     assert {h.how for h in both} == {"other"}
     assert {h.how for h in screen_company(index, [], ["ООО «Арсенал»"])} == {"name"}
+
+
+def test_un_list_is_parsed_names_aliases_documents():
+    from pathlib import Path
+
+    from suveren.sanctions import parse_un_xml
+
+    entries = list(parse_un_xml(Path(__file__).parent / "fixtures" / "un_sample.xml"))
+    person, entity = entries
+    assert person.source == "un" and person.kind == "person"
+    assert person.names == ["IVAN PETROVICH SIDOROV", "Ivan Sidorov"]
+    assert person.ids == []  # a passport number is not an ИНН or ОГРН
+    assert entity.kind == "entity" and entity.names == ["EXAMPLE TRADING LLC", "EXAMPLE TRADE"]
+
+
+def test_ofac_lists_outside_sdn_share_the_sdn_format():
+    from pathlib import Path
+
+    from suveren.sanctions import parse_ofac_cons_xml
+
+    entries = list(parse_ofac_cons_xml(Path(__file__).parent / "fixtures" / "sdn_sample.xml"))
+    assert entries and all(e.source == "us-cons" for e in entries)

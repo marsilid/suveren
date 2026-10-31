@@ -127,6 +127,15 @@ def host_matches(host: str, pattern: str) -> bool:
     return host == pattern or host.endswith("." + pattern)
 
 
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Russian plural form: 1 домен, 2 домена, 5 доменов, 21 домен."""
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
 # C0 controls except tab and newline, DEL, C1 controls, and the bidi embeddings and
 # isolates. A site's text (a quote from its policy, a consent label) with ESC sequences
 # would otherwise reach the terminal: OSC 52 rewrites the clipboard, others the screen;

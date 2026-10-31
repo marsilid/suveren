@@ -54,6 +54,7 @@ RR_TYPES = {
     "MX": 15,
     "TXT": 16,
     "AAAA": 28,
+    "DS": 43,
     "DNSKEY": 48,
     "CAA": 257,
 }

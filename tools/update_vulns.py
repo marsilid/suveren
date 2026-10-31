@@ -1,141 +1,93 @@
-"""Check src/suveren/data/vulns.json against NVD and, with --write, update it.
+"""Refresh the built-in copy of the retire.js vulnerability database.
 
-For every CVE in the file the script asks the NVD API 2.0 for the record and
-compares the affected version ranges of the library with the ones in the file. It
-reports what changed, and CVEs that NVD has rejected (as happened to Bootstrap's
-CVE-2024-6484 and CVE-2024-6531). With --write it puts NVD's ranges into the file
-and moves the "checked" date to today; a rejected CVE is reported, never removed
-silently.
+Suveren reads the vulnerable versions of jQuery, Bootstrap, lodash and the rest from
+retire.js (https://github.com/RetireJS/retire.js, jsrepository-v4.json, Apache-2.0).
+A scan downloads the database itself once a day; this copy in
+src/suveren/data/retire.json is what it falls back on offline or where GitHub is not
+reachable. The script keeps only the libraries Suveren detects, and only their
+vulnerabilities, and writes the date of the download.
 
-    python tools/update_vulns.py            # report only
-    python tools/update_vulns.py --write    # update ranges and the date
-
-New CVEs are not searched for: adding one stays a decision with a source.
+    python tools/update_vulns.py            # what would change
+    python tools/update_vulns.py --write    # write the new copy
+    python tools/update_vulns.py --file jsrepository-v4.json --write   # from a file
 """
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from suveren.vulns import in_range
+from suveren.vulns import RETIRE_NAMES, RETIRE_URL
 
-DATA = Path(__file__).resolve().parent.parent / "src" / "suveren" / "data" / "vulns.json"
-API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-# NVD asks clients without an API key to keep to about one request every 6 seconds.
-DELAY = 6.5
-
-# Library name in vulns.json -> CPE vendor:product in NVD.
-CPE = {
-    "jquery": "jquery:jquery",
-    "jquery-ui": "jqueryui:jquery_ui",
-    "bootstrap": "getbootstrap:bootstrap",
-    "lodash": "lodash:lodash",
-    "moment": "momentjs:moment",
-}
-
-Range = list[str | None]
+DATA = Path(__file__).resolve().parent.parent / "src" / "suveren" / "data" / "retire.json"
 
 
-def nvd_ranges(cve: dict[str, Any], library: str) -> tuple[list[Range], list[str]]:
-    """Affected [from, to) ranges of the library in an NVD record, and what could not be
-    expressed that way (an inclusive upper bound, a single exact version)."""
-    product = CPE[library]
-    ranges: list[Range] = []
-    odd: list[str] = []
-    exact: list[str] = []
-    for config in cve.get("configurations", []):
-        for node in config.get("nodes", []):
-            for match in node.get("cpeMatch", []):
-                parts = match.get("criteria", "").split(":")
-                if len(parts) < 6 or f"{parts[3]}:{parts[4]}" != product:
-                    continue
-                if not match.get("vulnerable", True):
-                    continue
-                start = match.get("versionStartIncluding")
-                end = match.get("versionEndExcluding")
-                if match.get("versionStartExcluding") or match.get("versionEndIncluding"):
-                    odd.append(json.dumps({k: v for k, v in match.items() if "version" in k}))
-                    continue
-                if not start and not end and parts[5] not in ("*", "-"):
-                    exact.append(parts[5])
-                    continue
-                if [start, end] not in ranges:
-                    ranges.append([start, end])
-    # A single version inside a range is already covered (Bootstrap's 4.0.0 betas).
-    odd += [f"только версия {v}" for v in dict.fromkeys(exact) if not _covered(v, ranges)]
-    return sorted(ranges, key=lambda r: (r[0] or "", r[1] or "")), odd
+def snapshot(repository: dict[str, Any], day: dt.date) -> dict[str, Any]:
+    """The part of the retire.js database Suveren uses, with where and when it came from."""
+    keys = sorted({k for names in RETIRE_NAMES.values() for k in names})
+    missing = [k for k in keys if k not in repository]
+    if missing:
+        raise SystemExit(f"в базе retire.js нет {', '.join(missing)}: формат изменился?")
+    out: dict[str, Any] = {
+        "_suveren": {
+            "about": "Копия базы retire.js для работы без сети: только библиотеки, которые "
+            "находит Suveren, и только их уязвимости. Обновляется tools/update_vulns.py.",
+            "url": RETIRE_URL,
+            "license": "Apache-2.0",
+            "fetched": day.isoformat(),
+        }
+    }
+    for key in keys:
+        out[key] = {"vulnerabilities": repository[key].get("vulnerabilities", [])}
+    return out
 
 
-def _covered(version: str, ranges: list[Range]) -> bool:
-    try:
-        return in_range(version, ranges)
-    except ValueError:  # "4.0.0-beta" and the like
-        return False
+def ids(data: dict[str, Any]) -> set[tuple[str, str, str]]:
+    """(library, first identifier, below) of every entry, to show what changed."""
+    found = set()
+    for key, entry in data.items():
+        if key.startswith("_"):
+            continue
+        for v in entry.get("vulnerabilities", []):
+            ident = v.get("identifiers", {})
+            first = (ident.get("CVE") or [ident.get("githubID") or ident.get("summary", "?")])[0]
+            found.add((key, str(first), str(v.get("below"))))
+    return found
 
 
-def compare(entry: dict[str, Any], cve: dict[str, Any] | None) -> tuple[str, list[Range] | None]:
-    """A line for the report and the ranges to write (None: leave the entry as it is)."""
-    name = f"{entry['library']} {entry['id']}"
-    if cve is None:
-        return f"{name}: в NVD не найдена", None
-    if cve.get("vulnStatus") == "Rejected":
-        return f"{name}: ОТОЗВАНА в NVD, уберите запись вручную", None
-    ranges, odd = nvd_ranges(cve, entry["library"])
-    note = f" (не учтено: {'; '.join(odd)})" if odd else ""
-    if not ranges:
-        return f"{name}: в NVD нет диапазонов для этой библиотеки{note}", None
-    mine = sorted(entry["ranges"], key=lambda r: (r[0] or "", r[1] or ""))
-    if mine == ranges:
-        return f"{name}: совпадает{note}", None
-    return f"{name}: было {mine}, в NVD {ranges}{note}", ranges
-
-
-def fetch(client: httpx.Client, cve_id: str) -> dict[str, Any] | None:
-    resp = client.get(API, params={"cveId": cve_id})
-    resp.raise_for_status()
-    found = resp.json().get("vulnerabilities", [])
-    return found[0]["cve"] if found else None
+def diff(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
+    before, after = ids(old), ids(new)
+    lines = [f"+ {k} {i} (ниже {b})" for k, i, b in sorted(after - before)]
+    lines += [f"- {k} {i} (ниже {b})" for k, i, b in sorted(before - after)]
+    return lines
 
 
 def main(argv: list[str]) -> int:
-    write = "--write" in argv
-    data = json.loads(DATA.read_text(encoding="utf-8"))
-    changed = 0
-    with httpx.Client(timeout=60) as client:
-        for i, entry in enumerate(data["vulns"]):
-            if i:
-                time.sleep(DELAY)
-            line, ranges = compare(entry, fetch(client, entry["id"]))
-            print(line)
-            if ranges is not None:
-                changed += 1
-                if write:
-                    entry["ranges"] = ranges
-    if write:
-        today = dt.date.today().isoformat()
-        text = DATA.read_text(encoding="utf-8")
-        old = data["checked"]
-        # Rewrite only what changed, keeping the hand-made one-entry-per-line layout.
-        for entry in data["vulns"]:
-            start = text.index(f'"id": "{entry["id"]}"')
-            r_start = text.index('"ranges": ', start) + len('"ranges": ')
-            r_end = text.index("]],", r_start) + 2
-            text = text[:r_start] + json.dumps(entry["ranges"]) + text[r_end:]
-        text = text.replace(f'"checked": "{old}"', f'"checked": "{today}"')
-        text = text.replace(f"проверено {old}", f"проверено {today}")
-        DATA.write_text(text, encoding="utf-8")
-        print(f"Записано: изменено записей {changed}, дата сверки {today}.")
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--write", action="store_true", help="записать новую копию")
+    parser.add_argument("--file", type=Path, help="взять базу из файла, а не из сети")
+    args = parser.parse_args(argv)
+    if args.file:
+        repository = json.loads(args.file.read_text("utf-8"))
     else:
-        print(f"Расхождений: {changed}. Запустите с --write, чтобы обновить.")
-    return 1 if changed and not write else 0
+        resp = httpx.get(RETIRE_URL, timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        repository = resp.json()
+    new = snapshot(repository, dt.date.today())
+    old = json.loads(DATA.read_text("utf-8")) if DATA.exists() else {}
+    changes = diff(old, new)
+    print("\n".join(changes) if changes else "изменений в уязвимостях нет")
+    if args.write:
+        DATA.write_text(json.dumps(new, ensure_ascii=False, indent=1) + "\n", "utf-8")
+        print(f"записано: {DATA}")
+    return 0
 
 
 if __name__ == "__main__":

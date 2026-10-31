@@ -33,7 +33,11 @@ def steps(fast: bool, audit: bool) -> list[tuple[str, list[list[str]]]]:
         ("mypy", [[*py, "mypy"]]),
     ]
     if audit:
-        plan.append(("pip-audit", [[*py, "pip_audit", "--skip-editable"]]))
+        locks = [
+            [*py, "pip_audit", "--disable-pip", "--require-hashes", "-r", f"packaging/{lock}"]
+            for lock in ("requirements.txt", "requirements-browser.txt", "requirements-release.txt")
+        ]
+        plan.append(("pip-audit", [[*py, "pip_audit", "--skip-editable"], *locks]))
     if not fast:
         plan.append(
             (

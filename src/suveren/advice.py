@@ -49,7 +49,11 @@ def priorities(report: Report) -> list[Action]:
         # An accepted problem (.suveren-ignore) is a decision taken: no action, no points.
         if c.status in (Status.FAIL, Status.WARN) and c.recommendation and not c.accepted:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
-            if c.id in SECOND_ORDER or _spf_behind_reject(c, status):
+            if (
+                c.id in SECOND_ORDER
+                or (c.id in LOW_WHEN_WARN and c.status is Status.WARN)
+                or _spf_behind_reject(c, status)
+            ):
                 severity = Severity.LOW
             action = Action(
                 severity * 10, severity, first_sentence(c.recommendation), c.title, c.id
@@ -66,6 +70,9 @@ def priorities(report: Report) -> list[Action]:
 
 # Warnings the checks themselves call second-order ("редкая атака"): low urgency.
 SECOND_ORDER = frozenset({"SUV-MAIL-005"})
+# Their warnings are advice of a standard ("SHOULD"), not a weakness anyone uses today:
+# a 1024-bit DKIM key, a zone signed with an old algorithm. Their failures stay urgent.
+LOW_WHEN_WARN = frozenset({"SUV-MAIL-006", "SUV-WEB-013"})
 
 
 def _spf_behind_reject(check: Check, status: dict[str, Status]) -> bool:
@@ -85,6 +92,8 @@ TOPICS = {
     "SUV-ATK-002": "scripts",
     # Encrypted inbound mail is its own topic, not "fix the mail records" (SPF, DMARC).
     "SUV-MAIL-005": "mta-sts",
+    # A new key under a new selector, not "fix the mail records".
+    "SUV-MAIL-006": "dkim-key",
     "SUV-WEB-001": "scripts",
     "SUV-WEB-002": "scripts",
     "SUV-WEB-003": "scripts",

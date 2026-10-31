@@ -56,6 +56,7 @@ async def fetch_cached(
     *,
     ttl: float = DEFAULT_TTL,
     refresh: bool = False,
+    html: bool = False,
 ) -> tuple[Path, str | None]:
     """Return the cached file, downloading it when missing or stale.
 
@@ -76,7 +77,7 @@ async def fetch_cached(
             with tmp.open("wb") as fh:
                 async for chunk in resp.aiter_bytes(1 << 16):
                     fh.write(chunk)
-        if not _looks_like_data(tmp):
+        if not _looks_like_data(tmp, html=html):
             # A 200 with a stub page or nothing used to replace a good copy, and the
             # empty index made from it lived for a day.
             raise _NotData
@@ -98,8 +99,11 @@ class _NotData(Exception):
     pass
 
 
-def _looks_like_data(path: Path) -> bool:
-    """Not empty and not an HTML page (a block page, a CDN challenge, a moved source)."""
+def _looks_like_data(path: Path, *, html: bool = False) -> bool:
+    """Not empty and not an HTML page (a block page, a CDN challenge, a moved source).
+    ``html``: the source is a page itself; its caller checks the content."""
     with path.open("rb") as fh:
         head = fh.read(512).lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if html:
+        return bool(head)
     return bool(head) and not head.startswith((b"<!doctype html", b"<html", b"<head"))

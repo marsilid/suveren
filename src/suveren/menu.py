@@ -19,6 +19,7 @@ from rich.markup import escape
 from typer.exceptions import TyperException
 
 from suveren import __version__
+from suveren.clirus import translate
 
 REPORTS = Path("reports")
 SITES_TEMPLATE = (
@@ -47,6 +48,11 @@ GROUPS = (
 ITEMS = tuple((key, title) for _, items in GROUPS for key, title, _ in items)
 
 
+def safe_name(target: str) -> str:
+    """A file name from a site address or an ИНН."""
+    return "".join(c if c.isalnum() or c in ".-" else "_" for c in target)
+
+
 def open_path(path: Path) -> None:
     """Open a file or folder in the system's default application."""
     with contextlib.suppress(Exception):
@@ -67,7 +73,7 @@ def run_menu(app: typer.Typer, console: Console) -> None:
                 # A mistyped flag ("--json" without a file) is said, not fatal: the menu
                 # runs in its own window, which would close.
                 format_message = getattr(exc, "format_message", None)
-                message = format_message() if format_message else str(exc)
+                message = translate(format_message() if format_message else str(exc))
                 console.print(f"  [red]{escape(message)}[/]")
 
     def ask(prompt: str) -> str:
@@ -94,11 +100,15 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         REPORTS.mkdir(exist_ok=True)
         args = ["scan", target]
         if "--profile" not in flags and "-P" not in flags and "--quick" not in flags:
-            deep = yes("Глубокая проверка (браузер, отключение сервисов, ~1 мин)")
-            args += ["--profile", "deep"] if deep else ["--browser"]
+            console.print(f"  [bold {ACCENT}]1[/]  Обычная  [{DIM}]~20 с: без браузера[/]")
+            console.print(
+                f"  [bold {ACCENT}]2[/]  Глубокая [{DIM}]~1 мин: браузер, отключение "
+                "иностранных сервисов[/]"
+            )
+            deep = ask("Какая проверка? (Enter — обычная)") == "2"
+            args += ["--profile", "deep" if deep else "standard"]
         if "--pdf" not in flags and yes("Сохранить ещё и PDF"):
-            name = "".join(c if c.isalnum() or c in ".-" else "_" for c in target)
-            args += ["--pdf", str(REPORTS / f"{name}.pdf")]
+            args += ["--pdf", str(REPORTS / f"{safe_name(target)}.pdf")]
         console.print()
         call(*args, *flags)
 
@@ -119,7 +129,9 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         console.print(f"  [{DIM}]Первая проверка скачивает санкционные списки (около 100 МБ).[/]")
         target = ask("ИНН, ОГРН или сайт компании")
         if target:
-            call("company", target, "--browser")
+            pdf = ["--pdf", str(REPORTS / f"{safe_name(target)}.pdf")]
+            REPORTS.mkdir(exist_ok=True)
+            call("company", target, "--browser", *(pdf if yes("Сохранить ещё и PDF") else []))
 
     def diff() -> None:
         old = ask("Старый отчёт (JSON)")

@@ -16,7 +16,9 @@ misses in KNOWN, each with the reason; so the table in docs stays honest.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -33,9 +35,11 @@ from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
+from suveren.dnszone import run_zone_checks
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
+from suveren.subdomains import run_subdomain_checks
 from suveren.websec import TlsInfo, run_web_checks
 
 NOW = datetime.now(UTC)
@@ -165,20 +169,84 @@ def good_tls(host: str) -> TlsInfo:
     return TlsInfo(host, "TLSv1.3", NOW + timedelta(days=200), {"TLS 1.0": False, "TLS 1.1": False})
 
 
+def _der(tag: int, body: bytes) -> bytes:
+    n = len(body)
+    size = bytes([n]) if n < 128 else bytes([0x82]) + n.to_bytes(2, "big")
+    return bytes([tag]) + size + body
+
+
+def dkim_key(bits: int, *, spki: bool = True) -> str:
+    """The p= value of an RSA DKIM key with a modulus of ``bits`` bits: SubjectPublicKeyInfo,
+    as RFC 6376 (3.6.1) asks, or the bare RSAPublicKey some publishers put instead. Only
+    the size matters to the check, so the modulus is not a real product of primes."""
+    import base64
+
+    n = (1 << (bits - 1)) | 0x1D
+    modulus = _der(0x02, b"\x00" + n.to_bytes((bits + 7) // 8, "big"))
+    rsa = _der(0x30, modulus + _der(0x02, b"\x01\x00\x01"))
+    if spki:
+        alg = _der(0x30, _der(0x06, bytes.fromhex("2a864886f70d010101")) + b"\x05\x00")
+        rsa = _der(0x30, alg + _der(0x03, b"\x00" + rsa))
+    return base64.b64encode(rsa).decode()
+
+
+def dnskey(seed: int = 0, algorithm: int = 13) -> str:
+    """A DNSKEY record (KSK) of the given algorithm; the key bytes are made up, which is
+    enough for the DS digest the check compares."""
+    import base64
+
+    key = bytes((seed + i) % 256 for i in range(64))
+    return f"257 3 {algorithm} {base64.b64encode(key).decode()}"
+
+
+def ds_for(zone: str, key: str, digest: str = "SHA256") -> str:
+    """The DS record a registrar publishes in the parent zone for ``key``."""
+    import dns.dnssec
+    import dns.name
+    import dns.rdata
+
+    rdata = dns.rdata.from_text("IN", "DNSKEY", key)
+    # validating=True: dnspython refuses to make a SHA-1 DS otherwise, and the lab needs one.
+    return dns.dnssec.make_ds(dns.name.from_text(zone), rdata, digest, validating=True).to_text()
+
+
+DKIM_2048 = f"v=DKIM1; k=rsa; p={dkim_key(2048)}"
+
+
 def good_dns(host: str) -> dict[tuple[str, str], list[str]]:
     return {
         (host, "MX"): ["10 mx.yandex.net."],
         (host, "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
         ("_spf.yandex.net", "TXT"): ["v=spf1 ip4:77.88.0.0/18 ip4:5.45.198.0/23 ~all"],
         (f"_dmarc.{host}", "TXT"): [f"v=DMARC1; p=reject; rua=mailto:dmarc@{host}"],
-        (f"mail._domainkey.{host}", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GN"],
+        (f"mail._domainkey.{host}", "TXT"): [DKIM_2048],
         (f"_mta-sts.{host}", "TXT"): ["v=STSv1; id=20261022"],
         (f"_smtp._tls.{host}", "TXT"): [f"v=TLSRPTv1; rua=mailto:tls@{host}"],
+        (host, "CAA"): ['0 issue "letsencrypt.org"', f'0 iodef "mailto:security@{host}"'],
+        (host, "DNSKEY"): [dnskey(), "256 3 13 " + dnskey(7).split()[-1]],
+        (host, "DS"): [ds_for(host, dnskey())],
     }
 
 
 MTA_STS_OK = "version: STSv1\nmode: enforce\nmx: mx.yandex.net\nmax_age: 604800\n"
 
+
+# The address lists of the clouds, cut down to a few prefixes in the published formats.
+CLOUD_LISTS = {
+    "https://ip-ranges.amazonaws.com/ip-ranges.json": (
+        '{"syncToken": "1", "createDate": "2026-10-30-20-00-00", "prefixes": ['
+        '{"ip_prefix": "3.5.140.0/22", "region": "ap-northeast-2", "service": "EC2"},'
+        '{"ip_prefix": "13.32.0.0/15", "region": "GLOBAL", "service": "CLOUDFRONT"}],'
+        ' "ipv6_prefixes": []}'
+    ),
+    "https://www.gstatic.com/ipranges/cloud.json": (
+        '{"syncToken": "1", "prefixes": [{"ipv4Prefix": "34.0.0.0/15", "scope": "us"}]}'
+    ),
+    "https://docs.oracle.com/en-us/iaas/tools/public_ip_ranges.json": (
+        '{"regions": [{"region": "eu-frankfurt-1", "cidrs": [{"cidr": "130.61.0.0/16"}]}]}'
+    ),
+    "https://digitalocean.com/geo/google.csv": "104.131.0.0/18,US,US-NY,New York,10001\n",
+}
 
 # A DNS record whose lookup times out (put as the value in Case.dns).
 NO_ANSWER: list[str] = ["<нет ответа>"]
@@ -194,12 +262,23 @@ class Case:
     cookies: list[str] = field(default_factory=lambda: [SESSION_OK])
     files: dict[str, str] = field(default_factory=dict)  # path or URL -> body
     hosting: tuple[str, str] = ("Selectel", "RU")
+    # The site's IPv6 address, when it has one: (address, network name, country).
+    hosting6: tuple[str, str, str] | None = None
     tls: TlsInfo | None = None  # None: a good certificate
     dns: dict[tuple[str, str], list[str]] | None = None  # changes over good_dns
     mta_sts: str | None = MTA_STS_OK
     http: bool = False  # the site answers over plain HTTP
     # With ``http``: how its HTTPS fails instead of a 404 (httpx.ConnectTimeout, ...).
     https_error: type[httpx.HTTPError] | None = None
+    # Subdomains in the certificate logs; the subdomain checks run only when set. A
+    # subdomain page not in ``files`` does not answer at all.
+    subdomains: list[str] | None = None
+    clouds_down: bool = False  # the clouds' address lists do not download
+    # What http://<host>/ does when the site is on HTTPS: "redirect" to https, "page"
+    # (serves the site in plain text), "closed" (nothing listens on port 80).
+    plain_http: str = "redirect"
+    # Domains DNS answers NXDOMAIN for, and the registry (RDAP) says are free.
+    missing: frozenset[str] = frozenset()
 
     @property
     def host(self) -> str:
@@ -235,6 +314,11 @@ CASES: list[Case] = [
             "SUV-MAIL-003": "ok",
             "SUV-MAIL-004": "ok",
             "SUV-MAIL-005": "ok",
+            "SUV-MAIL-006": "ok",
+            "SUV-WEB-012": "ok",
+            "SUV-WEB-013": "ok",
+            "SUV-WEB-014": "ok",
+            "SUV-WEB-015": "ok",
         },
         html=page(FORM_OK + '<script src="/app.js"></script>'),
         files=site_files({"/app.js": "console.log('ok');"}),
@@ -606,6 +690,38 @@ CASES: list[Case] = [
         html=page(FORM_OK + '<script src="/js/moment-2.15.1.min.js"></script>'),
         files=site_files({"/js/moment-2.15.1.min.js": "//! moment.js\n//! version : 2.15.1\n"}),
     ),
+    # --- library versions by the retire.js database --------------------------------
+    Case(
+        "lab-bootstrap-3",
+        "Bootstrap 3.4.1: CVE-2024-6485 и CVE-2025-1647, ветка 3.x больше не поддерживается",
+        {"SUV-WEB-010": "warn"},
+        html=page(
+            FORM_OK + '<script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/'
+            'bootstrap.min.js" integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-lodash-4-17-21",
+        "lodash 4.17.21: CVE-2025-13465 (загрязнение прототипа), исправлено в 4.17.23",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/lodash-4.17.21.min.js"></script>'),
+        files=site_files({"/js/lodash-4.17.21.min.js": "/* lodash */"}),
+    ),
+    Case(
+        "lab-moment-2-29-4",
+        "moment.js 2.29.4: у браузерной копии известных уязвимостей нет (серверные не в счёт)",
+        {"SUV-WEB-010": "ok"},
+        html=page(FORM_OK + '<script src="/js/moment-2.29.4.min.js"></script>'),
+        files=site_files({"/js/moment-2.29.4.min.js": "//! moment.js\n//! version : 2.29.4\n"}),
+    ),
+    Case(
+        "lab-angularjs",
+        "AngularJS 1.8.2: CVE-2022-25869 и другие, поддержка прекращена в 2022 году",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/angular-1.8.2.min.js"></script>'),
+        files=site_files({"/js/angular-1.8.2.min.js": "/** @license AngularJS v1.8.2 */"}),
+    ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
         "lab-no-policy",
@@ -769,6 +885,15 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         hosting=("Hetzner Online GmbH", "DE"),
         files=site_files(),
+    ),
+    Case(
+        "lab-hosting-abroad-ipv6",
+        "IPv4-адрес сайта в России, а IPv6 — в Германии: посетители с IPv6 и их заявки попадают "
+        "на зарубежный сервер",
+        {"SUV-PD-007": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        hosting6=("2001:db8::10", "Hetzner Online GmbH", "DE"),
     ),
     Case(
         "lab-hosting-abroad-crm-form",
@@ -1182,15 +1307,78 @@ CASES: list[Case] = [
         files=site_files(),
         dns={
             ("mail._domainkey.lab-dkim-odd-selector.ru", "TXT"): [],
-            ("k2026q4._domainkey.lab-dkim-odd-selector.ru", "TXT"): [
-                "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GN"
-            ],
+            ("k2026q4._domainkey.lab-dkim-odd-selector.ru", "TXT"): [DKIM_2048],
         },
+    ),
+    # --- DKIM key strength (RFC 8301, sections 3.1 and 3.2; RFC 8463) ----------------
+    Case(
+        "lab-dkim-1024",
+        "ключ DKIM RSA 1024 бита: допустимо, но RFC 8301 советует не меньше 2048",
+        {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("mail._domainkey.lab-dkim-1024.ru", "TXT"): [f"v=DKIM1; k=rsa; p={dkim_key(1024)}"]},
+    ),
+    Case(
+        "lab-dkim-512",
+        "ключ DKIM RSA 512 бит: получатели обязаны не принимать такие подписи, ключ "
+        "раскладывается за часы",
+        {"SUV-MAIL-006": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-512.ru", "TXT"): [f"v=DKIM1; k=rsa; p={dkim_key(512)}"],
+            ("selector1._domainkey.lab-dkim-512.ru", "TXT"): [DKIM_2048],
+        },
+    ),
+    Case(
+        "lab-dkim-sha1",
+        "ключ DKIM только для SHA-1 (h=sha1): подписи rsa-sha1 недействительны",
+        {"SUV-MAIL-006": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-sha1.ru", "TXT"): [
+                f"v=DKIM1; h=sha1; k=rsa; p={dkim_key(2048)}"
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-pkcs1",
+        "ключ DKIM 2048 бит в виде RSAPublicKey без обёртки: проверяющие его принимают",
+        {"SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-pkcs1.ru", "TXT"): [
+                f"v=DKIM1; k=rsa; p={dkim_key(2048, spki=False)}"
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-ed25519",
+        "ключ DKIM Ed25519 (RFC 8463): 256 бит этого алгоритма надёжнее RSA 2048",
+        {"SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-ed25519.ru", "TXT"): [
+                "v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-garbled",
+        "в p= не ключ, а мусор: длину не узнать",
+        {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("mail._domainkey.lab-dkim-garbled.ru", "TXT"): ["v=DKIM1; k=rsa; p=QUJD"]},
     ),
     Case(
         "lab-dkim-none",
         "под _domainkey ничего нет: про DKIM ничего сказать нельзя",
-        {"SUV-MAIL-004": "unknown"},
+        {"SUV-MAIL-004": "unknown", "SUV-MAIL-006": "нет проверки"},
         html=page(FORM_OK),
         files=site_files(),
         dns={("mail._domainkey.lab-dkim-none.ru", "TXT"): []},
@@ -1205,6 +1393,212 @@ CASES: list[Case] = [
             ("mail._domainkey.lab-dkim-wildcard.ru", "TXT"): [],
             ("*.lab-dkim-wildcard.ru", "TXT"): ["v=spf1 -all"],
         },
+    ),
+    # --- CAA (RFC 8659) --------------------------------------------------------------
+    Case(
+        "lab-caa-none",
+        "CAA нет: выпускать сертификаты может любой центр, но это не нарушение стандарта",
+        {"SUV-WEB-012": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-none.ru", "CAA"): []},
+    ),
+    Case(
+        "lab-caa-critical",
+        "CAA с неизвестным тегом и флагом critical: центры обязаны отказать в выпуске",
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-critical.ru", "CAA"): ['0 issue "letsencrypt.org"', '128 tbs "x"']},
+    ),
+    Case(
+        "lab-caa-forbid",
+        'CAA issue ";" без разрешённых центров, а сайт работает по HTTPS: сертификат не продлить',
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-forbid.ru", "CAA"): ['0 issue ";"']},
+    ),
+    Case(
+        "lab-caa-silent",
+        "DNS не ответил на запрос CAA: проверить нельзя",
+        {"SUV-WEB-012": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-silent.ru", "CAA"): NO_ANSWER},
+    ),
+    # --- DNSSEC (RFC 4035, section 5; RFC 8624) ---------------------------------------
+    Case(
+        "lab-dnssec-unsigned",
+        "зона не подписана: подмену ответов DNS не заметят, но это не ошибка настройки",
+        {"SUV-WEB-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-unsigned.ru", "DS"): [], ("lab-dnssec-unsigned.ru", "DNSKEY"): []},
+    ),
+    Case(
+        "lab-dnssec-no-dnskey",
+        "DS у регистратора есть, а ключей в зоне нет: проверяющие резолверы не откроют сайт",
+        {"SUV-WEB-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-no-dnskey.ru", "DNSKEY"): []},
+    ),
+    Case(
+        "lab-dnssec-mismatch",
+        "DS у регистратора не подходит ни к одному ключу зоны (ключ сменили, DS забыли)",
+        {"SUV-WEB-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-mismatch.ru", "DS"): [ds_for("lab-dnssec-mismatch.ru", dnskey(99))]},
+    ),
+    Case(
+        "lab-dnssec-sha1",
+        "зона подписана RSASHA1 (алгоритм 5): по RFC 8624 подписывать им не рекомендуется",
+        {"SUV-WEB-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-dnssec-sha1.ru", "DNSKEY"): [dnskey(algorithm=5)],
+            ("lab-dnssec-sha1.ru", "DS"): [ds_for("lab-dnssec-sha1.ru", dnskey(algorithm=5))],
+        },
+    ),
+    Case(
+        "lab-dnssec-island",
+        "ключи в зоне есть, DS у регистратора нет: подпись никто не проверяет",
+        {"SUV-WEB-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-island.ru", "DS"): []},
+    ),
+    Case(
+        "lab-dnssec-silent",
+        "DNS не ответил на запрос DS: проверить нельзя",
+        {"SUV-WEB-013": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-silent.ru", "DS"): NO_ANSWER},
+    ),
+    # --- dangling A records on cloud addresses (warning only) -------------------------
+    Case(
+        "lab-cloud-silent",
+        "old. указывает на адрес AWS, а там никто не отвечает: адрес мог уйти другому",
+        {"SUV-SUB-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        dns={("old.lab-cloud-silent.ru", "A"): ["3.5.140.7"]},
+    ),
+    Case(
+        "lab-cloud-alive",
+        "app. на адресе Google Cloud отвечает: подозревать нечего",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files({"https://app.lab-cloud-alive.ru/": page("<p>Кабинет</p>")}),
+        subdomains=["app"],
+        dns={("app.lab-cloud-alive.ru", "A"): ["34.1.2.3"]},
+    ),
+    Case(
+        "lab-cloud-elsewhere",
+        "vpn. молчит, но адрес не облачный (свой сервер): адрес не раздаётся другим",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["vpn"],
+        dns={("vpn.lab-cloud-elsewhere.ru", "A"): ["198.51.100.20"]},
+    ),
+    Case(
+        "lab-cloud-cdn",
+        "cdn. на адресе CloudFront молчит: это общий фронт AWS, а не адрес клиента",
+        {"SUV-SUB-003": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["cdn"],
+        dns={("cdn.lab-cloud-cdn.ru", "A"): ["13.32.1.1"]},
+    ),
+    Case(
+        "lab-cloud-lists-down",
+        "списки адресов облаков не скачались: про old. ничего сказать нельзя",
+        {"SUV-SUB-003": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        clouds_down=True,
+        dns={("old.lab-cloud-lists-down.ru", "A"): ["3.5.140.7"]},
+    ),
+    # --- HTTP to HTTPS, Referrer-Policy, base-uri (OWASP, W3C Referrer Policy) --------
+    Case(
+        "lab-http-no-redirect",
+        "по http:// сайт отдаёт ту же страницу без перенаправления на HTTPS",
+        {"SUV-WEB-014": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        plain_http="page",
+    ),
+    Case(
+        "lab-http-closed",
+        "порт 80 закрыт: открытого текста сайт не отдаёт вовсе",
+        {"SUV-WEB-014": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        plain_http="closed",
+    ),
+    Case(
+        "lab-referrer-unsafe",
+        "Referrer-Policy: unsafe-url — полный адрес страницы с параметрами уходит всем сайтам",
+        {"SUV-WEB-015": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "referrer-policy": "unsafe-url"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-referrer-downgrade",
+        "Referrer-Policy: no-referrer-when-downgrade — полный адрес уходит сторонним сайтам",
+        {"SUV-WEB-015": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "referrer-policy": "no-referrer-when-downgrade"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-referrer-meta",
+        "заголовка нет, но <meta name=referrer content=strict-origin-when-cross-origin>",
+        {"SUV-WEB-015": "ok"},
+        html=page(FORM_OK).replace(
+            "<title>", '<meta name="referrer" content="strict-origin-when-cross-origin"><title>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-csp-nonce-no-base-uri",
+        "CSP на nonce без base-uri: внедрённый <base> подменит адреса скриптов",
+        {"SUV-WEB-004": "warn"},
+        html=page(FORM_OK),
+        headers={
+            **GOOD_HEADERS,
+            "content-security-policy": "script-src 'nonce-r4nd0m' 'strict-dynamic'; "
+            "object-src 'none'",
+        },
+        files=site_files(),
+    ),
+    # --- dangling NS (Can I take over XYZ?, "NS delegation") ---------------------------
+    Case(
+        "lab-ns-dangling",
+        "поддомен old. делегирован на NS-серверы в домене, который никто не продлил",
+        {"SUV-SUB-004": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        dns={("old.lab-ns-dangling.ru", "NS"): ["ns1.expired-dns-host.com."]},
+        missing=frozenset({"expired-dns-host.com"}),
+    ),
+    Case(
+        "lab-ns-fine",
+        "поддомен делегирован на живые NS-серверы",
+        {"SUV-SUB-004": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["dev"],
+        dns={("dev.lab-ns-fine.ru", "NS"): ["ns1.selectel.org."]},
     ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
@@ -1259,8 +1653,11 @@ KNOWN: dict[tuple[str, str], str] = {}
 class FakeResolver:
     kind = "lab"
 
-    def __init__(self, records: dict[tuple[str, str], list[str]]) -> None:
+    def __init__(
+        self, records: dict[tuple[str, str], list[str]], missing: frozenset[str] = frozenset()
+    ) -> None:
         self.records = records
+        self.missing = missing
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         records = self.records.get((name, rtype), [])
@@ -1269,7 +1666,7 @@ class FakeResolver:
         return records
 
     async def exists(self, domain: str) -> bool:
-        return True
+        return domain not in self.missing
 
     async def node_exists(self, name: str) -> bool | None:
         # A name exists when it, or a name under it, holds records (RFC 2308), or a
@@ -1288,6 +1685,25 @@ def _transport(case: Case) -> httpx.MockTransport:
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("#")[0]
+        if url in CLOUD_LISTS:
+            if case.clouds_down:
+                return httpx.Response(503, text="")
+            return httpx.Response(200, text=CLOUD_LISTS[url])
+        if request.url.host == "crt.sh":
+            return httpx.Response(
+                200, json=[{"name_value": f"{n}.{case.host}"} for n in case.subdomains or []]
+            )
+        if request.url.host.endswith("." + case.host) and url not in bodies:
+            raise httpx.ConnectError("lab: nothing listens", request=request)
+        if not case.http and url in (f"http://{case.host}/", f"http://{case.host}"):
+            if case.plain_http == "closed":
+                raise httpx.ConnectError("lab: port 80 closed", request=request)
+            if case.plain_http == "redirect":
+                return httpx.Response(301, headers={"location": f"https://{case.host}/"})
+            return httpx.Response(200, headers=case.headers, text=case.html)
+        if request.url.host == "rdap.org":
+            name = url.rsplit("/", 1)[-1]
+            return httpx.Response(404 if name in case.missing else 200, json={})
         if case.https_error and url == f"https://{case.host}/":
             raise case.https_error("lab", request=request)
         if url in (base, base + "/"):
@@ -1302,12 +1718,32 @@ def _transport(case: Case) -> httpx.MockTransport:
 
 
 async def run_case(case: Case) -> dict[str, Check]:
+    """A case with a cache of its own: nothing downloaded before (a database, a list)
+    changes the answer, and the user's cache is left alone."""
+    with tempfile.TemporaryDirectory() as cache:
+        saved = os.environ.get("SUVEREN_CACHE")
+        os.environ["SUVEREN_CACHE"] = cache
+        try:
+            return await _run_case(case)
+        finally:
+            if saved is None:
+                os.environ.pop("SUVEREN_CACHE", None)
+            else:
+                os.environ["SUVEREN_CACHE"] = saved
+
+
+async def _run_case(case: Case) -> dict[str, Check]:
     host = case.host
     final_url = f"{'http' if case.http else 'https'}://{host}/"
     facts = Facts(
         host,
         host,
-        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1])],
+        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1])]
+        + (
+            [NetInfo(case.hosting6[0], 64501, case.hosting6[1], case.hosting6[2])]
+            if case.hosting6
+            else []
+        ),
         final_url=final_url,
         page_status=200,
         html=case.html,
@@ -1329,7 +1765,7 @@ async def run_case(case: Case) -> dict[str, Check]:
             facts.extra_pages = await fetch_pages(client, links)
             if case.https_error:
                 # The real fallback from HTTPS to HTTP, to see why HTTPS failed.
-                collector = Collector(FakeResolver(records), client, 5)
+                collector = Collector(FakeResolver(records, case.missing), client, 5)
                 await collector.homepage(host)
                 facts.https_unanswered = collector.https_unanswered
             report = analyze(facts)
@@ -1341,9 +1777,19 @@ async def run_case(case: Case) -> dict[str, Check]:
                 extra_pages=facts.extra_pages,
                 https_unanswered=facts.https_unanswered,
             )
-            web, _ = await run_web_checks(facts, FakeResolver(records), client, 5)
+            web, _ = await run_web_checks(facts, FakeResolver(records, case.missing), client, 5)
             checks += web
-            checks += mail_checks(await collect_mail(FakeResolver(records), client, host))
+            checks += await run_zone_checks(
+                FakeResolver(records, case.missing), host, https=not case.http
+            )
+            checks += mail_checks(
+                await collect_mail(FakeResolver(records, case.missing), client, host)
+            )
+            if case.subdomains is not None:
+                sub, _ = await run_subdomain_checks(
+                    FakeResolver(records, case.missing), client, client, host
+                )
+                checks += sub
     finally:
         websec.probe_tls = saved
     return {c.id: c for c in checks if c.id}
