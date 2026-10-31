@@ -195,8 +195,12 @@ def test_pages_with_fields():
 def test_the_experiment_runs_only_with_its_flag():
     assert "formleaks" not in make_plan().modules
     assert "formleaks" not in make_plan(Profile.deep).modules
-    assert "formleaks" in make_plan(form_leaks=True).modules
-    assert "formleaks" in make_plan(Profile.quick, "SUV-PD-012", form_leaks=True).modules
+    # Only on the owner's site (1.3): the experiment types into forms.
+    with pytest.raises(SelectionError, match="--own-site"):
+        make_plan(form_leaks=True)
+    assert "formleaks" in make_plan(form_leaks=True, own_site=True).modules
+    plan = make_plan(Profile.quick, "SUV-PD-012", form_leaks=True, own_site=True)
+    assert "formleaks" in plan.modules
     assert "formleaks" not in make_plan(checks="pd").modules
     with pytest.raises(SelectionError, match="--form-leaks"):
         make_plan(checks="SUV-PD-012")
@@ -290,9 +294,24 @@ def test_cli_warns_before_typing_into_forms(monkeypatch):
         return Report(host)
 
     monkeypatch.setattr("suveren.cli.run_scan", fake_run_scan)
-    result = CliRunner().invoke(app, ["scan", "example.ru", "--no-report", "--form-leaks"])
+    _owned(monkeypatch)
+    no_proof = CliRunner().invoke(app, ["scan", "example.ru", "--no-report", "--form-leaks"])
+    assert no_proof.exit_code == 2 and "--own-site" in no_proof.output
+    result = CliRunner().invoke(
+        app, ["scan", "example.ru", "--no-report", "--own-site", "--form-leaks"]
+    )
     assert result.exit_code == 0, result.output
     assert calls["formleaks"] and "Эксперимент с формами" in result.output
+
+
+def _owned(monkeypatch):
+    """The ownership proof passes (it is tested in test_ownsite.py)."""
+    from suveren.ownership import Proof
+
+    async def proved(host, timeout):
+        return Proof(True, "TXT-запись")
+
+    monkeypatch.setattr("suveren.cli._prove_ownership", proved)
 
 
 def test_owner_phone():
@@ -313,17 +332,28 @@ def test_cli_form_phone_needs_the_experiment_and_a_mobile_number(monkeypatch):
         return Report(host)
 
     monkeypatch.setattr("suveren.cli.run_scan", fake_run_scan)
+    _owned(monkeypatch)
     runner = CliRunner()
     alone = runner.invoke(
         app, ["scan", "example.ru", "--no-report", "--form-phone", "+79991234567"]
     )
     assert alone.exit_code == 2 and "--form-leaks" in alone.output
     bad = runner.invoke(
-        app, ["scan", "example.ru", "--no-report", "--form-leaks", "--form-phone", "123"]
+        app,
+        ["scan", "example.ru", "--no-report", "--own-site", "--form-leaks", "--form-phone", "1"],
     )
     assert bad.exit_code == 2
     ok = runner.invoke(
-        app, ["scan", "example.ru", "--no-report", "--form-leaks", "--form-phone", "89991234567"]
+        app,
+        [
+            "scan",
+            "example.ru",
+            "--no-report",
+            "--own-site",
+            "--form-leaks",
+            "--form-phone",
+            "89991234567",
+        ],
     )
     assert ok.exit_code == 0 and calls["form_phone"] == "9991234567"
 

@@ -16,7 +16,7 @@ runner = CliRunner()
 
 def test_profiles():
     standard = make_plan()
-    assert standard.modules == frozenset(SCAN_MODULES) - {"cutoff", "formleaks"}
+    assert standard.modules == frozenset(SCAN_MODULES) - {"cutoff", "formleaks", "ownsite"}
     assert not standard.browser and standard.pages == DEFAULT_PAGES and standard.only is None
     assert make_plan(Profile.quick).modules == frozenset()
     deep = make_plan(Profile.deep, pages=2)

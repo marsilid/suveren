@@ -1,0 +1,77 @@
+{
+ "_about": "Законы и статьи, на которые опираются проверки Suveren: где текст, какая редакция сверена и с какого дня действуют нормы. tools/check_laws.py раз в неделю скачивает тексты и сравнивает отпечаток (sha256 текста без разметки) с записанным: изменение — повод перечитать норму и поправить проверку. text_sha256 = null — текст ещё не снят (из облака consultant.ru не открывался).",
+ "laws": [
+  {
+   "id": "152-ФЗ",
+   "title": "Федеральный закон от 27.07.2006 № 152-ФЗ «О персональных данных»",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_61801/",
+   "edition": "ред. от 01.07.2025 (сверено 2026-10-24)",
+   "provisions": [
+    {"article": "ст. 9 ч. 1", "effective_from": "2025-09-01", "what": "согласие на обработку оформляется отдельно от других документов", "checks": ["SUV-PD-004"]},
+    {"article": "ст. 18 ч. 5", "effective_from": "2025-07-01", "what": "запись и хранение данных граждан РФ в базах в России", "checks": ["SUV-PD-007"]},
+    {"article": "ст. 18.1", "effective_from": null, "what": "опубликованная политика обработки", "checks": ["SUV-PD-001", "SUV-PD-002"]},
+    {"article": "ст. 22", "effective_from": null, "what": "уведомление Роскомнадзора, реестр операторов", "checks": ["SUV-PD-009", "SUV-CO-006"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  },
+  {
+   "id": "149-ФЗ",
+   "title": "Федеральный закон от 27.07.2006 № 149-ФЗ «Об информации, информационных технологиях и о защите информации»",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_61798/",
+   "edition": "сверено 2026-10-17",
+   "provisions": [
+    {"article": "ст. 8 ч. 10", "effective_from": "2026-07-07", "what": "вход на сайт через иностранные сервисы", "checks": ["SUV-LAW-001"]},
+    {"article": "ст. 10.2-2", "effective_from": null, "what": "правила применения рекомендательных технологий", "checks": ["SUV-LAW-002"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  },
+  {
+   "id": "КоАП",
+   "title": "Кодекс Российской Федерации об административных правонарушениях",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_34661/",
+   "edition": "ред. от 04.08.2026 (сверено 2026-10-17)",
+   "provisions": [
+    {"article": "ст. 13.11", "effective_from": null, "what": "штрафы за нарушения в области персональных данных", "checks": ["SUV-PD-001", "SUV-PD-003", "SUV-PD-007", "SUV-PD-009"]},
+    {"article": "ст. 13.55", "effective_from": "2026-07-07", "what": "штраф за вход через иностранные сервисы", "checks": ["SUV-LAW-001"]},
+    {"article": "ст. 13.56", "effective_from": "2026-07-07", "what": "штраф за рекомендательные технологии без правил", "checks": ["SUV-LAW-002"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  },
+  {
+   "id": "ЗоЗПП",
+   "title": "Закон РФ от 07.02.1992 № 2300-1 «О защите прав потребителей»",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_305/",
+   "edition": "не сверено",
+   "provisions": [
+    {"article": "ст. 26.1", "effective_from": null, "what": "сведения о продавце при дистанционной продаже", "checks": ["SUV-CO-007"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  },
+  {
+   "id": "115-ФЗ",
+   "title": "Федеральный закон от 07.08.2001 № 115-ФЗ «О противодействии легализации (отмыванию) доходов…»",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_32834/",
+   "edition": "не сверено",
+   "provisions": [
+    {"article": "ст. 7", "effective_from": null, "what": "перечень организаций и физических лиц, причастных к экстремизму или терроризму", "checks": ["SUV-CO-008"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  },
+  {
+   "id": "38-ФЗ",
+   "title": "Федеральный закон от 13.03.2006 № 38-ФЗ «О рекламе»",
+   "url": "https://www.consultant.ru/document/cons_doc_LAW_58968/",
+   "edition": "не сверено: текст из облака не открылся",
+   "provisions": [
+    {"article": "ст. 18.1", "effective_from": null, "what": "учёт и маркировка интернет-рекламы (ERID)", "checks": ["SUV-LAW-003"]}
+   ],
+   "text_sha256": null,
+   "checked": null
+  }
+ ]
+}

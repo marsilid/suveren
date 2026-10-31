@@ -14,6 +14,7 @@ from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
 import httpx
 
+from suveren.admarking import ad_marking_check
 from suveren.checks import GROUP_152, Check, Evidence, Status, asked, source
 from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
@@ -990,6 +991,9 @@ async def run_compliance(
     recommendations = recommendation_check([html, *(h for _, h, _ in data.extra)])
     if recommendations:
         checks.append(recommendations)
+    ads = ad_marking_check([html, *(h for _, h, _ in data.extra)])
+    if ads:
+        checks.append(ads)
     return checks
 
 

@@ -38,6 +38,7 @@ from suveren.dnsutil import DnsLookupError
 from suveren.dnszone import run_zone_checks
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
+from suveren.ownsite import exposed_files_check
 from suveren.page import parse_page
 from suveren.subdomains import run_subdomain_checks
 from suveren.websec import TlsInfo, run_web_checks
@@ -279,6 +280,7 @@ class Case:
     plain_http: str = "redirect"
     # Domains DNS answers NXDOMAIN for, and the registry (RDAP) says are free.
     missing: frozenset[str] = frozenset()
+    own_site: bool = False  # the owner's own site: the "own site" checks run too
 
     @property
     def host(self) -> str:
@@ -1600,6 +1602,44 @@ CASES: list[Case] = [
         subdomains=["dev"],
         dns={("dev.lab-ns-fine.ru", "NS"): ["ns1.selectel.org."]},
     ),
+    # --- own site mode: exposed service files (OWASP WSTG-CONF-04, -05) ------------
+    Case(
+        "lab-own-git",
+        "свой сайт: открыта папка .git — по ней скачивается весь исходный код",
+        {"SUV-OWN-001": "fail"},
+        html=page(FORM_OK),
+        files=site_files({"/.git/HEAD": "ref: refs/heads/main\n"}),
+        own_site=True,
+    ),
+    Case(
+        "lab-own-env",
+        "свой сайт: открыт файл .env с паролем базы данных",
+        {"SUV-OWN-001": "fail"},
+        html=page(FORM_OK),
+        files=site_files({"/.env": "APP_ENV=production\nDB_PASSWORD=s3cret\n"}),
+        own_site=True,
+    ),
+    Case(
+        "lab-own-soft404",
+        "свой сайт: на любой адрес, и на /.git/HEAD, отдаётся страница «не найдено» с кодом 200",
+        {"SUV-OWN-001": "ok"},
+        html=page(FORM_OK),
+        files=site_files(
+            {
+                "/.git/HEAD": page("<p>Страница не найдена</p>"),
+                "/.env": page("<p>Страница не найдена</p>"),
+            }
+        ),
+        own_site=True,
+    ),
+    Case(
+        "lab-own-clean",
+        "свой сайт: служебных файлов снаружи не видно",
+        {"SUV-OWN-001": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        own_site=True,
+    ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
         "lab-mta-sts-silent",
@@ -1639,6 +1679,24 @@ CASES: list[Case] = [
         "«Популярные товары» одинаковы для всех: это не рекомендательная технология",
         {"SUV-LAW-002": "нет проверки"},
         html=page(FORM_OK + "<section><h2>Популярные товары</h2></section>"),
+        files=site_files(),
+    ),
+    # --- advertising labels (38-ФЗ, ст. 18.1): only the facts, no "violation" -------
+    Case(
+        "lab-ad-erid",
+        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна",
+        {"SUV-LAW-003": "ok"},
+        html=page(
+            FORM_OK + '<a href="https://partner.example/?erid=2SDnjcVm4Kd">Реклама. ООО «Партнёр»'
+            "</a>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-ad-none",
+        "рекламы и маркировки не видно: про 38-ФЗ сказать нечего, проверки нет",
+        {"SUV-LAW-003": "нет проверки"},
+        html=page(FORM_OK),
         files=site_files(),
     ),
 ]
@@ -1785,6 +1843,8 @@ async def _run_case(case: Case) -> dict[str, Check]:
             checks += mail_checks(
                 await collect_mail(FakeResolver(records, case.missing), client, host)
             )
+            if case.own_site:
+                checks.append(await exposed_files_check(client, host))
             if case.subdomains is not None:
                 sub, _ = await run_subdomain_checks(
                     FakeResolver(records, case.missing), client, client, host

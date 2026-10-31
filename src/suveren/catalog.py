@@ -26,6 +26,7 @@ SUB = "Поддомены"
 CUT = "Отключение иностранных сервисов"
 ATTACK = "Сценарии атак"
 COMPANY = "Проверка компании"
+OWN = "Свой сайт"
 
 # Modules of `suveren scan`, as switched by --no-152fz, --no-mail and the like;
 # "cutoff" runs with --cutoff or the deep profile, "formleaks" only with --form-leaks
@@ -33,7 +34,7 @@ COMPANY = "Проверка компании"
 # "core" needs nothing beyond the dependency scan every run does.
 MODULES = (
     "core", "compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "formleaks",
-    "company",
+    "ownsite", "company",
 )  # fmt: skip
 
 
@@ -106,6 +107,9 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-LAW-002", LAWS, "Рекомендательные технологии", "compliance", "law",
           "Персональные рекомендации без опубликованных правил их применения "
           "(149-ФЗ, ст. 10.2-2; КоАП, ст. 13.56)."),
+    _spec("SUV-LAW-003", LAWS, "Маркировка интернет-рекламы", "compliance", "law ads",
+          "Видна ли маркировка рекламы (erid). Только факт, без вывода о нарушении: текст "
+          "38-ФЗ ещё не сверен."),
     # --- block lists --------------------------------------------------------------------
     _spec("SUV-BLK-000", BLOCK, "Реестр блокировок Роскомнадзора", "blocklist", "blocklist",
           "Реестр блокировок не загрузился, проверка не выполнена."),
@@ -202,6 +206,13 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-CUT-002", CUT, "Отключение: что перестанет работать на странице", "cutoff",
           "cutoff browser",
           "Эксперимент в браузере: страница без иностранных сервисов — что пропало и сломалось."),
+    # --- own site (--own-site, after the ownership is proven) ---------------------------
+    _spec("SUV-OWN-001", OWN, "Открытые служебные файлы (.git, .env)", "ownsite",
+          "own web secrets", "Открыты ли снаружи /.git и /.env (только для своего сайта)."),
+    _spec("SUV-OWN-002", OWN, "TLS подробно: ключ и слабые шифры", "ownsite", "own tls",
+          "Ключ и подпись сертификата, соглашается ли сервер на 3DES и RC4."),
+    _spec("SUV-OWN-003", OWN, "Почтовые серверы: STARTTLS и DANE", "ownsite", "own mail tls",
+          "Предлагают ли MX-серверы STARTTLS (порт 25), есть ли записи DANE (TLSA)."),
     # --- company (`suveren company`) ----------------------------------------------------
     _spec("SUV-CO-001", COMPANY, "ЕГРЮЛ / ЕГРИП", "company", "company egrul",
           "Статус организации в ЕГРЮЛ/ЕГРИП: действует или ликвидирована."),
@@ -326,6 +337,7 @@ MODULE_LABELS = {
     "subdomains": ("none", "none"),  # CT logs
     "cutoff": ("look", "ip"),
     "formleaks": ("input", "js"),
+    "ownsite": ("probe", "ip"),  # service files, weak ciphers, SMTP on port 25
     "company": ("none", "none"),  # ЕГРЮЛ, RKN register, sanctions lists
 }
 LABELS = {
@@ -354,7 +366,8 @@ MODULE_RU = {
     "security": "безопасность сайта (`--no-security`)",
     "subdomains": "поддомены (`--no-subdomains`)",
     "cutoff": "эксперимент `--cutoff` или `--profile deep`",
-    "formleaks": "эксперимент `--form-leaks` (только по флагу)",
+    "formleaks": "эксперимент `--form-leaks` (только в режиме «свой сайт»)",
+    "ownsite": "режим «свой сайт» (`--own-site`, после подтверждения владения)",
     "company": "`suveren company`",
 }
 
