@@ -165,13 +165,37 @@ def good_tls(host: str) -> TlsInfo:
     return TlsInfo(host, "TLSv1.3", NOW + timedelta(days=200), {"TLS 1.0": False, "TLS 1.1": False})
 
 
+def _der(tag: int, body: bytes) -> bytes:
+    n = len(body)
+    size = bytes([n]) if n < 128 else bytes([0x82]) + n.to_bytes(2, "big")
+    return bytes([tag]) + size + body
+
+
+def dkim_key(bits: int, *, spki: bool = True) -> str:
+    """The p= value of an RSA DKIM key with a modulus of ``bits`` bits: SubjectPublicKeyInfo,
+    as RFC 6376 (3.6.1) asks, or the bare RSAPublicKey some publishers put instead. Only
+    the size matters to the check, so the modulus is not a real product of primes."""
+    import base64
+
+    n = (1 << (bits - 1)) | 0x1D
+    modulus = _der(0x02, b"\x00" + n.to_bytes((bits + 7) // 8, "big"))
+    rsa = _der(0x30, modulus + _der(0x02, b"\x01\x00\x01"))
+    if spki:
+        alg = _der(0x30, _der(0x06, bytes.fromhex("2a864886f70d010101")) + b"\x05\x00")
+        rsa = _der(0x30, alg + _der(0x03, b"\x00" + rsa))
+    return base64.b64encode(rsa).decode()
+
+
+DKIM_2048 = f"v=DKIM1; k=rsa; p={dkim_key(2048)}"
+
+
 def good_dns(host: str) -> dict[tuple[str, str], list[str]]:
     return {
         (host, "MX"): ["10 mx.yandex.net."],
         (host, "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
         ("_spf.yandex.net", "TXT"): ["v=spf1 ip4:77.88.0.0/18 ip4:5.45.198.0/23 ~all"],
         (f"_dmarc.{host}", "TXT"): [f"v=DMARC1; p=reject; rua=mailto:dmarc@{host}"],
-        (f"mail._domainkey.{host}", "TXT"): ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GN"],
+        (f"mail._domainkey.{host}", "TXT"): [DKIM_2048],
         (f"_mta-sts.{host}", "TXT"): ["v=STSv1; id=20261022"],
         (f"_smtp._tls.{host}", "TXT"): [f"v=TLSRPTv1; rua=mailto:tls@{host}"],
     }
@@ -235,6 +259,7 @@ CASES: list[Case] = [
             "SUV-MAIL-003": "ok",
             "SUV-MAIL-004": "ok",
             "SUV-MAIL-005": "ok",
+            "SUV-MAIL-006": "ok",
         },
         html=page(FORM_OK + '<script src="/app.js"></script>'),
         files=site_files({"/app.js": "console.log('ok');"}),
@@ -1155,15 +1180,78 @@ CASES: list[Case] = [
         files=site_files(),
         dns={
             ("mail._domainkey.lab-dkim-odd-selector.ru", "TXT"): [],
-            ("k2026q4._domainkey.lab-dkim-odd-selector.ru", "TXT"): [
-                "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GN"
-            ],
+            ("k2026q4._domainkey.lab-dkim-odd-selector.ru", "TXT"): [DKIM_2048],
         },
+    ),
+    # --- DKIM key strength (RFC 8301, sections 3.1 and 3.2; RFC 8463) ----------------
+    Case(
+        "lab-dkim-1024",
+        "ключ DKIM RSA 1024 бита: допустимо, но RFC 8301 советует не меньше 2048",
+        {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("mail._domainkey.lab-dkim-1024.ru", "TXT"): [f"v=DKIM1; k=rsa; p={dkim_key(1024)}"]},
+    ),
+    Case(
+        "lab-dkim-512",
+        "ключ DKIM RSA 512 бит: получатели обязаны не принимать такие подписи, ключ "
+        "раскладывается за часы",
+        {"SUV-MAIL-006": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-512.ru", "TXT"): [f"v=DKIM1; k=rsa; p={dkim_key(512)}"],
+            ("selector1._domainkey.lab-dkim-512.ru", "TXT"): [DKIM_2048],
+        },
+    ),
+    Case(
+        "lab-dkim-sha1",
+        "ключ DKIM только для SHA-1 (h=sha1): подписи rsa-sha1 недействительны",
+        {"SUV-MAIL-006": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-sha1.ru", "TXT"): [
+                f"v=DKIM1; h=sha1; k=rsa; p={dkim_key(2048)}"
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-pkcs1",
+        "ключ DKIM 2048 бит в виде RSAPublicKey без обёртки: проверяющие его принимают",
+        {"SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-pkcs1.ru", "TXT"): [
+                f"v=DKIM1; k=rsa; p={dkim_key(2048, spki=False)}"
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-ed25519",
+        "ключ DKIM Ed25519 (RFC 8463): 256 бит этого алгоритма надёжнее RSA 2048",
+        {"SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-ed25519.ru", "TXT"): [
+                "v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="
+            ]
+        },
+    ),
+    Case(
+        "lab-dkim-garbled",
+        "в p= не ключ, а мусор: длину не узнать",
+        {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("mail._domainkey.lab-dkim-garbled.ru", "TXT"): ["v=DKIM1; k=rsa; p=QUJD"]},
     ),
     Case(
         "lab-dkim-none",
         "под _domainkey ничего нет: про DKIM ничего сказать нельзя",
-        {"SUV-MAIL-004": "unknown"},
+        {"SUV-MAIL-004": "unknown", "SUV-MAIL-006": "нет проверки"},
         html=page(FORM_OK),
         files=site_files(),
         dns={("mail._domainkey.lab-dkim-none.ru", "TXT"): []},

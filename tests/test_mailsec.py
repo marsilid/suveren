@@ -1,4 +1,7 @@
 import asyncio
+import base64
+import sys
+from pathlib import Path
 
 import httpx
 import pytest
@@ -12,16 +15,21 @@ from suveren.mailsec import (
     check_spf,
     collect_mail,
     dkim_check,
+    dkim_strength_check,
     dmarc_check,
     evaluate,
     parse_dmarc,
     parse_mta_sts_mode,
     parse_spf,
+    rsa_bits,
     run_mail_checks,
     spf_check,
     transport_check,
     verdict,
 )
+
+sys.path.insert(0, str(Path(__file__).parent))
+from lab import dkim_key
 
 
 class FakeResolver:
@@ -604,3 +612,135 @@ def test_broken_spf_behind_dmarc_reject_stays_urgent():
     report.checks = evaluate(facts(spf=spf, dmarc=parse_dmarc("v=DMARC1; p=reject")))
     assert report.checks[1].status is Status.FAIL
     assert priorities(report)[0].severity is Severity.HIGH
+
+
+# --- DKIM key strength (RFC 8301) -----------------------------------------------------
+
+
+def _dkim(records: dict[str, list[str]]) -> MailFacts:
+    raw = {f"TXT {s}._domainkey.example.ru": r for s, r in records.items()}
+    return facts(dkim=list(records), raw=raw)
+
+
+@pytest.mark.parametrize(
+    ("bits", "spki", "status"),
+    [
+        (512, True, Status.FAIL),
+        (1023, True, Status.FAIL),
+        (1024, True, Status.WARN),
+        (1024, False, Status.WARN),
+        (2048, True, Status.OK),
+        (4096, False, Status.OK),
+    ],
+)
+def test_dkim_key_length_follows_rfc_8301(bits, spki, status):
+    key = dkim_key(bits, spki=spki)
+    assert rsa_bits(base64.b64decode(key)) == bits
+    check = dkim_strength_check(_dkim({"mail": [f"v=DKIM1; k=rsa; p={key}"]}))
+    assert check.id == "SUV-MAIL-006"
+    assert check.status is status
+    assert f"RSA {bits} бит" in check.details
+
+
+def test_dkim_worst_key_decides_and_every_key_is_listed():
+    check = dkim_strength_check(
+        _dkim(
+            {
+                "mail": [f"v=DKIM1; p={dkim_key(512)}"],
+                "selector1": [f"v=DKIM1; p={dkim_key(2048)}"],
+            }
+        )
+    )
+    assert check.status is Status.FAIL
+    assert "mail: RSA 512 бит" in check.details and "selector1: RSA 2048 бит" in check.details
+    assert check.details.split(". ")[1].startswith("RSA-ключ короче 1024")
+    assert "новым селектором" in check.recommendation
+
+
+def test_dkim_key_for_sha1_only_is_invalid():
+    record = f"v=DKIM1; h = sha1 ; k=RSA; p={dkim_key(2048)}"
+    check = dkim_strength_check(_dkim({"mail": [record]}))
+    assert check.status is Status.FAIL and "h=sha1" in check.details
+    both = f"v=DKIM1; h=sha1:sha256; p={dkim_key(2048)}"
+    assert dkim_strength_check(_dkim({"mail": [both]})).status is Status.OK
+
+
+def test_dkim_key_with_folded_base64_is_read():
+    key = dkim_key(2048)
+    record = f"v=DKIM1; k=rsa; p={key[:100]} {key[100:200]}\t{key[200:]}"
+    assert dkim_strength_check(_dkim({"mail": [record]})).status is Status.OK
+
+
+def test_dkim_ed25519_and_unknown_keys():
+    ed = "v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="
+    check = dkim_strength_check(_dkim({"mail": [ed]}))
+    assert check.status is Status.OK and "Ed25519" in check.details
+    short = "v=DKIM1; k=ed25519; p=QUJD"
+    assert dkim_strength_check(_dkim({"mail": [short]})).status is Status.UNKNOWN
+    other = f"v=DKIM1; k=dsa; p={dkim_key(2048)}"
+    assert dkim_strength_check(_dkim({"mail": [other]})).status is Status.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "p",
+    ["QUJD", "!!!notbase64", base64.b64encode(b"\x30\x82\xff").decode(), "MAMCAQE="],
+)
+def test_dkim_unreadable_key_is_unknown(p):
+    check = dkim_strength_check(_dkim({"mail": [f"v=DKIM1; k=rsa; p={p}"]}))
+    assert check.status is Status.UNKNOWN and "не читается" in check.details
+
+
+def test_dkim_one_unreadable_key_does_not_hide_the_others():
+    check = dkim_strength_check(
+        _dkim({"mail": ["v=DKIM1; p=QUJD"], "s1": [f"v=DKIM1; p={dkim_key(1024)}"]})
+    )
+    assert check.status is Status.WARN
+
+
+@pytest.mark.parametrize(
+    "der",
+    [
+        b"",
+        b"\x02\x01\x01",  # not a sequence
+        b"\x30\x03\x02\x01",  # truncated
+        b"\x30\x85\x00\x00\x00\x00\x01\x00",  # absurd length
+        b"\x30\x81",  # length cut off
+        b"\x30\x06\x30\x00\x03\x02\x00\x00",  # algorithm missing
+        b"\x30\x03\x05\x01\x00",  # one item
+    ],
+)
+def test_rsa_bits_rejects_what_is_not_a_key(der):
+    assert rsa_bits(der) is None
+
+
+def test_rsa_bits_rejects_a_key_of_another_algorithm():
+    key = base64.b64decode(dkim_key(2048))
+    other = key.replace(bytes.fromhex("2a864886f70d010101"), bytes.fromhex("2a8648ce3d0201ff"))
+    assert rsa_bits(other) is None
+
+
+def test_key_strength_runs_only_when_a_key_was_found():
+    ids = {c.id for c in evaluate(facts(dkim=[]))}
+    assert "SUV-MAIL-006" not in ids
+
+
+def test_collect_mail_keeps_the_key_records_for_the_strength_check():
+    records = {
+        ("example.ru", "MX"): ["10 mx.yandex.net."],
+        ("mail._domainkey.example.ru", "TXT"): [f"v=DKIM1; k=rsa; p={dkim_key(1024)}"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    check = next(c for c in evaluate(m) if c.id == "SUV-MAIL-006")
+    assert check.status is Status.WARN
+    assert [e.what for e in check.evidence] == ["TXT mail._domainkey.example.ru"]
+
+
+@pytest.mark.parametrize(("bits", "severity"), [(1024, "LOW"), (512, "HIGH")])
+def test_dkim_key_advice_is_its_own_and_urgent_only_when_invalid(bits, severity):
+    from suveren.advice import priorities
+    from suveren.models import Report, Severity
+
+    report = Report(target="example.ru")
+    report.checks = evaluate(_dkim({"mail": [f"v=DKIM1; p={dkim_key(bits)}"]}))
+    actions = [a for a in priorities(report) if a.anchor == "SUV-MAIL-006"]
+    assert [a.severity for a in actions] == [Severity[severity]]

@@ -29,7 +29,7 @@ def test_profiles():
 def test_checks_choose_modules_and_skip_wins():
     plan = make_plan(checks="dkim,SUV-WEB-004")
     assert plan.modules == frozenset({"mail", "security"})
-    assert plan.only == frozenset({"SUV-MAIL-004", "SUV-WEB-004"})
+    assert plan.only == frozenset({"SUV-MAIL-004", "SUV-MAIL-006", "SUV-WEB-004"})
     # A chosen check runs even in the quick profile; --no-mail still switches it off.
     assert make_plan(Profile.quick, checks="dkim").modules == frozenset({"mail"})
     assert make_plan(checks="dkim", skip={"mail"}).modules == frozenset()

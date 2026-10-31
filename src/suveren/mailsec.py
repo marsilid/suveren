@@ -12,6 +12,8 @@ verdict is built on DMARC and SPF/DKIM are reported as supporting checks.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import re
 import secrets
@@ -675,6 +677,151 @@ def dkim_check(m: MailFacts) -> Check:
     )
 
 
+# --- DKIM key strength ----------------------------------------------------------------
+
+DKIM_MIN_BITS = 1024  # RFC 8301, 3.2: verifiers MUST NOT accept signatures by shorter keys
+DKIM_GOOD_BITS = 2048  # RFC 8301, 3.2: signers SHOULD use keys of at least 2048 bits
+_RSA_OID = bytes.fromhex("2a864886f70d010101")  # 1.2.840.113549.1.1.1 rsaEncryption
+
+
+def dkim_tags(record: str) -> dict[str, str]:
+    """Tags of a DKIM key record (RFC 6376, 3.2): names lowercased, whitespace inside
+    values dropped (it is folding there, and p= is base64)."""
+    tags: dict[str, str] = {}
+    for part in record.split(";"):
+        name, eq, value = part.partition("=")
+        if eq:
+            tags.setdefault(name.strip().lower(), re.sub(r"\s+", "", value))
+    return tags
+
+
+def _der_items(data: bytes) -> list[tuple[int, bytes]]:
+    """The (tag, body) items of a DER sequence body; ValueError when it is not DER."""
+    items, i = [], 0
+    while i < len(data):
+        if i + 2 > len(data):
+            raise ValueError("truncated")
+        tag, size = data[i], data[i + 1]
+        i += 2
+        if size & 0x80:
+            count = size & 0x7F
+            if not 0 < count <= 4 or i + count > len(data):
+                raise ValueError("bad length")
+            size = int.from_bytes(data[i : i + count], "big")
+            i += count
+        if i + size > len(data):
+            raise ValueError("truncated")
+        items.append((tag, data[i : i + size]))
+        i += size
+    return items
+
+
+def rsa_bits(der: bytes) -> int | None:
+    """Modulus size of an RSA public key: SubjectPublicKeyInfo, as RFC 6376 (3.6.1)
+    publishes it, or a bare RSAPublicKey (PKCS #1), which OpenDKIM and others accept too.
+    None when it is neither."""
+    try:
+        [(tag, body)] = _der_items(der)
+        if tag != 0x30:
+            return None
+        items = _der_items(body)
+        if len(items) == 2 and items[0][0] == 0x30 and items[1][0] == 0x03:
+            alg = _der_items(items[0][1])
+            if not alg or alg[0] != (0x06, _RSA_OID) or not items[1][1].startswith(b"\0"):
+                return None
+            return rsa_bits(items[1][1][1:])
+        if len(items) == 2 and items[0][0] == 0x02 == items[1][0]:
+            return int.from_bytes(items[0][1], "big").bit_length()
+    except ValueError:
+        return None
+    return None
+
+
+@dataclass(slots=True)
+class DkimKey:
+    selector: str
+    kind: str  # "rsa", "ed25519" or what k= says
+    bits: int | None  # None: the key could not be read
+    sha1_only: bool = False  # h= allows no hash but SHA-1
+
+    @property
+    def text(self) -> str:
+        if self.bits is None:
+            return f"{self.selector}: ключ не читается"
+        what = "Ed25519" if self.kind == "ed25519" else f"{self.kind.upper()} {self.bits} бит"
+        return f"{self.selector}: {what}" + (", только SHA-1 (h=sha1)" if self.sha1_only else "")
+
+
+def dkim_key(selector: str, records: list[str]) -> DkimKey:
+    """The published key of a selector, as a verifier reads it."""
+    record = next((r for r in records if re.search(r"(?i)(^|;)\s*p=[A-Za-z0-9+/]", r)), "")
+    tags = dkim_tags(record)
+    kind = (tags.get("k") or "rsa").lower()
+    hashes = {h.lower() for h in tags.get("h", "").split(":") if h}
+    try:
+        key = base64.b64decode(tags.get("p", ""), validate=True)
+    except (binascii.Error, ValueError):
+        return DkimKey(selector, kind, None)
+    if kind == "ed25519":  # RFC 8463: the raw 32-byte public key
+        return DkimKey(selector, kind, 256 if len(key) == 32 else None)
+    if kind != "rsa":
+        return DkimKey(selector, kind, None)
+    return DkimKey(selector, kind, rsa_bits(key), sha1_only=bool(hashes) and hashes <= {"sha1"})
+
+
+def dkim_strength_check(m: MailFacts) -> Check:
+    """RFC 8301: RSA keys shorter than 1024 bits and SHA-1 make a signature invalid for
+    verifiers (3.1, 3.2); keys shorter than 2048 bits are allowed but not advised (3.2)."""
+    title = "DKIM: длина ключа"
+    keys = [dkim_key(s, m.raw.get(f"TXT {s}._domainkey.{m.domain}", [])) for s in m.dkim]
+    listed = "; ".join(k.text for k in keys) + "."
+    weak = [k for k in keys if k.kind == "rsa" and k.bits is not None and k.bits < DKIM_MIN_BITS]
+    sha1 = [k for k in keys if k.sha1_only]
+    if weak or sha1:
+        why = []
+        if weak:
+            why.append(
+                "RSA-ключ короче 1024 бит: получатели обязаны считать такие подписи "
+                "недействительными, а сам ключ раскладывается на множители за часы, после "
+                "чего письма от вашего имени можно подписывать"
+            )
+        if sha1:
+            why.append(
+                "ключ разрешён только для SHA-1 (h=sha1): подписи rsa-sha1 получатели "
+                "обязаны считать недействительными"
+            )
+        reason = "; ".join(why)
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.FAIL,
+            f"Ключи: {listed} {reason[0].upper()}{reason[1:]} (RFC 8301, разделы 3.1–3.2).",
+            "Выпустите новый ключ RSA 2048 бит (или Ed25519 вместе с RSA) под новым селектором, "
+            "переключите подпись на него и опубликуйте пустой p= у старого селектора.",
+        )
+    unreadable = [k for k in keys if k.bits is None]
+    if unreadable and len(unreadable) == len(keys):
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.UNKNOWN,
+            f"Ключи: {listed} Значение p= не разобрать как открытый ключ, длину не узнать. "
+            "Если запись и правда такая, подписи с этим селектором не проверяются.",
+        )
+    short = [k for k in keys if k.kind == "rsa" and k.bits is not None and k.bits < DKIM_GOOD_BITS]
+    if short:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.WARN,
+            f"Ключи: {listed} RSA-ключ короче 2048 бит: получатели его пока принимают, но "
+            "RFC 8301 (раздел 3.2) советует не меньше 2048, а запас стойкости у 1024 бит "
+            "уже небольшой.",
+            "При следующей смене ключа выпустите RSA 2048 бит под новым селектором.",
+        )
+    return Check(GROUP_MAIL, title, Status.OK, f"Ключи: {listed}")
+
+
 def mx_matches(host: str, pattern: str) -> bool:
     """RFC 8461, section 4.1: "*." stands for exactly one leftmost label."""
     host, pattern = host.lower().rstrip("."), pattern.lower().rstrip(".")
@@ -755,6 +902,8 @@ def evaluate(m: MailFacts) -> list[Check]:
     checks = [verdict(m), spf_check(m), dmarc_check(m)]
     if m.receives_mail:
         checks += [dkim_check(m), transport_check(m)]
+        if m.dkim:
+            checks.append(dkim_strength_check(m))
     for check in checks:
         check.evidence = evidence(m, check.id)
     return checks
@@ -773,7 +922,7 @@ def evidence(m: MailFacts, check_id: str) -> list[Evidence]:
     """The records a mail check rests on, as DNS returned them; an empty value says the
     record is not there."""
     names = [n.format(d=m.domain) for n in _EVIDENCE_NAMES.get(check_id, ())]
-    if check_id == "SUV-MAIL-004":
+    if check_id in ("SUV-MAIL-004", "SUV-MAIL-006"):
         names = [n for n in m.raw if n.endswith(f"._domainkey.{m.domain}")]
         if not names:
             tried = ", ".join(DKIM_SELECTORS[:5])
@@ -805,17 +954,25 @@ def parse_mta_sts_mx(policy: str) -> list[str]:
     return [m.lower() for m in re.findall(r"(?im)^\s*mx\s*:\s*(\S+)\s*$", policy)]
 
 
-async def _dkim(resolver: DnsResolver, domain: str) -> list[str]:
-    async def has_key(selector: str) -> bool:
+async def _dkim(resolver: DnsResolver, domain: str, raw: dict[str, list[str]]) -> list[str]:
+    """Selectors with a published key; ``raw`` gets their records, for the evidence and
+    for the key strength check."""
+
+    async def key(selector: str) -> list[str]:
         try:
             txt = await _txt(resolver, f"{selector}._domainkey.{domain}")
         except DnsLookupError:
-            return False
+            return []
         # "p=" with an empty value is a revoked key.
-        return any(re.search(r"(?i)(^|;)\s*p=[A-Za-z0-9+/]", t) for t in txt)
+        if any(re.search(r"(?i)(^|;)\s*p=[A-Za-z0-9+/]", t) for t in txt):
+            return txt
+        return []
 
-    found = await asyncio.gather(*(has_key(s) for s in DKIM_SELECTORS))
-    return [s for s, ok in zip(DKIM_SELECTORS, found, strict=True) if ok]
+    found = await asyncio.gather(*(key(s) for s in DKIM_SELECTORS))
+    for selector, txt in zip(DKIM_SELECTORS, found, strict=True):
+        if txt:
+            raw[f"TXT {selector}._domainkey.{domain}"] = txt
+    return [s for s, txt in zip(DKIM_SELECTORS, found, strict=True) if txt]
 
 
 async def _dkim_node(resolver: DnsResolver, domain: str) -> bool:
@@ -931,7 +1088,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     if facts.dmarc:
         facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
     if receives:
-        facts.dkim = await _dkim(resolver, domain)
+        facts.dkim = await _dkim(resolver, domain, raw)
         if not facts.dkim:
             facts.dkim_node = await _dkim_node(resolver, domain)
         try:
@@ -946,10 +1103,6 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
             rpt = await _txt(resolver, f"_smtp._tls.{domain}")
             facts.tls_rpt = any(t.lower().startswith("v=tlsrptv1") for t in rpt)
             raw[f"TXT _smtp._tls.{domain}"] = [t for t in rpt if t.lower().startswith("v=tlsrpt")]
-        for selector in facts.dkim:
-            name = f"{selector}._domainkey.{domain}"
-            with contextlib.suppress(DnsLookupError):
-                raw[f"TXT {name}"] = await _txt(resolver, name)
     return facts
 
 
