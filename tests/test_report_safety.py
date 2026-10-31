@@ -43,3 +43,24 @@ def test_only_web_addresses_become_links():
     assert web_url(" HTTP://example.ru/ ") == "HTTP://example.ru/"
     for bad in ("javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x", "", None):
         assert web_url(bad) is None
+
+
+def test_html_report_has_a_strict_content_security_policy():
+    from suveren.models import Report
+    from suveren.report import render_html
+
+    html = render_html(Report("example.ru"))
+    assert '<meta http-equiv="Content-Security-Policy"' in html
+    assert "default-src 'none'" in html and "<script" not in html
+
+
+def test_sources_have_no_raw_control_characters():
+    """A backspace and a \\x01 typed into a raw string broke a regex in subdomains.py
+    (review of 1.1.2): they look like nothing in an editor."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).parent.parent
+    bad = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+    files = [*root.glob("src/suveren/**/*.py"), *root.glob("src/suveren/templates/*.j2")]
+    assert [str(f) for f in files if bad.search(f.read_text("utf-8"))] == []
