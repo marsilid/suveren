@@ -12,6 +12,9 @@ updates:
     directory: /packaging
     schedule:
       interval: weekly
+    ignore:
+      # Playwright pins pyee (1.64: <15); it moves together with Playwright.
+      - dependency-name: pyee
   - package-ecosystem: pip
     directory: /
     schedule:
@@ -21,3 +24,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # A new Python in the image only after CI tests it (3.11-3.14 now); digest
+      # updates of the same version still come.
+      - dependency-name: python
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
