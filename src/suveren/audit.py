@@ -148,9 +148,9 @@ def _grade_rules(report: dict[str, Any]) -> list[Issue]:
     # The overall score is recounted in full only for reports of this very version: the
     # weights of older versions were different.
     if overall is not None and report.get("tool_version") == __version__:
-        expected = _recount_overall(report)
-        if expected is not None and expected != overall:
-            issues.append(Issue("score-mismatch", "", f"общая {overall}, по проверкам {expected}"))
+        recount = _recount_overall(report)
+        if recount is not None and recount != overall:
+            issues.append(Issue("score-mismatch", "", f"общая {overall}, по проверкам {recount}"))
     return issues
 
 
