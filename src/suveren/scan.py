@@ -31,6 +31,7 @@ from suveren.crawl import (
 from suveren.cutoff import GROUP_CUT, PAGE_TITLE, infra_check, run_cutoff
 from suveren.dataflow import run_dataflow
 from suveren.dnsutil import ResolverMode, create_resolver
+from suveren.dnszone import run_zone_checks
 from suveren.errors import ModuleError
 from suveren.formleaks import TITLE as FORM_TITLE
 from suveren.formleaks import pages_with_fields, run_form_leaks
@@ -164,6 +165,12 @@ async def run_scan(
                 "Не проверено: главная страница не загрузилась.",
             )
         )
+    if security:
+        # DNS only, so it runs even when the page did not load.
+        async with _stage(progress, "CAA и DNSSEC"), make_client(timeout) as client:
+            resolver, _ = await create_resolver(dns_mode, timeout, client)
+            https = not facts.final_url or facts.final_url.startswith("https://")
+            report.checks += await run_zone_checks(resolver, facts.host, https=https)
 
     if subdomains:
         async with (

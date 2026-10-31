@@ -38,9 +38,9 @@ addresses and IPs replaced, so no real company is shown.</sub>
 | 🌍 | **What breaks with the next wave of sanctions?** | DNS, mail, hosting, CDN, site builder, registrar, TLS certificate, page scripts and widgets. An independence grade from **A** to **F** and a migration plan to Russian providers |
 | ⚖️ | **Does the site comply with 152-FZ?** | the privacy policy and its contents, consent in forms, cookies, cross-border transfer, data localisation, the register of personal-data operators, sign-in through Google and Apple, recommendation technologies. The total of possible fines under the Code of Administrative Offences |
 | 🚫 | **Is the site reachable from Russia?** | the domain and IP addresses in Roskomnadzor's block list, blocked services on the pages |
-| ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM, MTA-STS and a plain answer: yes, partly or no |
+| ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM and its key length, MTA-STS and a plain answer: yes, partly or no |
 | 🔓 | **Are there forgotten subdomains someone could take over?** | subdomains from Certificate Transparency logs that point to deleted projects on third-party services |
-| 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS |
+| 🛡️ | **Whose code runs on the site?** | third-party and abandoned script domains, vulnerable library versions, keys in code, CSP, HSTS, cookies, TLS, CAA and DNSSEC |
 | 🏢 | **Who are we dealing with?** | the company in the state register (EGRUL), US, EU and UK sanctions lists, the register of personal-data operators |
 
 About 60 checks in all, each with a permanent ID — see [docs/checks.md](docs/checks.md).

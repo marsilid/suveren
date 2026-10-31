@@ -33,6 +33,7 @@ from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
+from suveren.dnszone import run_zone_checks
 from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.page import parse_page
@@ -186,6 +187,26 @@ def dkim_key(bits: int, *, spki: bool = True) -> str:
     return base64.b64encode(rsa).decode()
 
 
+def dnskey(seed: int = 0, algorithm: int = 13) -> str:
+    """A DNSKEY record (KSK) of the given algorithm; the key bytes are made up, which is
+    enough for the DS digest the check compares."""
+    import base64
+
+    key = bytes((seed + i) % 256 for i in range(64))
+    return f"257 3 {algorithm} {base64.b64encode(key).decode()}"
+
+
+def ds_for(zone: str, key: str, digest: str = "SHA256") -> str:
+    """The DS record a registrar publishes in the parent zone for ``key``."""
+    import dns.dnssec
+    import dns.name
+    import dns.rdata
+
+    rdata = dns.rdata.from_text("IN", "DNSKEY", key)
+    # validating=True: dnspython refuses to make a SHA-1 DS otherwise, and the lab needs one.
+    return dns.dnssec.make_ds(dns.name.from_text(zone), rdata, digest, validating=True).to_text()
+
+
 DKIM_2048 = f"v=DKIM1; k=rsa; p={dkim_key(2048)}"
 
 
@@ -198,6 +219,9 @@ def good_dns(host: str) -> dict[tuple[str, str], list[str]]:
         (f"mail._domainkey.{host}", "TXT"): [DKIM_2048],
         (f"_mta-sts.{host}", "TXT"): ["v=STSv1; id=20261022"],
         (f"_smtp._tls.{host}", "TXT"): [f"v=TLSRPTv1; rua=mailto:tls@{host}"],
+        (host, "CAA"): ['0 issue "letsencrypt.org"', f'0 iodef "mailto:security@{host}"'],
+        (host, "DNSKEY"): [dnskey(), "256 3 13 " + dnskey(7).split()[-1]],
+        (host, "DS"): [ds_for(host, dnskey())],
     }
 
 
@@ -260,6 +284,8 @@ CASES: list[Case] = [
             "SUV-MAIL-004": "ok",
             "SUV-MAIL-005": "ok",
             "SUV-MAIL-006": "ok",
+            "SUV-WEB-012": "ok",
+            "SUV-WEB-013": "ok",
         },
         html=page(FORM_OK + '<script src="/app.js"></script>'),
         files=site_files({"/app.js": "console.log('ok');"}),
@@ -1267,6 +1293,91 @@ CASES: list[Case] = [
             ("*.lab-dkim-wildcard.ru", "TXT"): ["v=spf1 -all"],
         },
     ),
+    # --- CAA (RFC 8659) --------------------------------------------------------------
+    Case(
+        "lab-caa-none",
+        "CAA нет: выпускать сертификаты может любой центр, но это не нарушение стандарта",
+        {"SUV-WEB-012": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-none.ru", "CAA"): []},
+    ),
+    Case(
+        "lab-caa-critical",
+        "CAA с неизвестным тегом и флагом critical: центры обязаны отказать в выпуске",
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-critical.ru", "CAA"): ['0 issue "letsencrypt.org"', '128 tbs "x"']},
+    ),
+    Case(
+        "lab-caa-forbid",
+        'CAA issue ";" без разрешённых центров, а сайт работает по HTTPS: сертификат не продлить',
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-forbid.ru", "CAA"): ['0 issue ";"']},
+    ),
+    Case(
+        "lab-caa-silent",
+        "DNS не ответил на запрос CAA: проверить нельзя",
+        {"SUV-WEB-012": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-silent.ru", "CAA"): NO_ANSWER},
+    ),
+    # --- DNSSEC (RFC 4035, section 5; RFC 8624) ---------------------------------------
+    Case(
+        "lab-dnssec-unsigned",
+        "зона не подписана: подмену ответов DNS не заметят, но это не ошибка настройки",
+        {"SUV-WEB-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-unsigned.ru", "DS"): [], ("lab-dnssec-unsigned.ru", "DNSKEY"): []},
+    ),
+    Case(
+        "lab-dnssec-no-dnskey",
+        "DS у регистратора есть, а ключей в зоне нет: проверяющие резолверы не откроют сайт",
+        {"SUV-WEB-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-no-dnskey.ru", "DNSKEY"): []},
+    ),
+    Case(
+        "lab-dnssec-mismatch",
+        "DS у регистратора не подходит ни к одному ключу зоны (ключ сменили, DS забыли)",
+        {"SUV-WEB-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-mismatch.ru", "DS"): [ds_for("lab-dnssec-mismatch.ru", dnskey(99))]},
+    ),
+    Case(
+        "lab-dnssec-sha1",
+        "зона подписана RSASHA1 (алгоритм 5): по RFC 8624 подписывать им не рекомендуется",
+        {"SUV-WEB-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-dnssec-sha1.ru", "DNSKEY"): [dnskey(algorithm=5)],
+            ("lab-dnssec-sha1.ru", "DS"): [ds_for("lab-dnssec-sha1.ru", dnskey(algorithm=5))],
+        },
+    ),
+    Case(
+        "lab-dnssec-island",
+        "ключи в зоне есть, DS у регистратора нет: подпись никто не проверяет",
+        {"SUV-WEB-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-island.ru", "DS"): []},
+    ),
+    Case(
+        "lab-dnssec-silent",
+        "DNS не ответил на запрос DS: проверить нельзя",
+        {"SUV-WEB-013": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-dnssec-silent.ru", "DS"): NO_ANSWER},
+    ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
         "lab-mta-sts-silent",
@@ -1404,6 +1515,7 @@ async def run_case(case: Case) -> dict[str, Check]:
             )
             web, _ = await run_web_checks(facts, FakeResolver(records), client, 5)
             checks += web
+            checks += await run_zone_checks(FakeResolver(records), host, https=not case.http)
             checks += mail_checks(await collect_mail(FakeResolver(records), client, host))
     finally:
         websec.probe_tls = saved

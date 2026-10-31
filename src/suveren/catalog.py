@@ -157,6 +157,12 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-WEB-011", WEB, "Цепочки сторонних скриптов", "security",
           "web scripts supply-chain browser",
           "Код, который подключил не сайт, а чужие скрипты (только в режиме --browser)."),
+    _spec("SUV-WEB-012", WEB, "Ограничение центров сертификации (CAA)", "security",
+          "web tls dns", "Запись CAA: какие центры сертификации могут выпускать сертификаты "
+          "сайта (RFC 8659)."),
+    _spec("SUV-WEB-013", WEB, "Подпись DNS (DNSSEC)", "security", "web dns",
+          "Подписана ли зона и сходится ли запись DS у регистратора с ключом зоны "
+          "(RFC 4035, RFC 8624)."),
     # --- subdomains ---------------------------------------------------------------------
     _spec("SUV-SUB-000", SUB, "Поддомены и их захват", "subdomains", "subdomains",
           "Проверка поддоменов не выполнена."),
@@ -312,6 +318,8 @@ LABELS = {
     "SUV-MAIL-005": ("look", "ip"),  # fetches https://mta-sts.<domain>/.well-known/...
     "SUV-WEB-008": ("probe", "ip"),  # handshakes with TLS 1.0 and 1.1 on purpose
     "SUV-WEB-011": ("look", "js"),  # only with --browser
+    "SUV-WEB-012": ("none", "none"),  # CAA records, DNS only
+    "SUV-WEB-013": ("none", "none"),  # DS and DNSKEY records, DNS only
     "SUV-SUB-000": ("probe", "ip"),
     "SUV-SUB-002": ("probe", "ip"),  # opens the pages of subdomains pointing to services
     "SUV-ATK-001": ("look", "ip"),  # mail records plus the site's forms
