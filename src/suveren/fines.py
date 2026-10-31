@@ -15,8 +15,9 @@ against the consolidated text as amended on 04.08.2026:
 
 Every problem ("fail") that matches a part of an article goes into the total, one
 article counted once. Where the qualification depends on facts Suveren can't see
-(was consent needed at all?), the row says so. A warning with an article is listed
-and not added up; "not checked" is never counted.
+(was consent needed at all? are the leads stored on that server? is the owner Russian?),
+the row says so and is listed, not added up (review of 1.1.2: PD-007 and LAW-001). A
+warning with an article is listed too; "not checked" is never counted.
 """
 
 from __future__ import annotations
@@ -153,7 +154,7 @@ class FineItem:
     title: str
     fine: Fine
     note: str | None
-    counted: bool  # a problem ("fail"): goes into the total
+    counted: bool  # a problem ("fail") without a condition: goes into the total
 
     def to_dict(self) -> dict[str, Any]:
         f = self.fine
@@ -220,7 +221,10 @@ def estimate(checks: list[Check]) -> FineEstimate:
             continue
         if rule and rule[0].article not in seen:
             seen.add(rule[0].article)
-            items.append(FineItem(check.title, rule[0], rule[1], check.status is Status.FAIL))
+            # A fine with a condition Suveren can't see (where the leads are stored, who
+            # owns the site) is listed, never added up: the total is what is certain.
+            counted = check.status is Status.FAIL and rule[1] is None
+            items.append(FineItem(check.title, rule[0], rule[1], counted))
     return FineEstimate(tuple(items))
 
 

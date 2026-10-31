@@ -179,11 +179,11 @@ def fines_line(fines: FineEstimate) -> Text:
         text.append(f"Потенциальные штрафы: до {rub(fines.total('legal'))} для юрлица", "bold")
         text.append(f" (статей: {len(fines.counted)}", DIM)
         if fines.listed:
-            text.append(f"; ещё {len(fines.listed)} по предупреждениям не в сумме", DIM)
+            text.append(f"; ещё {len(fines.listed)} условных, не в сумме", DIM)
         text.append(")", DIM)
     else:
         text.append(
-            f"Штраф возможен по {len(fines.listed)} предупреждениям, проблем со штрафом нет"
+            f"Штраф возможен при условиях: {len(fines.listed)}, безусловных штрафов нет"
         )
     text.append(". Оценка максимального риска, не юридическое заключение.", DIM)
     return text
