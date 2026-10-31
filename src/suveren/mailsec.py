@@ -534,6 +534,12 @@ def spf_check(m: MailFacts) -> Check:
             else:
                 fixes.append(f"Проверьте {name} позже: DNS не ответил.")
         recommendation = " ".join([recommendation, *dict.fromkeys(fixes)]).strip()
+    if status is Status.WARN and verdict(m).status is Status.OK:
+        # advice.py ranks this warning low for the same reason.
+        details.append(
+            "Подделать письмо от вашего имени это не помогает: DMARC p=reject отклоняет "
+            "письма, не прошедшие проверку. Речь о доставке вашей настоящей почты."
+        )
     return Check(GROUP_MAIL, title, status, " ".join(details), recommendation)
 
 

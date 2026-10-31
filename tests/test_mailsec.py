@@ -572,3 +572,35 @@ def test_dmarc_version_must_be_capitals_but_the_tag_name_need_not():
     assert parse_dmarc("V=DMARC1; p=reject").exact_version
     assert not parse_dmarc("v=dmarc1; p=reject").exact_version
     assert not parse_dmarc("v=Dmarc1; p=reject").exact_version
+
+
+def test_spf_warning_behind_dmarc_reject_is_low_and_says_why():
+    from suveren.advice import priorities
+    from suveren.models import Report, Severity
+
+    spf = SpfResult(parse_spf("v=spf1 include:_spf.yandex.net ?all"), 1, 1, "?")
+    for record, severity in (
+        ("v=DMARC1; p=reject", Severity.LOW),
+        ("v=DMARC1; p=quarantine", Severity.MEDIUM),
+    ):
+        m = facts(spf=spf, dmarc=parse_dmarc(record))
+        report = Report(target="example.ru")
+        report.checks = evaluate(m)
+        spf_warn = report.checks[1]
+        assert spf_warn.id == "SUV-MAIL-002" and spf_warn.status is Status.WARN
+        assert ("p=reject отклоняет" in spf_warn.details) is (severity is Severity.LOW)
+        mail = [a for a in priorities(report) if a.anchor.startswith("SUV-MAIL-")]
+        assert max(a.severity for a in mail) is severity
+
+
+def test_broken_spf_behind_dmarc_reject_stays_urgent():
+    from suveren.advice import priorities
+    from suveren.models import Report, Severity
+
+    spf = SpfResult(
+        parse_spf("v=spf1 include:a.ru -all"), 2, 1, "-", problems=["a.ru: нет SPF-записи"]
+    )
+    report = Report(target="example.ru")
+    report.checks = evaluate(facts(spf=spf, dmarc=parse_dmarc("v=DMARC1; p=reject")))
+    assert report.checks[1].status is Status.FAIL
+    assert priorities(report)[0].severity is Severity.HIGH
