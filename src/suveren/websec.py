@@ -14,6 +14,7 @@ import ssl
 import warnings
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -79,10 +80,17 @@ CERT_WARN_DAYS = 30
 TLS_CHECK_TITLE = "TLS: сертификат и протоколы"
 # Names that look like a login session. CSRF tokens are left out on purpose: they are
 # meant to be read by the page's own scripts, so HttpOnly would break them.
+# "auth" but not "author"/"authorized": those name a page or a flag, not a credential.
 _SESSION_COOKIE = re.compile(
-    r"sess|^sid$|[._-]sid$|^sid[._-]|auth|jwt|remember|access[._-]?token|refresh[._-]?token", re.I
+    r"sess|^sid$|[._-]sid$|^sid[._-]|auth(?!or)|jwt|remember|access[._-]?token"
+    r"|refresh[._-]?token",
+    re.I,
 )
 _CSRF_COOKIE = re.compile(r"csrf|xsrf", re.I)
+# Analytics and chat widgets that count visits in a "session" cookie their own scripts
+# read: sourcebuster (sbjs_session), Hotjar, Intercom, Amplitude, Mixpanel, Segment,
+# Yandex Metrica, Google Analytics. They hold no login, and HttpOnly would break them.
+_ANALYTICS_COOKIE = re.compile(r"^(sbjs_|_hj|intercom-|amp_|mp_|ajs_|_ym|_ga|_gid)", re.I)
 
 
 # --- Scripts --------------------------------------------------------------------------
@@ -463,9 +471,15 @@ class Cookie:
     http_only: bool
     same_site: str | None
 
+    deleted: bool = False  # Max-Age<=0, an expiry in the past: the site removes it
+
     @property
     def session_like(self) -> bool:
-        return bool(_SESSION_COOKIE.search(self.name)) and not _CSRF_COOKIE.search(self.name)
+        return (
+            bool(_SESSION_COOKIE.search(self.name))
+            and not _CSRF_COOKIE.search(self.name)
+            and not _ANALYTICS_COOKIE.search(self.name)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -491,7 +505,27 @@ def parse_set_cookie(line: str) -> Cookie | None:
         "secure" in attrs,
         "httponly" in attrs,
         same_site.lower() if same_site else None,
+        deleted=_expired(attrs),
     )
+
+
+def _expired(attrs: dict[str, str]) -> bool:
+    """The Set-Cookie removes the cookie (RFC 6265, 5.2.1-5.2.2): Max-Age of zero or less,
+    which wins over Expires, or Expires already in the past."""
+    if "max-age" in attrs:
+        try:
+            return int(attrs["max-age"]) <= 0
+        except ValueError:
+            pass
+    if "expires" in attrs:
+        try:
+            when = parsedate_to_datetime(attrs["expires"])
+        except (TypeError, ValueError, IndexError):
+            return False
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        return when < datetime.now(UTC)
+    return False
 
 
 # --- Checks ---------------------------------------------------------------------------
@@ -766,6 +800,8 @@ def cookies_check(w: WebFacts) -> Check | None:
     title = "Флаги cookies"
     problems = []
     for c in w.cookies:
+        if c.deleted:  # nothing is left in the browser to steal
+            continue
         flags = []
         if w.https and not c.secure:
             flags.append("Secure")

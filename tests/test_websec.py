@@ -185,6 +185,28 @@ def test_cookie_flags():
     assert websec.cookies_check(web()) is None
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "PHPSESSID=deleted; Max-Age=0; Path=/",
+        "PHPSESSID=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
+        "sid=; Max-Age=-1",
+    ],
+)
+def test_a_cookie_being_deleted_is_not_a_problem(line):
+    c = parse_set_cookie(line)
+    assert c is not None and c.deleted
+    assert websec.cookies_check(web(cookies=[c])).status is Status.OK
+
+
+def test_a_live_cookie_is_not_deleted():
+    assert not parse_set_cookie(
+        "sid=1; Max-Age=3600; Expires=Thu, 01-Jan-1970 00:00:01 GMT"
+    ).deleted
+    assert not parse_set_cookie("sid=1; expires=Fri, 01-Jan-2100 00:00:00 GMT").deleted
+    assert not parse_set_cookie("sid=1; expires=garbage").deleted
+
+
 # --- TLS ------------------------------------------------------------------------------
 
 
@@ -333,6 +355,13 @@ def test_redirect_to_another_domain_hides_its_headers(monkeypatch):
         ("ngtoken", False),
         ("_ym_uid", False),
         ("consider", False),
+        # analytics counters and page flags are not logins
+        ("sbjs_session", False),
+        ("_hjSession_123", False),
+        ("intercom-session-abc", False),
+        ("author", False),
+        ("is_authorized", False),
+        ("oauth_token", True),
     ],
 )
 def test_session_cookie_names(name, session):

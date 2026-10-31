@@ -409,6 +409,18 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-cookie-not-session",
+        "без флагов только удаляемая сессия (Max-Age=0) и счётчик визитов sbjs_session",
+        {"SUV-WEB-007": "ok"},
+        html=page(FORM_OK),
+        cookies=[
+            SESSION_OK,
+            "PHPSESSID=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; Max-Age=0; path=/",
+            "sbjs_session=pgs%3D1; Secure; path=/",
+        ],
+        files=site_files(),
+    ),
+    Case(
         "lab-cookie-analytics",
         "только cookie аналитики без HttpOnly: так и задумано, скрипт её читает",
         {"SUV-WEB-007": "ok"},
