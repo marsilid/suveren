@@ -426,15 +426,20 @@ class BrowserSession:
             await self._pw_cm.__aexit__(None, None, None)
             await self._egress.__aexit__(None, None, None)
             raise ModuleError("не найден браузер: установите Edge или Chrome, " + INSTALL_HINT)
-        self._context = await self._browser.new_context(
-            user_agent=USER_AGENT,
-            locale="ru-RU",
-            viewport={"width": 1366, "height": 900},
-            ignore_https_errors=True,
-            # A site cannot drop a file on the operator's disk.
-            accept_downloads=False,
-        )
-        await self._context.route("**/*", self._only_public)
+        try:
+            self._context = await self._browser.new_context(
+                user_agent=USER_AGENT,
+                locale="ru-RU",
+                viewport={"width": 1366, "height": 900},
+                ignore_https_errors=True,
+                # A site cannot drop a file on the operator's disk.
+                accept_downloads=False,
+            )
+            await self._context.route("**/*", self._only_public)
+        except PlaywrightError as exc:
+            # The browser is running: close it, or it outlives the scan.
+            await self.__aexit__(None, None, None)
+            raise ModuleError(f"браузер не запустился ({str(exc).splitlines()[0]})") from exc
         return self
 
     async def _only_public(self, route: Any) -> None:
@@ -500,10 +505,15 @@ class BrowserSession:
             if response is not None:
                 with contextlib.suppress(self._error):
                     headers = {k.lower(): v for k, v in (await response.all_headers()).items()}
+            try:
+                # A page that navigates again right now has no content to give.
+                html = await page.content()
+            except self._error as exc:
+                raise ModuleError(f"браузер не прочитал {url} ({str(exc).splitlines()[0]})") from exc
             return Rendered(
                 final_url=page.url,
                 status=response.status if response else None,
-                html=await page.content(),
+                html=html,
                 requests=list(dict.fromkeys(requests)),
                 initiators=started_by,
                 headers=headers,

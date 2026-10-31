@@ -112,3 +112,42 @@ def test_proxy_from_environment_is_not_used(monkeypatch):
     client = make_client(5)
     assert not client._mounts
     asyncio.run(client.aclose())
+
+
+def test_browser_error_while_reading_a_page_is_a_module_error():
+    """A page that navigates again while being read: Playwright raises from content()."""
+    from suveren.errors import ModuleError
+    from suveren.render import BrowserSession
+
+    class Gone(Exception):
+        pass
+
+    class Page:
+        url = "https://site.test/"
+
+        def on(self, *a):
+            pass
+
+        async def goto(self, *a, **k):
+            return None
+
+        async def wait_for_load_state(self, *a, **k):
+            pass
+
+        async def evaluate(self, *a):
+            pass
+
+        async def content(self):
+            raise Gone("Execution context was destroyed\nmore")
+
+        async def close(self):
+            pass
+
+    class Context:
+        async def new_page(self):
+            return Page()
+
+    session = BrowserSession()
+    session._error, session._context = Gone, Context()
+    with pytest.raises(ModuleError, match=r"не прочитал .*Execution context was destroyed\)"):
+        asyncio.run(session.open("https://site.test/", settle_ms=0))

@@ -106,3 +106,38 @@ def test_scan_with_a_plugin_end_to_end(offline, tmp_path):  # noqa: F811
     assert [p["source"] for p in data["plugins"]] == [str(EXAMPLE)]
     html = (tmp_path / "r.html").read_text(encoding="utf-8")
     assert "Проверки из плагинов" in html and "Отчёт с плагинами" in html
+
+
+def _plugin(tmp_path, body, name="bad"):
+    path = tmp_path / f"{name}.py"
+    path.write_text(body, encoding="utf-8")
+    return load(str(path))
+
+
+def test_plugin_that_calls_sys_exit_costs_only_its_verdict(tmp_path):
+    plugin = _plugin(tmp_path, "import sys\nasync def run(ctx):\n    sys.exit(3)\n")
+    [check] = asyncio.run(run_plugin(plugin, ctx()))
+    assert check.status is Status.UNKNOWN and "SystemExit(3)" in check.details
+
+
+def test_plugin_that_blocks_is_cut_by_the_timeout(tmp_path):
+    plugin = _plugin(tmp_path, "import time\nasync def run(ctx):\n    time.sleep(30)\n")
+    started = datetime.now(UTC)
+    [check] = asyncio.run(run_plugin(plugin, ctx(), timeout=0.5))
+    assert (datetime.now(UTC) - started).total_seconds() < 5
+    assert "не уложился" in check.details
+
+
+def test_plugin_with_dataclass_and_future_annotations_loads(tmp_path):
+    body = (
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n"
+        "@dataclass\nclass Row:\n    name: str\n"
+        "async def run(ctx):\n    return []\n"
+    )
+    assert asyncio.run(run_plugin(_plugin(tmp_path, body, "dc"), ctx())) == []
+
+
+def test_plugin_that_exits_on_import_is_a_load_error(tmp_path):
+    with pytest.raises(PluginError, match="SystemExit"):
+        _plugin(tmp_path, "import sys\nsys.exit(1)\n", "exits")

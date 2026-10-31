@@ -13,8 +13,10 @@ checked" verdict that says why.
 
 Plugins run only when named: ``suveren scan site.ru --plugin path/to/check.py``.
 Loading one runs its code, as importing any Python module does; run only plugins you
-trust, as you would any other program. A plugin that raises or hangs costs only its
-own verdict: the scan goes on and the report says what happened.
+trust, as you would any other program. A plugin that raises, calls ``sys.exit`` or
+hangs, even in a blocking call such as ``time.sleep``, costs only its own verdict: it
+runs in its own thread with its own event loop and HTTP client, so the scan goes on
+and the report says what happened.
 """
 
 from __future__ import annotations
@@ -24,7 +26,9 @@ import importlib
 import importlib.util
 import inspect
 import re
-from dataclasses import dataclass, field
+import sys
+import threading
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -76,12 +80,18 @@ def load(spec: str) -> Plugin:
             if module_spec is None or module_spec.loader is None:
                 raise PluginError(f"плагин {spec} не загружается")
             module = importlib.util.module_from_spec(module_spec)
-            module_spec.loader.exec_module(module)
+            # dataclasses and typing look the module up by name while it loads.
+            sys.modules[module_spec.name] = module
+            try:
+                module_spec.loader.exec_module(module)
+            except BaseException:
+                sys.modules.pop(module_spec.name, None)
+                raise
         else:
             module = importlib.import_module(spec)
     except PluginError:
         raise
-    except Exception as exc:  # a plugin's own import error must say where it came from
+    except (Exception, SystemExit) as exc:  # a plugin's import error must say where it came from
         raise PluginError(f"плагин {spec} не загрузился: {exc!r:.200}") from exc
     run = getattr(module, "run", None)
     if not callable(run) or not inspect.iscoroutinefunction(run):
@@ -99,12 +109,44 @@ def _broken(plugin: Plugin, why: str) -> Check:
     )
 
 
+async def _in_thread(plugin: Plugin, ctx: PluginContext, timeout: float) -> Any:
+    """``run(ctx)`` in a daemon thread with its own loop and client: a plugin that
+    blocks cannot stall the scan, and one left hanging does not hold up the exit."""
+    from suveren import collect
+
+    loop = asyncio.get_running_loop()
+    done: asyncio.Future[Any] = loop.create_future()
+
+    def settle(result: Any, error: BaseException | None) -> None:
+        if done.done():
+            return
+        if error is None:
+            done.set_result(result)
+        else:
+            done.set_exception(error)
+
+    async def go() -> Any:
+        async with collect.make_client(min(timeout, 30.0)) as client:
+            return await plugin.module.run(replace(ctx, client=client))
+
+    def target() -> None:
+        try:
+            result = asyncio.run(go())
+        except BaseException as exc:  # SystemExit too: it ends this thread, not the scan
+            loop.call_soon_threadsafe(settle, None, exc)
+        else:
+            loop.call_soon_threadsafe(settle, result, None)
+
+    threading.Thread(target=target, name=f"plugin {plugin.name}", daemon=True).start()
+    return await done
+
+
 async def run_plugin(plugin: Plugin, ctx: PluginContext, timeout: float = TIMEOUT) -> list[Check]:
     try:
-        result = await asyncio.wait_for(plugin.module.run(ctx), timeout)
+        result = await asyncio.wait_for(_in_thread(plugin, ctx, timeout), timeout)
     except TimeoutError:
         return [_broken(plugin, f"плагин не уложился в {timeout:.0f} с")]
-    except Exception as exc:  # isolate the plugin: its bug is not the scan's failure
+    except (Exception, SystemExit) as exc:  # isolate the plugin: its bug is not the scan's
         return [_broken(plugin, f"плагин завершился с ошибкой {exc!r:.200}")]
     if not isinstance(result, list) or not all(isinstance(c, Check) for c in result):
         return [_broken(plugin, "плагин вернул не список проверок Check")]
