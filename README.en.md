@@ -130,6 +130,7 @@ The 152-FZ section: every check links to its article of law and names the possib
 | `suveren audit reports/` | do reports contradict themselves |
 | `suveren unknown` | external domains missing from the service database |
 | `suveren watch sites.txt --every 24h` | watch sites: audit again and report what changed |
+| `suveren research sites.txt` | a study: many sites, only the totals come out — the share of sites with each finding, CSV and HTML with charts; site names hidden |
 | `suveren draft report.json` | a draft privacy policy or consent from the findings (check it with a lawyer) |
 | `suveren verify site.ru` | prove the site is yours, for `--own-site` and `--form-leaks` |
 | `suveren menu` | the menu (same as double-clicking the exe) |
@@ -156,6 +157,14 @@ Main `scan` options:
 
 The full list is in `suveren scan --help`; every check is described in the
 [guide](docs/guide.md) (in Russian).
+
+## A study
+
+`suveren research sites.txt` audits a list of sites (hundreds if you like) and keeps only the
+totals: the share of sites with each finding, and by type of site when the list gives one
+(`shop.ru, магазин`). A run that broke off goes on where it stopped. Raw reports are in
+`reports/research/raw/`, the totals in `summary.csv` and `summary.html` with charts. Site names
+are hidden; `--show-domains` shows them — for yourself only, such a list is not for publishing.
 
 ## Watching sites
 
