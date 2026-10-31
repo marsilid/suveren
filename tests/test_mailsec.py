@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 import pytest
 
 from suveren.checks import Status
@@ -18,6 +19,7 @@ from suveren.mailsec import (
     parse_spf,
     run_mail_checks,
     spf_check,
+    transport_check,
     verdict,
 )
 
@@ -400,13 +402,20 @@ def test_dmarc_report_address_without_size_limit():
     )
 
 
-def test_mta_sts_warning_has_advice_and_comes_last():
+def test_missing_mta_sts_is_a_note_not_a_warning():
+    # Most mail domains have no MTA-STS: a warning on nearly every report taught to skip it.
+    for mode in (None, "none"):
+        check = transport_check(facts(mta_sts=mode))
+        assert check.status is Status.OK and "_mta-sts.example.ru" in check.details
+    assert "mode: none" in transport_check(facts(mta_sts="none")).details
+
+
+def test_mta_sts_testing_warning_has_advice_and_comes_last():
     from suveren.advice import priorities
-    from suveren.mailsec import transport_check
     from suveren.models import Report, Severity
 
-    check = transport_check(facts(mta_sts=None))
-    assert check.status is Status.WARN and "_mta-sts.example.ru" in check.recommendation
+    check = transport_check(facts(mta_sts="testing"))
+    assert check.status is Status.WARN and "mode: enforce" in check.recommendation
     report = Report(target="example.ru")
     report.checks = [check]
     # "Редкая атака, исправлять во вторую очередь": low urgency, its own topic.
@@ -488,7 +497,74 @@ def test_mta_sts_txt_without_id_or_doubled_is_no_policy():
     for txt in (["v=STSv1;"], ["v=STSv1; id=1", "v=STSv1; id=2"]):
         records = {("_mta-sts.example.ru", "TXT"): txt}
         mode = asyncio.run(mailsec._mta_sts(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
-        assert mode == ("none", [])
+        assert mode[:2] == ("none", []) and "_mta-sts.example.ru" in (mode[2] or "")
+
+
+def _policy(response=None, error=None):
+    import suveren.mailsec as mailsec
+
+    def handler(request):
+        if error:
+            raise error
+        return response
+
+    async def go():
+        records = {("_mta-sts.example.ru", "TXT"): ["v=STSv1; id=2026"]}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await mailsec._mta_sts(FakeResolver(records), client, "example.ru")
+
+    return asyncio.run(go())
+
+
+GOOD_POLICY = "version: STSv1\nmode: enforce\nmx: mx.example.ru\nmax_age: 86400\n"
+
+
+@pytest.mark.parametrize(
+    ("response", "problem"),
+    [
+        (httpx.Response(404), "кодом 404"),
+        (httpx.Response(301, headers={"location": "https://x.ru/"}), "перенаправление"),
+        (httpx.Response(200, text="version: STSv1\nmode: enforce\n"), "max_age"),
+        (
+            httpx.Response(200, text=GOOD_POLICY, headers={"content-type": "text/html"}),
+            "text/plain",
+        ),
+        (httpx.Response(200, text="version: STSv1\nmode: enforce\nmax_age: 1\n"), "mx:"),
+    ],
+)
+def test_broken_mta_sts_names_the_problem(response, problem):
+    mode, _, why = _policy(response)
+    assert mode == "none" and problem in (why or "")
+    check = transport_check(facts(mta_sts=mode, mta_sts_problem=why))
+    assert check.status is Status.WARN and "с ошибкой" in check.details
+
+
+def test_mta_sts_policy_timeout_is_not_checked_rather_than_missing():
+    from suveren.mailsec import PolicyUnreachable
+
+    with pytest.raises(PolicyUnreachable):
+        _policy(error=httpx.ReadTimeout("slow"))
+    mode, _, why = _policy(error=httpx.ConnectError("refused"))
+    assert mode == "none" and "не открывается" in (why or "")
+    assert _policy(httpx.Response(200, text=GOOD_POLICY)) == ("enforce", ["mx.example.ru"], None)
+
+
+def test_mta_sts_policy_timeout_in_collect_is_unknown():
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("_mta-sts.example.ru", "TXT"): ["v=STSv1; id=1"],
+    }
+
+    def handler(request):
+        raise httpx.ConnectTimeout("slow")
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await collect_mail(FakeResolver(records), client, "example.ru")
+
+    m = asyncio.run(go())
+    check = transport_check(m)
+    assert check.status is Status.UNKNOWN and "не ответил вовремя" in check.details
 
 
 def test_dmarc_version_must_be_capitals_but_the_tag_name_need_not():

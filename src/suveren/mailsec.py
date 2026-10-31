@@ -273,6 +273,8 @@ class MailFacts:
     tls_rpt: bool = False
     mx_hosts: list[str] = field(default_factory=list)  # by priority
     mta_sts_mx: list[str] = field(default_factory=list)  # "mx:" patterns of the policy
+    # Why senders see no policy although _mta-sts has a record (no id=, a 404, a bad file).
+    mta_sts_problem: str | None = None
     # Why MTA-STS could not be read (its DNS did not answer), or None. Only MAIL-005 rests
     # on it: kamaz.ru lost the whole mail section to one _mta-sts timeout (2026-10-25).
     transport_unknown: str | None = None
@@ -716,14 +718,30 @@ def transport_check(m: MailFacts) -> Check:
             "MTA-STS в режиме testing: шифрование не обязательно." + rpt,
             "Когда отчёты TLS-RPT покажут, что почта доходит, поставьте в политике mode: enforce.",
         )
+    if m.mta_sts_problem:
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.WARN,
+            f"MTA-STS настроен с ошибкой: {m.mta_sts_problem}. Для отправителей политики "
+            "нет, письма к вам передаются как без MTA-STS (RFC 8461, разделы 3.1–3.3)." + rpt,
+            f"Исправьте политику: TXT-запись _mta-sts.{m.domain} с одним id= и файл "
+            f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt (text/plain, без "
+            "перенаправлений, со строками version, mode, mx и max_age).",
+        )
+    # Not set up, or switched off with mode: none. Most mail domains have no MTA-STS, and
+    # the attack it stops (downgrading SMTP to plain text on the way) is rare: a note, not
+    # a warning on nearly every report.
+    state = "выключен (mode: none)" if m.mta_sts == "none" else "не настроен"
     return Check(
         GROUP_MAIL,
         title,
-        Status.WARN,
-        "MTA-STS не настроен: письма к вам можно перехватить, понизив соединение до "
-        "незашифрованного. Это редкая атака, исправлять во вторую очередь." + rpt,
-        f"Опубликуйте TXT-запись _mta-sts.{m.domain} и файл политики на "
-        f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt.",
+        Status.OK,
+        f"MTA-STS {state}. Это дополнительная защита: без неё письма к вам можно "
+        "перехватить, понизив соединение до незашифрованного, но атака редкая, и у "
+        "большинства почтовых доменов MTA-STS нет. Чтобы включить, опубликуйте TXT-запись "
+        f"_mta-sts.{m.domain} и файл политики на "
+        f"https://mta-sts.{m.domain}/.well-known/mta-sts.txt." + rpt,
     )
 
 
@@ -821,42 +839,70 @@ async def _dmarc_unauthorized(resolver: DnsResolver, domain: str, dmarc: Dmarc) 
     return [d for d, ok in zip(outside, found, strict=True) if not ok]
 
 
+class PolicyUnreachable(Exception):
+    """The MTA-STS policy file timed out: our network may be at fault, not the domain."""
+
+
 async def _mta_sts(
     resolver: DnsResolver,
     client: httpx.AsyncClient,
     domain: str,
     raw: dict[str, list[str]] | None = None,
-) -> tuple[str | None, list[str]]:
-    """Policy mode and its mx patterns, fetched the way a sending server does. ``raw``
-    gets the TXT record, for the evidence."""
+) -> tuple[str | None, list[str], str | None]:
+    """Policy mode, its mx patterns and what is wrong with the setup, read the way a
+    sending server reads them. A broken setup is mode "none" with the reason: senders see
+    no policy. ``raw`` gets the TXT record, for the evidence. A policy file that does not
+    answer in time raises PolicyUnreachable."""
     txt = await _txt(resolver, f"_mta-sts.{domain}")
     sts = [t for t in txt if t.lower().startswith("v=stsv1")]
     if raw is not None:
         raw[f"TXT _mta-sts.{domain}"] = sts
     if not sts:
-        return None, []
+        return None, [], None
     # Several records, or one without an id, mean "no policy" to senders (RFC 8461, 3.1).
-    if len(sts) > 1 or not re.search(r"(?i);\s*id\s*=\s*[a-z0-9]{1,32}\s*(;|$)", sts[0]):
-        return "none", []
+    if len(sts) > 1:
+        return "none", [], f"TXT-записей _mta-sts.{domain} несколько"
+    if not re.search(r"(?i);\s*id\s*=\s*[a-z0-9]{1,32}\s*(;|$)", sts[0]):
+        return "none", [], f"в TXT-записи _mta-sts.{domain} нет корректного id="
+    url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
     try:
         # Senders must not follow redirects for the policy (RFC 8461, section 3.3).
-        resp = await client.get(
-            f"https://mta-sts.{domain}/.well-known/mta-sts.txt", follow_redirects=False
+        resp = await client.get(url, follow_redirects=False)
+    except (httpx.TimeoutException, *TIMEOUTS) as exc:
+        raise PolicyUnreachable(f"файл политики {url} не ответил вовремя") from exc
+    except httpx.HTTPError as exc:
+        return "none", [], f"файл политики {url} не открывается: {describe(exc)}"
+    if resp.is_redirect:
+        return (
+            "none",
+            [],
+            (
+                f"файл политики {url} отдаётся через перенаправление, а отправители по "
+                "перенаправлениям не переходят"
+            ),
         )
-    except (httpx.HTTPError, *TIMEOUTS):
-        return "none", []
     if resp.status_code != 200:
-        return "none", []
+        return "none", [], f"файл политики {url} отвечает кодом {resp.status_code}"
     mode, mx = parse_mta_sts_mode(resp.text), parse_mta_sts_mx(resp.text)
     # Senders ignore a policy that is not text/plain or lacks a required field
     # (RFC 8461, sections 3.2 and 3.3): for them the domain has no MTA-STS.
-    complete = re.search(r"(?im)^\s*version\s*:\s*STSv1\s*$", resp.text) and re.search(
-        r"(?im)^\s*max_age\s*:\s*\d+\s*$", resp.text
-    )
-    plain = resp.headers.get("content-type", "text/plain").lower().startswith("text/plain")
-    if not (mode and complete and plain) or (mode != "none" and not mx):
-        return "none", []
-    return mode, mx
+    missing = [
+        name
+        for name, pattern in (
+            ("version: STSv1", r"(?im)^\s*version\s*:\s*STSv1\s*$"),
+            ("mode", r"(?im)^\s*mode\s*:"),
+            ("max_age", r"(?im)^\s*max_age\s*:\s*\d+\s*$"),
+        )
+        if not re.search(pattern, resp.text)
+    ]
+    if missing or not mode:
+        what = ", ".join(missing) or "корректного mode"
+        return "none", [], f"в файле политики нет {what}"
+    if not resp.headers.get("content-type", "text/plain").lower().startswith("text/plain"):
+        return "none", [], "файл политики отдаётся не как text/plain"
+    if mode != "none" and not mx:
+        return "none", [], "в файле политики нет строк mx:"
+    return mode, mx, None
 
 
 async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> MailFacts:
@@ -883,9 +929,12 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         if not facts.dkim:
             facts.dkim_node = await _dkim_node(resolver, domain)
         try:
-            facts.mta_sts, facts.mta_sts_mx = await _mta_sts(resolver, client, domain, raw)
+            sts = await _mta_sts(resolver, client, domain, raw)
+            facts.mta_sts, facts.mta_sts_mx, facts.mta_sts_problem = sts
         except DnsLookupError as exc:
             facts.transport_unknown = describe(exc)
+        except PolicyUnreachable as exc:
+            facts.transport_unknown = str(exc)
         # TLS-RPT only adds a sentence to MAIL-005: without an answer it is left out.
         with contextlib.suppress(DnsLookupError):
             rpt = await _txt(resolver, f"_smtp._tls.{domain}")

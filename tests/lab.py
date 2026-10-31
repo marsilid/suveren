@@ -1025,6 +1025,23 @@ CASES: list[Case] = [
         files=site_files(),
         mta_sts="version: STSv1\nmode: testing\nmx: mx.yandex.net\nmax_age: 86400\n",
     ),
+    Case(
+        "lab-mta-sts-absent",
+        "MTA-STS не настроен, как у большинства доменов: заметка, а не предупреждение",
+        {"SUV-MAIL-005": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_mta-sts.lab-mta-sts-absent.ru", "TXT"): []},
+        mta_sts=None,
+    ),
+    Case(
+        "lab-mta-sts-file-missing",
+        "TXT _mta-sts есть, а файла политики нет (404): MTA-STS настроен с ошибкой",
+        {"SUV-MAIL-005": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        mta_sts=None,
+    ),
     # --- found by the fresh-eyes review --------------------------------------------
     Case(
         "lab-spf-shared-include",
