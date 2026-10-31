@@ -654,6 +654,38 @@ CASES: list[Case] = [
         html=page(FORM_OK + '<script src="/js/moment-2.15.1.min.js"></script>'),
         files=site_files({"/js/moment-2.15.1.min.js": "//! moment.js\n//! version : 2.15.1\n"}),
     ),
+    # --- library versions by the retire.js database --------------------------------
+    Case(
+        "lab-bootstrap-3",
+        "Bootstrap 3.4.1: CVE-2024-6485 и CVE-2025-1647, ветка 3.x больше не поддерживается",
+        {"SUV-WEB-010": "warn"},
+        html=page(
+            FORM_OK + '<script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/'
+            'bootstrap.min.js" integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-lodash-4-17-21",
+        "lodash 4.17.21: CVE-2025-13465 (загрязнение прототипа), исправлено в 4.17.23",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/lodash-4.17.21.min.js"></script>'),
+        files=site_files({"/js/lodash-4.17.21.min.js": "/* lodash */"}),
+    ),
+    Case(
+        "lab-moment-2-29-4",
+        "moment.js 2.29.4: у браузерной копии известных уязвимостей нет (серверные не в счёт)",
+        {"SUV-WEB-010": "ok"},
+        html=page(FORM_OK + '<script src="/js/moment-2.29.4.min.js"></script>'),
+        files=site_files({"/js/moment-2.29.4.min.js": "//! moment.js\n//! version : 2.29.4\n"}),
+    ),
+    Case(
+        "lab-angularjs",
+        "AngularJS 1.8.2: CVE-2022-25869 и другие, поддержка прекращена в 2022 году",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/angular-1.8.2.min.js"></script>'),
+        files=site_files({"/js/angular-1.8.2.min.js": "/** @license AngularJS v1.8.2 */"}),
+    ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
         "lab-no-policy",
@@ -1555,6 +1587,21 @@ def _transport(case: Case) -> httpx.MockTransport:
 
 
 async def run_case(case: Case) -> dict[str, Check]:
+    """A case with a cache of its own: nothing downloaded before (a database, a list)
+    changes the answer, and the user's cache is left alone."""
+    with tempfile.TemporaryDirectory() as cache:
+        saved = os.environ.get("SUVEREN_CACHE")
+        os.environ["SUVEREN_CACHE"] = cache
+        try:
+            return await _run_case(case)
+        finally:
+            if saved is None:
+                os.environ.pop("SUVEREN_CACHE", None)
+            else:
+                os.environ["SUVEREN_CACHE"] = saved
+
+
+async def _run_case(case: Case) -> dict[str, Check]:
     host = case.host
     final_url = f"{'http' if case.http else 'https'}://{host}/"
     facts = Facts(
@@ -1599,18 +1646,7 @@ async def run_case(case: Case) -> dict[str, Check]:
             checks += await run_zone_checks(FakeResolver(records), host, https=not case.http)
             checks += mail_checks(await collect_mail(FakeResolver(records), client, host))
             if case.subdomains is not None:
-                with tempfile.TemporaryDirectory() as cache:
-                    saved_cache = os.environ.get("SUVEREN_CACHE")
-                    os.environ["SUVEREN_CACHE"] = cache
-                    try:
-                        sub, _ = await run_subdomain_checks(
-                            FakeResolver(records), client, client, host
-                        )
-                    finally:
-                        if saved_cache is None:
-                            os.environ.pop("SUVEREN_CACHE", None)
-                        else:
-                            os.environ["SUVEREN_CACHE"] = saved_cache
+                sub, _ = await run_subdomain_checks(FakeResolver(records), client, client, host)
                 checks += sub
     finally:
         websec.probe_tls = saved

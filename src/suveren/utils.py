@@ -151,3 +151,12 @@ def host_matches(host: str, pattern: str) -> bool:
         regex = re.escape(pattern).replace(r"\*", "[a-z0-9.-]*")
         return re.fullmatch(regex, host) is not None
     return host == pattern or host.endswith("." + pattern)
+
+
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Russian plural form: 1 домен, 2 домена, 5 доменов, 21 домен."""
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many

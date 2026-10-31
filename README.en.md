@@ -203,7 +203,9 @@ and [docs/plugins.md](docs/plugins.md).
 
 All sources are open and free, no API keys: DNS, Team Cymru (IP networks), RDAP and WHOIS, EGRUL
 (Federal Tax Service), Roskomnadzor's registers of personal-data operators and of blocked
-resources, Certificate Transparency logs (crt.sh, Cert Spotter), OFAC, EU and UK sanctions lists.
+resources, Certificate Transparency logs (crt.sh, Cert Spotter), OFAC, EU and UK sanctions lists,
+the retire.js database of vulnerable libraries, the address lists of AWS, Google Cloud, Oracle and
+DigitalOcean.
 `suveren doctor` checks that they all answer; on GitHub this runs daily.
 
 ## Limitations

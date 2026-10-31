@@ -64,7 +64,7 @@ from suveren.sanctions import SOURCES as SANCTION_SOURCES
 from suveren.sarif import sarif_text
 from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
-from suveren.utils import country_name, normalize_domain
+from suveren.utils import country_name, normalize_domain, plural
 from suveren.view import (
     ACCENT,
     DIM,
@@ -77,7 +77,6 @@ from suveren.view import (
     score_bar,
     section,
 )
-from suveren.websec import plural
 
 # The output uses box-drawing and Cyrillic. A legacy Windows console (cp1251/cp866)
 # can't encode some of it and would crash, so force UTF-8 output.

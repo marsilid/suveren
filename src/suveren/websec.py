@@ -35,9 +35,9 @@ from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
 from suveren.subdomains import is_registered
-from suveren.utils import registrable_domain
+from suveren.utils import plural, registrable_domain
 from suveren.vulns import TITLE as VULN_TITLE
-from suveren.vulns import detect, vuln_check
+from suveren.vulns import bundled, detect, load_database, vuln_check
 
 GROUP_WEB = "Безопасность сайта"
 
@@ -553,15 +553,6 @@ class WebFacts:
 
 def _hosts(resources: list[Resource]) -> list[str]:
     return sorted({r.host for r in resources})
-
-
-def plural(n: int, one: str, few: str, many: str) -> str:
-    """Russian plural form: 1 домен, 2 домена, 5 доменов, 21 домен."""
-    if n % 10 == 1 and n % 100 != 11:
-        return one
-    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
-        return few
-    return many
 
 
 def _list(items: list[str], limit: int = 8) -> str:
@@ -1182,7 +1173,8 @@ async def run_web_checks(
         scripts += [u for u in facts.loaded_urls if urlsplit(u).path.endswith(".js")]
         libs = detect(list(dict.fromkeys(scripts)), heads)
         data["libraries"] = [{"name": x.name, "version": x.version, "where": x.where} for x in libs]
-        code_checks = [leak_check(leaks, sources), vuln_check(libs)]
+        db = await load_database(client) if libs else bundled()
+        code_checks = [leak_check(leaks, sources), vuln_check(libs, db)]
         if facts.initiators:  # --browser mode only: the browser said who loaded what
             graph = build_graph(facts.initiators, w.domain)
             code_checks.append(graph_check(graph))
