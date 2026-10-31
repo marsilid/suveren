@@ -1195,6 +1195,66 @@ def list_checks(
     )
 
 
+# --- watch ----------------------------------------------------------------------------
+
+
+@app.command()
+def watch(
+    file: Annotated[Path, typer.Argument(help="Текстовый файл: по одному сайту в строке.")],
+    every: Annotated[
+        str, typer.Option("--every", help="Как часто: 24h, 12h, 2d (не чаще раза в час).")
+    ] = "24h",
+    once: Annotated[
+        bool, typer.Option("--once", help="Один круг и выход (для cron и планировщика).")
+    ] = False,
+    state: Annotated[
+        Path, typer.Option("--state", help="Папка с отчётами и журналом изменений.")
+    ] = Path("reports") / "watch",
+    timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+) -> None:
+    """Следить за сайтами: проверять снова и сообщать, что изменилось с прошлого раза."""
+    import time
+
+    from suveren.watch import describe, parse_interval, watch_round
+
+    try:
+        interval = parse_interval(every)
+        hosts, skipped = read_targets(file)
+    except (OSError, SuverenError) as exc:
+        raise _fail(str(exc)) from exc
+    if not hosts:
+        raise _fail("в файле нет доменов")
+    for skip in skipped:
+        console.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
+    plan = make_plan(Profile.standard)
+
+    async def scan_one(host: str) -> Report:
+        return await run_scan(host, timeout=timeout, **plan.kwargs())  # type: ignore[arg-type]
+
+    while True:
+        console.print(
+            f"[grey50]Круг проверки: {len(hosts)} сайтов, {datetime.now():%d.%m %H:%M}[/]"
+        )
+        for r in asyncio.run(watch_round(hosts, state, scan_one)):
+            if r.error:
+                console.print(f"  [#e5534b]✗[/] {esc(r.host)}: {esc(r.error)}")
+            elif r.changes is None:
+                console.print(f"  [grey50]•[/] {esc(r.host)}: первая проверка, сравнивать не с чем")
+            elif r.changes.empty:
+                console.print(f"  [#7fb069]✓[/] {esc(r.host)}: без изменений")
+            else:
+                console.print(f"  [#e6b450]![/] {esc(r.host)}: изменения")
+                for line in describe(r.changes):
+                    console.print(f"      {esc(line)}")
+        if once:
+            return
+        console.print(f"[grey50]Следующий круг через {interval / 3600:.0f} ч (Ctrl+C — выход).[/]")
+        try:
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            return
+
+
 # --- verify ---------------------------------------------------------------------------
 
 
