@@ -10,11 +10,17 @@ from enum import Enum
 from suveren.catalog import SelectionError, modules_for, select
 from suveren.crawl import DEFAULT_PAGES
 
-SCAN_MODULES = ("compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "formleaks")
+SCAN_MODULES = (
+    "compliance", "blocklist", "mail", "security", "subdomains", "cutoff", "formleaks", "ownsite",
+)  # fmt: skip
 # The cutoff experiment opens the site three more times in a browser: on request only.
 # The form experiment types into the site's forms: only with its own flag, never by a
 # profile, so nobody runs it on a site without meaning to.
-DEFAULT_MODULES = frozenset(SCAN_MODULES) - {"cutoff", "formleaks"}
+DEFAULT_MODULES = frozenset(SCAN_MODULES) - {"cutoff", "formleaks", "ownsite"}
+OWN_SITE_ONLY = (
+    "вводит тестовые данные в формы и прощупывает сайт, поэтому работает только для своего "
+    "сайта: добавьте --own-site и подтвердите владение (suveren verify сайт)"
+)
 DEEP_PAGES = 12
 
 
@@ -57,6 +63,7 @@ def make_plan(
     skip: frozenset[str] | set[str] = frozenset(),
     cutoff: bool = False,
     form_leaks: bool = False,
+    own_site: bool = False,
 ) -> ScanPlan:
     """``checks`` narrows the modules to those the chosen checks need; ``skip`` comes
     from the --no-* switches and always wins. Raises ``SelectionError`` on an unknown
@@ -64,8 +71,12 @@ def make_plan(
     modules = set() if profile is Profile.quick else set(DEFAULT_MODULES)
     if cutoff or profile is Profile.deep:
         modules.add("cutoff")
+    if form_leaks and not own_site:
+        raise SelectionError(f"--form-leaks {OWN_SITE_ONLY}")
     if form_leaks:
         modules.add("formleaks")
+    if own_site:
+        modules.add("ownsite")
     only: frozenset[str] | None = None
     if checks:
         only = frozenset(select(checks))
@@ -73,6 +84,12 @@ def make_plan(
         modules = modules_for(set(only)) & set(SCAN_MODULES)
         if cutoff:
             modules.add("cutoff")
+        if own_site:
+            modules.add("ownsite")
+        elif modules & {"ownsite"} and modules <= {"ownsite", "formleaks"}:
+            raise SelectionError(f"--checks: проверки «свой сайт» {OWN_SITE_ONLY}")
+        else:
+            modules.discard("ownsite")
         if form_leaks:
             modules.add("formleaks")
         elif modules == {"formleaks"}:

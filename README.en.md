@@ -58,7 +58,8 @@ what it does to the site and what the person running it risks.
 | `scan --profile quick` | only looks: the home page and DNS | the site sees your IP, as on any visit |
 | `scan` (default) | looks at the home page, up to 6 inner pages and the MTA-STS file. It **probes** in two places: it tries the outdated TLS 1.0 and 1.1, and it opens subdomain pages that point to outside services or to cloud addresses | the site sees your IP; such connections may show up in its security logs |
 | `--browser`, `--cutoff`, `--profile deep` | the same, but a browser opens the pages | **the site's JavaScript runs** in a browser on your computer. The browser cannot reach your local network or save files, but the scripts run as for any visitor |
-| `--form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Only for your own sites or with the owner's consent |
+| `--own-site` (after `suveren verify`) | **probes your own site**: `.git` and `.env`, weak TLS ciphers, STARTTLS of the mail servers | only for a site whose ownership is proven by a TXT record or a file; never in batch |
+| `--own-site --form-leaks` | **types test values** into forms and never sends them | the site's JavaScript runs. Only for your own sites or with the owner's consent |
 | `--plugin file.py` | whatever the plugin does | **the plugin's code runs with your rights**: use only plugins you trust |
 
 Mail checks, the block register and certificate logs do not contact the site, but every `scan`

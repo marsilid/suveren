@@ -26,7 +26,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from suveren import __version__, clirus, unknown
+from suveren import __version__, clirus, ownership, unknown
 from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
@@ -45,6 +45,7 @@ from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
 from suveren.collect import make_client
 from suveren.company import run_company
 from suveren.crawl import DEFAULT_PAGES
+from suveren.dnsutil import create_resolver
 from suveren.doctor import run_doctor
 from suveren.errors import TIMEOUTS, InvalidTargetError, ModuleError, SuverenError
 from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
@@ -463,6 +464,16 @@ def scan(
             rich_help_panel="Что проверять",
         ),
     ] = False,
+    own_site: Annotated[
+        bool,
+        typer.Option(
+            "--own-site",
+            help="Режим «свой сайт»: после подтверждения владения (TXT-запись или файл, "
+            "см. suveren verify) ещё служебные файлы .git и .env, слабые шифры TLS, STARTTLS "
+            "почтовых серверов; разрешает --form-leaks. Только один сайт.",
+            rich_help_panel="Что проверять",
+        ),
+    ] = False,
     form_phone: Annotated[
         str | None,
         typer.Option(
@@ -639,6 +650,14 @@ def scan(
             raise SuverenError("-o -: HTML-отчёт в stdout не выводится, укажите файл")
         if json_path == STDOUT and sarif_path == STDOUT:
             raise SuverenError("в stdout можно вывести одно: --json - или --sarif -")
+        if own_site:
+            proof = asyncio.run(_prove_ownership(host, timeout))
+            if not proof.ok:
+                raise SuverenError(
+                    f"--own-site: владение {host} не подтверждено ({proof.how}).\n"
+                    + ownership.instructions(host)
+                )
+            console.print(f"  [grey50]Владение подтверждено: {esc(proof.how)}[/]")
         # Read before the scan: a wrong file said so only after minutes of work.
         previous = load_report(since) if since is not None else None
         accepted = load_ignore(ignore_file)
@@ -653,6 +672,7 @@ def scan(
             pages=pages,
             cutoff=cutoff,
             form_leaks=form_leaks,
+            own_site=own_site,
             skip={
                 name
                 for name, off in (
@@ -1173,6 +1193,35 @@ def list_checks(
         f"\nВсего: [bold]{len(specs)}[/]. Теги: {', '.join(all_tags())}.\n"
         "Выбрать: [bold]suveren scan сайт.ru --checks mail,SUV-WEB-004[/]"
     )
+
+
+# --- verify ---------------------------------------------------------------------------
+
+
+async def _prove_ownership(host: str, timeout: float) -> ownership.Proof:
+    async with make_client(timeout) as client:
+        resolver, _ = await create_resolver("auto", timeout, client)
+        return await ownership.verify(resolver, client, host)
+
+
+@app.command()
+def verify(
+    target: Annotated[str, typer.Argument(help="Ваш сайт, например example.ru")],
+    timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+) -> None:
+    """Подтвердить, что сайт ваш: нужно для режима --own-site и --form-leaks."""
+    try:
+        host = normalize_domain(target)
+    except SuverenError as exc:
+        raise _fail(str(exc)) from exc
+    proof = asyncio.run(_prove_ownership(host, timeout))
+    if proof.ok:
+        console.print(f"[#7fb069]✓[/] Владение {host} подтверждено: {esc(proof.how)}.")
+        console.print(f"  Теперь можно: suveren scan {host} --own-site")
+        return
+    console.print(f"[#e6b450]![/] Владение {host} пока не подтверждено.\n")
+    console.print(Text(ownership.instructions(host)))
+    raise typer.Exit(4)
 
 
 # --- company --------------------------------------------------------------------------

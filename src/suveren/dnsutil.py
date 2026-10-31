@@ -57,6 +57,7 @@ RR_TYPES = {
     "DS": 43,
     "DNSKEY": 48,
     "CAA": 257,
+    "TLSA": 52,
 }
 HEALTH_TIMEOUT = 3.0
 # Health answers are remembered for the process (batch scans many sites in a row), but a

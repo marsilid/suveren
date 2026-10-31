@@ -38,6 +38,7 @@ from suveren.formleaks import pages_with_fields, run_form_leaks
 from suveren.logins import find_login_page
 from suveren.mailsec import run_mail_checks
 from suveren.models import Report
+from suveren.ownsite import run_own_site_checks
 from suveren.page import parse_page
 from suveren.plugins import Plugin, PluginContext, run_plugins
 from suveren.render import EXTRA_SETTLE_MS, BrowserSession
@@ -80,6 +81,7 @@ async def run_scan(
     only: frozenset[str] | set[str] | None = None,
     cutoff: bool = False,
     formleaks: bool = False,
+    ownsite: bool = False,
     form_phone: str | None = None,
     plugins: list[Plugin] | None = None,
 ) -> Report:
@@ -192,6 +194,16 @@ async def run_scan(
             make_client(timeout) as client,
         ):
             report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
+
+    if ownsite:
+        async with (
+            _stage(progress, "Свой сайт: служебные файлы, TLS, почта"),
+            make_client(timeout) as client,
+        ):
+            resolver, _ = await create_resolver(dns_mode, timeout, client)
+            report.checks += await run_own_site_checks(
+                client, resolver, facts.host, facts.domain, timeout
+            )
 
     if formleaks:
         async with (
