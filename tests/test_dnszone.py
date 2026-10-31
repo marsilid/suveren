@@ -128,7 +128,8 @@ def test_caa_critical_unknown_tag_blocks_issuance():
 
 def test_caa_forbidding_everyone_matters_only_with_https():
     check = caa(['0 issue ";"', '0 issuewild "letsencrypt.org"'])
-    assert check.status is Status.WARN and "letsencrypt.org" in check.details
+    assert check.status is Status.WARN
+    assert check.details.endswith("Только для сертификатов на *.example.ru: letsencrypt.org.")
     assert check.recommendation
     calm = caa(['0 issue ";"'], https=False)
     assert calm.status is Status.OK and "запрещён всем" in calm.details
