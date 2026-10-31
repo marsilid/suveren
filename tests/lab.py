@@ -434,6 +434,35 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-tls-short-lived",
+        "короткоживущий сертификат на 6 дней (Let's Encrypt), выпущен 3 дня назад: продление "
+        "ещё не пора",
+        {"SUV-WEB-008": "ok"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.3",
+            NOW + timedelta(days=3),
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=NOW - timedelta(days=3),
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-tls-short-lived-late",
+        "сертификат на 47 дней, осталось 5: продление пропущено",
+        {"SUV-WEB-008": "fail"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.3",
+            NOW + timedelta(days=5),
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=NOW - timedelta(days=42),
+        ),
+        files=site_files(),
+    ),
+    Case(
         "lab-tls-revoked",
         "OCSP-сервер удостоверяющего центра отвечает, что сертификат отозван (RFC 6960)",
         {"SUV-WEB-008": "fail"},

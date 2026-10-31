@@ -13,7 +13,7 @@ import re
 import ssl
 import warnings
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -221,6 +221,7 @@ class TlsInfo:
     # The server omits an intermediate that the AIA link supplies: browsers cope, apps not.
     chain_incomplete: bool = False
     revoked: datetime | None = None  # when the CA revoked it, by its OCSP responder
+    issued: datetime | None = None  # the certificate's notBefore
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -410,6 +411,7 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
             if der:
                 cert = x509.load_der_x509_certificate(der)
                 info.expires = cert.not_valid_after_utc
+                info.issued = cert.not_valid_before_utc
                 info.issuer = cert.issuer.rfc4514_string()
             break
     if info.version is None:
@@ -788,6 +790,21 @@ def cookies_check(w: WebFacts) -> Check | None:
     )
 
 
+def cert_thresholds(t: TlsInfo) -> tuple[timedelta, timedelta]:
+    """Time left below which the certificate is a warning, and a failure.
+
+    30 and 14 days suit a 90-day or a yearly certificate, but a 6-day one (Let's Encrypt
+    short-lived) always has less, and a 47-day one is renewed with about 15 days left.
+    So both shrink with the lifetime: renewal is due when a third of it is left (what
+    Let's Encrypt and certbot do), and half of that is a failure. For 90 days and more
+    the thresholds stay 30 and 14 days."""
+    warn, fail = timedelta(days=CERT_WARN_DAYS), timedelta(days=CERT_FAIL_DAYS)
+    if t.issued is None or t.expires is None or t.expires <= t.issued:
+        return warn, fail
+    lifetime = t.expires - t.issued
+    return min(warn, lifetime / 3), min(fail, lifetime / 6)
+
+
 def tls_check(w: WebFacts) -> Check | None:
     t = w.tls
     if t is None:
@@ -817,10 +834,12 @@ def tls_check(w: WebFacts) -> Check | None:
             if days >= 0
             else f"Срок действия сертификата истёк {t.expires:%d.%m.%Y}."
         )
-        if days < CERT_FAIL_DAYS:
+        warn_at, fail_at = cert_thresholds(t)
+        left = t.expires - w.now
+        if left < fail_at:
             status = Status.FAIL
             recommendation = "Срочно продлите сертификат и включите автоматическое продление."
-        elif days < CERT_WARN_DAYS:
+        elif left < warn_at:
             status = Status.WARN
             recommendation = (
                 "Продлите сертификат и проверьте, что автоматическое продление работает."

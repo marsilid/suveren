@@ -432,6 +432,41 @@ def test_script_inventory_warns_only_when_many_domains_can_run_code():
     assert check.status is Status.WARN and "любой код" in check.details and check.recommendation
 
 
+@pytest.mark.parametrize(
+    ("lifetime", "warn", "fail"),
+    [
+        (365, 30, 14),
+        (90, 30, 14),
+        (47, 47 / 3, 47 / 6),
+        (6, 2, 1),
+        (None, 30, 14),  # issue date unknown: the fixed thresholds
+    ],
+)
+def test_cert_thresholds_shrink_with_the_lifetime(lifetime, warn, fail):
+    expires = NOW + timedelta(days=1)
+    issued = expires - timedelta(days=lifetime) if lifetime else None
+    t = TlsInfo("example.ru", "TLSv1.3", expires, issued=issued)
+    assert websec.cert_thresholds(t) == (timedelta(days=warn), timedelta(days=fail))
+
+
+def test_short_lived_certificate_is_not_called_expiring():
+    def cert(days_left, lifetime):
+        expires = NOW + timedelta(days=days_left)
+        return TlsInfo(
+            "example.ru",
+            "TLSv1.3",
+            expires,
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=expires - timedelta(days=lifetime),
+        )
+
+    assert tls_check(web(tls=cert(3, 6))).status is Status.OK
+    assert tls_check(web(tls=cert(20, 47))).status is Status.OK
+    assert tls_check(web(tls=cert(12, 47))).status is Status.WARN
+    assert tls_check(web(tls=cert(5, 47))).status is Status.FAIL
+    assert tls_check(web(tls=cert(20, 90))).status is Status.WARN  # as before
+
+
 def test_tls_certificate_browsers_reject_is_a_fail():
     exp = datetime(2027, 1, 1, tzinfo=UTC)
     bad = TlsInfo("example.ru", "TLSv1.3", exp, {}, "Hostname mismatch, certificate is not valid")
