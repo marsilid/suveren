@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from suveren import websec
 from suveren.analyze import analyze
 from suveren.checks import Check, Status
-from suveren.collect import Facts, NetInfo
+from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
@@ -198,6 +198,8 @@ class Case:
     dns: dict[tuple[str, str], list[str]] | None = None  # changes over good_dns
     mta_sts: str | None = MTA_STS_OK
     http: bool = False  # the site answers over plain HTTP
+    # With ``http``: how its HTTPS fails instead of a 404 (httpx.ConnectTimeout, ...).
+    https_error: type[httpx.HTTPError] | None = None
 
     @property
     def host(self) -> str:
@@ -911,6 +913,24 @@ CASES: list[Case] = [
         http=True,
     ),
     Case(
+        "lab-https-timeout",
+        "по HTTPS сайт не отвечает (блокировка по стране), по HTTP открывается",
+        {"SUV-PD-008": "unknown"},
+        html=page("<p>Звоните: +7 495 000-00-00</p>"),
+        files=site_files(),
+        http=True,
+        https_error=httpx.ConnectTimeout,
+    ),
+    Case(
+        "lab-https-refused",
+        "порт HTTPS закрыт, сайт работает только по HTTP",
+        {"SUV-PD-008": "warn"},
+        html=page("<p>Звоните: +7 495 000-00-00</p>"),
+        files=site_files(),
+        http=True,
+        https_error=httpx.ConnectError,
+    ),
+    Case(
         "lab-spf-too-many",
         "SPF требует 11 DNS-запросов при лимите 10 (RFC 7208, 4.6.4)",
         {"SUV-MAIL-002": "fail"},
@@ -1147,6 +1167,8 @@ def _transport(case: Case) -> httpx.MockTransport:
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("#")[0]
+        if case.https_error and url == f"https://{case.host}/":
+            raise case.https_error("lab", request=request)
         if url in (base, base + "/"):
             return httpx.Response(200, headers=case.headers, text=case.html)
         body = bodies.get(url)
@@ -1184,9 +1206,19 @@ async def run_case(case: Case) -> dict[str, Check]:
             links = pick_links(parse_page(case.html), final_url, DEFAULT_PAGES)
             links += pick_from_sitemap(await sitemap_urls(client, final_url), final_url, set(links))
             facts.extra_pages = await fetch_pages(client, links)
+            if case.https_error:
+                # The real fallback from HTTPS to HTTP, to see why HTTPS failed.
+                collector = Collector(FakeResolver(records), client, 5)
+                await collector.homepage(host)
+                facts.https_unanswered = collector.https_unanswered
             report = analyze(facts)
             checks = await run_compliance(
-                client, final_url, case.html, report.dependencies, extra_pages=facts.extra_pages
+                client,
+                final_url,
+                case.html,
+                report.dependencies,
+                extra_pages=facts.extra_pages,
+                https_unanswered=facts.https_unanswered,
             )
             web, _ = await run_web_checks(facts, FakeResolver(records), client, 5)
             checks += web

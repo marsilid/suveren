@@ -85,6 +85,9 @@ class Facts:
     # Why that HTTP response is not the real site (a bot wall), if it isn't. Kept apart
     # from page_problem: --browser may get past the wall while the headers did not.
     http_problem: str | None = None
+    # HTTPS timed out or broke off and the page came over plain HTTP: whether the site
+    # has HTTPS is unknown (a geo block, a slow port), not "no HTTPS". The reason.
+    https_unanswered: str | None = None
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     # Who started each script request on the home page (--browser): script URL ->
@@ -298,6 +301,7 @@ class Collector:
         self.timeout = timeout
         self._net_cache: dict[str, NetInfo] = {}
         self._insecure: httpx.AsyncClient | None = None
+        self.https_unanswered: str | None = None
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -387,6 +391,8 @@ class Collector:
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
+            if url.startswith("http://") and isinstance(last_error, _UNANSWERED):
+                self.https_unanswered = describe(last_error)
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
         raise ModuleError(
             f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
@@ -543,6 +549,10 @@ def guess_encoding(content: bytes) -> str:
         return "utf-8" if exc.start >= len(content) - 3 else "cp1251"
 
 
+# HTTPS failures that do not show the site lacks it: a refused connection does.
+_UNANSWERED = (httpx.TimeoutException, httpx.ReadError, httpx.RemoteProtocolError)
+
+
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
@@ -647,6 +657,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.headers = {k.lower(): v for k, v in headers.items()}
             facts.set_cookies = headers.get_list("set-cookie")
             facts.http_problem = bot_wall(facts.page_status, facts.html)
+            facts.https_unanswered = c.https_unanswered
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":

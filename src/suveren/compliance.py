@@ -134,6 +134,8 @@ class ComplianceInput:
     login_external: str | None = None  # the sign-in page redirected to this host
     # The pages were opened in a browser: a footer added by scripts was seen too.
     rendered: bool = False
+    # HTTPS did not answer and the page came over HTTP (see Facts.https_unanswered).
+    https_unanswered: str | None = None
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -600,7 +602,21 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
 
     # 6. Encryption.
     insecure_forms = [f for f in forms if f.action.lower().startswith("http://")]
-    if data.final_url and not data.final_url.startswith("https://"):
+    plain = bool(data.final_url) and not (data.final_url or "").startswith("https://")
+    if plain and data.https_unanswered:
+        checks.append(
+            Check(
+                GROUP_152,
+                "Защищённое соединение",
+                Status.UNKNOWN,
+                f"По HTTPS сайт не ответил ({data.https_unanswered}), по HTTP открылся. Есть "
+                "ли у сайта HTTPS, не видно: так бывает при блокировке по стране или "
+                "медленном ответе.",
+                "Откройте сайт по https:// сами; если не открывается, включите HTTPS и "
+                "перенаправление с HTTP.",
+            )
+        )
+    elif plain:
         checks.append(
             Check(
                 GROUP_152,
@@ -905,6 +921,7 @@ async def run_compliance(
     prefetched: dict[str, FetchedPage] | None = None,
     loaded_urls: list[str] | None = None,
     rendered: bool = False,
+    https_unanswered: str | None = None,
 ) -> list[Check]:
     """``prefetched`` holds pages already opened in the browser (the policy, the sign-in
     page), keyed by URL; ``loaded_urls`` are the home page's requests in the browser."""
@@ -912,6 +929,7 @@ async def run_compliance(
     data = ComplianceInput(
         final_url=final_url, page=page, deps=deps, page_problem=page_problem, rendered=rendered
     )
+    data.https_unanswered = https_unanswered
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     prefetched = prefetched or {}
