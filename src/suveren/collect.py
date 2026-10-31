@@ -314,10 +314,10 @@ class Collector:
             addr = ipaddress.ip_address(ip)
         except ValueError:
             return info
-        if addr.version != 4:
-            return info
-        arpa = ".".join(reversed(ip.split(".")))
-        origin = await self._txt_twice(f"{arpa}.origin.asn.cymru.com")
+        # Team Cymru: reversed octets under origin., reversed nibbles under origin6.
+        arpa = addr.reverse_pointer.rsplit(".", 2)[0]
+        zone = "origin" if addr.version == 4 else "origin6"
+        origin = await self._txt_twice(f"{arpa}.{zone}.asn.cymru.com")
         if origin:
             info.asn, info.country = parse_cymru_origin(origin[0])
         if info.asn:
@@ -368,10 +368,17 @@ class Collector:
         return await self._hosts(parse_mx(await self.resolver.resolve(domain, "MX"))[:MAX_HOSTS])
 
     async def web(self, host: str) -> list[NetInfo]:
+        """The site's servers by IPv4 and IPv6: a site in Russia by A and abroad by AAAA
+        sends every visitor with IPv6, and their form data, abroad (PD-007)."""
         ips = await self.resolver.resolve(host, "A")
         if not ips and not host.startswith("www."):
-            ips = await self.resolver.resolve(f"www.{host}", "A")
-        unique = sorted(set(ips))[:MAX_HOSTS]
+            host = f"www.{host}"
+            ips = await self.resolver.resolve(host, "A")
+        try:
+            ips6 = await self.resolver.resolve(host, "AAAA")
+        except DnsLookupError:
+            ips6 = []  # IPv6 only adds to the answer; IPv4 already gave one
+        unique = sorted(set(ips))[:MAX_HOSTS] + sorted(set(ips6))[:MAX_HOSTS]
         return list(await asyncio.gather(*(self.net_info(ip) for ip in unique)))
 
     async def homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:

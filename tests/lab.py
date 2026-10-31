@@ -262,6 +262,8 @@ class Case:
     cookies: list[str] = field(default_factory=lambda: [SESSION_OK])
     files: dict[str, str] = field(default_factory=dict)  # path or URL -> body
     hosting: tuple[str, str] = ("Selectel", "RU")
+    # The site's IPv6 address, when it has one: (address, network name, country).
+    hosting6: tuple[str, str, str] | None = None
     tls: TlsInfo | None = None  # None: a good certificate
     dns: dict[tuple[str, str], list[str]] | None = None  # changes over good_dns
     mta_sts: str | None = MTA_STS_OK
@@ -876,6 +878,15 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         hosting=("Hetzner Online GmbH", "DE"),
         files=site_files(),
+    ),
+    Case(
+        "lab-hosting-abroad-ipv6",
+        "IPv4-адрес сайта в России, а IPv6 — в Германии: посетители с IPv6 и их заявки попадают "
+        "на зарубежный сервер",
+        {"SUV-PD-007": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        hosting6=("2001:db8::10", "Hetzner Online GmbH", "DE"),
     ),
     Case(
         "lab-hosting-abroad-crm-form",
@@ -1634,7 +1645,12 @@ async def _run_case(case: Case) -> dict[str, Check]:
     facts = Facts(
         host,
         host,
-        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1])],
+        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1])]
+        + (
+            [NetInfo(case.hosting6[0], 64501, case.hosting6[1], case.hosting6[2])]
+            if case.hosting6
+            else []
+        ),
         final_url=final_url,
         page_status=200,
         html=case.html,
