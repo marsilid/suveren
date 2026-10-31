@@ -204,7 +204,7 @@ class Candidate:
 
 def page_text(body: str) -> str:
     """Visible text: tags can split a fingerprint ("Request ID:<span>…")."""
-    text = re.sub(r"(?s)<(script|style).*?</>", " ", body)
+    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", body)
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
 
 

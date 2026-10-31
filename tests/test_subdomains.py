@@ -417,3 +417,16 @@ def test_unanswered_subdomains_are_named_as_not_checked():
     takeover = evaluate(scan)[1]
     assert takeover.status is Status.OK
     assert "DNS не ответил для 1, они не проверены: s1.example.ru." in takeover.details
+
+
+def test_page_text_drops_scripts_and_styles_up_to_their_own_end_tag():
+    from suveren.subdomains import page_text
+
+    body = (
+        "<p>There isn't a GitHub Pages site here.</p>"
+        "<script>var s = '<b>No such app</b>';</script>"
+        "<STYLE>p{color:red}</STYLE ><p>end</p>"
+    )
+    text = page_text(body)
+    assert "No such app" not in text and "color" not in text
+    assert text == "There isn't a GitHub Pages site here. end"

@@ -513,6 +513,33 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-tls-unverified",
+        "проверяющее рукопожатие не ответило, TLS 1.0/1.1 не проверить: «в порядке» сказать нельзя",
+        {"SUV-WEB-008": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        tls=TlsInfo(
+            "lab-tls-unverified.ru",
+            "TLSv1.3",
+            NOW + timedelta(days=200),
+            {"TLS 1.0": None, "TLS 1.1": None},
+            verified=False,
+        ),
+    ),
+    Case(
+        "lab-tls-legacy-unknown",
+        "сертификат в порядке, но поддержку TLS 1.0/1.1 проверить не удалось",
+        {"SUV-WEB-008": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        tls=TlsInfo(
+            "lab-tls-legacy-unknown.ru",
+            "TLSv1.3",
+            NOW + timedelta(days=200),
+            {"TLS 1.0": None, "TLS 1.1": False},
+        ),
+    ),
+    Case(
         "lab-tls-expiring",
         "сертификат истекает через 5 дней",
         {"SUV-WEB-008": "fail"},

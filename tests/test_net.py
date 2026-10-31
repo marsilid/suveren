@@ -194,3 +194,22 @@ def test_browser_requests_to_internal_addresses_are_aborted(monkeypatch):
     assert asyncio.run(go("https://93.184.216.34/app.js")) == "fallback"
     # A name that does not resolve fails in the browser by itself.
     assert asyncio.run(go("https://gone.test/")) == "fallback"
+
+
+def test_browser_lets_local_schemes_through_and_files_only_for_printing():
+    from suveren.render import BrowserSession
+
+    async def go(session, url):
+        route = _Route(url)
+        await session._only_public(route)
+        return route.done
+
+    scan = BrowserSession()
+    assert asyncio.run(go(scan, "data:image/png;base64,AAAA")) == "fallback"
+    assert asyncio.run(go(scan, "about:blank")) == "fallback"
+    assert asyncio.run(go(scan, "blob:https://site.ru/1-2-3")) == "fallback"
+    # A scanned page may not read the operator's disk.
+    assert asyncio.run(go(scan, "file:///C:/Users/me/report.html")) == "blockedbyclient"
+    printing = BrowserSession(allow_files=True)
+    assert asyncio.run(go(printing, "file:///C:/Users/me/report.html")) == "fallback"
+    assert asyncio.run(go(printing, "file:///home/me/reports/r.html")) == "fallback"

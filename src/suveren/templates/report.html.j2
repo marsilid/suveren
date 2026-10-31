@@ -9,9 +9,9 @@
   {% if fines.counted %}<div class="card fines">{% else %}<details class="card fines calm">{% endif %}
     {% if fines.counted %}
     <h3>Потенциальные штрафы: до {{ fines.total("legal") | rub }} для юрлица</h3>
-    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую.</p>
+    <p class="muted-sum">Для ИП — до {{ fines.total("sole_trader") | rub }}. Сумма максимальных штрафов по найденным проблемам, по одной статье на каждую. Штрафы, которые зависят от обстоятельств, не видных снаружи, показаны ниже, но в сумму не входят.</p>
     {% else %}
-    <summary>Штрафов по найденным проблемам нет · возможны в зависимости от обстоятельств: {{ fines.items | length }}</summary>
+    <summary>Безусловных штрафов нет · возможны в зависимости от обстоятельств: {{ fines.items | length }}</summary>
     {% endif %}
     <div class="table-wrap">
     <table>
@@ -19,7 +19,7 @@
       <tbody>
       {% for i in fines.items %}
         <tr{% if not i.counted %} class="possible"{% endif %}>
-          <td>{{ i.title }}{% if i.note %}<br><small>{{ i.note }}</small>{% endif %}{% if not i.counted %}<br><small>«внимание»: не входит в сумму</small>{% endif %}</td>
+          <td>{{ i.title }}{% if i.note %}<br><small>{{ i.note }}</small>{% endif %}{% if not i.counted %}<br><small>условный: не входит в сумму</small>{% endif %}</td>
           <td><a href="{{ i.fine.url }}" target="_blank" rel="noopener">{{ i.fine.article }}</a></td>
           <td>{{ i.fine.legal | span }}</td>
           <td>{{ i.fine.sole_trader | span }}</td>

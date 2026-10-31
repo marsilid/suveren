@@ -13,7 +13,11 @@ COPY pyproject.toml README.md LICENSE COPYRIGHT ./
 COPY src ./src
 RUN pip install --no-cache-dir --no-deps .
 
-# Reports are written to /work/reports; mount a folder there to keep them.
+# Not root: Chromium's sandbox does not start as root, and --browser refuses to run
+# without it. Reports are written to /work/reports; mount a folder there to keep them.
+RUN useradd --create-home --uid 10001 suveren \
+    && mkdir -p /work /cache && chown suveren:suveren /work /cache
+USER suveren
 WORKDIR /work
 VOLUME ["/work", "/cache"]
 ENTRYPOINT ["suveren"]

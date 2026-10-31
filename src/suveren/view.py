@@ -14,6 +14,7 @@ from pathlib import Path
 
 from rich import box
 from rich.console import Console, Group, RenderableType
+from rich.markup import escape
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -25,7 +26,7 @@ from suveren.checks import SOURCE_WHAT, Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.history import Changes
 from suveren.models import Report, Severity
-from suveren.utils import country_name
+from suveren.utils import clean_text, country_name
 
 ACCENT = "#5fb3b3"
 DIM = "grey50"
@@ -178,12 +179,10 @@ def fines_line(fines: FineEstimate) -> Text:
         text.append(f"Потенциальные штрафы: до {rub(fines.total('legal'))} для юрлица", "bold")
         text.append(f" (статей: {len(fines.counted)}", DIM)
         if fines.listed:
-            text.append(f"; ещё {len(fines.listed)} по предупреждениям не в сумме", DIM)
+            text.append(f"; ещё {len(fines.listed)} условных, не в сумме", DIM)
         text.append(")", DIM)
     else:
-        text.append(
-            f"Штраф возможен по {len(fines.listed)} предупреждениям, проблем со штрафом нет"
-        )
+        text.append(f"Штраф возможен при условиях: {len(fines.listed)}, безусловных штрафов нет")
     text.append(". Оценка максимального риска, не юридическое заключение.", DIM)
     return text
 
@@ -216,7 +215,9 @@ def print_scan(console: Console, report: Report, *, details: bool = False) -> No
                 for d in report.dependencies
                 if d.category is f.category and d.foreign
             )
-            table.add_row(Text("  ●", style=SEVERITY_STYLE[f.severity]), f.category.title, names)
+            table.add_row(
+                Text("  ●", style=SEVERITY_STYLE[f.severity]), f.category.title, Text(names)
+            )
         console.print(table)
 
     fines = report.fines
@@ -241,13 +242,21 @@ def print_scan(console: Console, report: Report, *, details: bool = False) -> No
                 mark = Text("  ✓", style=OK)
             else:
                 mark = Text("  ?", style=DIM)
-            table.add_row(mark, d.category.title, d.service, d.country_ru, d.evidence)
+            # Text, not str: a str cell is Rich markup, and the evidence is the site's URL.
+            table.add_row(
+                mark, d.category.title, Text(d.service), d.country_ru, Text(clean_text(d.evidence))
+            )
         console.print(table)
 
     if report.notes:
         section(console, "Замечания")
         for note in report.notes:
-            console.print(Padding(Text(note, style=DIM), (0, 2, 0, 2)))
+            console.print(Padding(Text(clean_text(note), style=DIM), (0, 2, 0, 2)))
+
+
+def esc(text: object) -> str:
+    """A value for Rich markup: control characters gone, "[...]" not taken for a style."""
+    return escape(clean_text(str(text)))
 
 
 def accepted_text(accepted: dict[str, str]) -> str:
@@ -292,7 +301,7 @@ def print_footer(
     table.add_column(style=DIM, width=7)
     table.add_column()
     for label, path in files:
-        table.add_row(label, str(path))
+        table.add_row(label, Text(str(path)))
     if files:
         console.print(Padding(table, (0, 0, 0, 2)))
     actions = priorities(report)[:TOP_ACTIONS] if report is not None else []
@@ -313,24 +322,27 @@ def print_changes(console: Console, changes: Changes) -> None:
     """Services and verdicts that changed since an earlier report (diff, scan --since)."""
     if changes.uneven:
         # drive2.ru "removed" four ad networks on a night its page was not fully seen.
-        old, new = ("; ".join(x) or "полная" for x in changes.incomplete)
+        old, new = (esc("; ".join(x)) or "полная" for x in changes.incomplete)
         console.print(
             f"  [#e6b450]! Сравнение неравноценное: оценка раньше — {old}, сейчас — {new}. "
             "Убранное могло быть просто не видно в этот раз.[/]"
         )
     for category, service, foreign in changes.removed:
         style = "green" if foreign else "yellow"
-        console.print(f"  [{style}]− убран   [/] {category}: {service}")
+        console.print(f"  [{style}]− убран   [/] {esc(category)}: {esc(service)}")
     for category, service, foreign in changes.added:
         style = "red" if foreign else "green"
-        console.print(f"  [{style}]+ добавлен[/] {category}: {service}")
+        console.print(f"  [{style}]+ добавлен[/] {esc(category)}: {esc(service)}")
     for c in changes.checks:
         style = "green" if c.better else "red"
         mark = "✓" if c.better else "✗"
-        console.print(f"  [{style}]{mark} {c.title}[/] [grey50]{c.id}[/]: {c.before} → {c.after}")
+        console.print(
+            f"  [{style}]{mark} {esc(c.title)}[/] [grey50]{esc(c.id)}[/]: "
+            f"{esc(c.before)} → {esc(c.after)}"
+        )
     for title in changes.appeared:
-        console.print(f"  [grey50]• новая проверка: {title}[/]")
+        console.print(f"  [grey50]• новая проверка: {esc(title)}[/]")
     for title in changes.vanished:
-        console.print(f"  [grey50]• проверки больше нет в отчёте: {title}[/]")
+        console.print(f"  [grey50]• проверки больше нет в отчёте: {esc(title)}[/]")
     if changes.empty:
         console.print("  [grey50]Ничего не изменилось.[/]")

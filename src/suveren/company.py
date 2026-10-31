@@ -420,12 +420,25 @@ def _site_check(report: CompanyReport) -> Check:
             "потребителей», ст. 26.1). Отсутствие реквизитов — повод насторожиться.",
         )
     where = f"ИНН {report.inn} указан на сайте"
-    if not report.whois_org or rec is None:
+    # Nothing to compare with is "not checked", not a match (review of 1.1.2).
+    if rec is None:
         return Check(
             GROUP,
             title,
-            Status.OK,
-            f"{where}. Владелец домена в WHOIS скрыт, сравнить не с чем.",
+            Status.UNKNOWN,
+            f"{where}, но ЕГРЮЛ не ответил: с владельцем домена сравнить не с чем.",
+            "Повторите проверку позже.",
+            link=report.inn_source,
+        )
+    if not report.whois_org:
+        return Check(
+            GROUP,
+            title,
+            Status.UNKNOWN,
+            f"{where}. Владелец домена в WHOIS скрыт, поэтому связь сайта с компанией не "
+            "подтверждена: ИНН на странице может указать и чужой сайт.",
+            "Сверьте реквизиты другим путём: договор, письмо с корпоративной почты, "
+            "домен в выписке ЕГРЮЛ.",
             link=report.inn_source,
         )
     org_key = name_key(report.whois_org)

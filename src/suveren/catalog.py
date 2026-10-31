@@ -148,7 +148,8 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-WEB-007", WEB, "Флаги cookies", "security", "web cookies",
           "Secure, HttpOnly и SameSite у cookies сайта."),
     _spec("SUV-WEB-008", WEB, "TLS: сертификат и протоколы", "security", "web tls",
-          "Версии TLS, срок и отзыв сертификата (OCSP, CRL), отключены ли TLS 1.0 и 1.1."),
+          "Версии TLS, срок и отзыв сертификата (OCSP, CRL), отключены ли TLS 1.0 и 1.1. "
+          "Поверхностно: шифры и уязвимости сервера не проверяются."),
     _spec("SUV-WEB-009", WEB, "Ключи и секреты в коде сайта", "security",
           "web secrets scripts",
           "Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель."),
