@@ -522,6 +522,13 @@ CASES: list[Case] = [
         ),
         files=site_files(),
     ),
+    Case(
+        "lab-moment-old",
+        "moment.js 2.15.1 на своём сервере (CVE-2017-18214)",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/moment-2.15.1.min.js"></script>'),
+        files=site_files({"/js/moment-2.15.1.min.js": "//! moment.js\n//! version : 2.15.1\n"}),
+    ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
         "lab-no-policy",
