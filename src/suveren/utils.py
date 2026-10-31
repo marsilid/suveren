@@ -140,9 +140,18 @@ def plural(n: int, one: str, few: str, many: str) -> str:
 # isolates. A site's text (a quote from its policy, a consent label) with ESC sequences
 # would otherwise reach the terminal: OSC 52 rewrites the clipboard, others the screen;
 # bidi controls make "evil.ru" read as "ur.live".
-_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+# Code points, not a regex range: what is removed is listed exactly.
+_CONTROL = dict.fromkeys(
+    [
+        *range(0x00, 0x09),  # C0 before tab
+        *range(0x0B, 0x20),  # C0 after newline (CR included)
+        *range(0x7F, 0xA0),  # DEL and C1
+        *range(0x202A, 0x202F),  # LRE, RLE, PDF, LRO, RLO
+        *range(0x2066, 0x206A),  # LRI, RLI, FSI, PDI
+    ]
+)
 
 
 def clean_text(text: str) -> str:
     """Text from a site, safe to show: control characters and bidi controls removed."""
-    return _CONTROL.sub("", text)
+    return text.translate(_CONTROL)
