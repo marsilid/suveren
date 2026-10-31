@@ -287,6 +287,10 @@ def test_run_returns_json_data():
     assert checks[1].status is Status.FAIL
     assert data["takeover"][0]["name"] == "old.example.ru"
     json.dumps(data)  # serialisable for the JSON report
+    # The list's log and day, and for takeover the date the signatures were checked.
+    sources = [[e.value for e in c.evidence if e.what == "Источник"] for c in checks]
+    assert sources[0][0].startswith("журналы сертификатов, crt.sh, ")
+    assert any("Can I take over XYZ?" in s and "сверено" in s for s in sources[1])
 
 
 def test_ct_error_names_both_sources():

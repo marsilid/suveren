@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 
 from suveren.cache import cache_dir, fetch_cached, stale_days
+from suveren.checks import copy_of
 from suveren.errors import ModuleError
 from suveren.inn import classify
 
@@ -311,9 +312,12 @@ class SanctionsIndex:
         entries: list[Entry],
         notes: list[str] | None = None,
         stale: dict[str, int] | None = None,
+        copies: dict[str, str] | None = None,
     ) -> None:
         self.entries = entries
         self.notes = notes or []
+        # Source key -> "США (OFAC SDN), выгрузка от 31.10.2026": the copy screened.
+        self.copies = copies or {}
         # Source key -> age in days of a copy kept because the refresh failed.
         self.stale = stale or {}
         self.sources = sorted({e.source for e in entries})
@@ -481,6 +485,7 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
     entries: list[Entry] = []
     notes: list[str] = []
     stale: dict[str, int] = {}
+    copies: dict[str, str] = {}
     for source in SOURCES:
         try:
             raw, note = await fetch_cached(client, source.url, source.filename, refresh=refresh)
@@ -496,10 +501,12 @@ async def load_index(client: httpx.AsyncClient, *, refresh: bool = False) -> San
         if not found:
             # A list in a new format parses to nothing: it must not pass for "checked".
             notes.append(f"{source.title}: в файле не найдено ни одной записи")
+        if found:
+            copies[source.key] = copy_of(source.title, raw)
         entries += found
     if not entries:
         raise ModuleError("не удалось загрузить ни один санкционный список")
-    return SanctionsIndex(entries, notes, stale)
+    return SanctionsIndex(entries, notes, stale, copies)
 
 
 def _cached_entries(source: Source, raw: Path, notes: list[str]) -> list[Entry]:

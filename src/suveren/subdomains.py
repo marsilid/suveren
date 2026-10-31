@@ -22,11 +22,12 @@ from typing import Any
 import httpx
 
 from suveren.cache import age_text, cache_dir, is_fresh
-from suveren.checks import Check, Evidence, Status
+from suveren.checks import Check, Evidence, Status, asked, copy_of
+from suveren.checks import source as source_evidence
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
-from suveren.takeover_signatures import SOURCE_URL, Signature, find_signature
+from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
 from suveren.utils import registrable_domain
 
 GROUP_SUB = "Поддомены"
@@ -404,6 +405,8 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             )
             for c in scan.candidates[:10]
         ]
+    # A clean answer rests on the signatures too: services added since are not known.
+    takeover.evidence.append(source_evidence(database_source()))
     return [inventory, takeover]
 
 
@@ -476,4 +479,11 @@ async def run_subdomain_checks(
             for c in scan.candidates
         ],
     }
-    return evaluate(scan), data
+    checks = evaluate(scan)
+    # The list is cached for a day: its date is the day the log answered, not the scan's.
+    path = cache_dir() / "ct" / f"{domain}.json"
+    name = f"журналы сертификатов, {scan.source}"
+    origin = copy_of(name, path, "список") if path.exists() else asked(name)
+    for check in checks:
+        check.evidence.append(source_evidence(origin))
+    return checks, data

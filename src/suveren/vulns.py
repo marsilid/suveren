@@ -14,11 +14,12 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from functools import cache
 from importlib.resources import files
 from typing import Any
 
-from suveren.checks import Check, Evidence, Status
+from suveren.checks import Check, Evidence, Status, source
 
 TITLE = "Уязвимые версии библиотек"
 GROUP_WEB = "Безопасность сайта"
@@ -143,7 +144,14 @@ def vuln_check(libs: list[Library]) -> Check:
         Evidence("url", f"{NAMES[x.name]} {x.version}", x.where)
         for x in sorted(libs, key=lambda x: (x.name, version_tuple(x.version)))[:10]
     ]
+    check.evidence.append(source(database_source()))
     return check
+
+
+def database_source() -> str:
+    """The built-in list is only as fresh as its last check against NVD."""
+    day = date.fromisoformat(_data()["checked"])
+    return f"встроенная база Suveren по NVD, сверена {day:%d.%m.%Y}"
 
 
 def _verdict(libs: list[Library]) -> Check:

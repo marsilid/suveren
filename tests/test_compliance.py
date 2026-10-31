@@ -138,6 +138,11 @@ def test_operator_register_states():
     assert status(run("x", inns=["7707083893"]), title) is Status.WARN
     op = RknOperator("77-123", "ООО Ромашка", "7707083893", "Приказ", None, None)
     assert status(run("x", inns=["7707083893"], operator=op), title) is Status.OK
+    # Found or not, the answer names the register and the day it was asked.
+    for found in (None, op):
+        [check] = [c for c in run("x", inns=["7707083893"], operator=found) if c.title == title]
+        [where] = [e.value for e in check.evidence if e.what == "Источник"]
+        assert where.startswith("Реестр операторов ПДн Роскомнадзора (pd.rkn.gov.ru), запрос от ")
 
 
 def test_an_inn_from_the_sites_own_ad_says_where_it_came_from():

@@ -21,6 +21,9 @@ BROWSER_UA = (
 )
 EGRUL_URL = "https://egrul.nalog.ru/"
 RKN_URL = "https://pd.rkn.gov.ru/operators-registry/operators-list/"
+# How reports name these registers next to the date of the query.
+EGRUL_SOURCE = "ЕГРЮЛ (egrul.nalog.ru)"
+RKN_SOURCE = "Реестр операторов ПДн Роскомнадзора (pd.rkn.gov.ru)"
 _ORG_NAME = re.compile(
     r"общество|акционерн|компани|предприяти|учреждени|\b(?:ооо|ао|пао|зао|оао|нко)\b", re.I
 )

@@ -8,12 +8,19 @@ from typing import Any
 
 import httpx
 
-from suveren.checks import Check, Status
+from suveren.checks import Check, Status, asked, source
 from suveren.collect import make_client, page_problem, parse_whois_org, whois_raw
 from suveren.discover import discover_inns
 from suveren.errors import InvalidTargetError, ModuleError
 from suveren.inn import classify
-from suveren.registries import EgrulRecord, RknOperator, egrul_search, rkn_operator
+from suveren.registries import (
+    EGRUL_SOURCE,
+    RKN_SOURCE,
+    EgrulRecord,
+    RknOperator,
+    egrul_search,
+    rkn_operator,
+)
 from suveren.render import render
 from suveren.sanctions import (
     SOURCE_TITLES,
@@ -46,6 +53,8 @@ class CompanyReport:
     sanctions_sources: list[str] = field(default_factory=list)
     # Source key -> age in days of an outdated copy the screening had to use.
     sanctions_stale: dict[str, int] = field(default_factory=dict)
+    # Register -> where the answer came from and when: "egrul", "rkn", "sanctions:us"...
+    sources: dict[str, str] = field(default_factory=dict)
     whois_org: str | None = None
     site_problem: str | None = None
     checks: list[Check] = field(default_factory=list)
@@ -370,7 +379,23 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
     laws = {"SUV-CO-006": "152-ФЗ, ст. 22", "SUV-CO-007": "ЗоЗПП, ст. 26.1"}
     for check in checks:
         check.law = laws.get(check.id)
+        for key in SOURCES_BY_CHECK.get(check.id, ()):
+            for name, text in report.sources.items():
+                if name == key or name.startswith(f"{key}:"):
+                    check.evidence.append(source(text))
     return checks
+
+
+# The registers each check rests on; "sanctions" stands for every list that loaded.
+SOURCES_BY_CHECK = {
+    "SUV-CO-001": ("egrul",),
+    "SUV-CO-002": ("egrul",),
+    "SUV-CO-003": ("sanctions",),
+    "SUV-CO-004": ("egrul", "sanctions"),
+    "SUV-CO-005": ("egrul", "sanctions"),
+    "SUV-CO-006": ("rkn",),
+    "SUV-CO-007": ("egrul",),
+}
 
 
 def _site_check(report: CompanyReport) -> Check:
@@ -502,6 +527,7 @@ async def run_company(
         if query:
             try:
                 rows = await egrul_search(client, query)
+                report.sources["egrul"] = asked(EGRUL_SOURCE)
                 report.egrul = pick_record(rows, query)
                 if rows and report.egrul is None:
                     # Another company's row would be screened and dated in its place.
@@ -516,6 +542,7 @@ async def run_company(
             if report.inn:
                 try:
                     report.operator = await rkn_operator(client, report.inn)
+                    report.sources["rkn"] = asked(RKN_SOURCE)
                 except ModuleError as exc:
                     report.operator_error = str(exc)
                     report.notes.append(f"Реестр операторов ПДн: {exc}.")
@@ -528,6 +555,7 @@ async def run_company(
                 sanctions_ok = True
                 report.sanctions_sources = index.sources
                 report.sanctions_stale = index.stale
+                report.sources |= {f"sanctions:{k}": v for k, v in index.copies.items()}
                 report.notes += index.notes
                 rec = report.egrul
                 ids = [i for i in (report.inn, report.ogrn) if i]

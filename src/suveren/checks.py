@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -70,6 +72,25 @@ class Evidence:
 
     def to_dict(self) -> dict[str, str]:
         return {"kind": self.kind, "what": self.what, "value": self.value}
+
+
+SOURCE_WHAT = "Источник"
+
+
+def asked(name: str, when: datetime | None = None) -> str:
+    """A register queried live: its name and the day of the query."""
+    return f"{name}, запрос от {(when or datetime.now()):%d.%m.%Y}"
+
+
+def copy_of(name: str, path: Path, what: str = "выгрузка") -> str:
+    """A register read from a downloaded copy: its name and the day of the download,
+    which a copy kept after a failed refresh makes older than the scan."""
+    return f"{name}, {what} от {datetime.fromtimestamp(path.stat().st_mtime):%d.%m.%Y}"
+
+
+def source(text: str) -> Evidence:
+    """Where a check's answer comes from: the register and the date (roadmap 1.1.2, 4)."""
+    return Evidence("registry", SOURCE_WHAT, text)
 
 
 @dataclass(slots=True)

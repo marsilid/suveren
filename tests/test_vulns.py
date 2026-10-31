@@ -74,6 +74,9 @@ def test_known_issues_and_check():
     assert check.status is Status.WARN and check.id == "SUV-WEB-010"
     assert "CVE-2020-11022" in check.details and "Bootstrap 5.3.3" in check.details
     assert vuln_check([Library("jquery", "3.7.1", "x")]).status is Status.OK
+    # A clean answer is only as fresh as the built-in list: its date is shown.
+    [where] = [e.value for e in vuln_check([]).evidence if e.what == "Источник"]
+    assert where.startswith("встроенная база Suveren по NVD, сверена ")
     assert vuln_check([]).status is Status.OK
 
 

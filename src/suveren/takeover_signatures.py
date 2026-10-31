@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import date
 from importlib.resources import files
 
 SOURCE_URL = "https://github.com/EdOverflow/can-i-take-over-xyz"
@@ -48,6 +49,13 @@ def _load() -> tuple[Signature, ...]:
 
 
 SIGNATURES: tuple[Signature, ...] = _load()
+
+
+def database_source() -> str:
+    """The signatures are a snapshot of the source as of the day they were checked."""
+    raw = json.loads(files("suveren").joinpath("data/takeover.json").read_text("utf-8"))
+    day = date.fromisoformat(raw["checked"])
+    return f"«Can I take over XYZ?» (EdOverflow и соавторы), сверено {day:%d.%m.%Y}"
 
 
 def find_signature(targets: list[str]) -> Signature | None:

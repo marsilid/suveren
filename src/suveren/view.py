@@ -20,7 +20,7 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren.advice import overall_grade, overall_scope, overall_score, priorities
-from suveren.checks import Check, Status
+from suveren.checks import SOURCE_WHAT, Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.history import Changes
 from suveren.models import Report, Severity
@@ -266,6 +266,10 @@ def print_checks(console: Console, checks: list[Check], *, verbose: bool = False
                 text.append(f"\n{c.details}", style=DIM if c.status is Status.UNKNOWN else "")
             if c.recommendation and c.status in (Status.FAIL, Status.WARN) and verbose:
                 text.append(f"\n→ {c.recommendation}", style=DIM)
+        if verbose:
+            for e in c.evidence:
+                if e.what == SOURCE_WHAT:
+                    text.append(f"\nИсточник: {e.value}", style=DIM)
         table.add_row(Text(f"  {c.status.icon}", style=STATUS_STYLE[c.status]), text, c.id)
     console.print(table)
 
