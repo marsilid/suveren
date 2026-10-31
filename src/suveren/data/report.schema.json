@@ -102,6 +102,18 @@
     "link": {"type": ["string", "null"]},
     "law": {"type": ["string", "null"], "description": "Например, «152-ФЗ, ст. 9»."},
     "law_url": {"type": ["string", "null"]},
+    "accepted": {
+     "oneOf": [
+      {"type": "null"},
+      {
+       "type": "object",
+       "required": ["reason", "author", "until"],
+       "additionalProperties": false,
+       "properties": {"reason": {"type": "string"}, "author": {"type": "string"}, "until": {"type": "string", "format": "date"}}
+      }
+     ],
+     "description": "С 1.9. Проблема принята по файлу .suveren-ignore: кто, почему и до какого дня. Она остаётся в отчёте, но не входит в приоритеты, общую оценку и пороги CI."
+    },
     "evidence": {
      "type": "array",
      "description": "С 1.4. На чём основан вывод, как увидено: DNS-запись, заголовок ответа, адрес страницы или скрипта, запрос страницы, кусок страницы, сертификат, запись реестра.",

@@ -94,10 +94,96 @@ def audit(report: dict[str, Any]) -> list[Issue]:
     if silent and "overall_incomplete" in report and not report["overall_incomplete"]:
         issues.append(Issue("dns-gap-complete", "", silent[0][:140]))
 
-    score, grade = report.get("overall_score"), report.get("overall_grade")
-    if score is not None and grade is not None:
-        from suveren.models import grade_for
-
-        if grade_for(score) != grade:
-            issues.append(Issue("grade-mismatch", "", f"оценка {grade} при {score} баллах"))
+    issues += _grade_rules(report)
     return issues
+
+
+def _grade_rules(report: dict[str, Any]) -> list[Issue]:
+    """The rules of the two grades (advice.py, models.py), checked on the JSON: a grade
+    that breaks them is a bug in the scoring, not in a check."""
+    from suveren import __version__
+    from suveren.advice import OVERALL_PENALTY, SECOND_ORDER
+    from suveren.models import PENALTIES, UNSEEN_CAP, Severity, grade_for
+
+    issues: list[Issue] = []
+    facts = report.get("facts") or {}
+    unseen = bool(facts.get("page_unseen") or facts.get("dns_unanswered"))
+    incomplete_reasons = report.get("overall_incomplete") or []
+    for key, name in (("overall", "общая"), ("", "независимость")):
+        score = report.get(f"{key}_score" if key else "score")
+        grade = report.get(f"{key}_grade" if key else "grade")
+        if score is None:
+            continue
+        label = f"{name}: {grade} при {score} баллах"
+        if not 0 <= score <= 100:
+            issues.append(Issue("score-range", "", label))
+        if grade is not None and grade_for(score) != grade:
+            issues.append(Issue("grade-mismatch", "", f"оценка {label}"))
+        # A means "checked and clean": an unseen page or DNS keeps both grades at B at
+        # most, and so does a quarter of the checks not run for the overall one.
+        gap = any(str(r).startswith("не удалось проверить") for r in incomplete_reasons)
+        if (unseen or (key and gap)) and score > UNSEEN_CAP:
+            issues.append(Issue("incomplete-top", "", f"оценка неполная, а {label}"))
+
+    # The overall grade counts a failed check with advice as a high problem (advice.py).
+    overall = report.get("overall_score")
+    worst = {
+        c.get("status")
+        for c in report.get("checks", [])
+        if c.get("recommendation") and c.get("id") not in SECOND_ORDER and not c.get("accepted")
+    }
+    if overall is not None and "fail" in worst and overall > 100 - OVERALL_PENALTY[Severity.HIGH]:
+        issues.append(Issue("fail-top", "", f"есть проблема, а общая оценка {overall}"))
+    # Every finding costs its penalty once: the independence score is their sum.
+    severities = [str(f.get("severity", "")).upper() for f in report.get("findings", [])]
+    score = report.get("score")
+    if score is not None and all(s in Severity.__members__ for s in severities):
+        penalty = sum(PENALTIES[Severity[s]] for s in severities)
+        expected = max(0, 100 - penalty)
+        expected = min(expected, UNSEEN_CAP) if unseen else expected
+        if score != expected:
+            issues.append(
+                Issue("score-mismatch", "", f"независимость {score}, по находкам {expected}")
+            )
+    # The overall score is recounted in full only for reports of this very version: the
+    # weights of older versions were different.
+    if overall is not None and report.get("tool_version") == __version__:
+        recount = _recount_overall(report)
+        if recount is not None and recount != overall:
+            issues.append(Issue("score-mismatch", "", f"общая {overall}, по проверкам {recount}"))
+    return issues
+
+
+def _recount_overall(data: dict[str, Any]) -> int | None:
+    """The overall score of a JSON report, counted again from its checks and findings."""
+    from suveren.advice import overall_score
+    from suveren.checks import Check, Status
+    from suveren.models import Category, Finding, Report, Severity
+
+    try:
+        report = Report(target=str(data.get("target") or ""))
+        report.facts = dict(data.get("facts") or {})
+        report.findings = [
+            Finding(
+                Category(f["category"]),
+                f["title"],
+                Severity[f["severity"].upper()],
+                f.get("description", ""),
+                f.get("recommendation", ""),
+            )
+            for f in data.get("findings", [])
+        ]
+        report.checks = [
+            Check(
+                group=c.get("group", ""),
+                title=c.get("title", ""),
+                status=Status(c["status"]),
+                recommendation=c.get("recommendation", ""),
+                id=c.get("id") or "SUV-NOID",
+                accepted=c.get("accepted"),
+            )
+            for c in data.get("checks", [])
+        ]
+        return overall_score(report)
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return None

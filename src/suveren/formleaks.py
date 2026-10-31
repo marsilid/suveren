@@ -25,7 +25,6 @@ from __future__ import annotations
 import base64
 import binascii
 import contextlib
-import gzip
 import hashlib
 import re
 import secrets
@@ -199,7 +198,10 @@ def views(data: bytes, depth: int = 0) -> Iterator[tuple[str, str]]:
 
 def _unpack(data: bytes) -> bytes | None:
     for opener in (
-        (lambda d: gzip.decompress(d)) if data[:2] == b"\x1f\x8b" else None,
+        # Never more than the limit: a 200 KB gzip can unpack to 200 MB.
+        (lambda d: zlib.decompressobj(wbits=31).decompress(d, _MAX_UNPACKED))
+        if data[:2] == b"\x1f\x8b"
+        else None,
         (lambda d: zlib.decompressobj().decompress(d, _MAX_UNPACKED))
         if data[:1] == b"\x78"
         else None,

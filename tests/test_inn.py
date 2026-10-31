@@ -74,3 +74,30 @@ def test_a_partner_named_in_a_document_is_not_the_site_owner():
     )
     assert find_inns(offer) == []
     assert find_inns(offer + " АО «Сайт», ИНН 7707083893") == ["7707083893"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["ИНН/КПП: 7707083893/770701001", "ИНН / КПП 7707083893 / 770701001",
+     "ИНН (КПП): 7707083893 (770701001)", "ИНН-КПП 7707083893-770701001",
+     "ИНН организации 7707083893", "INN/KPP 7707083893/770701001"],
+)  # fmt: skip
+def test_find_inns_in_requisites_with_kpp(text):
+    assert find_inns(text) == ["7707083893"]
+
+
+def test_bank_named_more_often_does_not_outrank_the_owner():
+    html = (
+        "<footer>ООО «Ромашка», ИНН 7707083893</footer>"
+        "<div>Платежи принимает АО «Альфа-Банк» ИНН 7728168971</div>"
+        "<p>Оплата картой через АО «Альфа-Банк», ИНН 7728168971</p>"
+    )
+    assert find_inns(html) == ["7707083893", "7728168971"]
+    assert find_inns(html, first=True) == ["7707083893", "7728168971"]
+
+
+def test_bank_own_site_keeps_its_inn():
+    assert find_inns("© ПАО Сбербанк, ИНН 7707083893") == ["7707083893"]
+    # The owner's footer right after a payment block is still the owner's.
+    text = "Оплата картой АО «Альфа-Банк» ИНН 7728168971. ООО «Ромашка», ИНН 7707083893"
+    assert find_inns(text)[0] == "7707083893"

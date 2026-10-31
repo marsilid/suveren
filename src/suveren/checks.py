@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -72,6 +74,25 @@ class Evidence:
         return {"kind": self.kind, "what": self.what, "value": self.value}
 
 
+SOURCE_WHAT = "Источник"
+
+
+def asked(name: str, when: datetime | None = None) -> str:
+    """A register queried live: its name and the day of the query."""
+    return f"{name}, запрос от {(when or datetime.now()):%d.%m.%Y}"
+
+
+def copy_of(name: str, path: Path, what: str = "выгрузка") -> str:
+    """A register read from a downloaded copy: its name and the day of the download,
+    which a copy kept after a failed refresh makes older than the scan."""
+    return f"{name}, {what} от {datetime.fromtimestamp(path.stat().st_mtime):%d.%m.%Y}"
+
+
+def source(text: str) -> Evidence:
+    """Where a check's answer comes from: the register and the date (roadmap 1.1.2, 4)."""
+    return Evidence("registry", SOURCE_WHAT, text)
+
+
 @dataclass(slots=True)
 class Check:
     group: str
@@ -83,6 +104,9 @@ class Check:
     law: str | None = None  # e.g. "152-ФЗ, ст. 9"
     id: str = ""  # stable ID from catalog.py, e.g. "SUV-MAIL-003"; filled in by title
     evidence: list[Evidence] = field(default_factory=list)  # what the verdict rests on
+    # Set by .suveren-ignore: {"reason", "author", "until"}. The problem stays in the
+    # report, but leaves the priorities, the overall grade and the CI thresholds.
+    accepted: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -110,4 +134,5 @@ class Check:
             "law": self.law,
             "law_url": self.law_url,
             "evidence": [e.to_dict() for e in self.evidence],
+            "accepted": self.accepted,
         }

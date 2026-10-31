@@ -22,11 +22,12 @@ from typing import Any
 import httpx
 
 from suveren.cache import age_text, cache_dir, is_fresh
-from suveren.checks import Check, Evidence, Status
+from suveren.checks import Check, Evidence, Status, asked, copy_of
+from suveren.checks import source as source_evidence
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
-from suveren.takeover_signatures import SOURCE_URL, Signature, find_signature
+from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
 from suveren.utils import registrable_domain
 
 GROUP_SUB = "Поддомены"
@@ -114,15 +115,25 @@ async def ct_subdomains(
         cached = json.loads(path.read_text(encoding="utf-8"))
         return cached["names"], cached["source"]
     errors = []
+    # An empty list is not trusted from one log: overloaded crt.sh answers 200 with
+    # "[]" for big sites. The other log is asked, and an empty answer is not cached.
+    empty: str | None = None
     for source, fetch in (("crt.sh", _crtsh), ("Cert Spotter", _certspotter)):
         try:
             names = clean_names(await fetch(client, domain), domain)
         except (httpx.HTTPError, ValueError, AttributeError, *TIMEOUTS) as exc:
             errors.append(f"{source}: {_why(exc)}")
             continue
+        if not names and empty is None:
+            empty = source
+            continue
+        if not names:
+            source = f"{empty} и {source}"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"names": names, "source": source}), encoding="utf-8")
         return names, source
+    if empty:
+        errors.insert(0, f"{empty}: пустой список")
     # Both logs fail often at night: a list from the last days beats "not checked", and
     # the source says how old it is.
     if path.exists() and is_fresh(path, STALE_TTL):
@@ -148,6 +159,8 @@ class Subdomain:
     name: str
     cnames: list[str] = field(default_factory=list)  # CNAME chain, first hop first
     addresses: list[str] = field(default_factory=list)
+    # DNS gave no trustworthy answer: whether the name exists is unknown.
+    failed: bool = False
 
     @property
     def alive(self) -> bool:
@@ -169,7 +182,7 @@ async def resolve_subdomain(resolver: DnsResolver, name: str) -> Subdomain:
             sub.cnames.append(current)
         sub.addresses = await resolver.resolve(name, "A")
     except DnsLookupError:
-        pass
+        sub.failed = True
     return sub
 
 
@@ -182,6 +195,9 @@ class Candidate:
     reason: str
     certain: bool  # the target domain is unregistered: anyone can buy it
     service: str | None = None
+    # "Edge case" in the source: the service has hurdles (such as a domain check),
+    # and takeover works only sometimes. Listed after the plain cases.
+    edge: bool = False
 
 
 def page_text(body: str) -> str:
@@ -255,7 +271,8 @@ async def is_registered(client: httpx.AsyncClient, domain: str) -> bool | None:
 async def find_candidate(
     resolver: DnsResolver, client: httpx.AsyncClient, sub: Subdomain, own: str
 ) -> Candidate | None:
-    if not sub.cnames:
+    # A failed lookup is not a missing resource: no takeover is claimed on it.
+    if not sub.cnames or sub.failed:
         return None
     target = sub.cnames[-1]
     if not sub.alive:
@@ -284,9 +301,10 @@ async def find_candidate(
         return Candidate(
             sub,
             f"CNAME ведёт на {target} ({sig.service}), но такого ресурса больше нет: его "
-            "можно создать заново в чужом аккаунте",
+            "можно создать заново в чужом аккаунте" + _edge_note(sig),
             certain=False,
             service=sig.service,
+            edge=not sig.vulnerable,
         )
     if not sub.alive or not sig.fingerprints:
         return None
@@ -296,9 +314,19 @@ async def find_candidate(
     return Candidate(
         sub,
         f"CNAME ведёт на {target} ({sig.service}), а сервис отвечает, что такого проекта "
-        "у него нет: подключить этот поддомен может другой клиент сервиса",
+        "у него нет: подключить этот поддомен может другой клиент сервиса" + _edge_note(sig),
         certain=False,
         service=sig.service,
+        edge=not sig.vulnerable,
+    )
+
+
+def _edge_note(sig: Signature) -> str:
+    if sig.vulnerable:
+        return ""
+    return (
+        f". Захват на {sig.service} удаётся не всегда: у сервиса есть ограничения, "
+        "например подтверждение владения доменом («Edge case» в «Can I take over XYZ?»)"
     )
 
 
@@ -321,6 +349,7 @@ class SubdomainScan:
 def evaluate(scan: SubdomainScan) -> list[Check]:
     alive = [s for s in scan.resolved if s.alive]
     external = [s for s in scan.resolved if s.cnames]
+    failed = [s for s in scan.resolved if s.failed]
     more = (
         f" Проверены первые {len(scan.resolved)} по алфавиту, всего их {len(scan.names)}."
         if scan.truncated
@@ -340,7 +369,15 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             GROUP_SUB,
             "Захват поддоменов",
             Status.OK,
-            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов.",
+            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов."
+            + (
+                f" DNS не ответил для {len(failed)}, они не проверены: "
+                + ", ".join(s.name for s in failed[:5])
+                + ("…" if len(failed) > 5 else "")
+                + "."
+                if failed
+                else ""
+            ),
         )
     else:
         certain = any(c.certain for c in scan.candidates)
@@ -368,6 +405,8 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             )
             for c in scan.candidates[:10]
         ]
+    # A clean answer rests on the signatures too: services added since are not known.
+    takeover.evidence.append(source_evidence(database_source()))
     return [inventory, takeover]
 
 
@@ -393,7 +432,7 @@ async def scan_subdomains(
     resolved = list(await asyncio.gather(*(resolve(n) for n in names[:MAX_SUBDOMAINS])))
     found = await asyncio.gather(*(check(s) for s in resolved))
     candidates = [c for c in found if c is not None]
-    candidates.sort(key=lambda c: (not c.certain, c.sub.name))
+    candidates.sort(key=lambda c: (not c.certain, c.edge, c.sub.name))
     return SubdomainScan(domain, names, source, resolved, candidates)
 
 
@@ -430,8 +469,21 @@ async def run_subdomain_checks(
         "total": len(scan.names),
         "checked": [s.to_dict() for s in scan.resolved],
         "takeover": [
-            {"name": c.sub.name, "reason": c.reason, "certain": c.certain, "service": c.service}
+            {
+                "name": c.sub.name,
+                "reason": c.reason,
+                "certain": c.certain,
+                "service": c.service,
+                "edge": c.edge,
+            }
             for c in scan.candidates
         ],
     }
-    return evaluate(scan), data
+    checks = evaluate(scan)
+    # The list is cached for a day: its date is the day the log answered, not the scan's.
+    path = cache_dir() / "ct" / f"{domain}.json"
+    name = f"журналы сертификатов, {scan.source}"
+    origin = copy_of(name, path, "список") if path.exists() else asked(name)
+    for check in checks:
+        check.evidence.append(source_evidence(origin))
+    return checks, data

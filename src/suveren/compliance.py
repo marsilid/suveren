@@ -14,7 +14,7 @@ from urllib.parse import unquote, urldefrag, urljoin, urlsplit
 
 import httpx
 
-from suveren.checks import GROUP_152, Check, Evidence, Status
+from suveren.checks import GROUP_152, Check, Evidence, Status, asked, source
 from suveren.collect import bot_wall
 from suveren.collect import page_problem as detect_page_problem
 from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
@@ -42,7 +42,7 @@ from suveren.pdpolicy import (
     policy_reality,
 )
 from suveren.recommend import recommendation_check
-from suveren.registries import RknOperator, rkn_operator
+from suveren.registries import RKN_SOURCE, RknOperator, rkn_operator
 from suveren.utils import registrable_domain
 
 _PLATFORM_DOMAINS = frozenset(
@@ -134,6 +134,8 @@ class ComplianceInput:
     login_external: str | None = None  # the sign-in page redirected to this host
     # The pages were opened in a browser: a footer added by scripts was seen too.
     rendered: bool = False
+    # HTTPS did not answer and the page came over HTTP (see Facts.https_unanswered).
+    https_unanswered: str | None = None
 
 
 # Checks that are concluded from the page markup; meaningless if the page is an
@@ -579,11 +581,18 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "обработка по международному договору или закону (например, бронирование "
                 "билетов на международные рейсы), правосудие, госуслуги, работа журналистов "
                 "и СМИ.",
+                evidence=[source(asked(NETWORKS_SOURCE))],
             )
         )
     elif hosting and all(d.foreign is False for d in hosting):
         checks.append(
-            Check(GROUP_152, "Хранение данных в России", Status.OK, "Сервер сайта в России.")
+            Check(
+                GROUP_152,
+                "Хранение данных в России",
+                Status.OK,
+                "Сервер сайта в России.",
+                evidence=[source(asked(NETWORKS_SOURCE))],
+            )
         )
     else:
         checks.append(
@@ -600,7 +609,21 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
 
     # 6. Encryption.
     insecure_forms = [f for f in forms if f.action.lower().startswith("http://")]
-    if data.final_url and not data.final_url.startswith("https://"):
+    plain = bool(data.final_url) and not (data.final_url or "").startswith("https://")
+    if plain and data.https_unanswered:
+        checks.append(
+            Check(
+                GROUP_152,
+                "Защищённое соединение",
+                Status.UNKNOWN,
+                f"По HTTPS сайт не ответил ({data.https_unanswered}), по HTTP открылся. Есть "
+                "ли у сайта HTTPS, не видно: так бывает при блокировке по стране или "
+                "медленном ответе.",
+                "Откройте сайт по https:// сами; если не открывается, включите HTTPS и "
+                "перенаправление с HTTP.",
+            )
+        )
+    elif plain:
         checks.append(
             Check(
                 GROUP_152,
@@ -792,6 +815,10 @@ def _consent_check(data: ComplianceInput, located: list[tuple[str, Form]]) -> Ch
     return check
 
 
+# Where the server's country comes from: the network its IP address belongs to.
+NETWORKS_SOURCE = "Team Cymru (владельцы сетей IP-адресов)"
+
+
 def _operator_check(data: ComplianceInput) -> Check:
     title = "Реестр операторов персональных данных"
     if not data.inns:
@@ -804,26 +831,29 @@ def _operator_check(data: ComplianceInput) -> Check:
             "suveren company <ИНН>.",
         )
     inn = data.inns[0]
-    source = (
+    from_ad = (
         f" ИНН взят из маркировки рекламы на сайте: рекламодатель «{data.inn_from_ad}» носит "
         "имя сайта, других реквизитов на проверенных страницах нет."
         if data.inn_from_ad
         else ""
     )
     if data.operator_error:
-        return Check(GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.{source}")
+        return Check(
+            GROUP_152, title, Status.UNKNOWN, f"ИНН {inn}: {data.operator_error}.{from_ad}"
+        )
     if data.operator is None:
         return Check(
             GROUP_152,
             title,
             Status.WARN,
             f"Организация с ИНН {inn} не найдена в реестре операторов персональных данных."
-            + source,
+            + from_ad,
             "Подайте уведомление в Роскомнадзор: это обязательно почти для всех операторов "
             "до начала обработки данных (152-ФЗ, ст. 22).",
             evidence=[
                 Evidence("html", "ИНН на сайте", inn),
                 Evidence("registry", "Реестр операторов Роскомнадзора, поиск по ИНН", ""),
+                source(asked(RKN_SOURCE)),
             ],
         )
     op = data.operator
@@ -832,8 +862,9 @@ def _operator_check(data: ComplianceInput) -> Check:
         GROUP_152,
         title,
         Status.OK,
-        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{source}",
+        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{from_ad}",
         link=op.url,
+        evidence=[source(asked(RKN_SOURCE))],
     )
 
 
@@ -905,6 +936,7 @@ async def run_compliance(
     prefetched: dict[str, FetchedPage] | None = None,
     loaded_urls: list[str] | None = None,
     rendered: bool = False,
+    https_unanswered: str | None = None,
 ) -> list[Check]:
     """``prefetched`` holds pages already opened in the browser (the policy, the sign-in
     page), keyed by URL; ``loaded_urls`` are the home page's requests in the browser."""
@@ -912,6 +944,7 @@ async def run_compliance(
     data = ComplianceInput(
         final_url=final_url, page=page, deps=deps, page_problem=page_problem, rendered=rendered
     )
+    data.https_unanswered = https_unanswered
     data.extra = [(p.path, p.html, parse_page(p.html)) for p in extra_pages or []]
     base = final_url or ""
     prefetched = prefetched or {}

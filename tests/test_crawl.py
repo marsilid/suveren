@@ -172,3 +172,31 @@ def test_sitemap_falls_back_to_sitemap_xml():
             return await sitemap_urls(client, "https://a.example/page")
 
     assert asyncio.run(go()) == ["https://a.example/x"]
+
+
+def test_a_broken_sitemap_line_in_robots_does_not_crash_the_scan():
+    # Found by fuzzing (tests/test_fuzz.py): one such line raised ValueError out of
+    # run_scan. Broken addresses are skipped; a relative one is read from the site.
+    import asyncio
+
+    import httpx
+
+    from suveren.crawl import pick_from_sitemap, sitemap_urls
+
+    robots = "Sitemap: http://[::1\nSitemap: /sitemap.xml\nSitemap: ftp://example.ru/x.xml\n"
+
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text=robots)
+        if request.url.path == "/sitemap.xml":
+            body = "<urlset><loc>https://[bad</loc><loc>https://example.ru/kontakty</loc></urlset>"
+            return httpx.Response(200, text=body)
+        return httpx.Response(404)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await sitemap_urls(client, "https://example.ru/")
+
+    urls = asyncio.run(go())
+    assert "https://example.ru/kontakty" in urls
+    assert pick_from_sitemap(urls, "https://example.ru/", set()) == ["https://example.ru/kontakty"]

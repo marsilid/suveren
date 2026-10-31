@@ -233,3 +233,37 @@ def test_a_clean_screening_says_owners_were_not_screened():
     report.sanctions_sources = ["us", "eu", "uk"]
     check = sanctions_check(report)
     assert check.status is Status.OK and "Учредители и владельцы не сверялись" in check.details
+
+
+def _sources(check):
+    return [e.value for e in check.evidence if e.what == "Источник"]
+
+
+def test_every_company_check_names_its_register_and_date():
+    report = CompanyReport(query="7707083893", inn="7707083893", egrul=record())
+    report.operator = RknOperator("77-1", "ООО Ромашка", "7707083893", "", date(2016, 1, 1), None)
+    report.sanctions_sources = ["us", "eu"]
+    report.sources = {
+        "egrul": "ЕГРЮЛ (egrul.nalog.ru), запрос от 06.10.2026",
+        "rkn": "Реестр операторов ПДн Роскомнадзора (pd.rkn.gov.ru), запрос от 06.10.2026",
+        "sanctions:us": "США (OFAC SDN), выгрузка от 05.10.2026",
+        "sanctions:eu": "ЕС (сводный санкционный список), выгрузка от 01.10.2026",
+    }
+    report.checks = build_checks(report, sanctions_ok=True, today=TODAY)
+    by_id = {c.id: c for c in report.checks}
+    assert _sources(by_id["SUV-CO-001"]) == [report.sources["egrul"]]
+    assert _sources(by_id["SUV-CO-006"]) == [report.sources["rkn"]]
+    # Each list carries its own date: a copy kept after a failed refresh shows its age.
+    assert _sources(by_id["SUV-CO-003"]) == [
+        "США (OFAC SDN), выгрузка от 05.10.2026",
+        "ЕС (сводный санкционный список), выгрузка от 01.10.2026",
+    ]
+    assert report.sources["egrul"] in _sources(by_id["SUV-CO-004"])
+    html = render_company_html(report)
+    assert "Источники: США (OFAC SDN), выгрузка от 05.10.2026; ЕС" in html
+
+
+def test_a_register_that_did_not_answer_names_no_source():
+    report = CompanyReport(query="7707083893", inn="7707083893", egrul_error="таймаут")
+    checks = build_checks(report, sanctions_ok=None, today=TODAY)
+    assert all(not _sources(c) for c in checks)

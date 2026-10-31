@@ -44,6 +44,7 @@
       <h3>{{ c.title }}{% if c.id %} <span class="cid">{{ c.id }}</span>{% endif %}</h3>
       {% if flow_row %}<p>Страны и сервисы, которым уходят IP и cookies посетителя, — в таблице ниже.</p>
       {% elif c.details %}<p>{{ c.details | linkify }}{% if c.link | web_url %} <a href="{{ c.link | web_url }}" target="_blank" rel="noopener">открыть</a>{% endif %}</p>{% endif %}
+      {% if c.accepted %}<p class="accepted">Принято до {{ c.accepted.until | ru_date }} ({{ c.accepted.author }}): {{ c.accepted.reason }}</p>{% endif %}
       {% if c.recommendation and c.status.value != "ok" and not (flow_row and xborder) %}<p class="fix">{{ c.recommendation | linkify }}</p>{% endif %}
       {% if c.law %}<p class="law">Основание: {% if c.law_url %}<a href="{{ c.law_url }}" target="_blank" rel="noopener">{{ c.law }}</a>{% else %}{{ c.law }}{% endif %}</p>{% endif %}
       {% if c.evidence %}<details class="evidence"><summary>Доказательство</summary><dl>{% for e in c.evidence %}<dt>{{ e.what }}</dt><dd>{% if e.value %}<code>{{ e.value }}</code>{% else %}нет{% endif %}</dd>{% endfor %}</dl></details>{% endif %}

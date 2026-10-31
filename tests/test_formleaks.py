@@ -326,3 +326,13 @@ def test_cli_form_phone_needs_the_experiment_and_a_mobile_number(monkeypatch):
         app, ["scan", "example.ru", "--no-report", "--form-leaks", "--form-phone", "89991234567"]
     )
     assert ok.exit_code == 0 and calls["form_phone"] == "9991234567"
+
+
+def test_gzip_bomb_is_unpacked_no_further_than_the_limit():
+    import gzip
+
+    from suveren.formleaks import _MAX_UNPACKED, _unpack
+
+    bomb = gzip.compress(b"\0" * (50 * 1024 * 1024))
+    unpacked = _unpack(bomb)
+    assert unpacked is not None and len(unpacked) <= _MAX_UNPACKED

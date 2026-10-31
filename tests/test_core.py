@@ -62,11 +62,22 @@ def test_sarif_has_rules_results_and_levels():
     # Foreign mail (Google) is a dependency finding with its own rule.
     assert results["SUV-DEP-MAIL"]["level"] == "error"
     assert "pd" in rules["SUV-PD-001"]["properties"]["tags"]
+    props = rules["SUV-PD-001"]["properties"]
+    assert (props["siteAction"], props["runnerRisk"]) == ("look", "ip")
     for r in run["results"]:
         assert run["tool"]["driver"]["rules"][r["ruleIndex"]]["id"] == r["ruleId"]
         assert r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == (
             "https://example.ru/"
         )
+    # Both grades, as in the JSON report: a pipeline can gate on the overall one.
+    data = report.to_dict()
+    props = run["properties"]
+    assert (props["grade"], props["score"]) == (data["grade"], data["score"])
+    assert (props["overallGrade"], props["overallScore"]) == (
+        data["overall_grade"],
+        data["overall_score"],
+    )
+    assert props["overallIncomplete"] == data["overall_incomplete"]
 
 
 def test_fail_on():

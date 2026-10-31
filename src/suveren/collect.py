@@ -23,7 +23,7 @@ from suveren import __version__
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
-from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport
+from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport, open_public
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -85,6 +85,9 @@ class Facts:
     # Why that HTTP response is not the real site (a bot wall), if it isn't. Kept apart
     # from page_problem: --browser may get past the wall while the headers did not.
     http_problem: str | None = None
+    # HTTPS timed out or broke off and the page came over plain HTTP: whether the site
+    # has HTTPS is unknown (a geo block, a slow port), not "no HTTPS". The reason.
+    https_unanswered: str | None = None
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     # Who started each script request on the home page (--browser): script URL ->
@@ -298,6 +301,7 @@ class Collector:
         self.timeout = timeout
         self._net_cache: dict[str, NetInfo] = {}
         self._insecure: httpx.AsyncClient | None = None
+        self.https_unanswered: str | None = None
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -387,6 +391,8 @@ class Collector:
             except httpx.HTTPError as exc:
                 last_error = exc
                 continue
+            if url.startswith("http://") and isinstance(last_error, _UNANSWERED):
+                self.https_unanswered = describe(last_error)
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
         raise ModuleError(
             f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
@@ -451,10 +457,7 @@ class Collector:
         if not verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-        _, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, 443, ssl=context, server_hostname=host),
-            self.timeout,
-        )
+        _, writer = await open_public(host, 443, self.timeout, ssl=context, server_hostname=host)
         try:
             sslobj = writer.get_extra_info("ssl_object")
             if sslobj is None:
@@ -471,7 +474,7 @@ class Collector:
 
 
 async def whois_query(server: str, query: str, timeout: float) -> str:
-    reader, writer = await asyncio.wait_for(asyncio.open_connection(server, 43), timeout)
+    reader, writer = await open_public(server, 43, timeout)
     try:
         writer.write(f"{query}\r\n".encode())
         await writer.drain()
@@ -544,6 +547,10 @@ def guess_encoding(content: bytes) -> str:
     except UnicodeDecodeError as exc:
         # A cut multi-byte character at the very end is still UTF-8.
         return "utf-8" if exc.start >= len(content) - 3 else "cp1251"
+
+
+# HTTPS failures that do not show the site lacks it: a refused connection does.
+_UNANSWERED = (httpx.TimeoutException, httpx.ReadError, httpx.RemoteProtocolError)
 
 
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
@@ -650,6 +657,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.headers = {k.lower(): v for k, v in headers.items()}
             facts.set_cookies = headers.get_list("set-cookie")
             facts.http_problem = bot_wall(facts.page_status, facts.html)
+            facts.https_unanswered = c.https_unanswered
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":

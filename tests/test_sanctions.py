@@ -172,6 +172,10 @@ def test_a_list_that_parses_to_nothing_is_not_counted(tmp_path, monkeypatch):
     index = asyncio.run(load_index(None))  # type: ignore[arg-type]
     assert index.sources == ["us"]
     assert sum("ни одной записи" in n for n in index.notes) == 2
+    # Only the list that was screened is named as a source, with the day of its copy.
+    assert list(index.copies) == ["us"] and index.copies["us"].startswith(
+        "США (OFAC SDN), выгрузка от "
+    )
 
 
 def test_same_consonants_are_not_the_same_name():

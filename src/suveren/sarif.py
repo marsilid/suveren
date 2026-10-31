@@ -16,7 +16,7 @@ from typing import Any
 from suveren import __version__
 from suveren.catalog import BY_ID
 from suveren.checks import Check, Status
-from suveren.models import Finding, Report, Severity
+from suveren.models import Finding, Report, Severity, grade_for
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 HOME = "https://github.com/marsilid/suveren"
@@ -33,6 +33,9 @@ def _check_rule(check: Check) -> dict[str, Any]:
         "shortDescription": {"text": spec.summary if spec else check.title},
         "properties": {"tags": list(spec.tags) if spec else [], "group": check.group},
     }
+    if spec:
+        # What the check does to the site and what it costs the one who runs it.
+        rule["properties"] |= {"siteAction": spec.site, "runnerRisk": spec.runner}
     if check.law_url:
         rule["helpUri"] = check.law_url
     return rule
@@ -49,10 +52,13 @@ def _finding_rule(f: Finding) -> dict[str, Any]:
 
 
 def to_sarif(report: Report) -> dict[str, Any]:
+    from suveren.advice import incomplete, overall_score  # advice reads the report
+
     url = report.facts.get("final_url") or f"https://{report.target}/"
     location = [{"physicalLocation": {"artifactLocation": {"uri": url}}}]
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
+    overall = overall_score(report)
 
     for f in report.sorted_findings():
         rules.setdefault(f.category.rule_id, _finding_rule(f))
@@ -84,6 +90,21 @@ def to_sarif(report: Report) -> dict[str, Any]:
                     "law": c.law,
                     "evidence": [e.to_dict() for e in c.evidence],
                 },
+                # Accepted in .suveren-ignore: code scanning shows it as dismissed.
+                **(
+                    {
+                        "suppressions": [
+                            {
+                                "kind": "external",
+                                "status": "accepted",
+                                "justification": f"{c.accepted['reason']} "
+                                f"({c.accepted['author']}, до {c.accepted['until']})",
+                            }
+                        ]
+                    }
+                    if c.accepted
+                    else {}
+                ),
             }
         )
 
@@ -104,9 +125,15 @@ def to_sarif(report: Report) -> dict[str, Any]:
                     }
                 },
                 "results": results,
+                # "grade" and "score" are the independence from foreign services; the
+                # overall grade covers every section, as in the HTML and JSON reports.
                 "properties": {
                     "target": report.target,
                     "grade": report.grade,
+                    "score": report.score,
+                    "overallGrade": grade_for(overall),
+                    "overallScore": overall,
+                    "overallIncomplete": incomplete(report),
                     **({"plugins": report.plugins} if report.plugins else {}),
                 },
             }

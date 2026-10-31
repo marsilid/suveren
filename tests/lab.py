@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from suveren import websec
 from suveren.analyze import analyze
 from suveren.checks import Check, Status
-from suveren.collect import Facts, NetInfo
+from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
@@ -198,6 +198,8 @@ class Case:
     dns: dict[tuple[str, str], list[str]] | None = None  # changes over good_dns
     mta_sts: str | None = MTA_STS_OK
     http: bool = False  # the site answers over plain HTTP
+    # With ``http``: how its HTTPS fails instead of a 404 (httpx.ConnectTimeout, ...).
+    https_error: type[httpx.HTTPError] | None = None
 
     @property
     def host(self) -> str:
@@ -359,6 +361,15 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-csp-default-self",
+        "CSP default-src 'self' без object-src: object-src берётся из default-src, плагины "
+        "только со своего сайта",
+        {"SUV-WEB-004": "ok"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "content-security-policy": "default-src 'self'"},
+        files=site_files(),
+    ),
+    Case(
         "lab-frame-ancestors-any",
         "CSP frame-ancestors * без X-Frame-Options: встроить сайт может кто угодно",
         {"SUV-WEB-006": "warn"},
@@ -398,6 +409,18 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-cookie-not-session",
+        "без флагов только удаляемая сессия (Max-Age=0) и счётчик визитов sbjs_session",
+        {"SUV-WEB-007": "ok"},
+        html=page(FORM_OK),
+        cookies=[
+            SESSION_OK,
+            "PHPSESSID=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; Max-Age=0; path=/",
+            "sbjs_session=pgs%3D1; Secure; path=/",
+        ],
+        files=site_files(),
+    ),
+    Case(
         "lab-cookie-analytics",
         "только cookie аналитики без HttpOnly: так и задумано, скрипт её читает",
         {"SUV-WEB-007": "ok"},
@@ -420,6 +443,35 @@ CASES: list[Case] = [
         {"SUV-WEB-008": "fail"},
         html=page(FORM_OK),
         tls=TlsInfo("x", "TLSv1.3", NOW + timedelta(days=5), {"TLS 1.0": False, "TLS 1.1": False}),
+        files=site_files(),
+    ),
+    Case(
+        "lab-tls-short-lived",
+        "короткоживущий сертификат на 6 дней (Let's Encrypt), выпущен 3 дня назад: продление "
+        "ещё не пора",
+        {"SUV-WEB-008": "ok"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.3",
+            NOW + timedelta(days=3),
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=NOW - timedelta(days=3),
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-tls-short-lived-late",
+        "сертификат на 47 дней, осталось 5: продление пропущено",
+        {"SUV-WEB-008": "fail"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.3",
+            NOW + timedelta(days=5),
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=NOW - timedelta(days=42),
+        ),
         files=site_files(),
     ),
     Case(
@@ -519,6 +571,13 @@ CASES: list[Case] = [
             'crossorigin="anonymous"></script>'
         ),
         files=site_files(),
+    ),
+    Case(
+        "lab-moment-old",
+        "moment.js 2.15.1 на своём сервере (CVE-2017-18214)",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/moment-2.15.1.min.js"></script>'),
+        files=site_files({"/js/moment-2.15.1.min.js": "//! moment.js\n//! version : 2.15.1\n"}),
     ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
@@ -626,6 +685,15 @@ CASES: list[Case] = [
         "в реквизитах сайта ИНН 7700000016, в политике оператор с ИНН 7700000023",
         {"SUV-PD-011": "warn"},
         html=page(FORM_OK + "<p>ООО «Лаборатория», ИНН 7700000016</p>"),
+        files=site_files(
+            {"/privacy": page(POLICY_FULL.replace("ИНН 7700000000", "ИНН 7700000023"))}
+        ),
+    ),
+    Case(
+        "lab-requisites-inn-kpp",
+        "реквизиты «ИНН/КПП: 7700000016/770001001», в политике оператор с другим ИНН",
+        {"SUV-PD-011": "warn"},
+        html=page(FORM_OK + "<p>ООО «Лаборатория», ИНН/КПП: 7700000016/770001001</p>"),
         files=site_files(
             {"/privacy": page(POLICY_FULL.replace("ИНН 7700000000", "ИНН 7700000023"))}
         ),
@@ -902,6 +970,24 @@ CASES: list[Case] = [
         http=True,
     ),
     Case(
+        "lab-https-timeout",
+        "по HTTPS сайт не отвечает (блокировка по стране), по HTTP открывается",
+        {"SUV-PD-008": "unknown"},
+        html=page("<p>Звоните: +7 495 000-00-00</p>"),
+        files=site_files(),
+        http=True,
+        https_error=httpx.ConnectTimeout,
+    ),
+    Case(
+        "lab-https-refused",
+        "порт HTTPS закрыт, сайт работает только по HTTP",
+        {"SUV-PD-008": "warn"},
+        html=page("<p>Звоните: +7 495 000-00-00</p>"),
+        files=site_files(),
+        http=True,
+        https_error=httpx.ConnectError,
+    ),
+    Case(
         "lab-spf-too-many",
         "SPF требует 11 DNS-запросов при лимите 10 (RFC 7208, 4.6.4)",
         {"SUV-MAIL-002": "fail"},
@@ -938,6 +1024,23 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         files=site_files(),
         mta_sts="version: STSv1\nmode: testing\nmx: mx.yandex.net\nmax_age: 86400\n",
+    ),
+    Case(
+        "lab-mta-sts-absent",
+        "MTA-STS не настроен, как у большинства доменов: заметка, а не предупреждение",
+        {"SUV-MAIL-005": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_mta-sts.lab-mta-sts-absent.ru", "TXT"): []},
+        mta_sts=None,
+    ),
+    Case(
+        "lab-mta-sts-file-missing",
+        "TXT _mta-sts есть, а файла политики нет (404): MTA-STS настроен с ошибкой",
+        {"SUV-MAIL-005": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        mta_sts=None,
     ),
     # --- found by the fresh-eyes review --------------------------------------------
     Case(
@@ -1022,6 +1125,26 @@ CASES: list[Case] = [
             ],
             ("lab-dmarc-rua-outside-ok.ru._report._dmarc.reports.example", "TXT"): ["v=DMARC1"],
         },
+    ),
+    Case(
+        "lab-dmarc-rua-no-policy",
+        "DMARC без p=, но с rua=: по RFC 7489 (6.6.3) это p=none, а не сломанная запись",
+        {"SUV-MAIL-001": "fail", "SUV-MAIL-003": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_dmarc.lab-dmarc-rua-no-policy.ru", "TXT"): [
+                "v=DMARC1; rua=mailto:dmarc@lab-dmarc-rua-no-policy.ru"
+            ]
+        },
+    ),
+    Case(
+        "lab-dmarc-bad-sp",
+        "DMARC p=reject с неверным sp= и без rua=: запись не применяется (RFC 7489, 6.6.3)",
+        {"SUV-MAIL-001": "fail", "SUV-MAIL-003": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_dmarc.lab-dmarc-bad-sp.ru", "TXT"): ["v=DMARC1; p=reject; sp=all"]},
     ),
     # --- DKIM without a known selector (RFC 2308: an empty non-terminal is NOERROR) ---
     Case(
@@ -1138,6 +1261,8 @@ def _transport(case: Case) -> httpx.MockTransport:
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("#")[0]
+        if case.https_error and url == f"https://{case.host}/":
+            raise case.https_error("lab", request=request)
         if url in (base, base + "/"):
             return httpx.Response(200, headers=case.headers, text=case.html)
         body = bodies.get(url)
@@ -1175,9 +1300,19 @@ async def run_case(case: Case) -> dict[str, Check]:
             links = pick_links(parse_page(case.html), final_url, DEFAULT_PAGES)
             links += pick_from_sitemap(await sitemap_urls(client, final_url), final_url, set(links))
             facts.extra_pages = await fetch_pages(client, links)
+            if case.https_error:
+                # The real fallback from HTTPS to HTTP, to see why HTTPS failed.
+                collector = Collector(FakeResolver(records), client, 5)
+                await collector.homepage(host)
+                facts.https_unanswered = collector.https_unanswered
             report = analyze(facts)
             checks = await run_compliance(
-                client, final_url, case.html, report.dependencies, extra_pages=facts.extra_pages
+                client,
+                final_url,
+                case.html,
+                report.dependencies,
+                extra_pages=facts.extra_pages,
+                https_unanswered=facts.https_unanswered,
             )
             web, _ = await run_web_checks(facts, FakeResolver(records), client, 5)
             checks += web

@@ -5,7 +5,13 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-_INN_RE = re.compile(r"(?:инн|inn)[\s:№#./-]{0,6}(\d{10}|\d{12})(?!\d)", re.IGNORECASE)
+# Requisites are mostly written "ИНН/КПП: 7707083893/770701001", "ИНН (КПП)" or
+# "ИНН организации"; the ИНН is the first number after the label.
+_INN_RE = re.compile(
+    r"(?:инн|inn)(?:\s*[/(-]?\s*(?:кпп|kpp)\)?|\s+(?:организации|компании|оператора))?"
+    r"[\s:№#./-]{0,6}(\d{10}|\d{12})(?!\d)",
+    re.IGNORECASE,
+)
 _OGRN_RE = re.compile(r"(?:огрнип|огрн|ogrn)[\s:№#./-]{0,6}(\d{13}|\d{15})(?!\d)", re.IGNORECASE)
 
 
@@ -61,19 +67,36 @@ _AD_LABEL = re.compile(r"\berid\b", re.I)
 _PARTNER = re.compile(r"партн[её]р", re.I)
 
 
+# A bank or a payment service named next to its ИНН: "Платежи принимает АО «Альфа-Банк»
+# ИНН …". It may recur in the payment blocks more often than the owner in the footer.
+_PAYER = re.compile(r"банк|bank|эквайр|эквайер|плат[её]ж|оплат|страхов", re.I)
+
+
 def find_inns(text: str, *, first: bool = False) -> list[str]:
     """Valid ИНН mentioned in the text, most frequent first (``first``: in the order
     they first appear); advertisers' ИНН from ad labels and partners' from documents
-    are left out."""
+    are left out, banks' and payment services' go after the rest."""
     clean = _clean(text)
-    counts = Counter(
-        m.group(1)
-        for m in _INN_RE.finditer(clean)
-        if is_valid_inn(m.group(1))
-        and not _AD_LABEL.search(clean, max(0, m.start() - 40), m.end() + 80)
-        and not _PARTNER.search(clean, max(0, m.start() - 120), m.start())
-    )
-    return list(counts) if first else [inn for inn, _ in counts.most_common()]
+    counts: Counter[str] = Counter()
+    plain: set[str] = set()
+    previous = 0
+    for m in _INN_RE.finditer(clean):
+        # The context starts after the previous ИНН, so one company's words do not
+        # spill onto the next.
+        value, before = m.group(1), max(previous, m.start() - 80)
+        previous = m.end()
+        if not is_valid_inn(value):
+            continue
+        if _AD_LABEL.search(clean, max(0, m.start() - 40), m.end() + 80):
+            continue
+        if _PARTNER.search(clean, max(0, m.start() - 120), m.start()):
+            continue
+        counts[value] += 1
+        if not _PAYER.search(clean, before, m.start()):
+            plain.add(value)
+    order = list(counts) if first else [inn for inn, _ in counts.most_common()]
+    # Named only as a payer, it goes last; a bank's own site still has its ИНН first.
+    return sorted(order, key=lambda v: v not in plain)
 
 
 # The advertiser's name, quoted, just before the ИНН: "Реклама АО «МегаФон Ритейл» ИНН".

@@ -87,6 +87,8 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(scan_module, "collect", collect)
     monkeypatch.setattr(scan_module, "make_client", make_client)
     monkeypatch.setattr(cli_module, "make_client", make_client)
+    # Plugins open their own client in their own thread (plugins.py).
+    monkeypatch.setattr("suveren.collect.make_client", make_client)
     monkeypatch.setattr(scan_module, "create_resolver", create_resolver)
     monkeypatch.setattr(websec, "probe_tls", probe_tls)
     return lambda name: CASES[name]

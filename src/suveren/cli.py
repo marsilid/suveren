@@ -15,7 +15,7 @@ import time
 import webbrowser
 from collections import Counter
 from collections.abc import Coroutine
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, TypeVar
@@ -31,7 +31,15 @@ from suveren.advice import incomplete, missed_sections, overall_grade, overall_s
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
-from suveren.catalog import BY_ID, CATALOG, SelectionError, all_tags, select
+from suveren.catalog import (
+    BY_ID,
+    CATALOG,
+    RUNNER_RISKS,
+    SITE_ACTIONS,
+    SelectionError,
+    all_tags,
+    select,
+)
 from suveren.catalog import markdown as catalog_markdown
 from suveren.checks import GROUP_152, GROUP_BLOCK, Check, Status
 from suveren.collect import make_client
@@ -43,6 +51,8 @@ from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
 from suveren.history import NotAReport, load_report, same_site
 from suveren.history import compare as compare_reports
+from suveren.ignore import apply as apply_ignore
+from suveren.ignore import load as load_ignore
 from suveren.menu import run_menu
 from suveren.models import Report
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
@@ -127,6 +137,14 @@ MaxTime = Annotated[
         help="Предел на всю проверку сайта, секунды: зависший сайт не держит CI.",
     ),
 ]
+IgnorePath = Annotated[
+    Path | None,
+    typer.Option(
+        "--ignore",
+        help="Файл принятых находок: ID, сайт, срок, автор и причина в строке. По умолчанию "
+        ".suveren-ignore в текущей папке, если он есть.",
+    ),
+]
 PdfPath = Annotated[
     Path | None,
     typer.Option("--pdf", help="Сохранить отчёт в PDF (нужен playwright, как для --browser)."),
@@ -164,7 +182,7 @@ def failing_checks(report: Report, fail_on: FailOn | None) -> list[Check]:
     if fail_on is None:
         return []
     bad = {Status.FAIL} if fail_on is FailOn.fail else {Status.FAIL, Status.WARN}
-    return [c for c in report.checks if c.status in bad]
+    return [c for c in report.checks if c.status in bad and not c.accepted]
 
 
 T = TypeVar("T")
@@ -474,6 +492,7 @@ def scan(
             help="Прошлый JSON-отчёт этого сайта (из --json): показать, что изменилось.",
         ),
     ] = None,
+    ignore_file: IgnorePath = None,
     no_report: Annotated[
         bool, typer.Option("--no-report", help="Не создавать HTML-отчёт.")
     ] = False,
@@ -533,6 +552,7 @@ def scan(
             raise SuverenError("в stdout можно вывести одно: --json - или --sarif -")
         # Read before the scan: a wrong file said so only after minutes of work.
         previous = load_report(since) if since is not None else None
+        accepted = load_ignore(ignore_file)
         if previous is not None and previous["target"] != host:
             raise SuverenError(
                 f"--since: отчёт другого сайта ({previous['target']}), а проверяется {host}"
@@ -596,6 +616,7 @@ def scan(
     except SuverenError as exc:
         raise _fail(str(exc), code=1) from exc
 
+    report.notes += apply_ignore(report.checks, accepted, host, date.today())
     console.print()
     if previous is not None:
         report.history = compare_reports(previous, report.to_dict())
@@ -753,11 +774,13 @@ def batch(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    ignore_file: IgnorePath = None,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         threshold = _validate_grade(fail_under)
+        accepted = load_ignore(ignore_file)
     except SuverenError as exc:
         raise _fail(str(exc)) from exc
     try:
@@ -819,6 +842,7 @@ def batch(
                 reason = str(exc) or f"не уложилась в {max_time} с (--max-time)"
                 warn.print(f"  [#e5534b]✗[/] {host:<32} [grey50]{reason}[/]")
                 return host, None, reason
+            report.notes += apply_ignore(report.checks, accepted, host, date.today())
             write_html(report, folder / f"{host}.html", brand)
             write_json(report, folder / f"{host}.json")
             grade = overall_grade(report)
@@ -997,6 +1021,11 @@ def services(
     console.print(f"\nВсего: [bold]{len(items)}[/] · иностранных {foreign} · российских {domestic}")
 
 
+# The two labels of a check, short enough for an 80-column table.
+_SITE_SHORT = {"none": "нет", "look": "смотрит", "probe": "прощупывает", "input": "вводит"}
+_RUNNER_SHORT = {"none": "—", "ip": "IP", "js": "IP, JS"}
+
+
 @app.command("checks")
 def list_checks(
     query: Annotated[
@@ -1022,20 +1051,33 @@ def list_checks(
         console.print(f"Раздел:  {s.group}")
         console.print(f"Модуль:  {s.module}")
         console.print(f"Теги:    {', '.join(s.tags)}")
+        site, runner = SITE_ACTIONS[s.site], RUNNER_RISKS[s.runner]
+        console.print(f"С сайтом: {site[0]} — {site[1]}")
+        console.print(f"Для вас:  {runner[0]} — {runner[1]}")
         console.print(f"\n{s.summary}")
         return
     table = Table(box=None, header_style="bold", padding=(0, 2))
     table.add_column("ID", no_wrap=True)
     table.add_column("Проверка")
-    table.add_column("Теги", style="dim")
+    table.add_column("С сайтом", style="dim", no_wrap=True)
+    table.add_column("Для вас", style="dim", no_wrap=True)
     group = None
     for s in specs:
         if s.group != group:
             group = s.group
-            table.add_row("", Text(group, style="bold"), "")
-        table.add_row(s.id, s.title if not s.pattern else s.summary, ", ".join(s.tags))
+            table.add_row("", Text(group, style="bold"), "", "")
+        table.add_row(
+            s.id,
+            s.title if not s.pattern else s.summary,
+            _SITE_SHORT[s.site],
+            _RUNNER_SHORT[s.runner],
+        )
     console.print(table)
     console.print(
+        "\nС сайтом: нет — не обращается к сайту, смотрит — как посетитель, прощупывает — "
+        "запросы, которых посетитель не делает, вводит — печатает тестовые данные в формы.\n"
+        "Для вас: «—» — сайт вас не видит, IP — видит ваш IP, JS — в браузере выполняется "
+        "JavaScript сайта. Подробнее: suveren checks ID.\n"
         f"\nВсего: [bold]{len(specs)}[/]. Теги: {', '.join(all_tags())}.\n"
         "Выбрать: [bold]suveren scan сайт.ru --checks mail,SUV-WEB-004[/]"
     )

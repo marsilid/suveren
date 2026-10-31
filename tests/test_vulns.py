@@ -1,3 +1,5 @@
+import pytest
+
 from suveren.checks import Status
 from suveren.vulns import Library, detect, in_range, known_issues, vuln_check
 
@@ -44,6 +46,22 @@ def test_ranges():
     assert in_range("1.12", [["1.2", "3.5.0"]])
 
 
+@pytest.mark.parametrize(
+    ("version", "ids"),
+    [
+        ("2.10.6", {"CVE-2016-4055", "CVE-2017-18214"}),
+        ("2.11.2", {"CVE-2017-18214"}),
+        ("2.19.2", {"CVE-2017-18214", "CVE-2022-31129"}),
+        ("2.19.3", {"CVE-2022-31129"}),
+        ("2.29.4", set()),
+    ],
+)
+def test_moment_before_2_18_is_not_called_safe(version, ids):
+    """moment.js 2.10-2.17 had no entry and got "no known vulnerabilities"."""
+    vulns, _ = known_issues(Library("moment", version, "x"))
+    assert {v["id"] for v in vulns} == ids
+
+
 def test_known_issues_and_check():
     vulns, eol = known_issues(Library("jquery", "3.4.1", "x"))
     assert {v["id"] for v in vulns} == {"CVE-2020-11022", "CVE-2020-11023"}
@@ -56,6 +74,9 @@ def test_known_issues_and_check():
     assert check.status is Status.WARN and check.id == "SUV-WEB-010"
     assert "CVE-2020-11022" in check.details and "Bootstrap 5.3.3" in check.details
     assert vuln_check([Library("jquery", "3.7.1", "x")]).status is Status.OK
+    # A clean answer is only as fresh as the built-in list: its date is shown.
+    [where] = [e.value for e in vuln_check([]).evidence if e.what == "Источник"]
+    assert where.startswith("встроенная база Suveren по NVD, сверена ")
     assert vuln_check([]).status is Status.OK
 
 

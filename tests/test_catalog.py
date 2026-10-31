@@ -112,3 +112,36 @@ def test_docs_checks_md_is_up_to_date():
     path = SRC.parent.parent / "docs" / "checks.md"
     on_disk = path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
     assert on_disk == markdown().strip(), "run: suveren checks --markdown > docs/checks.md"
+
+
+def test_every_check_has_both_labels():
+    from suveren.catalog import LABELS, RUNNER_RISKS, SITE_ACTIONS
+
+    assert set(LABELS) <= set(BY_ID)
+    for s in catalog.CATALOG:
+        assert s.site in SITE_ACTIONS and s.runner in RUNNER_RISKS, s.id
+        # The site's JavaScript runs exactly in the checks that need a browser.
+        assert (s.runner == "js") is ("browser" in s.tags), s.id
+        # A check that does not touch the site cannot show it your IP, and the reverse.
+        assert (s.site == "none") is (s.runner == "none"), s.id
+
+
+def test_labels_follow_what_the_modules_do():
+    # Mail and company checks read DNS and registers; TLS deliberately tries TLS 1.0/1.1;
+    # form leaks types into forms. Checked against the code of each module.
+    assert {BY_ID[i].site for i in ("SUV-MAIL-001", "SUV-MAIL-003", "SUV-CO-003")} == {"none"}
+    assert BY_ID["SUV-MAIL-005"].site == "look"  # it opens the MTA-STS policy file
+    assert BY_ID["SUV-WEB-008"].site == "probe"
+    assert BY_ID["SUV-SUB-001"].site == "none" and BY_ID["SUV-SUB-002"].site == "probe"
+    assert (BY_ID["SUV-PD-012"].site, BY_ID["SUV-PD-012"].runner) == ("input", "js")
+
+
+def test_checks_command_shows_the_labels():
+    from typer.testing import CliRunner
+
+    from suveren.cli import app
+
+    out = CliRunner().invoke(app, ["checks"]).output
+    assert "С сайтом" in out and "прощупывает" in out and "JavaScript сайта" in out
+    one = CliRunner().invoke(app, ["checks", "SUV-PD-012"]).output
+    assert "вводит данные" in one and "выполняется JavaScript сайта" in one

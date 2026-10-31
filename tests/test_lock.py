@@ -24,3 +24,12 @@ def test_locks_cover_pyproject():
     # Out of date after a dependency change: see the commands in packaging/release.in.
     assert _required() <= _names("requirements.txt")
     assert _required("browser") | {"pyinstaller", "hatchling"} <= _names("requirements-release.txt")
+
+
+def test_bat_checks_the_python_version_pyproject_needs():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    major, minor = re.fullmatch(r">=(\d+)\.(\d+)", project["requires-python"]).groups()
+    bat = (ROOT / "Suveren.bat").read_text(encoding="utf-8")
+    # Both the Python in PATH and an old .venv are checked, and the message names it.
+    assert bat.count(f"sys.version_info < ({major}, {minor})") == 2
+    assert f"Python {major}.{minor} или новее" in bat

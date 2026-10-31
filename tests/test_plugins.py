@@ -101,11 +101,135 @@ def test_scan_with_a_plugin_end_to_end(offline, tmp_path):  # noqa: F811
     # The lab site has no security.txt: the plugin says so, in its own section.
     assert plugin_checks and plugin_checks[0]["status"] == "warn"
     assert plugin_checks[0]["group"] == "Проверки из плагинов"
-    assert data["schema_version"] == "1.8"
+    assert data["schema_version"] == "1.9"
     # The report says plainly that third-party code took part.
     assert [p["source"] for p in data["plugins"]] == [str(EXAMPLE)]
     html = (tmp_path / "r.html").read_text(encoding="utf-8")
     assert "Проверки из плагинов" in html and "Отчёт с плагинами" in html
+
+
+def _plugin(tmp_path, body, name="bad"):
+    path = tmp_path / f"{name}.py"
+    path.write_text(body, encoding="utf-8")
+    return load(str(path))
+
+
+def test_plugin_that_calls_sys_exit_costs_only_its_verdict(tmp_path):
+    plugin = _plugin(tmp_path, "import sys\nasync def run(ctx):\n    sys.exit(3)\n")
+    [check] = asyncio.run(run_plugin(plugin, ctx()))
+    assert check.status is Status.UNKNOWN and "SystemExit(3)" in check.details
+
+
+def test_plugin_that_blocks_is_cut_by_the_timeout(tmp_path):
+    plugin = _plugin(tmp_path, "import time\nasync def run(ctx):\n    time.sleep(30)\n")
+    started = datetime.now(UTC)
+    [check] = asyncio.run(run_plugin(plugin, ctx(), timeout=0.5))
+    assert (datetime.now(UTC) - started).total_seconds() < 5
+    assert "не уложился" in check.details
+
+
+def test_plugin_with_dataclass_and_future_annotations_loads(tmp_path):
+    body = (
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n"
+        "@dataclass\nclass Row:\n    name: str\n"
+        "async def run(ctx):\n    return []\n"
+    )
+    assert asyncio.run(run_plugin(_plugin(tmp_path, body, "dc"), ctx())) == []
+
+
+def test_plugin_that_exits_on_import_is_a_load_error(tmp_path):
+    with pytest.raises(PluginError, match="SystemExit"):
+        _plugin(tmp_path, "import sys\nsys.exit(1)\n", "exits")
+
+
+def test_plugin_that_finishes_after_the_scan_leaves_no_traceback(tmp_path, monkeypatch):
+    """Cut by the timeout, the plugin's thread ends after the loop is closed."""
+    import threading
+
+    raised: list[BaseException | None] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: raised.append(args.exc_value))
+    plugin = _plugin(tmp_path, "import time\nasync def run(ctx):\n    time.sleep(0.5)\n", "late")
+    [check] = asyncio.run(run_plugin(plugin, ctx(), timeout=0.1))
+    assert "не уложился" in check.details
+    for thread in threading.enumerate():
+        if thread.name == "plugin late":
+            thread.join(5)
+    assert raised == []
+
+
+# --- Real failures: what plugins out in the wild actually do -------------------------
+
+
+@pytest.mark.parametrize(
+    ("raise_", "said"),
+    [
+        # Neither is an Exception: raised into the scan's loop they stopped or cancelled
+        # the whole scan.
+        ("KeyboardInterrupt()", "KeyboardInterrupt"),
+        ("asyncio.CancelledError()", "CancelledError"),
+        ("GeneratorExit()", "GeneratorExit"),
+    ],
+)
+def test_plugin_base_exceptions_do_not_stop_the_scan(tmp_path, raise_, said):
+    body = f"import asyncio\nasync def run(ctx):\n    raise {raise_}\n"
+    plugin = _plugin(tmp_path, body, "base")
+
+    async def scan():
+        checks = await run_plugin(plugin, ctx())
+        return checks, "скан продолжился"
+
+    [check], after = asyncio.run(scan())
+    assert after == "скан продолжился"
+    assert check.status is Status.UNKNOWN and said in check.details
+
+
+def test_plugin_whose_request_fails_costs_only_its_verdict(tmp_path, monkeypatch):
+    import httpx
+
+    from suveren import collect
+
+    def refuse(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    monkeypatch.setattr(
+        collect,
+        "make_client",
+        lambda timeout, **kw: httpx.AsyncClient(transport=httpx.MockTransport(refuse)),
+    )
+    body = (
+        "async def run(ctx):\n"
+        "    await ctx.client.get('https://site.ru/.well-known/security.txt')\n"
+        "    return []\n"
+    )
+    [check] = asyncio.run(run_plugin(_plugin(tmp_path, body, "net"), ctx()))
+    assert check.status is Status.UNKNOWN and "ConnectError" in check.details
+
+
+def test_one_broken_plugin_does_not_take_the_next_one_down(tmp_path):
+    from suveren.plugins import run_plugins
+
+    bad = _plugin(tmp_path, "async def run(ctx):\n    raise KeyboardInterrupt\n", "bad")
+    good = _plugin(
+        tmp_path,
+        "from suveren.checks import Check, Status\n"
+        "async def run(ctx):\n"
+        "    return [Check('Плагины', 'Хорошо', Status.OK, id='ACME-WEB-001')]\n",
+        "good",
+    )
+    checks = asyncio.run(run_plugins([bad, good], ctx()))
+    assert [c.id for c in checks] == ["PLUGIN-ERROR-000", "ACME-WEB-001"]
+
+
+def test_a_bad_id_drops_only_that_check(tmp_path):
+    body = (
+        "from suveren.checks import Check, Status\n"
+        "async def run(ctx):\n"
+        "    return [Check('Плагины', 'Хорошо', Status.OK, id='ACME-WEB-001'),\n"
+        "            Check('Плагины', 'Чужой', Status.OK, id='SUV-WEB-004')]\n"
+    )
+    checks = asyncio.run(run_plugin(_plugin(tmp_path, body, "mixed"), ctx()))
+    assert [c.id for c in checks] == ["ACME-WEB-001", "PLUGIN-ERROR-000"]
 
 
 def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: F811
@@ -115,8 +239,16 @@ def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: 
     crash = tmp_path / "crash.py"
     crash.write_text("async def run(ctx):\n    raise RuntimeError('упал')\n", encoding="utf-8")
     out = tmp_path / "r.json"
-    html = str(tmp_path / "r.html")
-    result = run_cli(tmp_path, case.host, "--plugin", str(crash), "--json", str(out), "-o", html)
+    result = run_cli(
+        tmp_path,
+        case.host,
+        "--plugin",
+        str(crash),
+        "--json",
+        str(out),
+        "-o",
+        str(tmp_path / "r.html"),
+    )
     assert result.exit_code == 0, result.output
     data = json.loads(out.read_text(encoding="utf-8"))
     ids = {c["id"]: c for c in data["checks"]}
@@ -124,29 +256,6 @@ def test_scan_with_a_crashing_plugin_still_reports(offline, tmp_path):  # noqa: 
     assert "упал" in ids["PLUGIN-ERROR-000"]["details"]
     # The rest of the scan is all there.
     assert {"SUV-MAIL-001", "SUV-WEB-007", "SUV-PD-001"} <= ids.keys()
-
-
-@pytest.mark.parametrize(
-    ("raise_", "said"),
-    [
-        # None is an Exception: they stopped or cancelled the whole scan.
-        ("KeyboardInterrupt()", "KeyboardInterrupt"),
-        ("SystemExit(3)", "SystemExit(3)"),
-        ("asyncio.CancelledError()", "CancelledError"),
-        ("GeneratorExit()", "GeneratorExit"),
-    ],
-)
-def test_plugin_base_exceptions_do_not_stop_the_scan(tmp_path, raise_, said):
-    body = f"import asyncio\nasync def run(ctx):\n    raise {raise_}\n"
-    plugin = load(str(plugin_file(tmp_path, body)))
-
-    async def scan():
-        checks = await run_plugin(plugin, ctx())
-        return checks, "скан продолжился"
-
-    [check], after = asyncio.run(scan())
-    assert after == "скан продолжился"
-    assert check.status is Status.UNKNOWN and said in check.details
 
 
 def test_cancelling_the_scan_still_cancels_the_plugin(tmp_path):
@@ -161,40 +270,3 @@ def test_cancelling_the_scan_still_cancels_the_plugin(tmp_path):
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(scan())
-
-
-def test_one_broken_plugin_does_not_take_the_next_one_down(tmp_path):
-    from suveren.plugins import run_plugins
-
-    bad = tmp_path / "bad.py"
-    bad.write_text("async def run(ctx):\n    raise KeyboardInterrupt\n", encoding="utf-8")
-    good = tmp_path / "good.py"
-    good.write_text(
-        "from suveren.checks import Check, Status\n"
-        "async def run(ctx):\n"
-        "    return [Check('Плагины', 'Хорошо', Status.OK, id='ACME-WEB-001')]\n",
-        encoding="utf-8",
-    )
-    checks = asyncio.run(run_plugins([load(str(bad)), load(str(good))], ctx()))
-    assert [c.id for c in checks] == ["PLUGIN-ERROR-000", "ACME-WEB-001"]
-
-
-def test_plugin_whose_request_fails_costs_only_its_verdict(tmp_path):
-    import httpx
-
-    def refuse(request):
-        raise httpx.ConnectError("connection refused", request=request)
-
-    body = (
-        "async def run(ctx):\n"
-        "    await ctx.client.get('https://site.ru/.well-known/security.txt')\n"
-        "    return []\n"
-    )
-    plugin = load(str(plugin_file(tmp_path, body)))
-
-    async def go():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(refuse)) as client:
-            return await run_plugin(plugin, ctx(client))
-
-    [check] = asyncio.run(go())
-    assert check.status is Status.UNKNOWN and "ConnectError" in check.details

@@ -8,13 +8,13 @@ domains scripts are loaded from. No paths are probed and nothing is sent to form
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import re
 import ssl
 import warnings
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -30,6 +30,7 @@ from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
+from suveren.net import open_public
 from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
@@ -79,10 +80,17 @@ CERT_WARN_DAYS = 30
 TLS_CHECK_TITLE = "TLS: сертификат и протоколы"
 # Names that look like a login session. CSRF tokens are left out on purpose: they are
 # meant to be read by the page's own scripts, so HttpOnly would break them.
+# "auth" but not "author"/"authorized": those name a page or a flag, not a credential.
 _SESSION_COOKIE = re.compile(
-    r"sess|^sid$|[._-]sid$|^sid[._-]|auth|jwt|remember|access[._-]?token|refresh[._-]?token", re.I
+    r"sess|^sid$|[._-]sid$|^sid[._-]|auth(?!or)|jwt|remember|access[._-]?token"
+    r"|refresh[._-]?token",
+    re.I,
 )
 _CSRF_COOKIE = re.compile(r"csrf|xsrf", re.I)
+# Analytics and chat widgets that count visits in a "session" cookie their own scripts
+# read: sourcebuster (sbjs_session), Hotjar, Intercom, Amplitude, Mixpanel, Segment,
+# Yandex Metrica, Google Analytics. They hold no login, and HttpOnly would break them.
+_ANALYTICS_COOKIE = re.compile(r"^(sbjs_|_hj|intercom-|amp_|mp_|ajs_|_ym|_ga|_gid)", re.I)
 
 
 # --- Scripts --------------------------------------------------------------------------
@@ -171,6 +179,10 @@ def frame_protected(policies: list[str]) -> bool:
     return False
 
 
+# Sources that let in almost anything.
+WIDE = ("*", "http:", "https:", "data:")
+
+
 def csp_weaknesses(policy: str) -> list[str]:
     """What makes the policy useless against injected scripts, in plain words."""
     d = parse_csp(policy)
@@ -190,10 +202,13 @@ def csp_weaknesses(policy: str) -> list[str]:
     if "'unsafe-eval'" in scripts:
         problems.append("'unsafe-eval' разрешает выполнять код из строк (eval)")
     if not strict_dynamic:
-        wide = [t for t in scripts if t in ("*", "http:", "https:", "data:")]
+        wide = [t for t in scripts if t in WIDE]
         if wide:
             problems.append(f"{', '.join(wide)} в script-src разрешает скрипты почти откуда угодно")
-    if "object-src" not in d and "'none'" not in d.get("default-src", []):
+    # Without object-src the browser uses default-src (CSP3 fallback list): "default-src
+    # 'self'" already keeps plugins to the site's own files.
+    fallback = d.get("default-src")
+    if "object-src" not in d and (fallback is None or any(t in WIDE for t in fallback)):
         problems.append("нет object-src 'none': плагины (object, embed) не запрещены")
     return problems
 
@@ -214,6 +229,7 @@ class TlsInfo:
     # The server omits an intermediate that the AIA link supplies: browsers cope, apps not.
     chain_incomplete: bool = False
     revoked: datetime | None = None  # when the CA revoked it, by its OCSP responder
+    issued: datetime | None = None  # the certificate's notBefore
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -233,9 +249,7 @@ async def _handshake(
 ) -> tuple[str | None, bytes | None]:
     """(protocol version, certificate DER), read before the connection is closed. The
     certificates the server sent go to ``chain`` (DER), when asked."""
-    _, writer = await asyncio.wait_for(
-        asyncio.open_connection(host, 443, ssl=ctx, server_hostname=host), timeout
-    )
+    _, writer = await open_public(host, 443, timeout, ssl=ctx, server_hostname=host)
     try:
         sslobj = writer.get_extra_info("ssl_object")
         if sslobj is None:
@@ -405,6 +419,7 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
             if der:
                 cert = x509.load_der_x509_certificate(der)
                 info.expires = cert.not_valid_after_utc
+                info.issued = cert.not_valid_before_utc
                 info.issuer = cert.issuer.rfc4514_string()
             break
     if info.version is None:
@@ -456,9 +471,15 @@ class Cookie:
     http_only: bool
     same_site: str | None
 
+    deleted: bool = False  # Max-Age<=0, an expiry in the past: the site removes it
+
     @property
     def session_like(self) -> bool:
-        return bool(_SESSION_COOKIE.search(self.name)) and not _CSRF_COOKIE.search(self.name)
+        return (
+            bool(_SESSION_COOKIE.search(self.name))
+            and not _CSRF_COOKIE.search(self.name)
+            and not _ANALYTICS_COOKIE.search(self.name)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -484,7 +505,27 @@ def parse_set_cookie(line: str) -> Cookie | None:
         "secure" in attrs,
         "httponly" in attrs,
         same_site.lower() if same_site else None,
+        deleted=_expired(attrs),
     )
+
+
+def _expired(attrs: dict[str, str]) -> bool:
+    """The Set-Cookie removes the cookie (RFC 6265, 5.2.1-5.2.2): Max-Age of zero or less,
+    which wins over Expires, or Expires already in the past."""
+    if "max-age" in attrs:
+        try:
+            return int(attrs["max-age"]) <= 0
+        except ValueError:
+            pass
+    if "expires" in attrs:
+        try:
+            when = parsedate_to_datetime(attrs["expires"])
+        except (TypeError, ValueError, IndexError):
+            return False
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        return when < datetime.now(UTC)
+    return False
 
 
 # --- Checks ---------------------------------------------------------------------------
@@ -759,6 +800,8 @@ def cookies_check(w: WebFacts) -> Check | None:
     title = "Флаги cookies"
     problems = []
     for c in w.cookies:
+        if c.deleted:  # nothing is left in the browser to steal
+            continue
         flags = []
         if w.https and not c.secure:
             flags.append("Secure")
@@ -781,6 +824,21 @@ def cookies_check(w: WebFacts) -> Check | None:
         "незашифрованному соединению.",
         "Выставляйте сессионным cookies флаги Secure, HttpOnly и SameSite=Lax.",
     )
+
+
+def cert_thresholds(t: TlsInfo) -> tuple[timedelta, timedelta]:
+    """Time left below which the certificate is a warning, and a failure.
+
+    30 and 14 days suit a 90-day or a yearly certificate, but a 6-day one (Let's Encrypt
+    short-lived) always has less, and a 47-day one is renewed with about 15 days left.
+    So both shrink with the lifetime: renewal is due when a third of it is left (what
+    Let's Encrypt and certbot do), and half of that is a failure. For 90 days and more
+    the thresholds stay 30 and 14 days."""
+    warn, fail = timedelta(days=CERT_WARN_DAYS), timedelta(days=CERT_FAIL_DAYS)
+    if t.issued is None or t.expires is None or t.expires <= t.issued:
+        return warn, fail
+    lifetime = t.expires - t.issued
+    return min(warn, lifetime / 3), min(fail, lifetime / 6)
 
 
 def tls_check(w: WebFacts) -> Check | None:
@@ -812,10 +870,12 @@ def tls_check(w: WebFacts) -> Check | None:
             if days >= 0
             else f"Срок действия сертификата истёк {t.expires:%d.%m.%Y}."
         )
-        if days < CERT_FAIL_DAYS:
+        warn_at, fail_at = cert_thresholds(t)
+        left = t.expires - w.now
+        if left < fail_at:
             status = Status.FAIL
             recommendation = "Срочно продлите сертификат и включите автоматическое продление."
-        elif days < CERT_WARN_DAYS:
+        elif left < warn_at:
             status = Status.WARN
             recommendation = (
                 "Продлите сертификат и проверьте, что автоматическое продление работает."

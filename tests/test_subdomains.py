@@ -211,6 +211,14 @@ def test_github_pages_fingerprint():
     assert found is not None and not found.certain
     assert found.service == "GitHub Pages"
     assert _candidate(sub, page=(200, "<h1>Docs</h1>")) is None
+    # GitHub Pages is an "Edge case" in the source: the report says takeover may fail.
+    assert found.edge and "Edge case" in found.reason
+
+
+def test_vulnerable_service_is_not_an_edge_case():
+    dead = Subdomain("app.example.ru", ["example-app.azurewebsites.net"])
+    found = _candidate(dead)
+    assert found is not None and not found.edge and "Edge case" not in found.reason
 
 
 def test_nxdomain_signature():
@@ -279,6 +287,10 @@ def test_run_returns_json_data():
     assert checks[1].status is Status.FAIL
     assert data["takeover"][0]["name"] == "old.example.ru"
     json.dumps(data)  # serialisable for the JSON report
+    # The list's log and day, and for takeover the date the signatures were checked.
+    sources = [[e.value for e in c.evidence if e.what == "Источник"] for c in checks]
+    assert sources[0][0].startswith("журналы сертификатов, crt.sh, ")
+    assert any("Can I take over XYZ?" in s and "сверено" in s for s in sources[1])
 
 
 def test_ct_error_names_both_sources():
@@ -346,3 +358,62 @@ def test_ct_down_uses_a_recent_saved_list(tmp_path, monkeypatch):
     names, source = run(go())
     assert names == ["promo.example.ru"]
     assert "сохранённый список" in source and "3 дн" in source
+
+
+def test_empty_crtsh_answer_asks_certspotter():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.host)
+        if request.url.host == "crt.sh":
+            return httpx.Response(200, json=[])
+        if request.url.params.get("after"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json=[{"id": "1", "dns_names": ["api.example.ru"]}])
+
+    async def go():
+        async with client(handler) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    assert run(go()) == (["api.example.ru"], "Cert Spotter")
+
+
+def test_both_logs_empty_is_a_trusted_empty_list():
+    async def go():
+        async with client(lambda r: httpx.Response(200, json=[])) as c:
+            return await ct_subdomains(c, "example.ru")
+
+    assert run(go()) == ([], "crt.sh и Cert Spotter")
+
+
+def test_empty_crtsh_with_certspotter_down_is_not_checked():
+    def handler(request):
+        if request.url.host == "crt.sh":
+            return httpx.Response(200, json=[])
+        return httpx.Response(429)
+
+    async def go():
+        async with client(handler) as c:
+            return await run_subdomain_checks(FakeResolver(), c, c, "example.ru")
+
+    checks, _ = run(go())
+    assert [c.status for c in checks] == [Status.UNKNOWN]
+    assert "пустой список" in checks[0].details
+
+
+def test_failed_dns_lookup_is_no_takeover():
+    sub = Subdomain("promo.example.ru", ["promo.herokuapp.com"], failed=True)
+
+    async def go():
+        async with client(lambda r: httpx.Response(404)) as c:
+            return await find_candidate(FakeResolver(), c, sub, "example.ru")
+
+    assert run(go()) is None
+
+
+def test_unanswered_subdomains_are_named_as_not_checked():
+    scan = _scan()
+    scan.resolved[1].failed = True
+    takeover = evaluate(scan)[1]
+    assert takeover.status is Status.OK
+    assert "DNS не ответил для 1, они не проверены: s1.example.ru." in takeover.details

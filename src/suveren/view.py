@@ -9,6 +9,7 @@ colours every number ("152-ФЗ", dates in paths) and makes the output look rand
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from datetime import date
 from pathlib import Path
 
 from rich import box
@@ -20,7 +21,7 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren.advice import overall_grade, overall_scope, overall_score, priorities
-from suveren.checks import Check, Status
+from suveren.checks import SOURCE_WHAT, Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.history import Changes
 from suveren.models import Report, Severity
@@ -249,6 +250,11 @@ def print_scan(console: Console, report: Report, *, details: bool = False) -> No
             console.print(Padding(Text(note, style=DIM), (0, 2, 0, 2)))
 
 
+def accepted_text(accepted: dict[str, str]) -> str:
+    until = date.fromisoformat(accepted["until"])
+    return f"Принято до {until:%d.%m.%Y} ({accepted['author']}): {accepted['reason']}"
+
+
 def print_checks(console: Console, checks: list[Check], *, verbose: bool = False) -> None:
     table = Table(box=None, show_header=False, padding=(0, 1), pad_edge=False, expand=True)
     table.add_column(no_wrap=True, width=3)
@@ -266,6 +272,12 @@ def print_checks(console: Console, checks: list[Check], *, verbose: bool = False
                 text.append(f"\n{c.details}", style=DIM if c.status is Status.UNKNOWN else "")
             if c.recommendation and c.status in (Status.FAIL, Status.WARN) and verbose:
                 text.append(f"\n→ {c.recommendation}", style=DIM)
+        if c.accepted:
+            text.append(f"\n{accepted_text(c.accepted)}", style=DIM)
+        if verbose:
+            for e in c.evidence:
+                if e.what == SOURCE_WHAT:
+                    text.append(f"\nИсточник: {e.value}", style=DIM)
         table.add_row(Text(f"  {c.status.icon}", style=STATUS_STYLE[c.status]), text, c.id)
     console.print(table)
 

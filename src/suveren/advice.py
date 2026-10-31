@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from suveren.checks import Status
+from suveren.checks import Check, Status
 from suveren.collect import DNS_SECTIONS
 from suveren.models import UNSEEN_CAP, Report, Severity, grade_for
 
@@ -44,10 +44,12 @@ def priorities(report: Report) -> list[Action]:
         )
         for f in report.findings
     ]
+    status = {c.id: c.status for c in report.checks}
     for c in report.checks:
-        if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
+        # An accepted problem (.suveren-ignore) is a decision taken: no action, no points.
+        if c.status in (Status.FAIL, Status.WARN) and c.recommendation and not c.accepted:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
-            if c.id in SECOND_ORDER:
+            if c.id in SECOND_ORDER or _spf_behind_reject(c, status):
                 severity = Severity.LOW
             action = Action(
                 severity * 10, severity, first_sentence(c.recommendation), c.title, c.id
@@ -64,6 +66,18 @@ def priorities(report: Report) -> list[Action]:
 
 # Warnings the checks themselves call second-order ("редкая атака"): low urgency.
 SECOND_ORDER = frozenset({"SUV-MAIL-005"})
+
+
+def _spf_behind_reject(check: Check, status: dict[str, Status]) -> bool:
+    """An SPF warning when DMARC already rejects forged mail (SUV-MAIL-001 is OK): what is
+    left is deliverability of the real mail, which DKIM also covers, not forgery. A broken
+    SPF (FAIL) stays urgent: under p=reject real mail without DKIM is then rejected."""
+    return (
+        check.id == "SUV-MAIL-002"
+        and check.status is Status.WARN
+        and status.get("SUV-MAIL-001") is Status.OK
+    )
+
 
 # Checks that give the same advice as another one, by topic.
 TOPICS = {

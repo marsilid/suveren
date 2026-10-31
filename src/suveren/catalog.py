@@ -47,6 +47,16 @@ class CheckSpec:
     summary: str
     pattern: bool = False
 
+    @property
+    def site(self) -> str:
+        """What the check does to the site: a key of SITE_ACTIONS."""
+        return LABELS.get(self.id, MODULE_LABELS[self.module])[0]
+
+    @property
+    def runner(self) -> str:
+        """What the person who runs it risks: a key of RUNNER_RISKS."""
+        return LABELS.get(self.id, MODULE_LABELS[self.module])[1]
+
     def matches(self, group: str, title: str) -> bool:
         if group != self.group:
             return False
@@ -244,6 +254,70 @@ def modules_for(ids: set[str]) -> set[str]:
     return {m for i in ids for m in REQUIRES.get(i, {BY_ID[i].module})}
 
 
+# Two labels on every check (roadmap 1.1.2, item 3), so a reader knows before running it
+# what it does to the site and what it costs the one who runs it. Taken from the code of
+# each module (2026-10-31), not from what it is meant to do.
+SITE_ACTIONS = {
+    "none": (
+        "не обращается к сайту",
+        "только DNS, публичные реестры и журналы сертификатов",
+    ),
+    "look": (
+        "только смотрит",
+        "открывает страницы и файлы сайта, как посетитель, поисковый робот или почтовый сервер",
+    ),
+    "probe": (
+        "прощупывает",
+        "делает запросы, которых обычный посетитель не делает: соединения по устаревшим "
+        "TLS 1.0 и 1.1, страницы поддоменов",
+    ),
+    "input": (
+        "вводит данные",
+        "печатает тестовые значения в формы сайта и не отправляет их",
+    ),
+}
+RUNNER_RISKS = {
+    "none": (
+        "сайт вас не видит",
+        "запросы идут в DNS и публичные реестры, сайт о проверке не узнает",
+    ),
+    "ip": (
+        "сайт видит ваш IP",
+        "как при обычном заходе: в журналах сайта останется ваш IP-адрес",
+    ),
+    "js": (
+        "выполняется JavaScript сайта",
+        "страница открывается в браузере на вашем компьютере, и её скрипты работают; браузеру "
+        "закрыты внутренние адреса вашей сети и загрузка файлов",
+    ),
+}
+# (site action, runner risk) of a module's checks; LABELS overrides single checks. A
+# module's "-000" ("could not run") carries the labels of the module's checks.
+MODULE_LABELS = {
+    "core": ("look", "ip"),  # the dependency scan: the home page and the site's DNS
+    "compliance": ("look", "ip"),  # the home page and up to --pages internal ones
+    "blocklist": ("none", "none"),  # a downloaded copy of the register
+    "mail": ("none", "none"),  # DNS records only
+    "security": ("look", "ip"),  # headers, cookies and scripts of the fetched pages
+    "subdomains": ("none", "none"),  # CT logs
+    "cutoff": ("look", "ip"),
+    "formleaks": ("input", "js"),
+    "company": ("none", "none"),  # ЕГРЮЛ, RKN register, sanctions lists
+}
+LABELS = {
+    "SUV-BLK-003": ("look", "ip"),  # third-party domains are read from the pages
+    "SUV-MAIL-005": ("look", "ip"),  # fetches https://mta-sts.<domain>/.well-known/...
+    "SUV-WEB-008": ("probe", "ip"),  # handshakes with TLS 1.0 and 1.1 on purpose
+    "SUV-WEB-011": ("look", "js"),  # only with --browser
+    "SUV-SUB-000": ("probe", "ip"),
+    "SUV-SUB-002": ("probe", "ip"),  # opens the pages of subdomains pointing to services
+    "SUV-ATK-001": ("look", "ip"),  # mail records plus the site's forms
+    "SUV-ATK-003": ("probe", "ip"),
+    "SUV-CUT-002": ("look", "js"),  # the page in a browser, foreign services refused
+    "SUV-CO-007": ("look", "ip"),  # the INN on the site
+}
+
+
 MODULE_RU = {
     "core": "основная проверка (запускается всегда)",
     "compliance": "152-ФЗ и законы (`--no-152fz` отключает)",
@@ -270,16 +344,37 @@ def markdown() -> str:
         "Статусы: **проблема** — нарушение или уязвимость найдены; **внимание** — возможная "
         "проблема, нужна ручная проверка; **не проверено** — данных не хватило (это лучше "
         "ложной тревоги); **в порядке**.",
+        "",
+        "У каждой проверки две метки. **С сайтом** — что она делает с проверяемым сайтом:",
+        "",
+        *(f"- *{short}* — {long}." for short, long in SITE_ACTIONS.values()),
+        "",
+        "**Для вас** — чем рискует тот, кто запускает проверку:",
+        "",
+        *(f"- *{short}* — {long}." for short, long in RUNNER_RISKS.values()),
+        "",
+        "Любой `suveren scan` открывает главную страницу сайта и читает его DNS: из них "
+        "собираются иностранные сервисы. Поэтому сайт видит ваш IP при любом скане, даже "
+        "если выбраны только проверки «не обращается к сайту». С `--browser` страницы "
+        "открывает браузер, и JavaScript сайта выполняется у всех проверок, которые читают "
+        "страницы.",
     ]
     group = None
     for s in CATALOG:
         if s.group != group:
             group = s.group
             lines += ["", f"## {group}", ""]
-            lines += ["| ID | Проверка | Что проверяет | Модуль | Теги |", "|---|---|---|---|---|"]
+            lines += [
+                "| ID | Проверка | Что проверяет | С сайтом | Для вас | Модуль | Теги |",
+                "|---|---|---|---|---|---|---|",
+            ]
         title = s.summary if s.pattern else s.title
         tags = ", ".join(f"`{t}`" for t in s.tags)
-        lines.append(f"| `{s.id}` | {title} | {s.summary} | {MODULE_RU[s.module]} | {tags} |")
+        site, runner = SITE_ACTIONS[s.site][0], RUNNER_RISKS[s.runner][0]
+        lines.append(
+            f"| `{s.id}` | {title} | {s.summary} | {site} | {runner} | {MODULE_RU[s.module]} "
+            f"| {tags} |"
+        )
     lines += [
         "",
         "## Иностранные зависимости",

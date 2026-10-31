@@ -119,6 +119,8 @@ def test_find_abandoned_asks_the_registry():
         ("default-src https:; object-src 'none'", "https:"),
         ("img-src 'self'", "нет script-src"),
         ("script-src 'self'", "object-src"),
+        ("default-src *", "object-src"),
+        ("default-src https:; script-src 'self'", "object-src"),
     ],
 )
 def test_csp_weaknesses(policy, problem):
@@ -129,6 +131,9 @@ def test_strong_csp_has_no_weaknesses():
     nonce = "script-src 'nonce-r4nd' 'unsafe-inline' 'strict-dynamic' https:; object-src 'none'"
     assert csp_weaknesses(nonce) == []
     assert csp_weaknesses("default-src 'self'; object-src 'none'") == []
+    # object-src falls back to default-src: plugins only from the site itself.
+    assert csp_weaknesses("default-src 'self'") == []
+    assert csp_weaknesses("default-src 'none'; script-src 'self'") == []
 
 
 def test_csp_check():
@@ -178,6 +183,28 @@ def test_cookie_flags():
     assert check.status is Status.WARN
     assert "sessionid" in check.details and "_ym_uid" not in check.details
     assert websec.cookies_check(web()) is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "PHPSESSID=deleted; Max-Age=0; Path=/",
+        "PHPSESSID=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
+        "sid=; Max-Age=-1",
+    ],
+)
+def test_a_cookie_being_deleted_is_not_a_problem(line):
+    c = parse_set_cookie(line)
+    assert c is not None and c.deleted
+    assert websec.cookies_check(web(cookies=[c])).status is Status.OK
+
+
+def test_a_live_cookie_is_not_deleted():
+    assert not parse_set_cookie(
+        "sid=1; Max-Age=3600; Expires=Thu, 01-Jan-1970 00:00:01 GMT"
+    ).deleted
+    assert not parse_set_cookie("sid=1; expires=Fri, 01-Jan-2100 00:00:00 GMT").deleted
+    assert not parse_set_cookie("sid=1; expires=garbage").deleted
 
 
 # --- TLS ------------------------------------------------------------------------------
@@ -328,6 +355,13 @@ def test_redirect_to_another_domain_hides_its_headers(monkeypatch):
         ("ngtoken", False),
         ("_ym_uid", False),
         ("consider", False),
+        # analytics counters and page flags are not logins
+        ("sbjs_session", False),
+        ("_hjSession_123", False),
+        ("intercom-session-abc", False),
+        ("author", False),
+        ("is_authorized", False),
+        ("oauth_token", True),
     ],
 )
 def test_session_cookie_names(name, session):
@@ -425,6 +459,41 @@ def test_script_inventory_warns_only_when_many_domains_can_run_code():
     )
     check = websec.scripts_inventory(many)
     assert check.status is Status.WARN and "любой код" in check.details and check.recommendation
+
+
+@pytest.mark.parametrize(
+    ("lifetime", "warn", "fail"),
+    [
+        (365, 30, 14),
+        (90, 30, 14),
+        (47, 47 / 3, 47 / 6),
+        (6, 2, 1),
+        (None, 30, 14),  # issue date unknown: the fixed thresholds
+    ],
+)
+def test_cert_thresholds_shrink_with_the_lifetime(lifetime, warn, fail):
+    expires = NOW + timedelta(days=1)
+    issued = expires - timedelta(days=lifetime) if lifetime else None
+    t = TlsInfo("example.ru", "TLSv1.3", expires, issued=issued)
+    assert websec.cert_thresholds(t) == (timedelta(days=warn), timedelta(days=fail))
+
+
+def test_short_lived_certificate_is_not_called_expiring():
+    def cert(days_left, lifetime):
+        expires = NOW + timedelta(days=days_left)
+        return TlsInfo(
+            "example.ru",
+            "TLSv1.3",
+            expires,
+            {"TLS 1.0": False, "TLS 1.1": False},
+            issued=expires - timedelta(days=lifetime),
+        )
+
+    assert tls_check(web(tls=cert(3, 6))).status is Status.OK
+    assert tls_check(web(tls=cert(20, 47))).status is Status.OK
+    assert tls_check(web(tls=cert(12, 47))).status is Status.WARN
+    assert tls_check(web(tls=cert(5, 47))).status is Status.FAIL
+    assert tls_check(web(tls=cert(20, 90))).status is Status.WARN  # as before
 
 
 def test_tls_certificate_browsers_reject_is_a_fail():

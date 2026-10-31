@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -97,6 +97,7 @@ def _environment() -> Environment:
     env.filters["span"] = span
     env.filters["linkify"] = linkify
     env.filters["web_url"] = web_url
+    env.filters["ru_date"] = lambda iso: date.fromisoformat(iso).strftime("%d.%m.%Y")
     env.globals["fines_disclaimer"] = DISCLAIMER
     return env
 
