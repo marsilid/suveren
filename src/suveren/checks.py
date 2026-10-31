@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from suveren.laws import law_urls
 from suveren.utils import clean_text
 
 
@@ -34,12 +35,9 @@ GROUP_BLOCK = "Блокировки в России"
 # Requirements to Russian sites outside 152-ФЗ (sign-in, labelling...).
 GROUP_LAWS = "Другие требования законов"
 
-# Official consolidated texts, so every conclusion can be checked against the law.
-LAW_URLS = {
-    "152-ФЗ": "https://www.consultant.ru/document/cons_doc_LAW_61801/",
-    "149-ФЗ": "https://www.consultant.ru/document/cons_doc_LAW_61798/",
-    "ЗоЗПП": "https://www.consultant.ru/document/cons_doc_LAW_305/",
-}
+# Official consolidated texts, so every conclusion can be checked against the law;
+# kept in data/laws.json with their editions (laws.py).
+LAW_URLS = law_urls()
 
 
 def law_url(law: str | None) -> str | None:

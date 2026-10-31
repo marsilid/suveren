@@ -1681,6 +1681,24 @@ CASES: list[Case] = [
         html=page(FORM_OK + "<section><h2>Популярные товары</h2></section>"),
         files=site_files(),
     ),
+    # --- advertising labels (38-ФЗ, ст. 18.1): only the facts, no "violation" -------
+    Case(
+        "lab-ad-erid",
+        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна",
+        {"SUV-LAW-003": "ok"},
+        html=page(
+            FORM_OK + '<a href="https://partner.example/?erid=2SDnjcVm4Kd">Реклама. ООО «Партнёр»'
+            "</a>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-ad-none",
+        "рекламы и маркировки не видно: про 38-ФЗ сказать нечего, проверки нет",
+        {"SUV-LAW-003": "нет проверки"},
+        html=page(FORM_OK),
+        files=site_files(),
+    ),
 ]
 
 # Expected and actual differ here for a stated reason; the table counts them as misses.
