@@ -444,10 +444,14 @@ def launch_options(channel: str | None, proxy_url: str) -> dict[str, Any]:
     }
 
 
+# Schemes whose requests never reach the network.
+LOCAL_SCHEMES = frozenset({"data", "about", "blob"})
+
+
 class BrowserSession:
     """``async with BrowserSession() as b: page = await b.open(url)``."""
 
-    def __init__(self, *, timeout: float = 25.0) -> None:
+    def __init__(self, *, timeout: float = 25.0, allow_files: bool = False) -> None:
         self.timeout = timeout
         self.browser_name = ""
         self._pw_cm: Any = None
@@ -456,6 +460,7 @@ class BrowserSession:
         self._error: type[Exception] = Exception
         self._public: dict[str, bool] = {}
         self._egress = EgressProxy(timeout)
+        self.allow_files = allow_files
 
     async def __aenter__(self) -> BrowserSession:
         try:
@@ -508,8 +513,20 @@ class BrowserSession:
     async def _only_public(self, route: Any) -> None:
         """Every request of every page, redirects included: none goes to an internal
         address (see net.py). An early, clear refusal; the proxy (egress.py) is what
-        also stops a DNS answer changed in between, and WebSockets."""
-        host = urlsplit(route.request.url).hostname or ""
+        also stops a DNS answer changed in between, and WebSockets.
+
+        data:, about: and blob: never leave the browser. file: is let through only for
+        printing our own report (``allow_files``): without it --pdf printed nothing on
+        Windows, where the report is file:///C:/... (review of 1.1.2)."""
+        parts = urlsplit(route.request.url)
+        scheme = parts.scheme.lower()
+        if scheme in LOCAL_SCHEMES or (scheme == "file" and self.allow_files):
+            await route.fallback()
+            return
+        if scheme == "file":
+            await route.abort("blockedbyclient")
+            return
+        host = parts.hostname or ""
         if host not in self._public:
             try:
                 await public_addresses(host, 443, self.timeout)
@@ -777,7 +794,7 @@ class BrowserSession:
 async def print_pdf(html_path: Path, pdf_path: Path, *, timeout: float = 30.0) -> Path:
     """Print an HTML report to an A4 PDF in the same browser as --browser mode, with the
     "Как переехать" blocks open (a printed page cannot be clicked)."""
-    async with BrowserSession(timeout=timeout) as session:
+    async with BrowserSession(timeout=timeout, allow_files=True) as session:
         page = await session._context.new_page()
         try:
             await page.goto(html_path.resolve().as_uri(), wait_until="load")
