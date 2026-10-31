@@ -101,7 +101,7 @@ def test_scan_with_a_plugin_end_to_end(offline, tmp_path):  # noqa: F811
     # The lab site has no security.txt: the plugin says so, in its own section.
     assert plugin_checks and plugin_checks[0]["status"] == "warn"
     assert plugin_checks[0]["group"] == "Проверки из плагинов"
-    assert data["schema_version"] == "1.8"
+    assert data["schema_version"] == "1.9"
     # The report says plainly that third-party code took part.
     assert [p["source"] for p in data["plugins"]] == [str(EXAMPLE)]
     html = (tmp_path / "r.html").read_text(encoding="utf-8")

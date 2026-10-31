@@ -90,6 +90,21 @@ def to_sarif(report: Report) -> dict[str, Any]:
                     "law": c.law,
                     "evidence": [e.to_dict() for e in c.evidence],
                 },
+                # Accepted in .suveren-ignore: code scanning shows it as dismissed.
+                **(
+                    {
+                        "suppressions": [
+                            {
+                                "kind": "external",
+                                "status": "accepted",
+                                "justification": f"{c.accepted['reason']} "
+                                f"({c.accepted['author']}, до {c.accepted['until']})",
+                            }
+                        ]
+                    }
+                    if c.accepted
+                    else {}
+                ),
             }
         )
 

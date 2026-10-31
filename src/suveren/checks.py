@@ -104,6 +104,9 @@ class Check:
     law: str | None = None  # e.g. "152-ФЗ, ст. 9"
     id: str = ""  # stable ID from catalog.py, e.g. "SUV-MAIL-003"; filled in by title
     evidence: list[Evidence] = field(default_factory=list)  # what the verdict rests on
+    # Set by .suveren-ignore: {"reason", "author", "until"}. The problem stays in the
+    # report, but leaves the priorities, the overall grade and the CI thresholds.
+    accepted: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -131,4 +134,5 @@ class Check:
             "law": self.law,
             "law_url": self.law_url,
             "evidence": [e.to_dict() for e in self.evidence],
+            "accepted": self.accepted,
         }

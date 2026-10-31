@@ -130,7 +130,7 @@ def _grade_rules(report: dict[str, Any]) -> list[Issue]:
     worst = {
         c.get("status")
         for c in report.get("checks", [])
-        if c.get("recommendation") and c.get("id") not in SECOND_ORDER
+        if c.get("recommendation") and c.get("id") not in SECOND_ORDER and not c.get("accepted")
     }
     if overall is not None and "fail" in worst and overall > 100 - OVERALL_PENALTY[Severity.HIGH]:
         issues.append(Issue("fail-top", "", f"есть проблема, а общая оценка {overall}"))
@@ -180,6 +180,7 @@ def _recount_overall(data: dict[str, Any]) -> int | None:
                 status=Status(c["status"]),
                 recommendation=c.get("recommendation", ""),
                 id=c.get("id") or "SUV-NOID",
+                accepted=c.get("accepted"),
             )
             for c in data.get("checks", [])
         ]

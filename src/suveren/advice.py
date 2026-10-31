@@ -46,7 +46,8 @@ def priorities(report: Report) -> list[Action]:
     ]
     status = {c.id: c.status for c in report.checks}
     for c in report.checks:
-        if c.status in (Status.FAIL, Status.WARN) and c.recommendation:
+        # An accepted problem (.suveren-ignore) is a decision taken: no action, no points.
+        if c.status in (Status.FAIL, Status.WARN) and c.recommendation and not c.accepted:
             severity = Severity.HIGH if c.status is Status.FAIL else Severity.MEDIUM
             if c.id in SECOND_ORDER or _spf_behind_reject(c, status):
                 severity = Severity.LOW

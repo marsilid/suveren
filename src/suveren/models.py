@@ -298,8 +298,8 @@ UNSEEN_CAP = 89
 # with new fields, the major one when a field is removed or renamed.
 # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
 # 1.4: "evidence" of each check; 1.5: facts.page_unseen; 1.6: history uneven runs;
-# 1.7: facts.dns_unanswered; 1.8: "plugins".
-SCHEMA_VERSION = "1.8"
+# 1.7: facts.dns_unanswered; 1.8: "plugins"; 1.9: "accepted" of each check.
+SCHEMA_VERSION = "1.9"
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 
