@@ -36,7 +36,7 @@ addresses and IPs replaced, so no real company is shown.</sub>
 | | Question | What is looked at |
 |---|---|---|
 | 🌍 | **What breaks with the next wave of sanctions?** | DNS, mail, hosting, CDN, site builder, registrar, TLS certificate, page scripts and widgets. An independence grade from **A** to **F** and a migration plan to Russian providers |
-| ⚖️ | **Does the site comply with 152-FZ?** | the privacy policy and its contents, consent in forms, cookies, cross-border transfer, data localisation, the register of personal-data operators, sign-in through Google and Apple, recommendation technologies. The total of possible fines under the Code of Administrative Offences |
+| ⚖️ | **Does the site comply with 152-FZ?** | the privacy policy and its contents, consent in forms, cookies, cross-border transfer, data localisation, the register of personal-data operators, sign-in through Google and Apple, recommendation technologies, Instagram and Facebook links without the note that Meta is banned. The total of possible fines under the Code of Administrative Offences |
 | 🚫 | **Is the site reachable from Russia?** | the domain and IP addresses in Roskomnadzor's block list, blocked services on the pages |
 | ✉️ | **Can mail be forged in the company's name?** | SPF, DMARC, DKIM and its key length, MTA-STS and a plain answer: yes, partly or no |
 | 🔓 | **Are there forgotten subdomains someone could take over?** | subdomains from Certificate Transparency logs that point to deleted projects on third-party services |
@@ -130,6 +130,7 @@ The 152-FZ section: every check links to its article of law and names the possib
 | `suveren audit reports/` | do reports contradict themselves |
 | `suveren unknown` | external domains missing from the service database |
 | `suveren watch sites.txt --every 24h` | watch sites: audit again and report what changed |
+| `suveren research sites.txt` | a study: many sites, only the totals come out — the share of sites with each finding, CSV and HTML with charts; site names hidden |
 | `suveren draft report.json` | a draft privacy policy or consent from the findings (check it with a lawyer) |
 | `suveren verify site.ru` | prove the site is yours, for `--own-site` and `--form-leaks` |
 | `suveren menu` | the menu (same as double-clicking the exe) |
@@ -156,6 +157,39 @@ Main `scan` options:
 
 The full list is in `suveren scan --help`; every check is described in the
 [guide](docs/guide.md) (in Russian).
+
+## A study
+
+`suveren research sites.txt` audits a list of sites (hundreds if you like) and keeps only the
+totals: the share of sites with each finding, and by type of site when the list gives one
+(`shop.ru, магазин`). A run that broke off goes on where it stopped. Raw reports are in
+`reports/research/raw/`, the totals in `summary.csv` and `summary.html` with charts. Site names
+are hidden; `--show-domains` shows them — for yourself only, such a list is not for publishing.
+
+## Watching sites
+
+`suveren watch sites.txt` audits the sites again and compares them with the last time: which
+services appeared or went away, which checks got better or worse. Changes go to
+`reports/watch/changes.log`; when nothing changed, nothing is sent.
+
+To get the changes in Telegram, create a bot with @BotFather and give its token and the chat
+(the token never goes into reports or the log):
+
+```bash
+suveren watch sites.txt --once --telegram-token 123456:ABC... --telegram-chat 123456789
+# or as environment variables (then the token is not in your shell history):
+setx SUVEREN_TELEGRAM_TOKEN "123456:ABC..."
+setx SUVEREN_TELEGRAM_CHAT "123456789"
+```
+
+Every day at 9:00 with the Windows Task Scheduler (one round per run):
+
+```bat
+schtasks /Create /SC DAILY /ST 09:00 /TN "Suveren watch" ^
+  /TR "\"C:\Suveren\Suveren.exe\" watch C:\Suveren\sites.txt --once --state C:\Suveren\watch"
+```
+
+In the menu (`Suveren.exe` or `Suveren.bat`) it is item 9.
 
 ## Company check
 
