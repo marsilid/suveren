@@ -65,3 +65,8 @@ def test_company_with_pdf():
     pdf = str(Path("reports") / "7707083893.pdf")
     assert calls == [["company", "7707083893", "--browser", "--pdf", pdf]]
     assert run(["3", "7707083893", "", "", "0"]) == [["company", "7707083893", "--browser"]]
+
+
+def test_watch_from_the_menu():
+    assert run(["9", "sites.txt", "", "0"]) == [["watch", "sites.txt", "--once"]]
+    assert run(["9", "", "", "0"]) == []

@@ -26,8 +26,10 @@ def erids(pages: list[str]) -> list[str]:
 
 
 def ad_marking_check(pages: list[str]) -> Check | None:
-    """Only when labels are seen: then their number. Nothing is said about pages
-    without them (no ads, or unlabelled ads: Suveren can't tell)."""
+    """Only when labels are seen: then which ones, and "not clear" as the verdict. A label
+    seen says nothing about the ads without one, nor about the register entry behind the
+    token, so "в порядке" would claim what was not checked. Nothing is said about pages
+    without labels (no ads, or unlabelled ads: Suveren can't tell)."""
     found = erids(pages)
     if not found:
         return None
@@ -35,8 +37,12 @@ def ad_marking_check(pages: list[str]) -> Check | None:
     return Check(
         GROUP_LAWS,
         TITLE,
-        Status.OK,
-        f"На страницах есть маркировка рекламы (erid): {shown}. Suveren не проверяет, вся "
-        "ли реклама промаркирована и верно ли: это вопрос толкования 38-ФЗ, ст. 18.1.",
+        Status.UNKNOWN,
+        f"На страницах найдена маркировка рекламы (erid): {shown}. Не проверялось: вся ли "
+        "реклама на сайте промаркирована, есть ли рядом пометка «Реклама» с рекламодателем "
+        "и зарегистрированы ли эти токены в ЕРИР. Что считать рекламой — вопрос толкования "
+        "38-ФЗ, ст. 18.1.",
+        "Сверьте со своим списком рекламных размещений, что у каждого есть токен erid и "
+        "пометка «Реклама» с указанием рекламодателя.",
         law="38-ФЗ, ст. 18.1",
     )

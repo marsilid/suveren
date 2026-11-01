@@ -17,7 +17,9 @@ def test_erids_from_links_and_text():
 def test_check_only_reports_what_it_sees():
     check = ad_marking_check(['<a href="/?erid=2SDnjcVm4Kd">Реклама</a>'])
     assert check is not None and check.id == "SUV-LAW-003"
-    assert check.status is Status.OK and check.law == "38-ФЗ, ст. 18.1"
+    # A label seen is not a check of all ads: "not clear", never "в порядке" (2.1).
+    assert check.status is Status.UNKNOWN and check.law == "38-ФЗ, ст. 18.1"
+    assert "Не проверялось" in check.details and "ЕРИР" in check.details
     assert check.law_url and "consultant.ru" in check.law_url
     assert ad_marking_check(["<p>ничего</p>"]) is None
     many = ad_marking_check([f"?erid=AAAAAA{i:02d}" for i in range(8)])

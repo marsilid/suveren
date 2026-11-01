@@ -38,6 +38,7 @@ GROUPS = (
         ("4", "Сравнить два отчёта", "что изменилось после переезда (JSON)"),
         ("5", "База сервисов", "какие сервисы распознаёт Suveren"),
         ("6", "Обновить списки", "санкции и реестр блокировок"),
+        ("9", "Следить за сайтами", "проверить список снова, изменения — в журнал и Telegram"),
     )),
     ("Сервис", (
         ("7", "Проверить источники", "доступны ли реестры и списки"),
@@ -139,6 +140,16 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         if old and new:
             call("diff", old, new)
 
+    def watch() -> None:
+        console.print(
+            f"  [{DIM}]Один круг: сайты проверяются снова и сравниваются с прошлым разом. Чтобы "
+            "изменения приходили в Telegram, задайте SUVEREN_TELEGRAM_TOKEN и "
+            "SUVEREN_TELEGRAM_CHAT.[/]"
+        )
+        path = ask("Файл со списком сайтов")
+        if path:
+            call("watch", path, "--once")
+
     def reports() -> None:
         REPORTS.mkdir(exist_ok=True)
         open_path(REPORTS.resolve())
@@ -150,6 +161,7 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         "4": (diff, True),
         "5": (lambda: call("services"), True),
         "6": (lambda: call("update"), True),
+        "9": (watch, True),
         "7": (lambda: call("doctor"), True),
         "8": (reports, False),
     }
