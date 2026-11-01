@@ -1,4 +1,4 @@
-# Suveren
+# Как участвовать в разработке Suveren
 
 CLI-аудит сайта и компании для работы в России: зависимость от иностранных сервисов
 (оценка A–F и план миграции), 152-ФЗ, блокировки РКН, почтовая подделка (SPF/DMARC/DKIM),
@@ -43,8 +43,7 @@ suveren scan example.ru [--quick|--browser]
 Пока ничего не пушится, CI не запускается: перед слиянием ветки гоняй всё разом —
 `.venv/Scripts/python tools/ci.py` (`--fast` — без тестов, `--no-audit` — без сети).
 
-После каждой правки `.py` хук `.claude/hooks/ruff_fix.py` сам делает `ruff check --fix` и
-`ruff format`; что не исправилось, он возвращает в ответе — чини сразу.
+После правки `.py` запускайте `ruff check --fix .` и `ruff format .`.
 
 ## Тесты
 
@@ -61,17 +60,7 @@ suveren scan example.ru [--quick|--browser]
 - Ruff: длина строки 100, target py311; mypy с `warn_unused_ignores`.
 - Коммиты: короткая английская фраза о сути изменения; запись в `CHANGELOG.md` (на русском,
   раздел «Не выпущено») — отдельным коммитом `CHANGELOG: ...`.
-- Новая проверка или смена её ответа: навык `new-check` (`.claude/skills/new-check`) — каталог,
-  код, полигон, тесты, `docs/checks.md` (генерируется), CHANGELOG.
+- Новая проверка или смена её ответа: ID в `catalog.py`, код, случаи полигона в `tests/lab.py`
+  (ожидание пишется до кода), тесты, `docs/checks.md` (генерируется), `docs/accuracy.md`,
+  CHANGELOG.
 - Windows: вывод с кириллицей требует `PYTHONUTF8=1`.
-
-## graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-Rules:
-- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
