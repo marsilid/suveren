@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -86,6 +86,25 @@ def linkify(text: str | None) -> Markup:
     return Markup("").join(out)
 
 
+MSK = timezone(timedelta(hours=3))
+FONTS = Path(__file__).parent / "data" / "fonts"
+
+
+def _font_faces() -> Markup:
+    """The report's own fonts, inline: it opens offline and looks the same everywhere."""
+    faces = []
+    for family, file, weight in (
+        ("Suveren Sans", "suveren-sans.woff2", "400 700"),
+        ("Suveren Mono", "suveren-mono.woff2", "400"),
+    ):
+        data = base64.b64encode((FONTS / file).read_bytes()).decode()
+        faces.append(
+            f"@font-face {{ font-family: '{family}'; font-weight: {weight}; font-display: swap; "
+            f"src: url(data:font/woff2;base64,{data}) format('woff2'); }}"
+        )
+    return Markup("\n".join(faces))
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=PackageLoader("suveren", "templates"),
@@ -97,6 +116,9 @@ def _environment() -> Environment:
     env.filters["span"] = span
     env.filters["linkify"] = linkify
     env.filters["web_url"] = web_url
+    # Readers are in Russia: Moscow time, which has had no daylight saving since 2014.
+    env.globals["font_faces"] = _font_faces()
+    env.filters["msk"] = lambda dt: dt.astimezone(MSK).strftime("%d.%m.%Y %H:%M МСК")
     env.filters["ru_date"] = lambda iso: date.fromisoformat(iso).strftime("%d.%m.%Y")
     env.globals["fines_disclaimer"] = DISCLAIMER
     return env
@@ -151,7 +173,7 @@ def _group_anchors(report: Report) -> dict[str, str]:
 
 
 def summary_tiles(report: Report) -> list[dict[str, str]]:
-    """The five numbers a client looks for first, each linking to its section."""
+    """The numbers a client looks for first, each linking to its section."""
     anchors = _group_anchors(report)
     by_status = {s: sum(1 for c in report.checks if c.status is s) for s in Status}
     tiles = [
@@ -205,7 +227,8 @@ def summary_tiles(report: Report) -> list[dict[str, str]]:
             Status.UNKNOWN: ("не проверено", "muted"),
         }[cut.status]
     else:
-        value, tone = "не проверялось", "muted"
+        # The experiment did not run: an empty tile only takes the place of the others.
+        return tiles
     tiles.append(
         {"label": "Без иностранных сервисов", "value": value, "tone": tone, "href": cut_anchor}
     )

@@ -1,4 +1,5 @@
 {% extends "base.html.j2" %}
+{% from "_logo.j2" import wordmark %}
 {% block title %}{{ brand.name if brand else 'Suveren' }} — {{ report.target }}{% endblock %}
 {% block content %}
 {% set fines = report.fines %}
@@ -90,9 +91,9 @@
   {% endif %}
 {% endmacro %}
   <header class="top">
-    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren</span>{% endif %}
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}{{ wordmark() }}{% endif %}
     <span class="meta">
-      {{ report.started_at.strftime("%d.%m.%Y %H:%M UTC") }} · {{ "%.1f" | format(report.duration) }} с
+      {{ report.started_at | msk }} · {{ "%.1f" | format(report.duration) }} с
     </span>
   </header>
   <h1>{{ report.target }}</h1>

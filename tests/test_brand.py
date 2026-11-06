@@ -22,7 +22,7 @@ def test_brand_in_header_and_footer_with_suveren_credit(tmp_path):
     assert "Студия Север" in html and 'href="https://sever.ru"' in html
     assert "Сделано с помощью Suveren" in html  # the tool stays credited
     plain = render_html(sample_report())
-    assert '<span class="brand">Suveren</span>' in plain and "Студия" not in plain
+    assert 'class="brand wordmark" aria-label="Suveren"' in plain and "Студия" not in plain
 
 
 def test_brand_from_environment_and_errors(tmp_path, monkeypatch):
