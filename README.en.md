@@ -131,8 +131,8 @@ All commands and options are in the [guide](docs/guide.md#все-команды)
 Mostly Suveren looks at what any visitor sees: public DNS records, open registers and the site's
 pages. No port scanning, no password guessing.
 
-- **`company`** never contacts the site: only the state register, other registers and sanctions
-  lists.
+- **`company` by INN or OGRN** never contacts the site: only the state register, other registers
+  and sanctions lists. Given a website, it opens the home page to find the INN there.
 - **`scan`** opens the home page and up to 6 inner pages. In two places it probes: it tries the
   outdated TLS 1.0 and 1.1 and opens pages of subdomains that point to external services. The
   site sees your IP, as with a normal visit.
