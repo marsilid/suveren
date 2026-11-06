@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -86,6 +86,9 @@ def linkify(text: str | None) -> Markup:
     return Markup("").join(out)
 
 
+MSK = timezone(timedelta(hours=3))
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=PackageLoader("suveren", "templates"),
@@ -97,6 +100,8 @@ def _environment() -> Environment:
     env.filters["span"] = span
     env.filters["linkify"] = linkify
     env.filters["web_url"] = web_url
+    # Readers are in Russia: Moscow time, which has had no daylight saving since 2014.
+    env.filters["msk"] = lambda dt: dt.astimezone(MSK).strftime("%d.%m.%Y %H:%M МСК")
     env.filters["ru_date"] = lambda iso: date.fromisoformat(iso).strftime("%d.%m.%Y")
     env.globals["fines_disclaimer"] = DISCLAIMER
     return env
@@ -151,7 +156,7 @@ def _group_anchors(report: Report) -> dict[str, str]:
 
 
 def summary_tiles(report: Report) -> list[dict[str, str]]:
-    """The five numbers a client looks for first, each linking to its section."""
+    """The numbers a client looks for first, each linking to its section."""
     anchors = _group_anchors(report)
     by_status = {s: sum(1 for c in report.checks if c.status is s) for s in Status}
     tiles = [
@@ -205,7 +210,8 @@ def summary_tiles(report: Report) -> list[dict[str, str]]:
             Status.UNKNOWN: ("не проверено", "muted"),
         }[cut.status]
     else:
-        value, tone = "не проверялось", "muted"
+        # The experiment did not run: an empty tile only takes the place of the others.
+        return tiles
     tiles.append(
         {"label": "Без иностранных сервисов", "value": value, "tone": tone, "href": cut_anchor}
     )

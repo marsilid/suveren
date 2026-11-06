@@ -44,7 +44,7 @@
   .check:target, .finding:target { box-shadow: inset 3px 0 0 var(--accent); background: var(--code-bg); }
   ol.actions small a { color: var(--muted); text-decoration: underline dotted; text-underline-offset: 3px; }
   ol.actions small a:hover { color: var(--accent); }
-  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0 0; }
   .tile {
     display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px;
     background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--tone);
@@ -104,8 +104,8 @@
   .finding .head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .finding h3 { margin: 0; font-size: 15px; color: var(--text); }
   .finding p { margin: 8px 0 0; color: var(--text); }
-  .finding .fix { color: var(--muted); }
-  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .finding .fix { color: var(--text); }
+  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--accent); }
   .note { border-left: 4px solid var(--medium); padding: 12px 16px; margin: 0 0 12px; color: var(--muted); }
   table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
   th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--border); }
@@ -126,8 +126,8 @@
   .check h3 { margin: 1px 0 0; font-size: 15px; }
   .check .cid { color: var(--muted); font: 500 11px ui-monospace, Consolas, monospace; margin-left: 6px; white-space: nowrap; }
   .check p { margin: 4px 0 0; grid-column: 2; }
-  .check .fix { color: var(--muted); }
-  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .check .fix { color: var(--text); }
+  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--accent); }
   .check details.evidence { grid-column: 2; margin: 6px 0 0; font-size: 13.5px; }
   .check details.evidence summary { cursor: pointer; color: var(--muted); }
   .check details.evidence dl { margin: 6px 0 0; }
@@ -200,10 +200,12 @@
   a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 860px) {
-    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .tile { padding: 9px 12px; border-radius: 10px; }
+    .tile-value { font-size: 17px; }
     .toc { flex-wrap: nowrap; overflow-x: auto; }
   }
-  @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(5, 1fr); } }
+  @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); } }
   @media screen and (max-width: 860px) { .tile:last-child:nth-child(odd) { grid-column: span 2; } }
   @media (max-width: 560px) {
     .summary { padding: 16px; }
