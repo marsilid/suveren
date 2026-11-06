@@ -5,6 +5,7 @@
 {# The report quotes sites: no script runs in it and nothing loads from outside. #}
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%230e1418'/%3E%3Cpath d='M9 9 L20 31 L31 9' fill='none' stroke='%235fb3b3' stroke-width='6'/%3E%3C/svg%3E">
 <title>{% block title %}Suveren{% endblock %}</title>
 <style>
   /* The terminal's palette (view.py): teal accent, green / amber / red for statuses.
@@ -31,6 +32,10 @@
   .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
   header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
   .brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+  .wordmark { font-size: 20px; font-family: Bahnschrift, 'DIN Alternate', 'Segoe UI', system-ui, sans-serif; font-weight: 700;
+              letter-spacing: .04em; color: var(--text); white-space: nowrap; }
+  .wordmark-v { display: inline-block; height: .74em; width: .72em; margin: 0 .02em; color: var(--accent); }
+  .brand-suffix { color: var(--muted); font-weight: 400; margin-left: .5em; }
   .brand-logo { height: 28px; max-width: 160px; vertical-align: middle; margin-right: 10px; object-fit: contain; }
   .meta { color: var(--muted); font-size: 13px; }
   h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }

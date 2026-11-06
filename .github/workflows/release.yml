@@ -50,7 +50,7 @@ jobs:
           python -m playwright --version
       - name: Build
         run: >-
-          pyinstaller --noconfirm --onefile --name Suveren
+          pyinstaller --noconfirm --onefile --name Suveren --icon packaging/suveren.ico
           --collect-data suveren --collect-submodules dns --collect-all playwright
           packaging/suveren_exe.py
       - name: Smoke test

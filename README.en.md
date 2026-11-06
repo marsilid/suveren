@@ -1,6 +1,9 @@
 <div align="center">
 
-# Suveren
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+  <img alt="Suveren" src="docs/logo-light.png" width="300">
+</picture>
 
 **Website and company audit for doing business in Russia**<br>
 foreign dependencies · personal-data law (152-FZ) · blocking · mail spoofing · web security · company registry and sanctions

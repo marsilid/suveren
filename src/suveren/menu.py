@@ -159,7 +159,8 @@ def run_menu(app: typer.Typer, console: Console) -> None:
         console.clear()
         console.print()
         console.print(
-            f"[bold {ACCENT}]suveren[/] [{DIM}]{__version__}   аудит сайта и компании для России[/]"
+            f"[bold]SU[/][bold {ACCENT}]V[/][bold]EREN[/] "
+            f"[{DIM}]{__version__}   аудит сайта и компании для России[/]"
         )
         for group, items in GROUPS:
             console.print()

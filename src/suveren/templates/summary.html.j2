@@ -1,9 +1,10 @@
 {% extends "base.html.j2" %}
+{% from "_logo.j2" import wordmark %}
 {% block title %}{{ report.target }} — сводка для руководителя{% endblock %}
 {% block content %}
 <main class="summary">
   <header class="top">
-    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren · сводка для руководителя</span>{% endif %}
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}{{ wordmark('сводка для руководителя') }}{% endif %}
     <span class="meta">{{ report.started_at.strftime("%d.%m.%Y") }}</span>
   </header>
   <h1>{{ report.target }}</h1>

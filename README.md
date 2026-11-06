@@ -1,6 +1,9 @@
 <div align="center">
 
-# Suveren
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+  <img alt="Suveren" src="docs/logo-light.png" width="300">
+</picture>
 
 **Проверка сайта и компании для работы в России**<br>
 иностранные сервисы · 152-ФЗ · блокировки · защита почты · безопасность · ЕГРЮЛ и санкции
