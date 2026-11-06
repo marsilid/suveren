@@ -87,6 +87,22 @@ def linkify(text: str | None) -> Markup:
 
 
 MSK = timezone(timedelta(hours=3))
+FONTS = Path(__file__).parent / "data" / "fonts"
+
+
+def _font_faces() -> Markup:
+    """The report's own fonts, inline: it opens offline and looks the same everywhere."""
+    faces = []
+    for family, file, weight in (
+        ("Suveren Sans", "suveren-sans.woff2", "400 700"),
+        ("Suveren Mono", "suveren-mono.woff2", "400"),
+    ):
+        data = base64.b64encode((FONTS / file).read_bytes()).decode()
+        faces.append(
+            f"@font-face {{ font-family: '{family}'; font-weight: {weight}; font-display: swap; "
+            f"src: url(data:font/woff2;base64,{data}) format('woff2'); }}"
+        )
+    return Markup("\n".join(faces))
 
 
 def _environment() -> Environment:
@@ -101,6 +117,7 @@ def _environment() -> Environment:
     env.filters["linkify"] = linkify
     env.filters["web_url"] = web_url
     # Readers are in Russia: Moscow time, which has had no daylight saving since 2014.
+    env.globals["font_faces"] = _font_faces()
     env.filters["msk"] = lambda dt: dt.astimezone(MSK).strftime("%d.%m.%Y %H:%M МСК")
     env.filters["ru_date"] = lambda iso: date.fromisoformat(iso).strftime("%d.%m.%Y")
     env.globals["fines_disclaimer"] = DISCLAIMER
