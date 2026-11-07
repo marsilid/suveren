@@ -351,9 +351,9 @@ isoduration==20.11.0 \
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
-jsonpointer==3.6 \
-    --hash=sha256:82e839a3ba3a9e2b54394fda8b3d276c2459d80408d06ef9a6fbc369d7544ffc \
-    --hash=sha256:a45c858f8a9e171f6b3790ed9446c9382782f6c4cb4589176813c5a553f4cfcd
+jsonpointer==3.8 \
+    --hash=sha256:a627a255641390bfb4d51d4cfbb90648078ae855b45804ef7e19ea13a4cca355 \
+    --hash=sha256:d69af85adaea202111bbc931067ead68dc16bca4592c74e1a1953152e2a330ab
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
