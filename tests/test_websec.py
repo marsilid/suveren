@@ -818,3 +818,28 @@ def test_probe_plain_http_follows_redirects_by_hand():
 
     assert run(refuse) == ("closed", "")
     assert run(slow) == (None, "")
+
+
+def test_permissions_policy_check():
+    from suveren.websec import evidence, permissions_check
+
+    missing = permissions_check(web())
+    assert missing.status is Status.WARN and "camera=()" in missing.recommendation
+    assert "Feature-Policy" not in missing.details
+    legacy = permissions_check(web(headers={"feature-policy": "camera 'none'"}))
+    assert legacy.status is Status.WARN and "устаревший Feature-Policy" in legacy.details
+    old_syntax = permissions_check(web(headers={"permissions-policy": "camera 'none'"}))
+    assert old_syntax.status is Status.WARN and "отбрасывает" in old_syntax.details
+    good = permissions_check(web(headers={"permissions-policy": "geolocation=(self)"}))
+    assert good.status is Status.OK
+    # The evidence shows the header, and Feature-Policy only when the site sends it.
+    w = web(headers={"permissions-policy": "camera=()"})
+    assert [e.what for e in evidence(w, "SUV-WEB-017")] == ["Заголовок Permissions-Policy"]
+    w = web(headers={"feature-policy": "camera 'none'"})
+    assert [e.value for e in evidence(w, "SUV-WEB-017")] == ["", "camera 'none'"]
+
+
+def test_missing_permissions_policy_is_low_urgency():
+    from suveren.advice import LOW_WHEN_WARN
+
+    assert "SUV-WEB-017" in LOW_WHEN_WARN

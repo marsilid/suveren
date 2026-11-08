@@ -866,6 +866,47 @@ def referrer_check(w: WebFacts) -> Check:
     )
 
 
+PERMISSIONS_TITLE = "Ограничение функций браузера (Permissions-Policy)"
+
+
+def permissions_check(w: WebFacts) -> Check:
+    """Permissions-Policy (W3C) tells the browser which features (camera, microphone,
+    geolocation, payment) the page and the frames it embeds may ask for. Its absence is
+    advice of OWASP Secure Headers, not a weakness by itself: a soft warning."""
+    value = w.headers.get("permissions-policy", "").strip()
+    if not value:
+        legacy = " Есть только устаревший Feature-Policy." if "feature-policy" in w.headers else ""
+        return Check(
+            GROUP_WEB,
+            PERMISSIONS_TITLE,
+            Status.WARN,
+            "Заголовка Permissions-Policy нет: встроенные на страницы чужие фреймы (виджеты, "
+            "реклама) могут запрашивать у посетителя камеру, микрофон и геолокацию." + legacy,
+            "Добавьте заголовок, который выключает ненужное, например Permissions-Policy: "
+            "camera=(), microphone=(), geolocation=() — и оставьте то, чем сайт пользуется.",
+        )
+    # The header is a Structured Field dictionary (RFC 8941): single quotes are not in its
+    # syntax, so "camera 'none'" (the old Feature-Policy form) fails to parse and the
+    # browser drops the whole header.
+    if "'" in value:
+        return Check(
+            GROUP_WEB,
+            PERMISSIONS_TITLE,
+            Status.WARN,
+            "Permissions-Policy записан в синтаксисе старого Feature-Policy (с кавычками "
+            "'none', 'self'): браузер такой заголовок не разбирает и отбрасывает целиком.",
+            "Перепишите заголовок в новом синтаксисе: camera=(), geolocation=(self) вместо "
+            "camera 'none'; geolocation 'self'.",
+        )
+    return Check(
+        GROUP_WEB,
+        PERMISSIONS_TITLE,
+        Status.OK,
+        "Permissions-Policy задан: браузер знает, какие функции странице и встроенным фреймам "
+        "разрешены.",
+    )
+
+
 def redirect_check(w: WebFacts) -> Check | None:
     """Someone who types the address without https:// first lands on HTTP: it must send
     them to HTTPS at once (OWASP Transport Layer Security Cheat Sheet)."""
@@ -1132,7 +1173,7 @@ def evaluate(w: WebFacts) -> list[Check]:
         )
     else:
         checks += [csp_check(w), hsts_check(w), headers_check(w), cookies_check(w)]
-        checks += [referrer_check(w), redirect_check(w)]
+        checks += [referrer_check(w), permissions_check(w), redirect_check(w)]
     checks.append(tls_check(w))
     found = [c for c in checks if c is not None]
     for check in found:
@@ -1146,6 +1187,7 @@ _HEADER_EVIDENCE = {
     "SUV-WEB-005": ("strict-transport-security",),
     "SUV-WEB-006": ("x-frame-options", "x-content-type-options"),
     "SUV-WEB-015": ("referrer-policy",),
+    "SUV-WEB-017": ("permissions-policy", "feature-policy"),
 }
 _SHOWN_EVIDENCE = 10
 
@@ -1155,7 +1197,9 @@ def evidence(w: WebFacts, check_id: str) -> list[Evidence]:
     value: the header is absent), the scripts' addresses, the cookies, the certificate."""
     found: list[Evidence] = []
     for name in _HEADER_EVIDENCE.get(check_id, ()):
-        if name.endswith("report-only") and name not in w.headers:
+        if name in ("content-security-policy-report-only", "feature-policy") and (
+            name not in w.headers
+        ):
             continue
         found.append(Evidence("header", f"Заголовок {_header_name(name)}", w.headers.get(name, "")))
     if check_id == "SUV-WEB-015" and w.referrer_meta is not None:

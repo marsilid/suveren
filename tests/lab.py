@@ -60,6 +60,7 @@ GOOD_HEADERS = {
     "frame-ancestors 'self'",
     "x-content-type-options": "nosniff",
     "x-frame-options": "SAMEORIGIN",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
 }
 SESSION_OK = "sessionid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax"
 
@@ -305,6 +306,7 @@ CASES: list[Case] = [
             "SUV-WEB-009": "ok",
             "SUV-WEB-010": "ok",
             "SUV-WEB-016": "нет проверки",
+            "SUV-WEB-017": "ok",
             "SUV-PD-001": "ok",
             "SUV-PD-002": "ok",
             "SUV-PD-003": "ok",
@@ -1627,6 +1629,31 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         files=site_files(),
         plain_http="closed",
+    ),
+    Case(
+        "lab-permissions-missing",
+        "нет Permissions-Policy: встроенные чужие фреймы могут просить камеру и геолокацию",
+        {"SUV-WEB-017": "warn"},
+        html=page(FORM_OK),
+        headers={k: v for k, v in GOOD_HEADERS.items() if k != "permissions-policy"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-permissions-feature-syntax",
+        "Permissions-Policy в синтаксисе старого Feature-Policy (camera 'none'): браузер "
+        "отбрасывает такой заголовок целиком",
+        {"SUV-WEB-017": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "permissions-policy": "camera 'none'; microphone 'none'"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-permissions-self",
+        "Permissions-Policy: geolocation=(self) — свои страницы могут, чужие фреймы нет",
+        {"SUV-WEB-017": "ok"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "permissions-policy": 'geolocation=(self "https://maps.ru")'},
+        files=site_files(),
     ),
     Case(
         "lab-referrer-unsafe",
