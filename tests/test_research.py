@@ -131,3 +131,34 @@ def test_research_command(tmp_path, monkeypatch, recorded):
     assert "Сводка по 2 сайтам" in result.output and "пропущена" in result.output
     again = CliRunner().invoke(app, ["research", str(sites), "--out", str(out), "--summary-only"])
     assert again.exit_code == 0 and "проверено сейчас" not in again.output
+
+
+def test_shares_count_every_site_where_a_finding_could_be():
+    """Scenarios and page-only checks appear in a report only when found: counted
+    over the sites with them, they read "100% of sites"."""
+    from suveren.research import aggregate
+
+    def report(checks, findings=()):
+        return {
+            "checks": [{"id": i, "status": s, "title": i} for i, s in checks],
+            "findings": list(findings),
+        }
+
+    tls = {"id": "SUV-DEP-TLS", "title": "SSL-сертификат: GlobalSign (Бельгия)"}
+    reports = {
+        "a.test": report(
+            [("SUV-ATK-001", "warn"), ("SUV-WEB-002", "ok"), ("SUV-MAIL-001", "fail")], [tls]
+        ),
+        "b.test": report([("SUV-WEB-002", "ok"), ("SUV-MAIL-001", "ok")]),
+        "c.test": report([("SUV-MAIL-001", "unknown")]),
+        "d.test": report([("SUV-WEB-002", "ok"), ("SUV-LAW-004", "warn")]),
+    }
+    rows = {r.key: r for r in aggregate(reports, {})}
+    assert (len(rows["SUV-ATK-001"].sites), rows["SUV-ATK-001"].checked) == (1, 4)
+    assert (len(rows["SUV-LAW-004"].sites), rows["SUV-LAW-004"].checked) == (1, 3)  # pages read
+    assert (len(rows["SUV-MAIL-001"].sites), rows["SUV-MAIL-001"].checked) == (
+        1,
+        2,
+    )  # unknown left out
+    assert rows["SUV-DEP-TLS"].title == "Иностранная зависимость: SSL-сертификат"
+    assert rows["SUV-MAIL-001"].title == "Можно ли подделать письмо от имени домена"
