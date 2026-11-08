@@ -3,3 +3,4 @@
 *.bat text eol=crlf
 *.ico binary
 *.woff2 binary
+*.pem text eol=lf

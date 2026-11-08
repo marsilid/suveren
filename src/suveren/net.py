@@ -18,10 +18,13 @@ import asyncio
 import ipaddress
 import os
 import socket
+import ssl
 import zlib
 from collections.abc import AsyncIterator, Iterable
+from pathlib import Path
 from typing import Any
 
+import certifi
 import httpcore
 import httpx
 
@@ -130,12 +133,43 @@ class _PublicOnlyBackend(httpcore.AsyncNetworkBackend):
         await self._inner.sleep(seconds)
 
 
-def guarded_transport(*, verify: bool = True) -> httpx.AsyncHTTPTransport:
+# Russian state sites with certificates from the Ministry of Digital Development's
+# root, which neither Windows nor certifi trusts. That root is trusted for these
+# hosts only: for any other site it would let one more authority vouch for it.
+RU_ROOT_HOSTS = frozenset({"fedsfm.ru", "www.fedsfm.ru"})
+RU_ROOT = Path(__file__).parent / "data" / "russian-trusted-ca.pem"
+
+
+def _public_transport(verify: bool | ssl.SSLContext) -> httpx.AsyncHTTPTransport:
     transport = httpx.AsyncHTTPTransport(verify=verify, limits=httpx.Limits(max_connections=20))
     # httpx has no public way to pass a network backend; the pool keeps it here.
     pool = transport._pool
     pool._network_backend = _PublicOnlyBackend(pool._network_backend)
     return transport
+
+
+class _ByHost(httpx.AsyncBaseTransport):
+    """The usual transport, and one that also trusts the Russian root for RU_ROOT_HOSTS."""
+
+    def __init__(self, usual: httpx.AsyncBaseTransport, ru: httpx.AsyncBaseTransport) -> None:
+        self._usual, self._ru = usual, ru
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        transport = self._ru if request.url.host in RU_ROOT_HOSTS else self._usual
+        return await transport.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._usual.aclose()
+        await self._ru.aclose()
+
+
+def guarded_transport(*, verify: bool = True) -> httpx.AsyncBaseTransport:
+    usual = _public_transport(verify)
+    if not verify:
+        return usual
+    ru = ssl.create_default_context(cafile=certifi.where())
+    ru.load_verify_locations(cafile=str(RU_ROOT))
+    return _ByHost(usual, _public_transport(ru))
 
 
 class _Inflate:
