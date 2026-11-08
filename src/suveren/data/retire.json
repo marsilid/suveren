@@ -3,7 +3,7 @@
   "about": "Копия базы retire.js для работы без сети: только библиотеки, которые находит Suveren, и только их уязвимости. Обновляется tools/update_vulns.py.",
   "url": "https://raw.githubusercontent.com/RetireJS/retire.js/master/repository/jsrepository-v4.json",
   "license": "Apache-2.0",
-  "fetched": "2026-10-31"
+  "fetched": "2026-11-08"
  },
  "angularjs": {
   "vulnerabilities": [
@@ -1330,25 +1330,6 @@
     ]
    },
    {
-    "atOrAbove": "0",
-    "below": "4.18.0",
-    "severity": "medium",
-    "cwe": [
-     "CWE-1321"
-    ],
-    "identifiers": {
-     "summary": "Lodash 4.17.23 and earlier are vulnerable to a prototype pollution bypass in _.unset and _.omit. The fix for CVE-2025-13465 only guards against string key members, so attackers can bypass it by passing array-wrapped path segments to delete properties from built-in prototypes including Object.prototype, Number.prototype, and String.prototype.",
-     "githubID": "GHSA-f23m-r3pf-42rh",
-     "CVE": [
-      "CVE-2026-2950"
-     ]
-    },
-    "info": [
-     "https://github.com/lodash/lodash/security/advisories/GHSA-f23m-r3pf-42rh",
-     "https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg"
-    ]
-   },
-   {
     "atOrAbove": "4.0.0",
     "below": "4.18.0",
     "severity": "high",
@@ -1366,6 +1347,25 @@
      "https://github.com/lodash/lodash/security/advisories/GHSA-r5fr-rjxr-66jc",
      "https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c",
      "https://cna.openjsf.org/security-advisories.html"
+    ]
+   },
+   {
+    "atOrAbove": "4.17.23",
+    "below": "4.18.1",
+    "severity": "medium",
+    "cwe": [
+     "CWE-1321"
+    ],
+    "identifiers": {
+     "summary": "Lodash 4.17.23 and earlier are vulnerable to a prototype pollution bypass in _.unset and _.omit. The fix for CVE-2025-13465 only guards against string key members, so attackers can bypass it by passing array-wrapped path segments to delete properties from built-in prototypes including Object.prototype, Number.prototype, and String.prototype.",
+     "githubID": "GHSA-f23m-r3pf-42rh",
+     "CVE": [
+      "CVE-2026-2950"
+     ]
+    },
+    "info": [
+     "https://github.com/lodash/lodash/security/advisories/GHSA-f23m-r3pf-42rh",
+     "https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg"
     ]
    }
   ]
@@ -1482,6 +1482,222 @@
      "https://github.com/moment/moment/commit/5f7d983c9881e65e07574de9dda3190d99520c07",
      "https://cna.openjsf.org/security-advisories.html",
      "https://github.com/moment/moment/releases/tag/2.31.0"
+    ]
+   }
+  ]
+ },
+ "react": {
+  "vulnerabilities": [
+   {
+    "atOrAbove": "0.4.0",
+    "below": "0.4.2",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability can arise when using user data as a key",
+     "CVE": [
+      "CVE-2013-7035"
+     ],
+     "githubID": "GHSA-g53w-52xc-2j85"
+    },
+    "info": [
+     "https://facebook.github.io/react/blog/2013/12/18/react-v0.5.2-v0.4.2.html",
+     "https://github.com/advisories/GHSA-g53w-52xc-2j85"
+    ]
+   },
+   {
+    "atOrAbove": "0.5.0",
+    "below": "0.5.2",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability can arise when using user data as a key",
+     "CVE": [
+      "CVE-2013-7035"
+     ],
+     "githubID": "GHSA-g53w-52xc-2j85"
+    },
+    "info": [
+     "https://facebook.github.io/react/blog/2013/12/18/react-v0.5.2-v0.4.2.html",
+     "https://github.com/advisories/GHSA-g53w-52xc-2j85"
+    ]
+   },
+   {
+    "atOrAbove": "0.0.1",
+    "below": "0.14.0",
+    "severity": "high",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": " including untrusted objects as React children can result in an XSS security vulnerability",
+     "retid": "23",
+     "githubID": "GHSA-hg79-j56m-fxgv"
+    },
+    "info": [
+     "http://danlec.com/blog/xss-via-a-spoofed-react-element",
+     "https://facebook.github.io/react/blog/2015/10/07/react-v0.14.html"
+    ]
+   },
+   {
+    "atOrAbove": "16.0.0",
+    "below": "16.0.1",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability when the attacker controls an attribute name",
+     "CVE": [
+      "CVE-2018-6341"
+     ]
+    },
+    "info": [
+     "https://github.com/facebook/react/blob/master/CHANGELOG.md",
+     "https://reactjs.org/blog/2018/08/01/react-v-16-4-2.html"
+    ]
+   },
+   {
+    "atOrAbove": "16.1.0",
+    "below": "16.1.2",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability when the attacker controls an attribute name",
+     "CVE": [
+      "CVE-2018-6341"
+     ]
+    },
+    "info": [
+     "https://github.com/facebook/react/blob/master/CHANGELOG.md",
+     "https://reactjs.org/blog/2018/08/01/react-v-16-4-2.html"
+    ]
+   },
+   {
+    "atOrAbove": "16.2.0",
+    "below": "16.2.1",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability when the attacker controls an attribute name",
+     "CVE": [
+      "CVE-2018-6341"
+     ]
+    },
+    "info": [
+     "https://github.com/facebook/react/blob/master/CHANGELOG.md",
+     "https://reactjs.org/blog/2018/08/01/react-v-16-4-2.html"
+    ]
+   },
+   {
+    "atOrAbove": "16.3.0",
+    "below": "16.3.3",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability when the attacker controls an attribute name",
+     "CVE": [
+      "CVE-2018-6341"
+     ]
+    },
+    "info": [
+     "https://github.com/facebook/react/blob/master/CHANGELOG.md",
+     "https://reactjs.org/blog/2018/08/01/react-v-16-4-2.html"
+    ]
+   },
+   {
+    "atOrAbove": "16.4.0",
+    "below": "16.4.2",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential XSS vulnerability when the attacker controls an attribute name",
+     "CVE": [
+      "CVE-2018-6341"
+     ]
+    },
+    "info": [
+     "https://github.com/facebook/react/blob/master/CHANGELOG.md",
+     "https://reactjs.org/blog/2018/08/01/react-v-16-4-2.html"
+    ]
+   }
+  ]
+ },
+ "vue": {
+  "vulnerabilities": [
+   {
+    "below": "2.4.3",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "possible xss vector",
+     "retid": "12"
+    },
+    "info": [
+     "https://github.com/vuejs/vue/releases/tag/v2.4.3"
+    ]
+   },
+   {
+    "below": "2.5.17",
+    "severity": "medium",
+    "cwe": [
+     "CWE-79"
+    ],
+    "identifiers": {
+     "summary": "potential xss in ssr when using v-bind",
+     "retid": "11"
+    },
+    "info": [
+     "https://github.com/vuejs/vue/releases/tag/v2.5.17"
+    ]
+   },
+   {
+    "below": "2.6.11",
+    "severity": "medium",
+    "cwe": [
+     "CWE-94"
+    ],
+    "identifiers": {
+     "summary": "Bump vue-server-renderer's dependency of serialize-javascript to 2.1.2",
+     "retid": "10"
+    },
+    "info": [
+     "https://github.com/vuejs/vue/releases/tag/v2.6.11"
+    ]
+   },
+   {
+    "atOrAbove": "2.0.0-alpha.1",
+    "below": "3.0.0-alpha.0",
+    "cwe": [
+     "CWE-1333"
+    ],
+    "severity": "low",
+    "identifiers": {
+     "summary": "ReDoS vulnerability in vue package that is exploitable through inefficient regex evaluation in the parseHTML function",
+     "CVE": [
+      "CVE-2024-9506"
+     ],
+     "githubID": "GHSA-5j4c-8p2g-v4jx"
+    },
+    "info": [
+     "https://github.com/advisories/GHSA-5j4c-8p2g-v4jx",
+     "https://nvd.nist.gov/vuln/detail/CVE-2024-9506",
+     "https://github.com/vuejs/core",
+     "https://www.herodevs.com/vulnerability-directory/cve-2024-9506"
     ]
    }
   ]

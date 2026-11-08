@@ -724,6 +724,54 @@ CASES: list[Case] = [
         html=page(FORM_OK + '<script src="/js/angular-1.8.2.min.js"></script>'),
         files=site_files({"/js/angular-1.8.2.min.js": "/** @license AngularJS v1.8.2 */"}),
     ),
+    Case(
+        "lab-vue-2",
+        "Vue.js 2.6.14 на своём сервере: CVE-2024-9506 (ReDoS в разборе шаблонов), ветка 2.x "
+        "больше не поддерживается",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/vue.min.js"></script>'),
+        files=site_files(
+            {"/js/vue.min.js": "/*!\n * Vue.js v2.6.14\n * (c) 2014-2021 Evan You\n */"}
+        ),
+    ),
+    Case(
+        "lab-vue-3",
+        "Vue.js 3.4.21 с CDN и integrity: известных уязвимостей нет",
+        {"SUV-WEB-010": "ok"},
+        html=page(
+            FORM_OK + '<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js" '
+            'integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-react-16-4",
+        "React 16.4.1: CVE-2018-6341 касается только отрисовки на сервере, в браузере не в счёт",
+        {"SUV-WEB-010": "ok"},
+        html=page(
+            FORM_OK + '<script src="/js/react.production.min.js"></script>'
+            '<script src="/js/react-dom.production.min.js"></script>'
+        ),
+        files=site_files(
+            {
+                "/js/react.production.min.js": "/** @license React v16.4.1\n * "
+                "react.production.min.js\n */",
+                "/js/react-dom.production.min.js": "/** @license React v16.4.1\n * "
+                "react-dom.production.min.js\n */",
+            }
+        ),
+    ),
+    Case(
+        "lab-react-0-13",
+        "React 0.13.3 с CDN: XSS через подменённые элементы (GHSA-hg79-j56m-fxgv), "
+        "исправлено в 0.14",
+        {"SUV-WEB-010": "warn"},
+        html=page(
+            FORM_OK + '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/'
+            'react.min.js" integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
         "lab-no-policy",

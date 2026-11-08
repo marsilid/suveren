@@ -162,7 +162,8 @@ CATALOG: tuple[CheckSpec, ...] = (
           "web secrets scripts",
           "Секреты (токены, приватные и API-ключи) в JavaScript, который получает посетитель."),
     _spec("SUV-WEB-010", WEB, "Уязвимые версии библиотек", "security", "web scripts cve",
-          "jQuery, Bootstrap, lodash и др. с явной версией, уязвимой по базе retire.js."),
+          "jQuery, Bootstrap, Vue, React и др. с явной версией, уязвимой по базе "
+          "retire.js."),
     _spec("SUV-WEB-011", WEB, "Цепочки сторонних скриптов", "security",
           "web scripts supply-chain browser",
           "Код, который подключил не сайт, а чужие скрипты (только в режиме --browser)."),
