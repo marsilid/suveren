@@ -58,4 +58,4 @@ def test_long_pages_stay_fast():
 def test_warning_shows_the_link_it_rests_on():
     warn = meta_note_check([("/about", '<a href="https://www.facebook.com/x">f</a>')])
     assert warn is not None and warn.evidence[0].what == "Ссылка без пометки (страница /about)"
-    assert "facebook.com" in warn.evidence[0].value
+    assert warn.evidence[0].value == 'href="https://www.facebook.com'
