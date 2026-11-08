@@ -244,9 +244,9 @@ cyclonedx-python-lib==11.12.0 \
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
-dnspython==2.9.1 \
-    --hash=sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f \
-    --hash=sha256:9a6d30e55f8dc63e6052597666112bff0586b95a2474a9deda03afbbf820d37a
+dnspython==2.9.2 \
+    --hash=sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9 \
+    --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
 fqdn==1.6.0 \
     --hash=sha256:6c793c312ccfa29981e1135b3ef5e1277ebe639731a6b0f7350d90e96e63f0b4 \
     --hash=sha256:e39bf62e2a9481aa2cb780554fdfd944dd8ee5f230eb831684d539cbafed8de2
