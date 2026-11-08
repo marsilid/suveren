@@ -280,6 +280,8 @@ class MailFacts:
     # Why MTA-STS could not be read (its DNS did not answer), or None. Only MAIL-005 rests
     # on it: kamaz.ru lost the whole mail section to one _mta-sts timeout (2026-10-25).
     transport_unknown: str | None = None
+    # v=BIMI1 records at default._bimi.<domain>; None when DNS did not answer.
+    bimi: list[str] | None = None
     # The DNS answers the verdicts rest on, as received: "TXT _dmarc.example.ru" -> records.
     raw: dict[str, list[str]] = field(default_factory=dict)
 
@@ -898,12 +900,58 @@ def transport_check(m: MailFacts) -> Check:
     )
 
 
+BIMI_TITLE = "BIMI: логотип компании в почтовых программах"
+
+
+def bimi_tags(record: str) -> dict[str, str]:
+    tags = {}
+    for part in record.split(";"):
+        name, eq, value = part.partition("=")
+        if eq:
+            tags[name.strip().lower()] = value.strip()
+    return tags
+
+
+def bimi_check(m: MailFacts) -> Check:
+    """BIMI (draft-brand-indicators-for-message-identification): a logo some mail programs
+    show next to the company's letters. Information only: without it nothing is less
+    safe, so the answer is never a warning."""
+    records = m.bimi or []
+    if not records:
+        return Check(
+            GROUP_MAIL,
+            BIMI_TITLE,
+            Status.OK,
+            f"Записи BIMI (default._bimi.{m.domain}) нет. Это не проблема: BIMI только "
+            "показывает логотип компании рядом с её письмами в некоторых почтовых программах "
+            "(Gmail, Apple Mail, Yahoo) и на защиту от подделки не влияет.",
+        )
+    tags = bimi_tags(records[0])
+    logo = tags.get("l", "")
+    details = "Запись BIMI есть" + (f", логотип: {logo}." if logo else ", но без логотипа (l=).")
+    d = m.dmarc
+    if not (d and d.policy in ("quarantine", "reject") and d.pct == 100):
+        details += (
+            " Логотип не покажут: BIMI работает, только когда DMARC в режиме quarantine или "
+            "reject для всех писем (pct=100)."
+        )
+    elif not tags.get("a"):
+        details += (
+            " Gmail и Apple Mail показывают логотип только с сертификатом на товарный знак "
+            "(VMC или CMC, тег a=); без него — другие программы, например Yahoo."
+        )
+    details += " Это для сведения: на защиту от подделки BIMI не влияет."
+    return Check(GROUP_MAIL, BIMI_TITLE, Status.OK, details)
+
+
 def evaluate(m: MailFacts) -> list[Check]:
     checks = [verdict(m), spf_check(m), dmarc_check(m)]
     if m.receives_mail:
         checks += [dkim_check(m), transport_check(m)]
         if m.dkim:
             checks.append(dkim_strength_check(m))
+    if m.bimi is not None:
+        checks.append(bimi_check(m))
     for check in checks:
         check.evidence = evidence(m, check.id)
     return checks
@@ -915,6 +963,7 @@ _EVIDENCE_NAMES = {
     "SUV-MAIL-002": ("TXT {d}",),
     "SUV-MAIL-003": ("TXT _dmarc.{d}",),
     "SUV-MAIL-005": ("MX {d}", "TXT _mta-sts.{d}", "TXT _smtp._tls.{d}"),
+    "SUV-MAIL-007": ("TXT default._bimi.{d}", "TXT _dmarc.{d}"),
 }
 
 
@@ -1087,6 +1136,11 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
     )
     if facts.dmarc:
         facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
+    # BIMI is information only: without an answer the check is left out.
+    with contextlib.suppress(DnsLookupError):
+        bimi = await _txt(resolver, f"default._bimi.{domain}")
+        facts.bimi = [t for t in bimi if t.lower().replace(" ", "").startswith("v=bimi1")]
+        raw[f"TXT default._bimi.{domain}"] = facts.bimi
     if receives:
         facts.dkim = await _dkim(resolver, domain, raw)
         if not facts.dkim:

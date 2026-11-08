@@ -744,3 +744,42 @@ def test_dkim_key_advice_is_its_own_and_urgent_only_when_invalid(bits, severity)
     report.checks = evaluate(_dkim({"mail": [f"v=DKIM1; p={dkim_key(bits)}"]}))
     actions = [a for a in priorities(report) if a.anchor == "SUV-MAIL-006"]
     assert [a.severity for a in actions] == [Severity[severity]]
+
+
+def test_bimi_is_information_only():
+    from suveren.mailsec import bimi_check, evaluate
+
+    none = bimi_check(facts(bimi=[]))
+    assert none.status is Status.OK and "не проблема" in none.details
+    shown = bimi_check(facts(bimi=["v=BIMI1; l=https://example.ru/logo.svg; a=https://x/vmc.pem"]))
+    assert shown.status is Status.OK and "логотип: https://example.ru/logo.svg." in shown.details
+    assert "Логотип не покажут" not in shown.details and "VMC" not in shown.details
+    no_vmc = bimi_check(facts(bimi=["v=BIMI1; l=https://example.ru/logo.svg"]))
+    assert "VMC или CMC" in no_vmc.details
+    weak = bimi_check(
+        facts(
+            bimi=["v=BIMI1; l=https://example.ru/logo.svg"], dmarc=parse_dmarc("v=DMARC1; p=none")
+        )
+    )
+    assert weak.status is Status.OK and "Логотип не покажут" in weak.details
+    partial = bimi_check(facts(bimi=["v=BIMI1;"], dmarc=parse_dmarc("v=DMARC1; p=reject; pct=50")))
+    assert "без логотипа" in partial.details and "Логотип не покажут" in partial.details
+    # No DNS answer: the check is left out, not reported as unknown.
+    assert "SUV-MAIL-007" not in {c.id for c in evaluate(facts())}
+    assert "SUV-MAIL-007" in {c.id for c in evaluate(facts(bimi=[]))}
+
+
+def test_bimi_record_is_collected_with_its_evidence():
+    from suveren.mailsec import evaluate
+
+    records = {
+        ("example.ru", "MX"): ["10 mx.example.ru."],
+        ("default._bimi.example.ru", "TXT"): ["v=BIMI1; l=https://example.ru/l.svg", "other"],
+    }
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.bimi == ["v=BIMI1; l=https://example.ru/l.svg"]
+    (check,) = [c for c in evaluate(m) if c.id == "SUV-MAIL-007"]
+    assert check.evidence[0].value == "v=BIMI1; l=https://example.ru/l.svg"
+    records[("default._bimi.example.ru", "TXT")] = ["SERVFAIL"]
+    m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
+    assert m.bimi is None

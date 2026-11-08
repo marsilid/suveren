@@ -307,6 +307,7 @@ CASES: list[Case] = [
             "SUV-WEB-010": "ok",
             "SUV-WEB-016": "нет проверки",
             "SUV-WEB-017": "ok",
+            "SUV-MAIL-007": "ok",
             "SUV-PD-001": "ok",
             "SUV-PD-002": "ok",
             "SUV-PD-003": "ok",
@@ -1009,6 +1010,28 @@ CASES: list[Case] = [
             ("lab-spf-broken-include.ru", "TXT"): [
                 "v=spf1 include:_spf.yandex.net include:spf.gone.example -all"
             ]
+        },
+    ),
+    # --- BIMI: information only, never a problem --------------------------------------
+    Case(
+        "lab-bimi",
+        "запись BIMI с логотипом и DMARC p=reject: логотип покажут, это для сведения",
+        {"SUV-MAIL-007": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("default._bimi.lab-bimi.ru", "TXT"): ["v=BIMI1; l=https://lab-bimi.ru/logo.svg; a="]},
+    ),
+    Case(
+        "lab-bimi-weak-dmarc",
+        "запись BIMI есть, но DMARC p=none: логотип не покажут, и всё равно не проблема",
+        {"SUV-MAIL-007": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("default._bimi.lab-bimi-weak-dmarc.ru", "TXT"): [
+                "v=BIMI1; l=https://lab-bimi-weak-dmarc.ru/logo.svg"
+            ],
+            ("_dmarc.lab-bimi-weak-dmarc.ru", "TXT"): ["v=DMARC1; p=none"],
         },
     ),
     Case(
