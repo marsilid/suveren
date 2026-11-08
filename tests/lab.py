@@ -304,6 +304,7 @@ CASES: list[Case] = [
             "SUV-WEB-008": "ok",
             "SUV-WEB-009": "ok",
             "SUV-WEB-010": "ok",
+            "SUV-WEB-016": "нет проверки",
             "SUV-PD-001": "ok",
             "SUV-PD-002": "ok",
             "SUV-PD-003": "ok",
@@ -769,6 +770,40 @@ CASES: list[Case] = [
         html=page(
             FORM_OK + '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/'
             'react.min.js" integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    # --- CMS version: shown, never judged without a vulnerability database ----------
+    Case(
+        "lab-cms-wordpress",
+        "WordPress 6.4.3 по тегу generator и пути wp-includes: версия видна, а уязвима ли "
+        "она, без базы уязвимостей WordPress не сказать",
+        {"SUV-WEB-016": "unknown"},
+        html=page(
+            FORM_OK + '<meta name="generator" content="WordPress 6.4.3">'
+            '<link rel="stylesheet" href="/wp-includes/css/dist/block-library/style.min.css'
+            '?ver=6.4.3"><img src="/wp-content/uploads/2024/01/logo.png">'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-cms-bitrix",
+        "1С-Битрикс по путям /bitrix/: версия снаружи не видна",
+        {"SUV-WEB-016": "unknown"},
+        html=page(
+            FORM_OK + '<script src="/bitrix/js/main/core/core.min.js?1700000000"></script>'
+            '<link href="/bitrix/templates/main/styles.css?1700000001" rel="stylesheet">'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-cms-foreign-image",
+        "картинка с чужого блога на WordPress и ссылка «Сайт на 1С-Битрикс»: CMS самого "
+        "сайта не видна",
+        {"SUV-WEB-016": "нет проверки"},
+        html=page(
+            FORM_OK + '<img src="https://blog.other.ru/wp-content/uploads/a.png">'
+            '<a href="https://www.1c-bitrix.ru/">Сайт на 1С-Битрикс</a>'
         ),
         files=site_files(),
     ),

@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509 import ocsp
 
 from suveren.checks import Check, Evidence, Status
+from suveren.cms import cms_check, detect_cms
 from suveren.collect import Facts, browser_trust, make_client
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
@@ -1352,6 +1353,11 @@ async def run_web_checks(
         data["libraries"] = [{"name": x.name, "version": x.version, "where": x.where} for x in libs]
         db = await load_database(client) if libs else bundled()
         code_checks = [leak_check(leaks, sources), vuln_check(libs, db)]
+        # What CMS the pages already loaded show, with its version: no extra requests.
+        cms = detect_cms(pages, facts.final_url or f"https://{facts.host}/", w.domain)
+        data["cms"] = [{"name": c.name, "version": c.version} for c in cms]
+        if (cms_found := cms_check(cms)) is not None:
+            code_checks.append(cms_found)
         if facts.initiators:  # --browser mode only: the browser said who loaded what
             graph = build_graph(facts.initiators, w.domain)
             code_checks.append(graph_check(graph))

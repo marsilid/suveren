@@ -112,7 +112,7 @@ def test_scan_writes_a_consistent_report(offline, tmp_path, name):
     # The whole command reaches the same verdicts as the lab's module-level run.
     got = {c["id"]: c["status"] for c in data["checks"]}
     for check_id, want in case.expect.items():
-        assert got.get(check_id) == want, (check_id, got.get(check_id), want)
+        assert got.get(check_id, "нет проверки") == want, (check_id, got.get(check_id), want)
     html = out_html.read_text(encoding="utf-8")
     assert case.host in html and "<script>alert" not in html
 
