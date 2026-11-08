@@ -244,7 +244,11 @@ def print_scan(console: Console, report: Report, *, details: bool = False) -> No
                 mark = Text("  ?", style=DIM)
             # Text, not str: a str cell is Rich markup, and the evidence is the site's URL.
             table.add_row(
-                mark, d.category.title, Text(d.service), d.country_ru, Text(clean_text(d.evidence))
+                mark,
+                d.category.title,
+                Text(d.service),
+                d.country_text,
+                Text(clean_text(d.evidence)),
             )
         console.print(table)
 

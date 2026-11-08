@@ -552,8 +552,21 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
 
     # 5. Localisation of databases.
     hosting = [d for d in data.deps if d.category is Category.HOSTING]
-    if any(d.foreign for d in hosting):
-        where = ", ".join(f"{d.service} ({d.country_ru})" for d in hosting if d.foreign)
+    # Where the server stands when the geolocation database knows it, else the network
+    # owner's country; CDN addresses are not hosting and get no place (analyze.py).
+    placed = [d for d in hosting if d.located]
+    places = [source(asked(NETWORKS_SOURCE))] + [
+        source(origin) for origin in dict.fromkeys(d.located_by for d in placed if d.located_by)
+    ]
+    unplaced = len(placed) < len(hosting)
+    by_owner = (
+        (" Для части серверов страна" if placed else " Страна")
+        + " — по владельцу сети: где физически стоит сервер, не проверено."
+        if unplaced
+        else ""
+    )
+    if any(d.stored_abroad for d in hosting):
+        where = ", ".join(_place(d) for d in hosting if d.stored_abroad)
         # FAIL needs the data to land on that server: a form posting to the site itself.
         # A form sent elsewhere (a Russian CRM, a form service) keeps its base there.
         here = [f for f in forms if _posts_to_site(f.action, data.final_url)]
@@ -576,24 +589,33 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 GROUP_152,
                 "Хранение данных в России",
                 Status.FAIL if here else Status.WARN,
-                f"Сайт размещён за рубежом: {where}." + about,
+                f"Сайт размещён за рубежом: {where}." + about + by_owner,
                 "Перенесите сайт и базу данных к российскому провайдеру: при сборе данных "
                 "граждан РФ записывать и хранить их в базах за рубежом нельзя (152-ФЗ, ст. 18 "
                 "ч. 5 в ред. от 01.07.2025). Исключения — случаи ст. 6 ч. 1 п. 2, 3, 4, 8: "
                 "обработка по международному договору или закону (например, бронирование "
                 "билетов на международные рейсы), правосудие, госуслуги, работа журналистов "
                 "и СМИ.",
-                evidence=[source(asked(NETWORKS_SOURCE))],
+                evidence=places,
             )
         )
-    elif hosting and all(d.foreign is False for d in hosting):
+    elif hosting and all(d.stored_abroad is False for d in hosting):
+        foreign_owner = ", ".join(f"{d.service} ({d.country_ru})" for d in placed if d.foreign)
         checks.append(
             Check(
                 GROUP_152,
                 "Хранение данных в России",
                 Status.OK,
-                "Сервер сайта в России.",
-                evidence=[source(asked(NETWORKS_SOURCE))],
+                "Сервер сайта в России"
+                + (" по базе расположения серверов." if placed else ".")
+                + (
+                    f" Сеть принадлежит иностранной компании — {foreign_owner}, но сервер "
+                    "стоит в России."
+                    if foreign_owner
+                    else ""
+                )
+                + by_owner,
+                evidence=places,
             )
         )
     else:
@@ -717,6 +739,14 @@ def evidence(
             Evidence("html", "Форма отправляется на", a) for a in insecure[:_SHOWN_EVIDENCE]
         ]
     return []
+
+
+def _place(dep: Dependency) -> str:
+    """ "Hetzner (Германия)" or, when the server stands elsewhere than its network's
+    owner, "Selectel (сеть: Россия, сервер: Германия)"."""
+    if dep.located and dep.located != dep.country:
+        return f"{dep.service} ({dep.country_text})"
+    return f"{dep.service} ({dep.located_ru or dep.country_ru})"
 
 
 def _posts_to_site(action: str, base: str | None) -> bool:

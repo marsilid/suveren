@@ -245,6 +245,10 @@ class Dependency:
     severity: Severity | None = None  # set for foreign dependencies only
     note: str = ""
     alternative: str = ""
+    # Hosting only: where the server physically is (a geolocation database), which may
+    # differ from ``country``, the network owner's; and the database with its date.
+    located: str | None = None
+    located_by: str = ""
 
     def __post_init__(self) -> None:
         self.evidence = clean_text(self.evidence)  # a script or page address of the site
@@ -259,6 +263,24 @@ class Dependency:
     def country_ru(self) -> str:
         return country_name(self.country)
 
+    @property
+    def located_ru(self) -> str:
+        return country_name(self.located) if self.located else ""
+
+    @property
+    def country_text(self) -> str:
+        """ "Россия" or, for a server whose place is known, "сеть: Россия, сервер: Германия"."""
+        if not self.located:
+            return self.country_ru
+        return f"сеть: {self.country_ru}, сервер: {self.located_ru}"
+
+    @property
+    def stored_abroad(self) -> bool | None:
+        """Is the server outside Russia: by its physical place when known, else by the
+        network owner (152-ФЗ, ст. 18 ч. 5 is about where the data is)."""
+        country = self.located or self.country
+        return None if not country else country.upper() != "RU"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "category": self.category.value,
@@ -269,6 +291,7 @@ class Dependency:
             "evidence": self.evidence,
             "severity": self.severity.label if self.severity is not None else None,
             "note": self.note,
+            "located": self.located,
         }
 
 
@@ -301,8 +324,9 @@ UNSEEN_CAP = 89
 # with new fields, the major one when a field is removed or renamed.
 # 1.1: plugin checks; 1.2: "history" (scan --since); 1.3: "overall_incomplete";
 # 1.4: "evidence" of each check; 1.5: facts.page_unseen; 1.6: history uneven runs;
-# 1.7: facts.dns_unanswered; 1.8: "plugins"; 1.9: "accepted" of each check.
-SCHEMA_VERSION = "1.9"
+# 1.7: facts.dns_unanswered; 1.8: "plugins"; 1.9: "accepted" of each check;
+# 1.10: "located" of each dependency.
+SCHEMA_VERSION = "1.10"
 
 GRADE_THRESHOLDS = (("A", 90), ("B", 75), ("C", 60), ("D", 40))
 

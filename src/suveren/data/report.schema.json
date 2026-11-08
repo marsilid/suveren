@@ -156,7 +156,8 @@
     "foreign": {"type": ["boolean", "null"]},
     "evidence": {"type": "string"},
     "severity": {"type": ["string", "null"]},
-    "note": {"type": "string"}
+    "note": {"type": "string"},
+    "located": {"type": ["string", "null"], "description": "С 1.10. Только хостинг: страна, где физически стоит сервер, по базе DB-IP (country — страна владельца сети). null — база не ответила или адрес CDN."}
    }
   },
   "fines": {

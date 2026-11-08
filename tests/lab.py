@@ -269,6 +269,8 @@ class Case:
     cookies: list[str] = field(default_factory=lambda: [SESSION_OK])
     files: dict[str, str] = field(default_factory=dict)  # path or URL -> body
     hosting: tuple[str, str] = ("Selectel", "RU")
+    # Where the IPv4 server physically is, by the geolocation database; None: no answer.
+    located: str | None = None
     # The site's IPv6 address, when it has one: (address, network name, country).
     hosting6: tuple[str, str, str] | None = None
     tls: TlsInfo | None = None  # None: a good certificate
@@ -994,6 +996,34 @@ CASES: list[Case] = [
         {"SUV-PD-007": "warn"},
         html=page(FORM_OK.replace('action="/lead"', 'action="https://crm.bitrix24.ru/lead"')),
         hosting=("Hetzner Online GmbH", "DE"),
+        files=site_files(),
+    ),
+    # Owner of the network vs. where the server stands (152-ФЗ, ст. 18 ч. 5 is about the
+    # place of the database, not the owner's flag).
+    Case(
+        "lab-hosting-ru-network-abroad",
+        "сеть российского хостинга, но сервер с формой заявки стоит в Германии",
+        {"SUV-PD-007": "fail"},
+        html=page(FORM_OK),
+        located="DE",
+        files=site_files(),
+    ),
+    Case(
+        "lab-hosting-foreign-network-in-russia",
+        "сеть иностранной компании, но сервер стоит в России",
+        {"SUV-PD-007": "ok"},
+        html=page(FORM_OK),
+        hosting=("Example Hosting B.V.", "NL"),
+        located="RU",
+        files=site_files(),
+    ),
+    Case(
+        "lab-cdn-located",
+        "сайт за CDN: база расположения называет страну узла CDN, а не сервера с данными",
+        {"SUV-PD-007": "unknown"},
+        html=page(FORM_OK),
+        hosting=("Cloudflare, Inc.", "US"),
+        located="RU",
         files=site_files(),
     ),
     # --- mail (RFC 7208, 7489, 8461) -------------------------------------------------
@@ -1988,7 +2018,7 @@ async def _run_case(case: Case) -> dict[str, Check]:
     facts = Facts(
         host,
         host,
-        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1])]
+        web=[NetInfo("192.0.2.10", 64500, case.hosting[0], case.hosting[1], case.located)]
         + (
             [NetInfo(case.hosting6[0], 64501, case.hosting6[1], case.hosting6[2])]
             if case.hosting6
@@ -1999,6 +2029,7 @@ async def _run_case(case: Case) -> dict[str, Check]:
         html=case.html,
         headers={k.lower(): v for k, v in case.headers.items()},
         set_cookies=list(case.cookies),
+        geo_origin="DB-IP, https://db-ip.com, база от 01.11.2026" if case.located else "",
     )
     records = {**good_dns(host), **(case.dns or {})}
     tls = case.tls or good_tls(host)

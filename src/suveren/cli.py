@@ -26,7 +26,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from suveren import __version__, clirus, ownership, unknown
+from suveren import __version__, clirus, geoip, ownership, unknown
 from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
@@ -1573,7 +1573,7 @@ def _status_rank(status: Status) -> int:
 
 @app.command()
 def update() -> None:
-    """Скачать свежие санкционные списки и реестр блокировок (обычно раз в сутки сам)."""
+    """Скачать свежие санкционные списки, реестр блокировок и базу расположения серверов."""
 
     async def run() -> None:
         async with make_client(30.0) as client:
@@ -1590,6 +1590,12 @@ def update() -> None:
                 console.print(f"  [#e6b450]![/] {esc(note)}")
             total = sum(sizes.values()) / 1_048_576
             console.print(f"  [#7fb069]✓[/] Реестр блокировок РКН: {total:.1f} МБ")
+            with _spinner("[grey50]База расположения серверов…[/]"):
+                geo = await geoip.load(client, refresh=True)
+            if geo.problem:
+                console.print(f"  [#e6b450]![/] {esc(geo.problem)}")
+            else:
+                console.print(f"  [#7fb069]✓[/] {esc(geo.origin)}")
         console.print(f"\n[grey50]Кэш: {cache_dir()}[/]")
 
     try:
