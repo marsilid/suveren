@@ -60,6 +60,7 @@ GOOD_HEADERS = {
     "frame-ancestors 'self'",
     "x-content-type-options": "nosniff",
     "x-frame-options": "SAMEORIGIN",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
 }
 SESSION_OK = "sessionid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax"
 
@@ -253,6 +254,11 @@ CLOUD_LISTS = {
 NO_ANSWER: list[str] = ["<нет ответа>"]
 
 
+class SilentOnce(list[str]):
+    """Records whose first lookup times out and the next ones answer (a nightly-run
+    hiccup): ``dns={(name, "TXT"): SilentOnce(["v=spf1 ..."])}``."""
+
+
 @dataclass
 class Case:
     name: str  # also the host: <name>.lab-suveren.ru
@@ -304,6 +310,9 @@ CASES: list[Case] = [
             "SUV-WEB-008": "ok",
             "SUV-WEB-009": "ok",
             "SUV-WEB-010": "ok",
+            "SUV-WEB-016": "нет проверки",
+            "SUV-WEB-017": "ok",
+            "SUV-MAIL-007": "ok",
             "SUV-PD-001": "ok",
             "SUV-PD-002": "ok",
             "SUV-PD-003": "ok",
@@ -724,6 +733,88 @@ CASES: list[Case] = [
         html=page(FORM_OK + '<script src="/js/angular-1.8.2.min.js"></script>'),
         files=site_files({"/js/angular-1.8.2.min.js": "/** @license AngularJS v1.8.2 */"}),
     ),
+    Case(
+        "lab-vue-2",
+        "Vue.js 2.6.14 на своём сервере: CVE-2024-9506 (ReDoS в разборе шаблонов), ветка 2.x "
+        "больше не поддерживается",
+        {"SUV-WEB-010": "warn"},
+        html=page(FORM_OK + '<script src="/js/vue.min.js"></script>'),
+        files=site_files(
+            {"/js/vue.min.js": "/*!\n * Vue.js v2.6.14\n * (c) 2014-2021 Evan You\n */"}
+        ),
+    ),
+    Case(
+        "lab-vue-3",
+        "Vue.js 3.4.21 с CDN и integrity: известных уязвимостей нет",
+        {"SUV-WEB-010": "ok"},
+        html=page(
+            FORM_OK + '<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js" '
+            'integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-react-16-4",
+        "React 16.4.1: CVE-2018-6341 касается только отрисовки на сервере, в браузере не в счёт",
+        {"SUV-WEB-010": "ok"},
+        html=page(
+            FORM_OK + '<script src="/js/react.production.min.js"></script>'
+            '<script src="/js/react-dom.production.min.js"></script>'
+        ),
+        files=site_files(
+            {
+                "/js/react.production.min.js": "/** @license React v16.4.1\n * "
+                "react.production.min.js\n */",
+                "/js/react-dom.production.min.js": "/** @license React v16.4.1\n * "
+                "react-dom.production.min.js\n */",
+            }
+        ),
+    ),
+    Case(
+        "lab-react-0-13",
+        "React 0.13.3 с CDN: XSS через подменённые элементы (GHSA-hg79-j56m-fxgv), "
+        "исправлено в 0.14",
+        {"SUV-WEB-010": "warn"},
+        html=page(
+            FORM_OK + '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/'
+            'react.min.js" integrity="sha384-x" crossorigin="anonymous"></script>'
+        ),
+        files=site_files(),
+    ),
+    # --- CMS version: shown, never judged without a vulnerability database ----------
+    Case(
+        "lab-cms-wordpress",
+        "WordPress 6.4.3 по тегу generator и пути wp-includes: версия видна, а уязвима ли "
+        "она, без базы уязвимостей WordPress не сказать",
+        {"SUV-WEB-016": "unknown"},
+        html=page(
+            FORM_OK + '<meta name="generator" content="WordPress 6.4.3">'
+            '<link rel="stylesheet" href="/wp-includes/css/dist/block-library/style.min.css'
+            '?ver=6.4.3"><img src="/wp-content/uploads/2024/01/logo.png">'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-cms-bitrix",
+        "1С-Битрикс по путям /bitrix/: версия снаружи не видна",
+        {"SUV-WEB-016": "unknown"},
+        html=page(
+            FORM_OK + '<script src="/bitrix/js/main/core/core.min.js?1700000000"></script>'
+            '<link href="/bitrix/templates/main/styles.css?1700000001" rel="stylesheet">'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-cms-foreign-image",
+        "картинка с чужого блога на WordPress и ссылка «Сайт на 1С-Битрикс»: CMS самого "
+        "сайта не видна",
+        {"SUV-WEB-016": "нет проверки"},
+        html=page(
+            FORM_OK + '<img src="https://blog.other.ru/wp-content/uploads/a.png">'
+            '<a href="https://www.1c-bitrix.ru/">Сайт на 1С-Битрикс</a>'
+        ),
+        files=site_files(),
+    ),
     # --- 152-ФЗ ----------------------------------------------------------------------
     Case(
         "lab-no-policy",
@@ -924,6 +1015,28 @@ CASES: list[Case] = [
             ("lab-spf-broken-include.ru", "TXT"): [
                 "v=spf1 include:_spf.yandex.net include:spf.gone.example -all"
             ]
+        },
+    ),
+    # --- BIMI: information only, never a problem --------------------------------------
+    Case(
+        "lab-bimi",
+        "запись BIMI с логотипом и DMARC p=reject: логотип покажут, это для сведения",
+        {"SUV-MAIL-007": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("default._bimi.lab-bimi.ru", "TXT"): ["v=BIMI1; l=https://lab-bimi.ru/logo.svg; a="]},
+    ),
+    Case(
+        "lab-bimi-weak-dmarc",
+        "запись BIMI есть, но DMARC p=none: логотип не покажут, и всё равно не проблема",
+        {"SUV-MAIL-007": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("default._bimi.lab-bimi-weak-dmarc.ru", "TXT"): [
+                "v=BIMI1; l=https://lab-bimi-weak-dmarc.ru/logo.svg"
+            ],
+            ("_dmarc.lab-bimi-weak-dmarc.ru", "TXT"): ["v=DMARC1; p=none"],
         },
     ),
     Case(
@@ -1546,6 +1659,31 @@ CASES: list[Case] = [
         plain_http="closed",
     ),
     Case(
+        "lab-permissions-missing",
+        "нет Permissions-Policy: встроенные чужие фреймы могут просить камеру и геолокацию",
+        {"SUV-WEB-017": "warn"},
+        html=page(FORM_OK),
+        headers={k: v for k, v in GOOD_HEADERS.items() if k != "permissions-policy"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-permissions-feature-syntax",
+        "Permissions-Policy в синтаксисе старого Feature-Policy (camera 'none'): браузер "
+        "отбрасывает такой заголовок целиком",
+        {"SUV-WEB-017": "warn"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "permissions-policy": "camera 'none'; microphone 'none'"},
+        files=site_files(),
+    ),
+    Case(
+        "lab-permissions-self",
+        "Permissions-Policy: geolocation=(self) — свои страницы могут, чужие фреймы нет",
+        {"SUV-WEB-017": "ok"},
+        html=page(FORM_OK),
+        headers={**GOOD_HEADERS, "permissions-policy": 'geolocation=(self "https://maps.ru")'},
+        files=site_files(),
+    ),
+    Case(
         "lab-referrer-unsafe",
         "Referrer-Policy: unsafe-url — полный адрес страницы с параметрами уходит всем сайтам",
         {"SUV-WEB-015": "warn"},
@@ -1655,6 +1793,26 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("_mta-sts.lab-mta-sts-silent.ru", "TXT"): NO_ANSWER},
     ),
+    Case(
+        "lab-spf-include-hiccup",
+        "DNS не ответил на include SPF с первого раза, со второго ответил: SPF в порядке",
+        {"SUV-MAIL-001": "ok", "SUV-MAIL-002": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_spf.yandex.net", "TXT"): SilentOnce(
+                ["v=spf1 ip4:77.88.0.0/18 ip4:5.45.198.0/23 ~all"]
+            )
+        },
+    ),
+    Case(
+        "lab-spf-include-silent",
+        "DNS не ответил на include SPF и при повторе: проверить цепочку не удалось",
+        {"SUV-MAIL-002": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_spf.yandex.net", "TXT"): NO_ANSWER},
+    ),
     # --- recommendation technologies (149-ФЗ, ст. 10.2-2) -----------------------------
     Case(
         "lab-recs-no-rules",
@@ -1684,12 +1842,43 @@ CASES: list[Case] = [
     # --- advertising labels (38-ФЗ, ст. 18.1): only the facts, no "violation" -------
     Case(
         "lab-ad-erid",
-        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна",
-        {"SUV-LAW-003": "ok"},
+        "баннер партнёра с пометкой «Реклама» и erid в ссылке: маркировка видна, но вся ли "
+        "реклама промаркирована, снаружи не проверить — «не ясно», а не «в порядке»",
+        {"SUV-LAW-003": "unknown"},
         html=page(
             FORM_OK + '<a href="https://partner.example/?erid=2SDnjcVm4Kd">Реклама. ООО «Партнёр»'
             "</a>"
         ),
+        files=site_files(),
+    ),
+    # --- Instagram and Facebook links without the Meta note (a warning only) --------
+    Case(
+        "lab-meta-noted",
+        "ссылка на Instagram в подвале и пометка: «Meta признана экстремистской "
+        "организацией и запрещена в РФ»",
+        {"SUV-LAW-004": "ok"},
+        html=page(
+            FORM_OK + '<p><a href="https://www.instagram.com/lab/">Мы в Instagram</a>*</p>'
+            "<p><small>* Instagram принадлежит компании Meta, признанной экстремистской "
+            "организацией и запрещённой на территории РФ.</small></p>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-meta-no-note",
+        "ссылки на Instagram и Facebook без пометки о запрете Meta",
+        {"SUV-LAW-004": "warn"},
+        html=page(
+            FORM_OK + '<p><a href="https://instagram.com/lab">Instagram</a> '
+            '<a href="https://www.facebook.com/lab">Facebook</a></p>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-meta-none",
+        "ссылок на Instagram и Facebook нет: проверки нет",
+        {"SUV-LAW-004": "нет проверки"},
+        html=page(FORM_OK + '<p><a href="https://vk.com/lab">Мы ВКонтакте</a></p>'),
         files=site_files(),
     ),
     Case(
@@ -1716,12 +1905,15 @@ class FakeResolver:
     ) -> None:
         self.records = records
         self.missing = missing
+        self.asked: set[tuple[str, str]] = set()
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         records = self.records.get((name, rtype), [])
-        if records is NO_ANSWER:
+        once = isinstance(records, SilentOnce) and (name, rtype) not in self.asked
+        self.asked.add((name, rtype))
+        if records is NO_ANSWER or once:
             raise DnsLookupError(f"DNS не ответил вовремя на запрос {rtype} {name}")
-        return records
+        return list(records)
 
     async def exists(self, domain: str) -> bool:
         return domain not in self.missing

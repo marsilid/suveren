@@ -236,3 +236,61 @@ def test_real_banners_still_found():
         ("angularjs", "1.8.2"),
         ("jquery-ui", "1.12.1"),
     }
+
+
+def test_vue_and_react_by_path_and_banner():
+    urls = [
+        "https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.min.js",
+        "https://site.ru/js/vue-2.6.10.min.js",
+        "https://unpkg.com/react-dom@16.4.1/umd/react-dom.production.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react.min.js",
+        "https://site.ru/js/a.js",
+        "https://site.ru/js/b.js",
+        "https://site.ru/js/c.js",
+        "https://site.ru/js/d.js",
+    ]
+    heads = {
+        "https://site.ru/js/a.js": "/*!\n * Vue.js v2.7.16\n * (c) 2014-2023 Evan You\n */",
+        "https://site.ru/js/b.js": "/**\n* vue v3.3.4\n* (c) 2018-present Yuxi (Evan) You\n",
+        "https://site.ru/js/c.js": "/** @license React v16.14.0\n * react-dom.production.min.js\n",
+        "https://site.ru/js/d.js": "/**\n * React (with addons) v0.12.2\n */",
+    }
+    assert names(detect(urls, heads)) == {
+        ("vue", "3.4.21"),
+        ("vue", "2.5.16"),
+        ("vue", "2.6.10"),
+        ("vue", "2.7.16"),
+        ("vue", "3.3.4"),
+        ("react", "16.4.1"),
+        ("react", "0.13.3"),
+        ("react", "16.14.0"),
+        ("react", "0.12.2"),
+    }
+
+
+def test_vue_and_react_lookalikes_are_not_the_library():
+    urls = [
+        "https://unpkg.com/@vue/runtime-core@3.4.0/dist/runtime-core.js",
+        "https://cdn.jsdelivr.net/npm/vue-router@4.2.0/dist/vue-router.js",
+        "https://cdn.jsdelivr.net/npm/preact@10.5.0/dist/preact.js",
+        "https://cdn.jsdelivr.net/npm/react-router-dom@5.3.4/umd/react-router-dom.js",
+        "https://site.ru/js/s.js",
+        "https://site.ru/js/r.js",
+    ]
+    heads = {
+        # The scheduler carries its own version under React's licence line.
+        "https://site.ru/js/s.js": "/** @license React v0.19.1\n * scheduler.production.min.js\n",
+        "https://site.ru/js/r.js": "/**\n* @vue/runtime-dom v3.4.21\n",
+    }
+    assert detect(urls, heads) == []
+
+
+def test_server_side_flaws_of_react_and_vue_do_not_count():
+    react = Library("react", "16.4.1", "x")
+    assert known_issues(react) == []  # CVE-2018-6341: react-dom/server only
+    vue = known_issues(Library("vue", "2.5.16", "x"))
+    assert [v.label for v in vue] == ["CVE-2024-9506"]  # not the SSR entries #10 and #11
+    assert vuln_check([react]).status is Status.OK
+    old = known_issues(Library("react", "0.13.3", "x"))
+    assert [v.label for v in old] == ["GHSA-hg79-j56m-fxgv"]

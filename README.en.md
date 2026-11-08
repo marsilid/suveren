@@ -66,7 +66,8 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
   plan.
 - **Does the site comply with 152-FZ?** The privacy policy and its contents, consent in forms,
   cookies, cross-border transfer, the register of personal-data operators, Google and Apple
-  sign-in. The total of possible administrative fines.
+  sign-in, Instagram and Facebook links without the note that Meta is banned. The total of
+  possible administrative fines.
 - **Does the site open in Russia?** The domain and IPs in the block list, blocked services on the
   pages.
 - **Can mail be forged in the company's name?** SPF, DMARC, DKIM, MTA-STS and a plain answer:
@@ -120,7 +121,8 @@ suveren scan site.ru --profile deep     # deep: browser, up to 12 pages, service
 suveren scan site.ru --pdf report.pdf   # plus PDF; --docx for Word, --summary for management
 suveren company 7707083893              # a company by INN, OGRN or website
 suveren batch sites.txt                 # a list of sites: summary table, CSV, a report each
-suveren watch sites.txt --every 24h     # watch sites and report what changed
+suveren watch sites.txt --every 24h     # watch sites; changes can go to Telegram
+suveren research sites.txt             # a study: only the share of sites with each finding
 ```
 
 All commands and options are in the [guide](docs/guide.md#все-команды) (in Russian) and in

@@ -1223,11 +1223,38 @@ def watch(
         Path, typer.Option("--state", help="Папка с отчётами и журналом изменений.")
     ] = Path("reports") / "watch",
     timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+    telegram_token: Annotated[
+        str | None,
+        typer.Option(
+            "--telegram-token",
+            envvar="SUVEREN_TELEGRAM_TOKEN",
+            show_envvar=True,
+            help="Токен Telegram-бота: присылать изменения в Telegram (только при изменениях).",
+        ),
+    ] = None,
+    telegram_chat: Annotated[
+        str | None,
+        typer.Option(
+            "--telegram-chat",
+            envvar="SUVEREN_TELEGRAM_CHAT",
+            show_envvar=True,
+            help="Куда присылать: ID чата или @канал.",
+        ),
+    ] = None,
 ) -> None:
     """Следить за сайтами: проверять снова и сообщать, что изменилось с прошлого раза."""
     import time
 
-    from suveren.watch import describe, parse_interval, watch_round
+    from suveren.watch import (
+        changes_message,
+        describe,
+        parse_interval,
+        send_telegram,
+        watch_round,
+    )
+
+    if bool(telegram_token) != bool(telegram_chat):
+        raise _fail("для Telegram нужны оба: --telegram-token и --telegram-chat")
 
     try:
         interval = parse_interval(every)
@@ -1247,7 +1274,8 @@ def watch(
         console.print(
             f"[grey50]Круг проверки: {len(hosts)} сайтов, {datetime.now():%d.%m %H:%M}[/]"
         )
-        for r in asyncio.run(watch_round(hosts, state, scan_one)):
+        results = asyncio.run(watch_round(hosts, state, scan_one))
+        for r in results:
             if r.error:
                 console.print(f"  [#e5534b]✗[/] {esc(r.host)}: {esc(r.error)}")
             elif r.changes is None:
@@ -1258,6 +1286,13 @@ def watch(
                 console.print(f"  [#e6b450]![/] {esc(r.host)}: изменения")
                 for line in describe(r.changes):
                     console.print(f"      {esc(line)}")
+        message = changes_message(results)
+        if message and telegram_token and telegram_chat:
+            try:
+                asyncio.run(_telegram(telegram_token, telegram_chat, message, send_telegram))
+                console.print("  [grey50]Изменения отправлены в Telegram.[/]")
+            except SuverenError as exc:
+                console.print(f"  [#e6b450]![/] {esc(exc)}")
         if once:
             return
         console.print(f"[grey50]Следующий круг через {interval / 3600:.0f} ч (Ctrl+C — выход).[/]")
@@ -1265,6 +1300,75 @@ def watch(
             time.sleep(interval)
         except KeyboardInterrupt:
             return
+
+
+async def _telegram(token: str, chat: str, text: str, send: Any) -> None:
+    async with make_client(15.0) as client:
+        await send(client, token, chat, text)
+
+
+# --- research -------------------------------------------------------------------------
+
+
+@app.command()
+def research(
+    file: Annotated[
+        Path,
+        typer.Argument(help="Список сайтов: по одному в строке, через запятую — тип сайта."),
+    ],
+    out: Annotated[Path, typer.Option("--out", help="Папка: сырые отчёты (raw/) и сводка.")] = Path(
+        "reports"
+    )
+    / "research",
+    jobs: Annotated[
+        int, typer.Option("--jobs", "-j", min=1, max=10, help="Сколько сайтов проверять сразу.")
+    ] = 4,
+    show_domains: Annotated[
+        bool,
+        typer.Option(
+            "--show-domains",
+            help="Показать в сводке, на каких сайтах что найдено. Только для себя: такой "
+            "список не публикуют.",
+        ),
+    ] = False,
+    summary_only: Annotated[
+        bool,
+        typer.Option("--summary-only", help="Не проверять, только пересобрать сводку из raw/."),
+    ] = False,
+    timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+) -> None:
+    """Исследование: проверить много сайтов и получить только сводку — доли по находкам."""
+    from suveren.research import read_sites, run_research
+    from suveren.research import write_summary as research_summary
+
+    try:
+        sites, skipped = read_sites(file.read_text("utf-8-sig"))
+    except OSError as exc:
+        raise _fail(f"не удалось прочитать список: {exc}") from exc
+    for skip in skipped:
+        console.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
+    if not sites:
+        raise _fail("в файле нет доменов")
+    plan = make_plan(Profile.standard)
+
+    async def scan_one(host: str) -> Report:
+        return await _within(
+            SITE_DEADLINE,
+            run_scan(host, timeout=timeout, **plan.kwargs()),  # type: ignore[arg-type]
+        )
+
+    if not summary_only:
+        console.print(
+            f"[grey50]Исследование: {len(sites)} сайтов, одновременно {jobs}. Прерванный "
+            "прогон продолжится с того же места.[/]"
+        )
+        with _spinner("[grey50]Проверяю сайты…[/]"):
+            scanned, before, failures = asyncio.run(run_research(sites, out, scan_one, jobs=jobs))
+        console.print(f"  проверено сейчас: {scanned}, было раньше: {before}")
+        for domain, why in failures:
+            console.print(f"  [#e5534b]✗[/] {esc(domain)}: {esc(why)}")
+    csv_path, html_path, total = research_summary(out, sites, show_domains=show_domains)
+    console.print(f"[#7fb069]✓[/] Сводка по {total} сайтам: {esc(html_path)}, {esc(csv_path)}")
 
 
 # --- draft ----------------------------------------------------------------------------

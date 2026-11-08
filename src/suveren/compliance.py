@@ -29,6 +29,7 @@ from suveren.logins import (
     login_check,
     short_path,
 )
+from suveren.metanote import meta_note_check
 from suveren.models import Category, Dependency
 from suveren.page import Form, Link, Page, parse_page
 from suveren.pdpolicy import (
@@ -994,6 +995,9 @@ async def run_compliance(
     ads = ad_marking_check([html, *(h for _, h, _ in data.extra)])
     if ads:
         checks.append(ads)
+    meta = meta_note_check([("главная", html), *((str(p), h) for p, h, _ in data.extra)])
+    if meta:
+        checks.append(meta)
     return checks
 
 

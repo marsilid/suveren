@@ -22,7 +22,7 @@ def repository(**extra):
     repo["jquery"]["vulnerabilities"] = [
         {"below": "3.5.0", "severity": "medium", "identifiers": {"CVE": ["CVE-2020-11022"]}}
     ]
-    repo["react"] = {"vulnerabilities": [{"below": "0.14.0"}]}
+    repo["ember"] = {"vulnerabilities": [{"below": "1.0.0"}]}  # a library we do not detect
     repo.update(extra)
     return repo
 
@@ -30,7 +30,7 @@ def repository(**extra):
 def test_snapshot_keeps_our_libraries_and_their_vulnerabilities():
     snap = uv.snapshot(repository(), dt.date(2026, 10, 31))
     assert snap["_suveren"]["fetched"] == "2026-10-31"
-    assert "react" not in snap and "extractors" not in snap["jquery"]
+    assert "ember" not in snap and "extractors" not in snap["jquery"]
     assert parse_retire(snap)["jquery"][0].label == "CVE-2020-11022"
 
 

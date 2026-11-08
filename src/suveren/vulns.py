@@ -54,6 +54,14 @@ _URL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("moment", rf"{_B}moment[-.@]{_V}(?:\.min)?\.js"),
         ("angularjs", rf"/angular(?:\.js|js)?[/@]{_V}/angular"),
         ("angularjs", rf"{_B}angular[-.]{_V}(?:\.min)?\.js"),
+        # "@vue/runtime-core@3.4.0" and "vue-router@4.2.0" are other packages.
+        ("vue", rf"{_B}vue@{_V}"),
+        ("vue", rf"/vue(?:\.js)?/{_V}/"),
+        ("vue", rf"{_B}vue[-.]{_V}(?:\.min)?\.js"),
+        # react-dom ships with React under the same version; "preact" is another project.
+        ("react", rf"{_B}react(?:-dom)?@{_V}"),
+        ("react", rf"/react(?:-dom)?/{_V}/"),
+        ("react", rf"{_B}react(?:-dom)?[-.]{_V}(?:\.min)?\.js"),
     )
 )
 # Banners the libraries put at the start of their files, right after the comment opener:
@@ -67,6 +75,12 @@ _BANNERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("lodash", re.compile(rf"(?s)lodash\.com.{{0,3000}}?\bVERSION\s*=\s*['\"]{_V}['\"]")),
     ("moment", re.compile(rf"//! moment\.js\s*\n//! version : {_V}")),
     ("angularjs", re.compile(rf"{_HEAD}AngularJS v{_V}")),
+    ("vue", re.compile(rf"{_HEAD}(?:Vue\.js|vue) v{_V}")),
+    # "@license React v0.19.1 scheduler.production.min.js" is the scheduler's own version:
+    # the file named next must be React's.
+    ("react", re.compile(rf"@license React v{_V}\s*\*\s*react(?:-dom)?(?:-jsx-runtime)?\.")),
+    # Older builds: " * React v15.6.2" (not "@license React v...", see above).
+    ("react", re.compile(rf"(?m)(?:/\*\*?!?|^[ \t]*\*)[ \t]*React (?:\(with addons\) ?)?v{_V}")),
 )  # fmt: skip
 NAMES = {
     "jquery": "jQuery",
@@ -75,6 +89,8 @@ NAMES = {
     "lodash": "lodash",
     "moment": "Moment.js",
     "angularjs": "AngularJS",
+    "vue": "Vue.js",
+    "react": "React",
 }
 
 
@@ -134,10 +150,15 @@ RETIRE_NAMES = {
     "lodash": ("lodash",),
     "moment": ("moment.js",),
     "angularjs": ("angularjs",),
+    "vue": ("vue",),
+    "react": ("react",),
 }
 # Flaws that exist only where the library runs on a server (Node.js), not in the copy a
-# browser loads: moment loading a locale file from disk by a crafted name.
-SERVER_ONLY = frozenset({"CVE-2022-24785", "CVE-2026-17495"})
+# browser loads: moment loading a locale file from disk by a crafted name; React's
+# attribute names in server rendering (react-dom/server, CVE-2018-6341); Vue's server
+# renderer (retire.js #11 "xss in ssr", #10 serialize-javascript of vue-server-renderer).
+SERVER_ONLY = frozenset({"CVE-2022-24785", "CVE-2026-17495", "CVE-2018-6341"})
+SERVER_ONLY_RETIRE = frozenset({("vue", "10"), ("vue", "11")})
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 SEVERITY_RU = {"low": "низкая", "medium": "средняя", "high": "высокая", "critical": "критическая"}
 
@@ -183,7 +204,7 @@ def parse_retire(data: dict[str, Any]) -> dict[str, list[Vuln]]:
             for v in data[key].get("vulnerabilities", []):
                 ident = v.get("identifiers", {})
                 cves = [str(c) for c in ident.get("CVE", [])]
-                if SERVER_ONLY & set(cves):
+                if SERVER_ONLY & set(cves) or (key, str(ident.get("retid"))) in SERVER_ONLY_RETIRE:
                     continue
                 ghsa = [str(ident["githubID"])] if ident.get("githubID") else []
                 if not cves and not ghsa and ident.get("retid"):
@@ -269,7 +290,7 @@ def _verdict(libs: list[Library], db: VulnDb) -> Check:
             GROUP_WEB,
             TITLE,
             Status.OK,
-            "Библиотек с явно указанной версией (jQuery, Bootstrap, lodash и др.) не найдено.",
+            "Библиотек с явно указанной версией (jQuery, Bootstrap, Vue, React и др.) не найдено.",
         )
     bad: list[str] = []
     fine: list[str] = []

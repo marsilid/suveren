@@ -71,8 +71,9 @@ def priorities(report: Report) -> list[Action]:
 # Warnings the checks themselves call second-order ("редкая атака"): low urgency.
 SECOND_ORDER = frozenset({"SUV-MAIL-005"})
 # Their warnings are advice of a standard ("SHOULD"), not a weakness anyone uses today:
-# a 1024-bit DKIM key, a zone signed with an old algorithm. Their failures stay urgent.
-LOW_WHEN_WARN = frozenset({"SUV-MAIL-006", "SUV-WEB-013"})
+# a 1024-bit DKIM key, a zone signed with an old algorithm, no Permissions-Policy.
+# Their failures stay urgent.
+LOW_WHEN_WARN = frozenset({"SUV-MAIL-006", "SUV-WEB-013", "SUV-WEB-017"})
 
 
 def _spf_behind_reject(check: Check, status: dict[str, Status]) -> bool:
