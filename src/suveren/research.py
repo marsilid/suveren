@@ -28,11 +28,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from suveren.catalog import CATALOG
 from suveren.errors import SuverenError
 from suveren.models import Report
 from suveren.utils import normalize_domain
 
 PROBLEM = {"warn", "fail"}
+# Some catalog titles are patterns for the per-site title ("...от имени @.+").
+TITLES = {s.id: s.title.replace("@.+", "домена") for s in CATALOG}
+# Checks that a report carries only when they find something: their absence means
+# "looked, nothing found", so the share is over the sites where they were looked
+# for, not over the few that have them (that read "100% of sites"). Attack scenarios
+# are worked out for every site; the rest need the pages, and SUV-WEB-002 is there
+# whenever the pages were read.
+ONLY_WHEN_FOUND = ("SUV-ATK-", "SUV-LAW-003", "SUV-LAW-004", "SUV-WEB-003", "SUV-WEB-016")
+PAGES_READ = "SUV-WEB-002"
 ScanFn = Callable[[str], Awaitable[Report]]
 
 
@@ -130,8 +140,20 @@ def _findings(report: dict[str, Any]) -> tuple[dict[str, str], set[str]]:
     for f in report.get("findings", []):
         fid = f.get("id") or ""
         if fid:
-            has[fid] = "Иностранная зависимость: " + str(f.get("title", fid))
+            # "SSL-сертификат: GlobalSign (Бельгия)" -> the category: the row counts
+            # every foreign provider of it, not the one the first site happens to use.
+            category = str(f.get("title", fid)).split(":", 1)[0]
+            has[fid] = "Иностранная зависимость: " + category
     return has, seen
+
+
+def _looked_at(key: str, per_site: dict[str, tuple[dict[str, str], set[str]]]) -> list[str]:
+    """The sites where ``key`` could have been found."""
+    if key.startswith(("SUV-DEP-", "SUV-ATK-")):
+        return list(per_site)  # looked for on every site
+    if key.startswith(ONLY_WHEN_FOUND):
+        return [d for d, (has, seen) in per_site.items() if PAGES_READ in seen or key in has]
+    return [d for d, (_, seen) in per_site.items() if key in seen]
 
 
 def aggregate(reports: dict[str, dict[str, Any]], labels: dict[str, str]) -> list[Row]:
@@ -148,17 +170,12 @@ def aggregate(reports: dict[str, dict[str, Any]], labels: dict[str, str]) -> lis
         for key in seen:
             rows.setdefault(key, Row(key, key))
     for row in rows.values():
-        if row.key.startswith("SUV-DEP-"):
-            row.checked = len(reports)  # a dependency is looked for on every site
-        else:
-            row.checked = sum(1 for has, seen in per_site.values() if row.key in seen)
+        if row.title == row.key:
+            row.title = TITLES.get(row.key, row.key)
+        looked_at = _looked_at(row.key, per_site)
+        row.checked = len(looked_at)
         for label in total_by_label:
-            of = [d for d in reports if labels.get(d) == label]
-            looked = (
-                of
-                if row.key.startswith("SUV-DEP-")
-                else [d for d in of if row.key in per_site[d][1]]
-            )
+            looked = [d for d in looked_at if labels.get(d) == label]
             row.by_label[label] = (sum(1 for d in looked if d in row.sites), len(looked))
     found = [r for r in rows.values() if r.sites]
     return sorted(found, key=lambda r: (-r.share, r.key))

@@ -90,3 +90,26 @@ def test_cache_dir_on_linux(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     assert cache_dir() == tmp_path / "suveren"
+
+
+def test_scans_at_once_download_a_list_once(tmp_path, monkeypatch):
+    """`research` runs several scans together; each wanted the block list, and on
+    Windows the second writer found the temporary file taken and the run fell over."""
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    calls = []
+
+    async def handler(request):
+        calls.append(request.url)
+        await asyncio.sleep(0.05)
+        return httpx.Response(200, text="blocked.example\n" * 50)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await asyncio.gather(
+                *(fetch_cached(client, "https://lists.example/x.txt", "x.txt") for _ in range(4))
+            )
+
+    results = asyncio.run(go())
+    assert len(calls) == 1
+    assert all(path == tmp_path / "x.txt" and note is None for path, note in results)
+    assert not list(tmp_path.glob("*.part"))
