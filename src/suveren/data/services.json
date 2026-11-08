@@ -861,7 +861,9 @@
    "name": "Qrator",
    "country": "RU",
    "asn": [
-    200449
+    200449,
+    51115,
+    197068
    ],
    "as_names": [
     "qrator"

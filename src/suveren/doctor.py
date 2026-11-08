@@ -28,6 +28,7 @@ from suveren.collect import (
 )
 from suveren.dnsutil import create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
+from suveren.geoip import month_urls
 from suveren.registries import egrul_search, rkn_operator
 from suveren.ruregistries import FEDSFM_URL
 from suveren.sanctions import SOURCES
@@ -140,6 +141,17 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
         async def blocklist() -> str:
             return await _reachable(client, BLOCK_SOURCE + DOMAINS)
 
+        async def geo() -> str:
+            # This month's file appears on the 1st, during the day: last month's then.
+            last: ModuleError | None = None
+            for url in month_urls():
+                try:
+                    return await _reachable(client, url)
+                except ModuleError as exc:
+                    last = exc
+            assert last is not None
+            raise last
+
         def sanctions(url: str) -> Callable[[], Awaitable[str]]:
             return lambda: _reachable(client, url)
 
@@ -166,6 +178,7 @@ async def run_doctor(timeout: float = 20.0, *, abroad: bool = False) -> list[Pro
             *((f"Санкции: {s.title}", sanctions(s.url)) for s in SOURCES),
             *((f"Адреса облака: {c.name}", sanctions(c.url)) for c in CLOUD_SOURCES),
             ("База уязвимостей (retire.js)", sanctions(RETIRE_URL)),
+            ("Расположение серверов (DB-IP Lite, CC BY 4.0)", geo),
             ("Перечень Росфинмониторинга (fedsfm.ru)", sanctions(FEDSFM_URL)),
             ("Браузер для --browser", browser),
         ]

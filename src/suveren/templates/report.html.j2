@@ -223,7 +223,7 @@
         {% for d in deps %}
         <tr>
           <td>{{ d.service }}</td>
-          <td class="country">{{ d.country_ru }}</td>
+          <td class="country">{% if d.located %}сеть: {{ d.country_ru }}<br>сервер: {{ d.located_ru }}{% else %}{{ d.country_ru }}{% endif %}</td>
           <td class="evidence">{{ d.evidence }}</td>
           <td>
             {# The risk the dependency card above gives (lowered when part is in Russia). #}
@@ -250,7 +250,8 @@
 
   <footer>
     {% if brand %}Отчёт подготовил {% if brand.url %}<a href="{{ brand.url }}">{{ brand.name }}</a>{% else %}{{ brand.name }}{% endif %}. Сделано с помощью Suveren v{{ version }}{% else %}Отчёт создан Suveren v{{ version }}{% endif %}. Проверка пассивная: публичные DNS-записи, WHOIS,
-    SSL-сертификат, код главной страницы и открытые реестры. Страна сервиса — юрисдикция компании-владельца.
+    SSL-сертификат, код главной страницы и открытые реестры. Страна сервиса — юрисдикция компании-владельца;
+    {% if report.dependencies | selectattr("located") | list %}где физически стоит сервер — по базе <a href="https://db-ip.com">IP Geolocation by DB-IP</a> (CC BY 4.0).{% endif %}
     Оценка помогает расставить приоритеты и не является юридическим заключением.
   </footer>
 {% endblock %}

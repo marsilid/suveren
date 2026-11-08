@@ -184,6 +184,8 @@ def test_update_downloads_every_list(tmp_path, monkeypatch):
             return httpx.Response(200, content=(fixtures / "un_sample.xml").read_bytes())
         if "antifilter" in host:
             return httpx.Response(200, text="blocked.example\n")
+        if host == "download.db-ip.com":
+            return httpx.Response(200, content=b"5.0.0.0,5.0.0.255,RU\n")
         raise AssertionError(f"a real request to {request.url}")
 
     monkeypatch.setattr(
@@ -195,6 +197,7 @@ def test_update_downloads_every_list(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "Реестр блокировок РКН" in result.output and "записей" in result.output
     assert (tmp_path / f"blocklist-{DOMAINS}").read_text("utf-8") == "blocked.example\n"
+    assert "DB-IP, https://db-ip.com, база от" in result.output
 
 
 def test_unknown_domains_list_and_clear(tmp_path, monkeypatch):

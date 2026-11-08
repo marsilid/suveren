@@ -103,9 +103,10 @@ def _from_network(
 
 def _merge(deps: Iterable[Dependency]) -> list[Dependency]:
     """One row per (category, service); evidence is joined."""
-    merged: dict[tuple[Category, str], Dependency] = {}
+    merged: dict[tuple[Category, str, str | None], Dependency] = {}
     for dep in deps:
-        key = (dep.category, dep.service)
+        # Two servers of one network in different countries stay two rows (PD-007).
+        key = (dep.category, dep.service, dep.located)
         if key in merged:
             existing = merged[key]
             if dep.evidence not in existing.evidence:
@@ -202,11 +203,20 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
         if service:
             category = Category.CDN if service.cdn else Category.HOSTING
             hidden_origin |= service.cdn
-            deps.append(_from_service(category, service, evidence))
+            dep = _from_service(category, service, evidence)
         elif own_network(net, facts.domain):
-            deps.append(_own(Category.HOSTING, net, evidence))
+            dep = _own(Category.HOSTING, net, evidence)
         else:
-            deps.append(_from_network(Category.HOSTING, net, net.ip, evidence))
+            dep = _from_network(Category.HOSTING, net, net.ip, evidence)
+        if dep.category is Category.HOSTING and net.located:
+            # A CDN or anycast address answers from many countries: no place for it.
+            dep.located, dep.located_by = net.located, facts.geo_origin
+        deps.append(dep)
+    if facts.web and facts.geo_problem:
+        notes.append(
+            f"Где физически стоят серверы сайта, не проверено ({facts.geo_problem}): страна "
+            "хостинга указана по владельцу сети. Обновите базы командой suveren update."
+        )
     if hidden_origin and not any(d.category is Category.HOSTING for d in deps):
         notes.append(
             "Сайт работает через CDN, поэтому настоящий хостинг скрыт и не проверялся. "

@@ -19,7 +19,7 @@ from typing import Any
 import certifi
 import httpx
 
-from suveren import __version__
+from suveren import __version__, geoip
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
@@ -45,7 +45,10 @@ class NetInfo:
     ip: str
     asn: int | None = None
     as_name: str | None = None
-    country: str | None = None
+    country: str | None = None  # of the network's owner
+    # Where the server physically is, by the geolocation database (geoip.py); None when
+    # the database has no answer or did not load.
+    located: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +56,7 @@ class NetInfo:
             "asn": f"AS{self.asn}" if self.asn else None,
             "as_name": self.as_name,
             "country": self.country,
+            "located": self.located,
         }
 
 
@@ -106,6 +110,10 @@ class Facts:
     # them are unseen, not absent. sravni.ru, 2026-10-25: A, NS and MX timed out, four
     # services vanished and the report still looked complete.
     dns_unanswered: list[str] = field(default_factory=list)
+    # The geolocation database the servers' ``located`` came from ("DB-IP …, база от
+    # 01.11.2026"), or why it was not used.
+    geo_origin: str = ""
+    geo_problem: str = ""
 
     @property
     def page_problem(self) -> str | None:
@@ -633,6 +641,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             "homepage": c.homepage(host),
             "registrar": c.registrar(domain),
             "tls": c.tls_issuer(host),
+            "geo": geoip.load(client),
         }
         labels = {
             "ns": "DNS-серверы",
@@ -641,6 +650,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             "homepage": "главную страницу",
             "registrar": "регистратора",
             "tls": "SSL-сертификат",
+            "geo": "базу расположения серверов",
         }
         results: list[Any] = await asyncio.gather(*tasks.values(), return_exceptions=True)
         await c.aclose()
@@ -669,4 +679,16 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.registrar = value
         elif key == "tls":
             facts.tls_issuer, facts.tls_trusted = value
+        elif key == "geo":
+            locate(facts, value)
     return facts
+
+
+def locate(facts: Facts, db: geoip.GeoDb) -> None:
+    """The physical country of each of the site's servers, when the database has it."""
+    if db.problem:
+        facts.geo_problem = db.problem
+        return
+    facts.geo_origin = db.origin
+    for net in facts.web:
+        net.located = db.country_of(net.ip)
