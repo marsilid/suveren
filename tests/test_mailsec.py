@@ -783,3 +783,32 @@ def test_bimi_record_is_collected_with_its_evidence():
     records[("default._bimi.example.ru", "TXT")] = ["SERVFAIL"]
     m = asyncio.run(collect_mail(FakeResolver(records), None, "example.ru"))  # type: ignore[arg-type]
     assert m.bimi is None
+
+
+def test_spf_include_is_asked_again_once_when_dns_does_not_answer():
+    class Flaky(FakeResolver):
+        def __init__(self, records, fails):
+            super().__init__(records)
+            self.fails = fails  # name -> how many lookups time out first
+            self.asked: list[str] = []
+
+        async def resolve(self, name, rtype):
+            self.asked.append(name)
+            if self.fails.get(name, 0) > 0:
+                self.fails[name] -= 1
+                raise DnsLookupError("timeout")
+            return await super().resolve(name, rtype)
+
+    records = {
+        ("example.ru", "TXT"): ["v=spf1 include:a.ru -all"],
+        ("a.ru", "TXT"): ["v=spf1 ip4:192.0.2.0/24 -all"],
+    }
+    once = Flaky(records, {"a.ru": 1})
+    result = asyncio.run(check_spf(once, "example.ru"))
+    assert result.problems == [] and once.asked.count("a.ru") == 2
+    twice = Flaky(records, {"a.ru": 2})
+    result = asyncio.run(check_spf(twice, "example.ru"))
+    assert result.problems == ["a.ru: DNS не ответил"] and twice.asked.count("a.ru") == 2
+    # The domain's own record is not retried here: its timeout is the caller's to report.
+    with pytest.raises(DnsLookupError):
+        asyncio.run(check_spf(Flaky(records, {"example.ru": 1}), "example.ru"))

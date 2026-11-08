@@ -254,6 +254,11 @@ CLOUD_LISTS = {
 NO_ANSWER: list[str] = ["<нет ответа>"]
 
 
+class SilentOnce(list[str]):
+    """Records whose first lookup times out and the next ones answer (a nightly-run
+    hiccup): ``dns={(name, "TXT"): SilentOnce(["v=spf1 ..."])}``."""
+
+
 @dataclass
 class Case:
     name: str  # also the host: <name>.lab-suveren.ru
@@ -1788,6 +1793,26 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("_mta-sts.lab-mta-sts-silent.ru", "TXT"): NO_ANSWER},
     ),
+    Case(
+        "lab-spf-include-hiccup",
+        "DNS не ответил на include SPF с первого раза, со второго ответил: SPF в порядке",
+        {"SUV-MAIL-001": "ok", "SUV-MAIL-002": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("_spf.yandex.net", "TXT"): SilentOnce(
+                ["v=spf1 ip4:77.88.0.0/18 ip4:5.45.198.0/23 ~all"]
+            )
+        },
+    ),
+    Case(
+        "lab-spf-include-silent",
+        "DNS не ответил на include SPF и при повторе: проверить цепочку не удалось",
+        {"SUV-MAIL-002": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("_spf.yandex.net", "TXT"): NO_ANSWER},
+    ),
     # --- recommendation technologies (149-ФЗ, ст. 10.2-2) -----------------------------
     Case(
         "lab-recs-no-rules",
@@ -1880,12 +1905,15 @@ class FakeResolver:
     ) -> None:
         self.records = records
         self.missing = missing
+        self.asked: set[tuple[str, str]] = set()
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         records = self.records.get((name, rtype), [])
-        if records is NO_ANSWER:
+        once = isinstance(records, SilentOnce) and (name, rtype) not in self.asked
+        self.asked.add((name, rtype))
+        if records is NO_ANSWER or once:
             raise DnsLookupError(f"DNS не ответил вовремя на запрос {rtype} {name}")
-        return records
+        return list(records)
 
     async def exists(self, domain: str) -> bool:
         return domain not in self.missing

@@ -118,6 +118,15 @@ async def _txt(resolver: DnsResolver, name: str) -> list[str]:
     return await resolver.resolve(name, "TXT")
 
 
+async def _txt_retried(resolver: DnsResolver, name: str) -> list[str]:
+    """TXT of an include or redirect target, asked again once if DNS did not answer: one
+    lost answer flipped SUV-MAIL-002 between ok and warn from night to night."""
+    try:
+        return await _txt(resolver, name)
+    except DnsLookupError:
+        return await _txt(resolver, name)
+
+
 async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
     records = spf_records(await _txt(resolver, domain))
     if len(records) != 1:
@@ -131,7 +140,7 @@ async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
         if name not in loaded:
             loaded[name] = None
             try:
-                found = spf_records(await _txt(resolver, name))
+                found = spf_records(await _txt_retried(resolver, name))
             except DnsLookupError:
                 result.problems.append(f"{name}: DNS не ответил")
                 return None
