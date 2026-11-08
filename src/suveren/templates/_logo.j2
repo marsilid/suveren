@@ -1,0 +1,4 @@
+{# The Suveren wordmark: SUVEREN with the V drawn as a teal chevron. #}
+{% macro wordmark(suffix='') -%}
+<span class="brand wordmark" aria-label="Suveren">SU<svg class="wordmark-v" viewBox="0 0 60 62" aria-hidden="true"><path d="M2 2 L30 58 L58 2" fill="none" stroke="currentColor" stroke-width="13"/></svg>EREN</span>{% if suffix %}<span class="brand-suffix">{{ suffix }}</span>{% endif %}
+{%- endmacro %}

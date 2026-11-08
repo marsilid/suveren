@@ -2,7 +2,7 @@
 
 Internet ads in Russia carry a token (erid) from the ad register and the word
 «Реклама» with the advertiser. The law's current text could not be checked against
-the primary source when this was written (consultant.ru did not open from the cloud,
+the primary source when this was written (consultant.ru did not open,
 2026-10-31), so Suveren only reports the labels it sees and never calls anything a
 violation: whether a block is an ad at all is a legal question it can't answer.
 """

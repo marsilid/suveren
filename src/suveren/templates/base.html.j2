@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 {# The report quotes sites: no script runs in it and nothing loads from outside. #}
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%230e1418'/%3E%3Cpath d='M9 9 L20 31 L31 9' fill='none' stroke='%235fb3b3' stroke-width='6'/%3E%3C/svg%3E">
 <title>{% block title %}Suveren{% endblock %}</title>
 <style>
+{{ font_faces }}
   /* The terminal's palette (view.py): teal accent, green / amber / red for statuses.
      Dark uses the terminal's colours as they are; light darkens them for contrast. */
   :root {
@@ -26,11 +28,15 @@
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font: 15px/1.55 "Suveren Sans", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
   header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
   .brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+  .wordmark { font-size: 20px; font-family: 'Suveren Sans', 'Segoe UI', system-ui, sans-serif; font-weight: 700;
+              letter-spacing: .04em; color: var(--text); white-space: nowrap; }
+  .wordmark-v { display: inline-block; height: .74em; width: .72em; margin: 0 .02em; color: var(--accent); }
+  .brand-suffix { color: var(--muted); font-weight: 400; margin-left: .5em; }
   .brand-logo { height: 28px; max-width: 160px; vertical-align: middle; margin-right: 10px; object-fit: contain; }
   .meta { color: var(--muted); font-size: 13px; }
   h1 { font-size: 28px; margin: 8px 0 24px; word-break: break-all; }
@@ -39,7 +45,7 @@
   .check:target, .finding:target { box-shadow: inset 3px 0 0 var(--accent); background: var(--code-bg); }
   ol.actions small a { color: var(--muted); text-decoration: underline dotted; text-underline-offset: 3px; }
   ol.actions small a:hover { color: var(--accent); }
-  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0 0; }
   .tile {
     display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px;
     background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--tone);
@@ -99,17 +105,17 @@
   .finding .head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .finding h3 { margin: 0; font-size: 15px; color: var(--text); }
   .finding p { margin: 8px 0 0; color: var(--text); }
-  .finding .fix { color: var(--muted); }
-  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .finding .fix { color: var(--text); }
+  .finding .fix::before { content: "Что делать: "; font-weight: 600; color: var(--accent); }
   .note { border-left: 4px solid var(--medium); padding: 12px 16px; margin: 0 0 12px; color: var(--muted); }
   table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
   th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
   td { word-break: break-word; }
   td.country, .nowrap { white-space: nowrap; word-break: normal; }
-  span.evidence { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  span.evidence { color: var(--muted); font-family: 'Suveren Mono', ui-monospace, Consolas, monospace; font-size: 12px; }
   section.card th { width: 210px; }
-  td.evidence { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  td.evidence { color: var(--muted); font-family: 'Suveren Mono', ui-monospace, Consolas, monospace; font-size: 12.5px; }
   tr.group td { background: var(--code-bg); font-weight: 600; }
   .table-wrap { overflow-x: auto; padding: 0; }
   .empty { color: var(--muted); font-style: italic; }
@@ -119,10 +125,10 @@
     font-weight: 800; font-size: 13px; background: currentColor; }
   .check .icon span { color: var(--bg); }
   .check h3 { margin: 1px 0 0; font-size: 15px; }
-  .check .cid { color: var(--muted); font: 500 11px ui-monospace, Consolas, monospace; margin-left: 6px; white-space: nowrap; }
+  .check .cid { color: var(--muted); font: 500 11px 'Suveren Mono', ui-monospace, Consolas, monospace; margin-left: 6px; white-space: nowrap; }
   .check p { margin: 4px 0 0; grid-column: 2; }
-  .check .fix { color: var(--muted); }
-  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--text); }
+  .check .fix { color: var(--text); }
+  .check .fix::before { content: "Что делать: "; font-weight: 600; color: var(--accent); }
   .check details.evidence { grid-column: 2; margin: 6px 0 0; font-size: 13.5px; }
   .check details.evidence summary { cursor: pointer; color: var(--muted); }
   .check details.evidence dl { margin: 6px 0 0; }
@@ -152,7 +158,7 @@
   .graph rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.2; }
   .graph .site rect { stroke: var(--grade-a); stroke-width: 2; }
   .graph .indirect rect { stroke: var(--medium); stroke-width: 2; }
-  .graph text { font: 12px system-ui, sans-serif; fill: var(--text); }
+  .graph text { font: 12px 'Suveren Sans', system-ui, sans-serif; fill: var(--text); }
   .move { margin-top: 10px; }
   .move summary { cursor: pointer; font-weight: 500; font-size: 13.5px; color: var(--muted); }
   .move summary:hover { color: var(--accent); }
@@ -195,10 +201,12 @@
   a { color: var(--accent); }
   footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 860px) {
-    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .tile { padding: 9px 12px; border-radius: 10px; }
+    .tile-value { font-size: 17px; }
     .toc { flex-wrap: nowrap; overflow-x: auto; }
   }
-  @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(5, 1fr); } }
+  @media print { .toc { display: none; } .tiles { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); } }
   @media screen and (max-width: 860px) { .tile:last-child:nth-child(odd) { grid-column: span 2; } }
   @media (max-width: 560px) {
     .summary { padding: 16px; }

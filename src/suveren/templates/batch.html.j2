@@ -1,8 +1,9 @@
 {% extends "base.html.j2" %}
+{% from "_logo.j2" import wordmark %}
 {% block title %}{{ brand.name if brand else 'Suveren' }} — сводка по {{ rows | length }} сайтам{% endblock %}
 {% block content %}
   <header class="top">
-    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}<span class="brand">Suveren · массовая проверка</span>{% endif %}
+    {% if brand %}<span class="brand">{% if brand.logo %}<img class="brand-logo" src="{{ brand.logo }}" alt="">{% endif %}{{ brand.name }}</span>{% else %}{{ wordmark('массовая проверка') }}{% endif %}
     <span class="meta">{{ generated.strftime("%d.%m.%Y %H:%M") }}</span>
   </header>
   <h1>Проверено сайтов: {{ rows | length }}</h1>
