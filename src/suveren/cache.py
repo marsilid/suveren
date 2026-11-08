@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import httpx
@@ -49,6 +51,16 @@ def age_text(path: Path) -> str:
     return f"{int(hours / 24)} дн назад"
 
 
+# One download per file at a time: `research` scans several sites at once, and each
+# wanted the block list; on Windows the second writer found the file taken and the
+# whole run fell over. Keyed by the event loop too: plugins run in their own loops.
+_LOCKS: dict[tuple[int, str], asyncio.Lock] = {}
+
+
+def _lock(name: str) -> asyncio.Lock:
+    return _LOCKS.setdefault((id(asyncio.get_running_loop()), name), asyncio.Lock())
+
+
 async def fetch_cached(
     client: httpx.AsyncClient,
     url: str,
@@ -66,8 +78,18 @@ async def fetch_cached(
     path = cache_dir() / name
     if not refresh and is_fresh(path, ttl):
         return path, None
+    async with _lock(name):
+        if not refresh and is_fresh(path, ttl):  # another caller has just fetched it
+            return path, None
+        return await _download(client, url, name, path, html=html)
+
+
+async def _download(
+    client: httpx.AsyncClient, url: str, name: str, path: Path, *, html: bool
+) -> tuple[Path, str | None]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".part")
+    # A name of its own, so another process downloading the same list does not collide.
+    tmp = path.with_name(f"{path.name}.{os.getpid()}-{uuid.uuid4().hex[:8]}.part")
     try:
         # Sanctions lists and the block list are far bigger than a page.
         big = {MAX_BODY_KEY: 1 << 30}
