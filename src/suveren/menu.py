@@ -20,8 +20,10 @@ from typer.exceptions import TyperException
 
 from suveren import __version__
 from suveren.clirus import translate
+from suveren.net import proxy_note
+from suveren.utils import reports_dir
 
-REPORTS = Path("reports")
+REPORTS = reports_dir()
 SITES_TEMPLATE = (
     "# Впишите сайты, по одному в строке, сохраните файл и выберите пункт 2 снова.\nexample.ru\n"
 )
@@ -63,6 +65,22 @@ def open_path(path: Path) -> None:
             subprocess.run(["open", str(path)], check=False)
         else:
             subprocess.run(["xdg-open", str(path)], check=False)
+
+
+def clear_screen(console: Console) -> None:
+    """Clear the screen before the menu is drawn again.
+
+    On Windows rich's clear leaves the old output in the buffer, and the menu drawn after
+    a scan landed on top of it: ``cls`` clears the whole console, and ESC[3J the
+    scrollback of Windows Terminal.
+    """
+    if sys.platform == "win32" and console.is_terminal:
+        os.system("cls")  # a fixed command, no input
+        if not console.legacy_windows:
+            console.file.write("\x1b[3J")
+            console.file.flush()
+    else:
+        console.clear()
 
 
 def run_menu(app: typer.Typer, console: Console) -> None:
@@ -168,12 +186,14 @@ def run_menu(app: typer.Typer, console: Console) -> None:
 
     empty = 0
     while True:
-        console.clear()
+        clear_screen(console)
         console.print()
         console.print(
             f"[bold]SU[/][bold {ACCENT}]V[/][bold]EREN[/] "
             f"[{DIM}]{__version__}   аудит сайта и компании для России[/]"
         )
+        if note := proxy_note():
+            console.print(f"  [#e6b450]{escape(note)}[/]")
         for group, items in GROUPS:
             console.print()
             console.print(f"  [bold {DIM}]{group}[/]")

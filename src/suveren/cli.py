@@ -57,6 +57,7 @@ from suveren.ignore import apply as apply_ignore
 from suveren.ignore import load as load_ignore
 from suveren.menu import run_menu
 from suveren.models import Report
+from suveren.net import proxy_note
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
 from suveren.render import print_pdf
@@ -73,7 +74,7 @@ from suveren.sanctions import SOURCES as SANCTION_SOURCES
 from suveren.sarif import sarif_text
 from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
-from suveren.utils import country_name, normalize_domain, plural
+from suveren.utils import country_name, normalize_domain, plural, reports_dir
 from suveren.view import (
     ACCENT,
     DIM,
@@ -105,6 +106,7 @@ app = typer.Typer(
     "блокировки, ЕГРЮЛ, санкции.",
 )
 # No automatic highlighting: it colours every number ("152-ФЗ", dates) at random.
+DEFAULT_REPORTS = reports_dir()  # reports/, or the current folder if it is reports
 console = Console(record=True, highlight=False)
 errors_console = Console(stderr=True, highlight=False)
 GRADE_ORDER = ("A", "B", "C", "D", "F")
@@ -268,8 +270,12 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+PROXY_NOTE_COMMANDS = {"scan", "company", "batch", "research", "doctor", "watch"}
+
+
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option("--version", callback=_version_callback, is_eager=True, help="Версия."),
@@ -278,6 +284,8 @@ def main(
     """Подробнее о команде: `suveren КОМАНДА --help`."""
     console.quiet = False  # scan -q sets it for its own run only
     console.stderr = False  # and `--json -` moves the view to stderr for its own run
+    if ctx.invoked_subcommand in PROXY_NOTE_COMMANDS and (note := proxy_note()):
+        errors_console.print(f"[#e6b450]{esc(note)}[/]")
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
@@ -749,7 +757,7 @@ def scan(
             if no_report:  # only needed to print the PDF: never touch the user's --output
                 html_path = Path(tempfile.gettempdir()) / f"suveren-{host}-{_stamp()}.html"
             else:
-                html_path = output or Path("reports") / f"{host}-{_stamp()}.html"
+                html_path = output or reports_dir() / f"{host}-{_stamp()}.html"
             write_html(report, html_path, brand)
             if not no_report:
                 files.append(("отчёт", html_path))
@@ -923,7 +931,7 @@ def batch(
     except SelectionError as exc:
         raise _fail(str(exc)) from exc
 
-    folder = out_dir or Path("reports") / f"batch-{_stamp()}"
+    folder = out_dir or reports_dir() / f"batch-{_stamp()}"
     folder.mkdir(parents=True, exist_ok=True)
     console.print(
         header(
@@ -1221,7 +1229,7 @@ def watch(
     ] = False,
     state: Annotated[
         Path, typer.Option("--state", help="Папка с отчётами и журналом изменений.")
-    ] = Path("reports") / "watch",
+    ] = DEFAULT_REPORTS / "watch",
     timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
     telegram_token: Annotated[
         str | None,
@@ -1316,10 +1324,9 @@ def research(
         Path,
         typer.Argument(help="Список сайтов: по одному в строке, через запятую — тип сайта."),
     ],
-    out: Annotated[Path, typer.Option("--out", help="Папка: сырые отчёты (raw/) и сводка.")] = Path(
-        "reports"
-    )
-    / "research",
+    out: Annotated[
+        Path, typer.Option("--out", help="Папка: сырые отчёты (raw/) и сводка.")
+    ] = DEFAULT_REPORTS / "research",
     jobs: Annotated[
         int, typer.Option("--jobs", "-j", min=1, max=10, help="Сколько сайтов проверять сразу.")
     ] = 4,
@@ -1546,7 +1553,7 @@ def company(
         html_path = (
             Path(tempfile.gettempdir()) / f"suveren-company-{slug}-{_stamp()}.html"
             if no_report
-            else output or Path("reports") / f"company-{slug}-{_stamp()}.html"
+            else output or reports_dir() / f"company-{slug}-{_stamp()}.html"
         )
     write_company(report, html_path, json_path, brand)
     files: list[tuple[str, Path]] = []

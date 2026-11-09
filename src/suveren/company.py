@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
@@ -60,6 +61,8 @@ class CompanyReport:
     sources: dict[str, str] = field(default_factory=dict)
     whois_org: str | None = None
     site_problem: str | None = None
+    # The site sells: a cart, a checkout, an offer with a price (ЗоЗПП, ст. 26.1).
+    site_sells: bool = False
     # Russian lists (ruregistries.py); None when screening was switched off.
     ru_screening: RuScreening | None = None
     ru_asked: bool = False
@@ -409,6 +412,21 @@ SOURCES_BY_CHECK = {
 }
 
 
+# Signs of a shop: a cart, a checkout, an offer marked up with its price. A price in an
+# article ("5 млн ₽ за квартиру") is not one: habr.com was told a seller's duty.
+_SELLS = re.compile(
+    r"в\s+корзину|добавить\s+в\s+корзину|оформить\s+заказ|add\s+to\s+cart|"
+    r"href=[\"'][^\"']*/(?:cart|basket|korzina|checkout)\b|"
+    r"itemprop=[\"']?(?:price|pricecurrency)\b|\"@type\"\s*:\s*\"offer\"",
+    re.I,
+)
+
+
+def sells(html: str) -> bool:
+    """Whether the page looks like it sells something (a cart, a checkout, an offer)."""
+    return bool(_SELLS.search(html))
+
+
 def _site_check(report: CompanyReport) -> Check:
     title = "Сайт и компания"
     rec = report.egrul
@@ -427,8 +445,13 @@ def _site_check(report: CompanyReport) -> Check:
             title,
             Status.WARN,
             f"На сайте {report.domain} не найден ИНН владельца.",
-            "Продавец обязан указывать на сайте наименование и ОГРН (закон «О защите прав "
-            "потребителей», ст. 26.1). Отсутствие реквизитов — повод насторожиться.",
+            "Сайт продаёт товары или услуги, а продавец обязан указывать на сайте "
+            "наименование и ОГРН (закон «О защите прав потребителей», ст. 26.1). Отсутствие "
+            "реквизитов — повод насторожиться."
+            if report.site_sells
+            else "Узнать, кто стоит за сайтом, по нему самому не получится. Если вы собираетесь "
+            "что-то покупать или передавать данные, спросите реквизиты у владельца или "
+            "проверьте компанию по ИНН: suveren company <ИНН>.",
         )
     where = f"ИНН {report.inn} указан на сайте"
     # Nothing to compare with is "not checked", not a match (review of 1.1.2).
@@ -497,6 +520,7 @@ async def _from_site(
     if problem:
         report.notes.append(f"Сайт {report.domain}: {problem}.")
     else:
+        report.site_sells = sells(html)
         inns, source = await discover_inns(client, base, html)
         if inns:
             report.inn, report.inn_source = inns[0], source

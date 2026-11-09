@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from suveren.inn import find_inns
+from suveren.inn import drop_third_party, find_inns
 from suveren.page import Page, parse_page
 from suveren.utils import registrable_domain
 
@@ -61,7 +61,10 @@ async def discover_inns(
     # A document names its operator first and the third parties after it: kp.ru's policy
     # opens with the publisher's ИНН and lists ООО «ВК» twice, for two of its counters.
     # So the documents go by order, the page by how often an ИНН recurs (its footer).
+    # ИНН of a service whose widget is on the page (VK's in its block) is not the owner's.
+    own = {urlsplit(base).hostname or ""}
     inns = list(dict.fromkeys(find_inns(extra_text, first=True) + find_inns(html)))
+    inns = drop_third_party(inns, own)
     if inns:
         return inns, base
     for url in contact_links(parse_page(html), base)[:MAX_EXTRA_PAGES]:
@@ -71,7 +74,7 @@ async def discover_inns(
             continue
         if resp.status_code != 200:
             continue
-        inns = find_inns(resp.text[:3_000_000])
+        inns = drop_third_party(find_inns(resp.text[:3_000_000]), own)
         if inns:
             return inns, str(resp.url)
     return [], None

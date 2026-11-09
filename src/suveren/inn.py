@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Iterable
 
 # Requisites are mostly written "ИНН/КПП: 7707083893/770701001", "ИНН (КПП)" or
 # "ИНН организации"; the ИНН is the first number after the label.
@@ -97,6 +98,31 @@ def find_inns(text: str, *, first: bool = False) -> list[str]:
     order = list(counts) if first else [inn for inn, _ in counts.most_common()]
     # Named only as a payer, it goes last; a bank's own site still has its ИНН first.
     return sorted(order, key=lambda v: v not in plain)
+
+
+# ИНН of services whose widgets and documents sit on other people's sites: a VK widget
+# shows "ООО «ВК», ИНН 7842349892", a policy lists Яндекс and Google among third parties.
+# On a site of its own the ИНН is the owner's; anywhere else it is not.
+THIRD_PARTY_INNS: dict[str, tuple[str, ...]] = {
+    "7842349892": ("vk.com", "vk.ru", "vk.company", "vkontakte.ru", "mail.ru", "ok.ru"),  # ООО «ВК»
+    "7736207543": ("yandex.ru", "ya.ru", "yandex.com", "yandex.net"),  # ООО «Яндекс»
+    "7704582421": ("google.com", "google.ru"),  # ООО «Гугл»
+}
+
+
+def drop_third_party(inns: list[str], own: Iterable[str]) -> list[str]:
+    """``inns`` without those of known services, unless the site (``own``: its host
+    names or registrable domains) is the service's own."""
+
+    def theirs(host: str, domains: tuple[str, ...]) -> bool:
+        return any(host == d or host.endswith("." + d) for d in domains)
+
+    hosts = [h.lower().rstrip(".") for h in own]
+    return [
+        inn
+        for inn in inns
+        if inn not in THIRD_PARTY_INNS or any(theirs(h, THIRD_PARTY_INNS[inn]) for h in hosts)
+    ]
 
 
 # The advertiser's name, quoted, just before the ИНН: "Реклама АО «МегаФон Ритейл» ИНН".

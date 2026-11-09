@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from suveren.errors import InvalidTargetError
@@ -155,3 +156,12 @@ _CONTROL = dict.fromkeys(
 def clean_text(text: str) -> str:
     """Text from a site, safe to show: control characters and bidi controls removed."""
     return text.translate(_CONTROL)
+
+
+def reports_dir() -> Path:
+    """Where reports go by default: ``reports/`` under the current folder.
+
+    An .exe put inside a folder named ``reports`` and started there writes into that
+    folder rather than into ``reports\reports``.
+    """
+    return Path(".") if Path.cwd().name.lower() == "reports" else Path("reports")

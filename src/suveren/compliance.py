@@ -40,6 +40,7 @@ from suveren.pdpolicy import (
     consent_doc_link,
     cookie_doc_link,
     implied_in_document,
+    individual_operator,
     policy_content,
     policy_reality,
 )
@@ -853,6 +854,14 @@ NETWORKS_SOURCE = "Team Cymru (владельцы сетей IP-адресов)"
 
 def _operator_check(data: ComplianceInput) -> Check:
     title = "Реестр операторов персональных данных"
+    if not data.inns and individual_operator(data.policy.text):
+        return Check(
+            GROUP_152,
+            title,
+            Status.UNKNOWN,
+            "По политике оператор — физическое лицо: реквизитов компании у него нет, поэтому "
+            "ИНН на сайте не ищется и реестр операторов не проверялся.",
+        )
     if not data.inns:
         return Check(
             GROUP_152,

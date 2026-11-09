@@ -666,7 +666,7 @@ def dkim_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.OK,
-            "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + ".",
+            "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + "." + OTHER_SELECTORS,
         )
     if m.dkim_node:
         return Check(
@@ -690,6 +690,11 @@ def dkim_check(m: MailFacts) -> Check:
 
 # --- DKIM key strength ----------------------------------------------------------------
 
+# Selectors can't be listed from outside: keys under other names are not seen.
+OTHER_SELECTORS = (
+    " Проверены только распространённые селекторы: список ключей домена снаружи не "
+    "получить, у него могут быть и другие ключи под своими селекторами."
+)
 DKIM_MIN_BITS = 1024  # RFC 8301, 3.2: verifiers MUST NOT accept signatures by shorter keys
 DKIM_GOOD_BITS = 2048  # RFC 8301, 3.2: signers SHOULD use keys of at least 2048 bits
 _RSA_OID = bytes.fromhex("2a864886f70d010101")  # 1.2.840.113549.1.1.1 rsaEncryption
@@ -806,7 +811,8 @@ def dkim_strength_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.FAIL,
-            f"Ключи: {listed} {reason[0].upper()}{reason[1:]} (RFC 8301, разделы 3.1–3.2).",
+            f"Найденные ключи: {listed} {reason[0].upper()}{reason[1:]} (RFC 8301, разделы "
+            f"3.1–3.2).{OTHER_SELECTORS}",
             "Выпустите новый ключ RSA 2048 бит (или Ed25519 вместе с RSA) под новым селектором, "
             "переключите подпись на него и опубликуйте пустой p= у старого селектора.",
         )
@@ -816,8 +822,9 @@ def dkim_strength_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.UNKNOWN,
-            f"Ключи: {listed} Значение p= не разобрать как открытый ключ, длину не узнать. "
-            "Если запись и правда такая, подписи с этим селектором не проверяются.",
+            f"Найденные ключи: {listed} Значение p= не разобрать как открытый ключ, длину не "
+            "узнать. Если запись и правда такая, подписи с этим селектором не проверяются."
+            + OTHER_SELECTORS,
         )
     short = [k for k in keys if k.kind == "rsa" and k.bits is not None and k.bits < DKIM_GOOD_BITS]
     if short:
@@ -825,12 +832,13 @@ def dkim_strength_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.WARN,
-            f"Ключи: {listed} RSA-ключ короче 2048 бит: получатели его пока принимают, но "
-            "RFC 8301 (раздел 3.2) советует не меньше 2048, а запас стойкости у 1024 бит "
-            "уже небольшой.",
+            f"Найденные ключи: {listed} RSA-ключ короче 2048 бит: получатели его пока "
+            "принимают, но RFC 8301 (раздел 3.2) советует не меньше 2048, а запас стойкости "
+            "у 1024 бит уже небольшой. Это о найденном ключе, а не о почте домена в целом: "
+            "письма могут подписываться и другим, более длинным ключом." + OTHER_SELECTORS,
             "При следующей смене ключа выпустите RSA 2048 бит под новым селектором.",
         )
-    return Check(GROUP_MAIL, title, Status.OK, f"Ключи: {listed}")
+    return Check(GROUP_MAIL, title, Status.OK, f"Найденные ключи: {listed}{OTHER_SELECTORS}")
 
 
 def mx_matches(host: str, pattern: str) -> bool:
