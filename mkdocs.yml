@@ -1,0 +1,86 @@
+site_name: Suveren
+site_url: https://marsilid.github.io/suveren/
+site_description: >-
+  Бесплатная проверка сайта и компании для работы в России: 152-ФЗ, подделка почты,
+  иностранные сервисы, блокировки, безопасность, ЕГРЮЛ и санкции.
+repo_url: https://github.com/marsilid/suveren
+repo_name: marsilid/suveren
+edit_uri: edit/main/docs/
+copyright: Код открыт под лицензией AGPL-3.0
+
+docs_dir: docs
+exclude_docs: |
+  accuracy-sample.md
+  standards-review.md
+  roadmap.md
+
+hooks:
+  - tools/mkdocs_hooks.py
+
+theme:
+  name: material
+  language: ru
+  font: false
+  logo: logo-dark.png
+  favicon: logo-light.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Тёмная тема
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Светлая тема
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+    - toc.integrate
+
+extra:
+  generator: false
+
+extra_css:
+  - site.css
+
+nav:
+  - Главная: index.md
+  - 152-ФЗ: check-152fz.md
+  - Защита почты: email-spoofing.md
+  - Руководство: guide.md
+  - Проверки: checks.md
+  - Точность: accuracy.md
+  - Плагины: plugins.md
+
+markdown_extensions:
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+validation:
+  links:
+    not_found: info
+    unrecognized_links: info
+    anchors: info

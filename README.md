@@ -14,7 +14,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
-[English version](README.en.md)
+[Сайт](https://marsilid.github.io/suveren/) · [English version](README.en.md)
 
 </div>
 
