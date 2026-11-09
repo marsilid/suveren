@@ -239,3 +239,21 @@ async def bound_body(response: httpx.Response) -> None:
     if isinstance(response.stream, httpx.AsyncByteStream):
         response.headers.pop("content-encoding", None)
         response.stream = _BoundedStream(response.stream, inflate, limit)
+
+
+PROXY_VARS = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
+
+
+def proxy_note() -> str | None:
+    """One line for a run started behind a proxy set in the environment.
+
+    The proxy is not used on purpose: it would resolve names itself, past the check that
+    keeps requests off internal addresses. Said up front, so a run that cannot get out
+    doesn't look like a silent hang.
+    """
+    if any(os.environ.get(v) or os.environ.get(v.lower()) for v in PROXY_VARS):
+        return (
+            "Прокси из окружения не используется: Suveren работает только с прямым доступом "
+            "в интернет."
+        )
+    return None
