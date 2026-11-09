@@ -20,6 +20,7 @@ hooks:
 theme:
   name: material
   language: ru
+  font: false
   logo: logo-dark.png
   favicon: logo-light.png
   palette:
