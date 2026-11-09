@@ -123,6 +123,8 @@ suveren company 7707083893              # a company by INN, OGRN or website
 suveren batch sites.txt                 # a list of sites: summary table, CSV, a report each
 suveren watch sites.txt --every 24h     # watch sites; changes can go to Telegram
 suveren research sites.txt             # a study: only the share of sites with each finding
+suveren scan site.ru -v                 # every network step with timings: see where it hangs
+suveren scan site.ru --dkim-selector ew # also check your own DKIM selector, not just common ones
 ```
 
 All commands and options are in the [guide](docs/guide.md#все-команды) (in Russian) and in

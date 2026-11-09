@@ -123,6 +123,8 @@ suveren company 7707083893              # компания по ИНН, ОГРН
 suveren batch sites.txt                 # список сайтов: сводная таблица, CSV и отчёт по каждому
 suveren watch sites.txt --every 24h     # следить за сайтами; изменения можно получать в Telegram
 suveren research sites.txt             # исследование: только доли сайтов с каждой находкой
+suveren scan сайт.ru -v                 # каждый сетевой шаг со временем: видно, где зависает
+suveren scan сайт.ru --dkim-selector ew # проверить и ваш селектор DKIM, а не только типовые
 ```
 
 Все команды и параметры — в [руководстве](docs/guide.md#все-команды), а также в
