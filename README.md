@@ -42,6 +42,10 @@ pip install "suveren[browser]"
 suveren scan example.ru
 ```
 
+Если pip отвечает `Could not find a version that satisfies the requirement suveren`
+(«from versions: none»), значит Python старше 3.11: проверьте `python --version` и обновите
+Python или скачайте готовый exe.
+
 <details>
 <summary>Другие способы: из исходного кода и Docker</summary>
 
