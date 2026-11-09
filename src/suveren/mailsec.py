@@ -822,8 +822,8 @@ def dkim_strength_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.UNKNOWN,
-            f"Найденные ключи: {listed} Значение p= не разобрать как открытый ключ, длину не узнать. "
-            "Если запись и правда такая, подписи с этим селектором не проверяются."
+            f"Найденные ключи: {listed} Значение p= не разобрать как открытый ключ, длину не "
+            "узнать. Если запись и правда такая, подписи с этим селектором не проверяются."
             + OTHER_SELECTORS,
         )
     short = [k for k in keys if k.kind == "rsa" and k.bits is not None and k.bits < DKIM_GOOD_BITS]

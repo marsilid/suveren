@@ -154,3 +154,24 @@ def test_dkim_says_other_selectors_may_exist():
     assert "только распространённые селекторы" in strength.details
     # The finding is about the key found, not the domain as a whole.
     assert "найденн" in strength.details
+
+
+# --- SUV-CO-007: the seller's duty only for a site that sells ---------------------------
+
+
+def test_seller_duty_only_for_a_shop():
+    from suveren.checks import Status
+    from suveren.company import CompanyReport, _site_check, sells
+
+    blog = CompanyReport(query="habr.com", domain="habr.com")
+    check = _site_check(blog)
+    assert check.status is Status.WARN
+    assert "26.1" not in check.recommendation and "Продавец" not in check.recommendation
+    shop = CompanyReport(query="shop.ru", domain="shop.ru", site_sells=True)
+    assert "26.1" in _site_check(shop).recommendation
+
+    assert sells("<button>В корзину</button><span>1 990 ₽</span>")
+    assert sells('<a href="/cart/">Корзина</a>')
+    assert sells('<meta itemprop="priceCurrency" content="RUB">')
+    assert not sells("<p>Статья о ценах на жильё: 5 млн ₽ за квартиру</p>")
+    assert not sells("<p>Хабр — сообщество IT-специалистов</p>")
