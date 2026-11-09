@@ -9,9 +9,10 @@ edit_uri: edit/main/docs/
 copyright: Код открыт под лицензией AGPL-3.0
 
 docs_dir: docs
-not_in_nav: |
+exclude_docs: |
   accuracy-sample.md
   standards-review.md
+  roadmap.md
 
 hooks:
   - tools/mkdocs_hooks.py
@@ -44,18 +45,20 @@ theme:
     - content.code.copy
     - toc.follow
 
+extra:
+  generator: false
+
 extra_css:
   - site.css
 
 nav:
   - Главная: index.md
-  - Проверить сайт на 152-ФЗ: check-152fz.md
-  - Можно ли подделать почту компании: email-spoofing.md
+  - 152-ФЗ: check-152fz.md
+  - Защита почты: email-spoofing.md
   - Руководство: guide.md
-  - Все проверки: checks.md
+  - Проверки: checks.md
   - Точность: accuracy.md
   - Плагины: plugins.md
-  - План: roadmap.md
 
 markdown_extensions:
   - tables
