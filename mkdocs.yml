@@ -39,11 +39,14 @@ theme:
         name: Светлая тема
   features:
     - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.top
     - navigation.footer
     - search.highlight
     - content.code.copy
     - toc.follow
+    - toc.integrate
 
 extra:
   generator: false
