@@ -36,27 +36,3 @@
   border-color: #2f7f7f;
   color: #fff;
 }
-
-.md-grid {
-  max-width: 76rem;
-}
-
-.md-typeset {
-  font-size: 0.9rem;
-}
-
-.md-typeset table:not([class]) {
-  font-size: 0.8rem;
-}
-
-.md-nav {
-  font-size: 0.8rem;
-}
-
-.hero img {
-  width: 340px;
-}
-
-.hero h1 {
-  font-size: 2rem;
-}
