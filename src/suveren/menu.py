@@ -77,7 +77,7 @@ def clear_screen(console: Console) -> None:
     if sys.platform == "win32" and console.is_terminal:
         os.system("cls")  # a fixed command, no input
         if not console.legacy_windows:
-            console.file.write("[3J")
+            console.file.write("\x1b[3J")
             console.file.flush()
     else:
         console.clear()
