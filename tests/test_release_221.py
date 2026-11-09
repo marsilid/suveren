@@ -93,3 +93,64 @@ def test_menu_says_the_proxy_is_not_used(monkeypatch):
     console.clear = lambda *a, **k: None  # type: ignore[method-assign]
     run_menu(lambda *a, **k: None, console)  # type: ignore[arg-type]
     assert "Прокси из окружения не используется" in console.export_text()
+
+
+# --- SUV-PD-009: an ИНН of VK from its widget, an individual operator -----------------
+
+
+def test_inn_of_a_known_service_is_not_the_site_owners():
+    import asyncio
+
+    from suveren.discover import discover_inns
+    from suveren.inn import drop_third_party
+
+    widget = '<div class="vk_widget">ООО «ВК», ИНН 7842349892</div><p>Иванов И.И.</p>'
+    inns, _ = asyncio.run(discover_inns(None, "https://blog.example.ru/", widget))  # type: ignore[arg-type]
+    assert inns == []
+    # On the service's own site it is the owner's.
+    assert drop_third_party(["7842349892"], {"vk.com"}) == ["7842349892"]
+    assert drop_third_party(["7842349892", "7707083893"], {"example.ru"}) == ["7707083893"]
+    assert drop_third_party(["7736207543"], {"market.yandex.ru"}) == ["7736207543"]
+
+
+def test_individual_operator_is_not_asked_for_an_inn():
+    from suveren.checks import Status
+    from suveren.compliance import ComplianceInput, PolicyInfo, _operator_check
+    from suveren.page import parse_page
+    from suveren.pdpolicy import individual_operator
+
+    text = "Оператор — физическое лицо Петров Пётр Петрович. Политика обработки персональных данных"
+    data = ComplianceInput("https://example.ru/", parse_page("x"), [])
+    data.policy = PolicyInfo(url="https://example.ru/privacy", fetched=True, text=text)
+    check = _operator_check(data)
+    assert check.status is Status.UNKNOWN
+    assert "физическое лицо" in check.details and not check.recommendation
+    assert individual_operator("Оператор: физическое лицо, гражданин РФ Иванов И. И.")
+    # The data subject is a person in every policy: that is not the operator.
+    assert not individual_operator(
+        "Оператор — ООО «Ромашка». Субъект персональных данных — физическое лицо, "
+        "которое пользуется сайтом."
+    )
+    assert not individual_operator("Оператор обрабатывает данные физических лиц.")
+
+
+# --- DKIM: only common selectors are tried --------------------------------------------
+
+
+def test_dkim_says_other_selectors_may_exist():
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from lab import dkim_key
+    from test_mailsec import facts
+
+    from suveren.mailsec import dkim_check, dkim_strength_check
+
+    m = facts(dkim=["mail"], raw={"TXT mail._domainkey.example.ru": [
+        f"v=DKIM1; k=rsa; p={dkim_key(1024)}"]})  # fmt: skip
+    found = dkim_check(m)
+    assert "только распространённые селекторы" in found.details
+    strength = dkim_strength_check(m)
+    assert "только распространённые селекторы" in strength.details
+    # The finding is about the key found, not the domain as a whole.
+    assert "найденн" in strength.details

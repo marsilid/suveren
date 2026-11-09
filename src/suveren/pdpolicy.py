@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from urllib.parse import urljoin
 
 from suveren.checks import GROUP_152, Check, Status
-from suveren.inn import find_inns
+from suveren.inn import drop_third_party, find_inns
 from suveren.page import Form, Link
 from suveren.utils import registrable_domain
 
@@ -101,6 +101,20 @@ _SHORT_POLICY = 2500  # characters: a real policy with these sections is longer
 
 def _norm(text: str) -> str:
     return " ".join(text.lower().replace("ё", "е").split())
+
+
+# "Оператор — физическое лицо Иванов И. И.", "Оператором является физическое лицо":
+# a person runs the site and has no company details to show. "Данные физических лиц" and
+# "субъект — физическое лицо" are about visitors, not the operator.
+_INDIVIDUAL = re.compile(
+    r"\bоператор\w*\s*(?:является\s*|[:\u2014\u2013-]\s*)?"
+    r"(?:гражданин\w*[^,.;]{0,40},?\s*)?физическ\w*\s+лиц"
+)
+
+
+def individual_operator(text: str) -> bool:
+    """Whether the policy says the operator is an individual (физическое лицо)."""
+    return bool(_INDIVIDUAL.search(_norm(text)))
 
 
 def missing_sections(text: str, foreign: bool = False) -> list[str]:
@@ -465,7 +479,7 @@ def policy_reality(
         found.append(f"Политика: «{quote}» — а cookies ставят {', '.join(tracking)}.")
     low = _norm(text)
     # The operator: a policy copied from another company or another site.
-    policy_inns = find_inns(text, first=True)
+    policy_inns = drop_third_party(find_inns(text, first=True), own or set())
     if site_inn and policy_inns and site_inn not in policy_inns:
         found.append(
             f"В политике оператор с ИНН {', '.join(policy_inns[:2])}, а в реквизитах сайта — "
