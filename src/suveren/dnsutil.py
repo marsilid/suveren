@@ -30,6 +30,7 @@ import dns.nameserver
 import dns.resolver
 import httpx
 
+from suveren import trace
 from suveren.errors import ModuleError, describe
 
 # "ru" never sends a query outside Russia: the system resolver is not used either,
@@ -99,6 +100,13 @@ class DnsResolver(ABC):
         return all(results)
 
 
+# For --verbose: these are answers, not failures.
+_ANSWERS: dict[type[BaseException], str] = {
+    dns.resolver.NXDOMAIN: "нет такого имени (NXDOMAIN)",
+    dns.resolver.NoAnswer: "нет записей",
+}
+
+
 class SystemResolver(DnsResolver):
     kind = "system"
 
@@ -119,7 +127,8 @@ class SystemResolver(DnsResolver):
 
     async def resolve(self, name: str, rtype: str) -> list[str]:
         try:
-            answer = await self._resolver.resolve(name, rtype)
+            with trace.step(f"DNS {rtype} {name} ({self.kind})", _ANSWERS):
+                answer = await self._resolver.resolve(name, rtype)
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             return []
         except (dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
@@ -133,7 +142,8 @@ class SystemResolver(DnsResolver):
 
     async def exists(self, domain: str) -> bool:
         try:
-            await self._resolver.resolve(domain, "SOA")
+            with trace.step(f"DNS SOA {domain} ({self.kind})", _ANSWERS):
+                await self._resolver.resolve(domain, "SOA")
         except dns.resolver.NXDOMAIN:
             return False
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
@@ -142,7 +152,8 @@ class SystemResolver(DnsResolver):
 
     async def node_exists(self, name: str) -> bool | None:
         try:
-            await self._resolver.resolve(name, "TXT")
+            with trace.step(f"DNS TXT {name} ({self.kind})", _ANSWERS):
+                await self._resolver.resolve(name, "TXT")
         except dns.resolver.NXDOMAIN:
             return False
         except dns.resolver.NoAnswer:
@@ -194,6 +205,7 @@ class DohResolver(DnsResolver):
         self._client = client
 
     async def _query(self, name: str, rtype: str) -> dict:
+        trace.say(f"  DNS {rtype} {name} (doh)")
         last_error: Exception | None = None
         for endpoint in DOH_ENDPOINTS:
             try:

@@ -278,6 +278,8 @@ class MailFacts:
     # some record sits under _domainkey, so a key is probably published with a selector
     # we did not guess (the test internet.nl uses).
     dkim_node: bool = False
+    # Selectors the user named (--dkim-selector): tried on top of DKIM_SELECTORS.
+    dkim_given: list[str] = field(default_factory=list)
     # Outside domains in rua=/ruf= that did not agree to take reports for this domain.
     dmarc_unauthorized: list[str] = field(default_factory=list)
     mta_sts: str | None = None  # policy mode: enforce / testing / none
@@ -666,7 +668,7 @@ def dkim_check(m: MailFacts) -> Check:
             GROUP_MAIL,
             title,
             Status.OK,
-            "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + "." + OTHER_SELECTORS,
+            "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + "." + looked_at(m),
         )
     if m.dkim_node:
         return Check(
@@ -676,7 +678,7 @@ def dkim_check(m: MailFacts) -> Check:
             f"DKIM, вероятно, настроен, селектор неизвестен: узел _domainkey.{m.domain} "
             "есть в DNS, значит, под ним опубликованы записи, но среди распространённых "
             "селекторов ключа нет. Чтобы убедиться, посмотрите заголовок DKIM-Signature (s=) "
-            "в любом письме от компании.",
+            "в любом письме от компании и передайте его в --dkim-selector." + looked_at(m),
         )
     return Check(
         GROUP_MAIL,
@@ -684,7 +686,7 @@ def dkim_check(m: MailFacts) -> Check:
         Status.UNKNOWN,
         "Ключи DKIM не найдены среди распространённых селекторов. Это не значит, что DKIM "
         "нет: селектор может называться иначе. Посмотрите заголовок DKIM-Signature (s=) в "
-        "любом письме от компании.",
+        "любом письме от компании и передайте его в --dkim-selector." + looked_at(m),
     )
 
 
@@ -695,6 +697,20 @@ OTHER_SELECTORS = (
     " Проверены только распространённые селекторы: список ключей домена снаружи не "
     "получить, у него могут быть и другие ключи под своими селекторами."
 )
+
+
+def looked_at(m: MailFacts) -> str:
+    """Which selectors were tried: the user's own (--dkim-selector) and the common ones."""
+    common = ", ".join(s for s in DKIM_SELECTORS if s not in m.dkim_given)
+    if not m.dkim_given:
+        return f"{OTHER_SELECTORS} Проверенные селекторы: {common}."
+    given = ", ".join(m.dkim_given)
+    return (
+        f" Проверены селекторы, заданные вами (--dkim-selector): {given}; и распространённые: "
+        f"{common}. Другие ключи под своими селекторами снаружи не увидеть."
+    )
+
+
 DKIM_MIN_BITS = 1024  # RFC 8301, 3.2: verifiers MUST NOT accept signatures by shorter keys
 DKIM_GOOD_BITS = 2048  # RFC 8301, 3.2: signers SHOULD use keys of at least 2048 bits
 _RSA_OID = bytes.fromhex("2a864886f70d010101")  # 1.2.840.113549.1.1.1 rsaEncryption
@@ -812,7 +828,7 @@ def dkim_strength_check(m: MailFacts) -> Check:
             title,
             Status.FAIL,
             f"Найденные ключи: {listed} {reason[0].upper()}{reason[1:]} (RFC 8301, разделы "
-            f"3.1–3.2).{OTHER_SELECTORS}",
+            f"3.1–3.2).{looked_at(m)}",
             "Выпустите новый ключ RSA 2048 бит (или Ed25519 вместе с RSA) под новым селектором, "
             "переключите подпись на него и опубликуйте пустой p= у старого селектора.",
         )
@@ -824,9 +840,22 @@ def dkim_strength_check(m: MailFacts) -> Check:
             Status.UNKNOWN,
             f"Найденные ключи: {listed} Значение p= не разобрать как открытый ключ, длину не "
             "узнать. Если запись и правда такая, подписи с этим селектором не проверяются."
-            + OTHER_SELECTORS,
+            + looked_at(m),
         )
     short = [k for k in keys if k.kind == "rsa" and k.bits is not None and k.bits < DKIM_GOOD_BITS]
+    own = [k for k in keys if k.selector in m.dkim_given and k not in short and k.bits]
+    if short and own and not any(k.selector in m.dkim_given for k in short):
+        # The domain's own long key, under the selector the user named, is what it signs
+        # with; the short one is the hoster's, under a common name.
+        names = ", ".join(k.selector for k in short)
+        return Check(
+            GROUP_MAIL,
+            title,
+            Status.OK,
+            f"Найденные ключи: {listed} Под вашими селекторами ключи не короче 2048 бит. "
+            f"Короткий ключ под распространённым селектором ({names}) обычно ставит хостер: "
+            "если письма им не подписываются, его можно отозвать (пустой p=)." + looked_at(m),
+        )
     if short:
         return Check(
             GROUP_MAIL,
@@ -835,10 +864,10 @@ def dkim_strength_check(m: MailFacts) -> Check:
             f"Найденные ключи: {listed} RSA-ключ короче 2048 бит: получатели его пока "
             "принимают, но RFC 8301 (раздел 3.2) советует не меньше 2048, а запас стойкости "
             "у 1024 бит уже небольшой. Это о найденном ключе, а не о почте домена в целом: "
-            "письма могут подписываться и другим, более длинным ключом." + OTHER_SELECTORS,
+            "письма могут подписываться и другим, более длинным ключом." + looked_at(m),
             "При следующей смене ключа выпустите RSA 2048 бит под новым селектором.",
         )
-    return Check(GROUP_MAIL, title, Status.OK, f"Найденные ключи: {listed}{OTHER_SELECTORS}")
+    return Check(GROUP_MAIL, title, Status.OK, f"Найденные ключи: {listed}{looked_at(m)}")
 
 
 def mx_matches(host: str, pattern: str) -> bool:
@@ -991,8 +1020,8 @@ def evidence(m: MailFacts, check_id: str) -> list[Evidence]:
     if check_id in ("SUV-MAIL-004", "SUV-MAIL-006"):
         names = [n for n in m.raw if n.endswith(f"._domainkey.{m.domain}")]
         if not names:
-            tried = ", ".join(DKIM_SELECTORS[:5])
-            more = len(DKIM_SELECTORS) - 5
+            tried = ", ".join([*m.dkim_given, *DKIM_SELECTORS[:5]])
+            more = len(set(DKIM_SELECTORS[5:]) - set(m.dkim_given))
             where = f"TXT <селектор>._domainkey.{m.domain} (селекторы {tried} и ещё {more})"
             return [Evidence("dns", where, "")]
     found = []
@@ -1020,9 +1049,15 @@ def parse_mta_sts_mx(policy: str) -> list[str]:
     return [m.lower() for m in re.findall(r"(?im)^\s*mx\s*:\s*(\S+)\s*$", policy)]
 
 
-async def _dkim(resolver: DnsResolver, domain: str, raw: dict[str, list[str]]) -> list[str]:
+async def _dkim(
+    resolver: DnsResolver,
+    domain: str,
+    raw: dict[str, list[str]],
+    extra: tuple[str, ...] | list[str] = (),
+) -> list[str]:
     """Selectors with a published key; ``raw`` gets their records, for the evidence and
-    for the key strength check."""
+    for the key strength check. ``extra``: the user's own selectors, tried as well."""
+    selectors = list(dict.fromkeys([*DKIM_SELECTORS, *extra]))
 
     async def key(selector: str) -> list[str]:
         try:
@@ -1034,11 +1069,11 @@ async def _dkim(resolver: DnsResolver, domain: str, raw: dict[str, list[str]]) -
             return txt
         return []
 
-    found = await asyncio.gather(*(key(s) for s in DKIM_SELECTORS))
-    for selector, txt in zip(DKIM_SELECTORS, found, strict=True):
+    found = await asyncio.gather(*(key(s) for s in selectors))
+    for selector, txt in zip(selectors, found, strict=True):
         if txt:
             raw[f"TXT {selector}._domainkey.{domain}"] = txt
-    return [s for s, txt in zip(DKIM_SELECTORS, found, strict=True) if txt]
+    return [s for s, txt in zip(selectors, found, strict=True) if txt]
 
 
 async def _dkim_node(resolver: DnsResolver, domain: str) -> bool:
@@ -1134,7 +1169,12 @@ async def _mta_sts(
     return mode, mx, None
 
 
-async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain: str) -> MailFacts:
+async def collect_mail(
+    resolver: DnsResolver,
+    client: httpx.AsyncClient,
+    domain: str,
+    dkim_selectors: list[str] | tuple[str, ...] = (),
+) -> MailFacts:
     mx = await resolver.resolve(domain, "MX")
     # A null MX ("0 .") says the domain takes no mail at all (RFC 7505).
     receives = any(r.split()[-1] not in (".", "") for r in mx if r.split())
@@ -1150,6 +1190,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         dkim=[],
         mx_hosts=parse_mx(mx),
         raw=raw,
+        dkim_given=list(dkim_selectors),
     )
     if facts.dmarc:
         facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
@@ -1159,7 +1200,7 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
         facts.bimi = [t for t in bimi if t.lower().replace(" ", "").startswith("v=bimi1")]
         raw[f"TXT default._bimi.{domain}"] = facts.bimi
     if receives:
-        facts.dkim = await _dkim(resolver, domain, raw)
+        facts.dkim = await _dkim(resolver, domain, raw, dkim_selectors)
         if not facts.dkim:
             facts.dkim_node = await _dkim_node(resolver, domain)
         try:
@@ -1178,10 +1219,13 @@ async def collect_mail(resolver: DnsResolver, client: httpx.AsyncClient, domain:
 
 
 async def run_mail_checks(
-    resolver: DnsResolver, client: httpx.AsyncClient, domain: str
+    resolver: DnsResolver,
+    client: httpx.AsyncClient,
+    domain: str,
+    dkim_selectors: list[str] | tuple[str, ...] = (),
 ) -> list[Check]:
     try:
-        return evaluate(await collect_mail(resolver, client, domain))
+        return evaluate(await collect_mail(resolver, client, domain, dkim_selectors))
     except DnsLookupError as exc:
         return [
             Check(

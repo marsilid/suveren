@@ -75,7 +75,7 @@ def test_client_refuses_internal_url_and_says_why():
 def test_client_transport_is_guarded():
     # Breaks loudly if httpx moves the pool's backend.
     client = make_client(5)
-    routed = client._transport
+    routed = client._transport._inner  # under --verbose tracing
     assert isinstance(routed, net._ByHost)
     for transport in (routed._usual, routed._ru):  # the fedsfm.ru one too
         assert isinstance(transport._pool._network_backend, net._PublicOnlyBackend)

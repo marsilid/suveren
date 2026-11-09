@@ -19,7 +19,7 @@ from typing import Any
 import certifi
 import httpx
 
-from suveren import __version__, geoip
+from suveren import __version__, geoip, trace
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
@@ -472,7 +472,10 @@ class Collector:
         if not verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-        _, writer = await open_public(host, 443, self.timeout, ssl=context, server_hostname=host)
+        with trace.step(f"TLS {host}:443" + ("" if verify else " (без проверки цепочки)")):
+            _, writer = await open_public(
+                host, 443, self.timeout, ssl=context, server_hostname=host
+            )
         try:
             sslobj = writer.get_extra_info("ssl_object")
             if sslobj is None:
@@ -489,15 +492,16 @@ class Collector:
 
 
 async def whois_query(server: str, query: str, timeout: float) -> str:
-    reader, writer = await open_public(server, 43, timeout)
-    try:
-        writer.write(f"{query}\r\n".encode())
-        await writer.drain()
-        data = await asyncio.wait_for(reader.read(), timeout)
-    finally:
-        writer.close()
-        with contextlib.suppress(Exception):
-            await writer.wait_closed()
+    with trace.step(f"WHOIS {server}:43 ({query})"):
+        reader, writer = await open_public(server, 43, timeout)
+        try:
+            writer.write(f"{query}\r\n".encode())
+            await writer.drain()
+            data = await asyncio.wait_for(reader.read(), timeout)
+        finally:
+            writer.close()
+            with contextlib.suppress(Exception):
+                await writer.wait_closed()
     return data.decode("utf-8", errors="replace")
 
 

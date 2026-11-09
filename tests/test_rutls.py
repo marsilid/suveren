@@ -51,5 +51,5 @@ def test_only_the_listed_hosts_go_through_the_russian_root():
 
 
 def test_no_verification_means_no_routing():
-    assert isinstance(net.guarded_transport(verify=False), httpx.AsyncHTTPTransport)
-    assert isinstance(net.guarded_transport(), net._ByHost)
+    assert isinstance(net.guarded_transport(verify=False)._inner, httpx.AsyncHTTPTransport)
+    assert isinstance(net.guarded_transport()._inner, net._ByHost)
