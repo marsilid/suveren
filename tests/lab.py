@@ -1230,6 +1230,24 @@ CASES: list[Case] = [
         files=site_files(),
     ),
     Case(
+        "lab-catalog-filter",
+        "форма с согласием и фильтр каталога: поиск с подсказкой «Имя, город, интересы» и "
+        "выпадающие списки (exoway.ru) — это не сбор данных",
+        {"SUV-PD-003": "ok"},
+        html=page(
+            '<form action="/send" method="post"><input type="email" name="email">'
+            '<textarea name="message"></textarea><label><input type="checkbox" name="consent" '
+            "required> Я даю согласие на обработку персональных данных</label>"
+            "<button>Отправить</button></form>"
+            '<form method="GET" action="/users/" class="catalog-filters">'
+            '<input type="text" name="q" class="search" placeholder="Имя, город, интересы...">'
+            '<select name="city"><option>Москва</option></select>'
+            '<select name="sort"><option>По имени</option></select>'
+            "<button>Найти</button></form>"
+        ),
+        files=site_files(),
+    ),
+    Case(
         "lab-newsletter-box",
         "в форме только галочка «согласен получать рассылку»: это не согласие на обработку",
         {"SUV-PD-003": "warn"},

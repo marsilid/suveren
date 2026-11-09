@@ -19,6 +19,7 @@ import ipaddress
 import os
 import socket
 import ssl
+import time
 import zlib
 from collections.abc import AsyncIterator, Iterable
 from pathlib import Path
@@ -27,6 +28,8 @@ from typing import Any
 import certifi
 import httpcore
 import httpx
+
+from suveren import trace
 
 # Bytes read from the wire and bytes after unpacking, per response. A page or a
 # script bundle is far smaller; a bigger answer is cut, not read to the end.
@@ -166,10 +169,35 @@ class _ByHost(httpx.AsyncBaseTransport):
 def guarded_transport(*, verify: bool = True) -> httpx.AsyncBaseTransport:
     usual = _public_transport(verify)
     if not verify:
-        return usual
+        return Traced(usual)
     ru = ssl.create_default_context(cafile=certifi.where())
     ru.load_verify_locations(cafile=str(RU_ROOT))
-    return _ByHost(usual, _public_transport(ru))
+    return Traced(_ByHost(usual, _public_transport(ru)))
+
+
+class Traced(httpx.AsyncBaseTransport):
+    """--verbose: every request as it starts and its answer (or error) with the time,
+    so a hang shows which host it waits for. Host and path only: no query, no headers."""
+
+    def __init__(self, inner: httpx.AsyncBaseTransport) -> None:
+        self._inner = inner
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if not trace.enabled():
+            return await self._inner.handle_async_request(request)
+        name = f"HTTP {request.method} {trace.safe_url(str(request.url))}"
+        trace.say(f"→ {name}")
+        started = time.perf_counter()
+        try:
+            response = await self._inner.handle_async_request(request)
+        except BaseException as exc:
+            trace.failed(name, exc, started)
+            raise
+        trace.ended(name, f"код {response.status_code}", started)
+        return response
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
 
 
 class _Inflate:

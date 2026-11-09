@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 import httpcore
 
+from suveren import trace
 from suveren.egress import EgressProxy
 from suveren.errors import ModuleError
 from suveren.net import BLOCKED, public_addresses
@@ -568,9 +569,10 @@ class BrowserSession:
                 await cdp.send("Network.enable")
         try:
             try:
-                response = await page.goto(
-                    url, wait_until="domcontentloaded", timeout=self.timeout * 1000
-                )
+                with trace.step(f"браузер {trace.safe_url(url)}"):
+                    response = await page.goto(
+                        url, wait_until="domcontentloaded", timeout=self.timeout * 1000
+                    )
             except self._error as exc:
                 raise ModuleError(f"браузер не открыл {url} ({first_line(exc)})") from exc
             # Let late scripts (tag managers, chats, cookie banners) load.

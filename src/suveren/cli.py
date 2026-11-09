@@ -9,6 +9,7 @@ import functools
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -26,7 +27,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from suveren import __version__, clirus, geoip, ownership, unknown
+from suveren import __version__, clirus, geoip, ownership, trace, unknown
 from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
@@ -283,6 +284,7 @@ def main(
 ) -> None:
     """Подробнее о команде: `suveren КОМАНДА --help`."""
     console.quiet = False  # scan -q sets it for its own run only
+    trace.disable()  # --verbose is per command too
     console.stderr = False  # and `--json -` moves the view to stderr for its own run
     if ctx.invoked_subcommand in PROXY_NOTE_COMMANDS and (note := proxy_note()):
         errors_console.print(f"[#e6b450]{esc(note)}[/]")
@@ -338,10 +340,52 @@ def _open(path: Path) -> None:
         webbrowser.open(path.resolve().as_uri())
 
 
+VerboseOpt = Annotated[
+    bool,
+    typer.Option(
+        "--verbose",
+        "-v",
+        help="Печатать каждый сетевой шаг (DNS, HTTP, TLS, браузер) при начале и конце, со "
+        "временем: видно, какой хост не отвечает. Строки идут в stderr.",
+    ),
+]
+
+
+# A DKIM selector is one or more DNS labels (RFC 6376, 3.1).
+_SELECTOR = re.compile(r"(?i)^[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?$")
+
+
+def dkim_selectors(given: list[str]) -> list[str]:
+    """--dkim-selector values, lower-cased and without repeats; a bad one is refused."""
+    out: list[str] = []
+    for raw in given:
+        name = raw.strip().lower()
+        labels = name.split(".")
+        if not name or not all(_SELECTOR.match(x) for x in labels) or "_domainkey" in name:
+            raise ValueError(
+                f"--dkim-selector {raw!r}: нужен селектор из заголовка DKIM-Signature (s=), "
+                "например ew или mail2024, без ._domainkey и домена"
+            )
+        if name not in out:
+            out.append(name)
+    return out
+
+
+def _trace(on: bool) -> None:
+    """--verbose: network steps go to stderr, so `--json -` keeps a clean stdout."""
+    if on:
+        trace.enable(
+            lambda line: errors_console.print(line, style="grey50", markup=False, soft_wrap=True)
+        )
+    else:
+        trace.disable()
+
+
 def _spinner(text: str) -> contextlib.AbstractContextManager[object]:
     """A live spinner in a real terminal; nothing when output is redirected, so logs and
-    --export-svg don't fill up with animation frames."""
-    if console.is_terminal:
+    --export-svg don't fill up with animation frames, and nothing under --verbose, whose
+    lines it would overdraw."""
+    if console.is_terminal and not trace.enabled():
         return console.status(text, spinner="dots")
     return contextlib.nullcontext()
 
@@ -366,7 +410,7 @@ class StageLog:
         # No spinner when the screen is exported (--export-svg): its frames get recorded.
         self.status = (
             console.status("", spinner="dots", spinner_style=ACCENT)
-            if spinner and console.is_terminal
+            if spinner and console.is_terminal and not trace.enabled()
             else None
         )
         self.started = time.monotonic()
@@ -489,6 +533,16 @@ def scan(
             "--form-phone",
             help="Для --form-leaks на своём сайте: ваш мобильный номер вместо тестового, если "
             "маска поля принимает только номера на 9. Номера не должно быть на сайте.",
+            rich_help_panel="Что проверять",
+        ),
+    ] = None,
+    dkim_selector: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--dkim-selector",
+            help="Свой селектор DKIM (s= в заголовке DKIM-Signature ваших писем), можно "
+            "несколько раз: проверяется вместе с распространёнными, список ключей домена "
+            "снаружи не получить.",
             rich_help_panel="Что проверять",
         ),
     ] = None,
@@ -654,8 +708,10 @@ def scan(
             rich_help_panel="Отчёты",
         ),
     ] = None,
+    verbose: VerboseOpt = False,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
+    _trace(verbose)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         host = normalize_domain(target)
@@ -663,6 +719,7 @@ def scan(
         if form_phone is not None and not form_leaks:
             raise SuverenError("--form-phone работает только вместе с --form-leaks")
         phone = own_phone(form_phone) if form_phone is not None else None
+        selectors = dkim_selectors(dkim_selector or [])
         if output == STDOUT:
             raise SuverenError("-o -: HTML-отчёт в stdout не выводится, укажите файл")
         if json_path == STDOUT and sarif_path == STDOUT:
@@ -735,6 +792,7 @@ def scan(
                         progress=log,
                         plugins=plugins,
                         form_phone=phone,
+                        dkim_selectors=selectors,
                         **plan.kwargs(),  # type: ignore[arg-type]
                     ),
                 )
@@ -907,8 +965,10 @@ def batch(
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
     ignore_file: IgnorePath = None,
+    verbose: VerboseOpt = False,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
+    _trace(verbose)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         threshold = _validate_grade(fail_under)
@@ -1343,8 +1403,10 @@ def research(
         typer.Option("--summary-only", help="Не проверять, только пересобрать сводку из raw/."),
     ] = False,
     timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+    verbose: VerboseOpt = False,
 ) -> None:
     """Исследование: проверить много сайтов и получить только сводку — доли по находкам."""
+    _trace(verbose)
     from suveren.research import read_sites, run_research
     from suveren.research import write_summary as research_summary
 
@@ -1477,8 +1539,10 @@ def company(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    verbose: VerboseOpt = False,
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
+    _trace(verbose)
     brand = _brand(brand_name, brand_logo, brand_url)
     console.print(header(__version__, target, "проверка компании"))
     console.print()
@@ -1658,8 +1722,10 @@ def doctor(
             help="Запуск не из России: если ЕГРЮЛ или реестр РКН не отвечают, это не ошибка.",
         ),
     ] = False,
+    verbose: VerboseOpt = False,
 ) -> None:
     """Проверить, что все источники данных доступны и отвечают как ожидается."""
+    _trace(verbose)
     with _spinner("[grey50]Проверяю источники данных…[/]"):
         probes = asyncio.run(run_doctor(timeout, abroad=abroad))
     table = Table(box=None, show_header=False, padding=(0, 1))

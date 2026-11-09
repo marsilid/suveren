@@ -31,7 +31,7 @@ from suveren.logins import (
 )
 from suveren.metanote import meta_note_check
 from suveren.models import Category, Dependency
-from suveren.page import Form, Link, Page, parse_page
+from suveren.page import Form, FormInput, Link, Page, parse_page
 from suveren.pdpolicy import (
     ConsentFinding,
     bundled_in_form,
@@ -220,7 +220,11 @@ def pd_forms(page: Page) -> list[Form]:
             continue
         if any(i.type == "password" for i in fields):
             continue  # sign-in form: the account already exists
-        if all(i.type == "search" or i.name in ("q", "s", "search", "query") for i in fields):
+        # A search box, alone or with lists to narrow it, is a catalog filter: exoway.ru's
+        # people search hints "Имя, город, интересы" and has city and sort lists.
+        if any(_search_box(i) for i in fields) and all(
+            _search_box(i) or i.type in ("select", "checkbox", "radio") for i in fields
+        ):
             continue
         if any(
             (i.type in ("email", "tel") or _PD_FIELD.search(f"{i.name} {i.hint}"))
@@ -229,6 +233,10 @@ def pd_forms(page: Page) -> list[Form]:
         ):
             result.append(form)
     return result
+
+
+def _search_box(i: FormInput) -> bool:
+    return i.type == "search" or i.name.lower() in ("q", "s", "search", "query")
 
 
 # A gift card, promo code or SMS code typed into a "tel" field is not personal data

@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from suveren import unknown
+from suveren import trace, unknown
 from suveren.analyze import TLS_UNTRUSTED_NOTE, analyze
 from suveren.blocklist import run_blocklist
 from suveren.catalog import BY_ID
@@ -59,7 +59,8 @@ def _quiet(stage: str, seconds: float | None) -> None:
 async def _stage(progress: Progress, name: str) -> AsyncIterator[None]:
     progress(name, None)
     started = time.perf_counter()
-    yield
+    with trace.step(f"этап: {name}"):
+        yield
     # Only a stage that finished gets its tick; a failed one is told by the error.
     progress(name, time.perf_counter() - started)
 
@@ -84,9 +85,11 @@ async def run_scan(
     ownsite: bool = False,
     form_phone: str | None = None,
     plugins: list[Plugin] | None = None,
+    dkim_selectors: list[str] | None = None,
 ) -> Report:
     """``only``: IDs of the checks to report (from ``--checks``); None reports all.
-    ``form_phone``: the owner's own number for the form experiment (ten digits)."""
+    ``form_phone``: the owner's own number for the form experiment (ten digits).
+    ``dkim_selectors``: the owner's DKIM selectors, tried on top of the common ones."""
     progress = progress or _quiet
     started = datetime.now(UTC)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
@@ -144,7 +147,9 @@ async def run_scan(
     if mail:
         async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
             resolver, _ = await create_resolver(dns_mode, timeout, client)
-            report.checks += await run_mail_checks(resolver, client, facts.domain)
+            report.checks += await run_mail_checks(
+                resolver, client, facts.domain, dkim_selectors or ()
+            )
 
     if security and (facts.html or facts.headers):
         async with _stage(progress, "Безопасность сайта"), make_client(timeout) as client:
