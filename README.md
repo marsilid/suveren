@@ -38,13 +38,14 @@
 **Любая система** (Python 3.11+):
 
 ```bash
-pip install "suveren[browser]"
+python3 -m pip install "suveren[browser]"
 suveren scan example.ru
 ```
 
-Если pip отвечает `Could not find a version that satisfies the requirement suveren`
-(«from versions: none»), значит Python старше 3.11: проверьте `python --version` и обновите
-Python или скачайте готовый exe.
+На Windows вместо `python3` пишите `py`. Ставьте именно через `python3 -m pip`: голая команда
+`pip` бывает от старого Python 2 или 3.8. Если pip отвечает `Could not find a version that
+satisfies the requirement suveren` («from versions: none»), значит его Python старше 3.11:
+проверьте `python3 --version` и обновите Python или скачайте готовый exe.
 
 <details>
 <summary>Другие способы: из исходного кода и Docker</summary>

@@ -15,6 +15,7 @@ operator who audits a site in their own network on purpose.
 from __future__ import annotations
 
 import asyncio
+import errno
 import ipaddress
 import os
 import socket
@@ -77,6 +78,34 @@ async def public_addresses(host: str, port: int, timeout: float | None = None) -
     return [str(ip) for ip in addrs]
 
 
+# "Network is unreachable": the operator's machine has no route out at all (a closed
+# network that reaches the web only through a proxy it was not told about). Once seen,
+# later downloads of public data do not wait for their timeouts one after another
+# (redfox0, 2.2.2: WHOIS failed at once, then the DB-IP download hung for a minute).
+_UNREACHABLE = {errno.ENETUNREACH, 10051}  # 10051: WSAENETUNREACH on Windows
+_OFFLINE: list[str] = []
+
+
+def note_unreachable(exc: BaseException) -> None:
+    """Remember a "network is unreachable" error found anywhere in ``exc``'s chain."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if (
+            isinstance(cur, OSError) and cur.errno in _UNREACHABLE
+        ) or "network is unreachable" in str(cur).lower():
+            if not _OFFLINE:
+                _OFFLINE.append(str(cur) or "Network is unreachable")
+            return
+        cur = cur.__cause__ or cur.__context__
+
+
+def offline() -> str | None:
+    """Why the network is known to be down in this run, or None."""
+    return _OFFLINE[0] if _OFFLINE else None
+
+
 async def open_public(
     host: str, port: int, timeout: float, **kwargs: Any
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
@@ -94,6 +123,7 @@ async def open_public(
         try:
             return await asyncio.wait_for(asyncio.open_connection(ip, port, **kwargs), timeout)
         except OSError as exc:
+            note_unreachable(exc)
             last = exc
     raise last or ConnectionRefusedError(f"{host}: нет адресов")
 

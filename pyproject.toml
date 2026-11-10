@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "suveren"
-version = "2.2.2"
+version = "2.2.3"
 description = "Аудит сайта и компании: иностранные сервисы, 152-ФЗ, блокировки РКН, ЕГРЮЛ и санкционные списки"
 readme = "README.md"
 requires-python = ">=3.11"

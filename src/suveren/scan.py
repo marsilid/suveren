@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from suveren import trace, unknown
+from suveren import localsoft, trace, unknown
 from suveren.analyze import TLS_UNTRUSTED_NOTE, analyze
 from suveren.blocklist import run_blocklist
 from suveren.catalog import BY_ID
@@ -102,6 +102,7 @@ async def run_scan(
                 await _render_site(facts, host, timeout=max(timeout, 25.0), pages=pages)
             except ModuleError as exc:
                 facts.notes.append(f"Режим --browser не сработал: {exc}. Использован обычный HTML.")
+            localsoft.clean(facts)
     if pages and not facts.rendered and facts.html and not facts.page_problem:
         async with (
             _stage(progress, f"Внутренние страницы (до {pages})"),

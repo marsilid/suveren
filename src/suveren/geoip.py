@@ -36,6 +36,11 @@ URL = "https://download.db-ip.com/free/dbip-country-lite-{month}.csv.gz"
 TTL = 31 * 24 * 3600  # a new file comes out on the 1st of each month
 # Two missed months: addresses move between countries, an old answer is not used.
 STALE_DAYS = 70
+# During a scan the file is a nicety: without it the server's country is "не определена".
+# A network that drops packets left the download hanging for minutes (redfox0, 2.2.2),
+# so a scan waits briefly; `suveren update` keeps the long default.
+SCAN_TIMEOUT = httpx.Timeout(5.0, read=10.0)
+SCAN_BUDGET = 45.0  # the whole download, a slow trickle included
 
 
 def month_urls(today: date | None = None) -> list[str]:
@@ -122,15 +127,32 @@ def read(path: Path) -> GeoDb:
     return db
 
 
-async def load(client: httpx.AsyncClient, *, refresh: bool = False) -> GeoDb:
-    """The database, or an empty one whose ``problem`` says why; a scan never fails on it."""
-    path: Path | None = None
+async def _fetch(client: httpx.AsyncClient, refresh: bool) -> Path | None:
+    timeout = None if refresh else SCAN_TIMEOUT
     for url in month_urls():
         try:
-            path, _ = await fetch_cached(client, url, FILENAME, ttl=TTL, refresh=refresh)
-            break
-        except ModuleError:
-            continue
+            path, _ = await fetch_cached(
+                client, url, FILENAME, ttl=TTL, refresh=refresh, timeout=timeout
+            )
+            return path
+        except ModuleError as exc:
+            # Last month's file is worth asking for only when the server answered
+            # (404 before the 1st's file is out); a dead connection stays dead.
+            if not isinstance(exc.__cause__, httpx.HTTPStatusError):
+                return None
+    return None
+
+
+async def load(client: httpx.AsyncClient, *, refresh: bool = False) -> GeoDb:
+    """The database, or an empty one whose ``problem`` says why; a scan never fails on it."""
+    try:
+        if refresh:
+            path = await _fetch(client, refresh)
+        else:
+            async with asyncio.timeout(SCAN_BUDGET):
+                path = await _fetch(client, refresh)
+    except TimeoutError:
+        path = None
     if path is None:
         return GeoDb(problem=f"база {NAME} не скачалась")
     age = (time.time() - path.stat().st_mtime) / 86400

@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 
 from suveren.errors import ModuleError, describe
-from suveren.net import MAX_BODY_KEY
+from suveren.net import MAX_BODY_KEY, note_unreachable, offline
 
 DEFAULT_TTL = 24 * 3600
 # Sanctions lists change weekly and the block register daily: a "not found" against an
@@ -69,23 +69,37 @@ async def fetch_cached(
     ttl: float = DEFAULT_TTL,
     refresh: bool = False,
     html: bool = False,
+    timeout: httpx.Timeout | None = None,
 ) -> tuple[Path, str | None]:
     """Return the cached file, downloading it when missing or stale.
 
     If the download fails but an old copy exists, the old copy is returned with
-    a note. Without any copy a :class:`ModuleError` is raised.
+    a note. Without any copy a :class:`ModuleError` is raised. Once the network is
+    known to be unreachable (``net.offline``), nothing is downloaded: it would only
+    wait for its timeout.
     """
     path = cache_dir() / name
     if not refresh and is_fresh(path, ttl):
         return path, None
+    down = offline()
+    if down:
+        if path.exists():
+            return path, f"сеть недоступна, использована копия {name} от {age_text(path)}"
+        raise ModuleError(f"не удалось скачать {url} (сеть недоступна: {down})")
     async with _lock(name):
         if not refresh and is_fresh(path, ttl):  # another caller has just fetched it
             return path, None
-        return await _download(client, url, name, path, html=html)
+        return await _download(client, url, name, path, html=html, timeout=timeout)
 
 
 async def _download(
-    client: httpx.AsyncClient, url: str, name: str, path: Path, *, html: bool
+    client: httpx.AsyncClient,
+    url: str,
+    name: str,
+    path: Path,
+    *,
+    html: bool,
+    timeout: httpx.Timeout | None = None,
 ) -> tuple[Path, str | None]:
     path.parent.mkdir(parents=True, exist_ok=True)
     # A name of its own, so another process downloading the same list does not collide.
@@ -93,7 +107,7 @@ async def _download(
     try:
         # Sanctions lists and the block list are far bigger than a page.
         big = {MAX_BODY_KEY: 1 << 30}
-        timeout = httpx.Timeout(30.0, read=120.0)
+        timeout = timeout or httpx.Timeout(30.0, read=120.0)
         async with client.stream("GET", url, timeout=timeout, extensions=big) as resp:
             resp.raise_for_status()
             with tmp.open("wb") as fh:
@@ -106,6 +120,7 @@ async def _download(
         tmp.replace(path)
         return path, None
     except (httpx.HTTPError, OSError, _NotData) as exc:
+        note_unreachable(exc)
         tmp.unlink(missing_ok=True)
         why = "вместо списка пришла пустая страница или HTML" if isinstance(exc, _NotData) else ""
         if path.exists():
