@@ -143,3 +143,56 @@ def test_two_servers_of_one_network_in_two_countries_stay_two_rows():
     )
     hosting = [d for d in analyze(facts).dependencies if d.category is Category.HOSTING]
     assert sorted(d.located for d in hosting) == ["DE", "RU"]
+
+
+def test_scan_does_not_hang_on_a_download_that_never_answers(tmp_path, monkeypatch):
+    """redfox0, 2.2.2: no direct internet, the DB-IP download hung until Ctrl+C."""
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    monkeypatch.setattr(geoip, "SCAN_BUDGET", 0.5)
+    timeouts = []
+
+    async def handler(request):
+        timeouts.append(request.extensions["timeout"])
+        await asyncio.sleep(3600)  # a proxy or a firewall that swallows the packets
+
+    started = time.monotonic()
+    db = load(handler)
+    assert time.monotonic() - started < 5
+    assert db.empty and "не скачалась" in db.problem
+    # The scan asks with short timeouts of its own, not the 2-minute read of big lists.
+    assert timeouts[0]["connect"] == 5.0 and timeouts[0]["read"] == 10.0
+
+
+def test_dead_connection_is_not_retried_with_last_month(tmp_path, monkeypatch):
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    asked = []
+
+    def handler(request):
+        asked.append(request.url)
+        raise httpx.ConnectTimeout("timed out", request=request)
+
+    assert "не скачалась" in load(handler).problem
+    assert len(asked) == 1
+
+
+def test_unreachable_network_stops_later_downloads(tmp_path, monkeypatch):
+    """Once the network is unreachable, the next download does not wait for its timeout."""
+    from suveren import cache, net
+
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+    asked = []
+
+    def handler(request):
+        asked.append(request.url)
+        raise httpx.ConnectError("[Errno 101] Network is unreachable", request=request)
+
+    assert "не скачалась" in load(handler).problem
+    assert net.offline()
+
+    async def other():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await cache.fetch_cached(client, "https://example.org/list", "list.txt")
+
+    with pytest.raises(geoip.ModuleError, match="сеть недоступна"):
+        asyncio.run(other())
+    assert len(asked) == 1  # the second download never went out

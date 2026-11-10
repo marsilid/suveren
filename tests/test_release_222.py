@@ -198,3 +198,23 @@ def test_scan_passes_selectors_to_the_mail_module(monkeypatch):
     monkeypatch.setattr(cli, "run_scan", fake_scan)
     runner.invoke(app, ["scan", "exoway.ru", "--dkim-selector", "ew", "--no-report"])
     assert seen.get("dkim_selectors") == ["ew"]
+
+
+def test_batch_passes_selectors_to_every_site(monkeypatch, tmp_path):
+    """2.2.3: --dkim-selector works in batch too, for each site of the list."""
+    from suveren import cli
+
+    seen = []
+
+    async def fake_scan(host, **kwargs):
+        seen.append((host, kwargs.get("dkim_selectors")))
+        raise cli.SuverenError("stop")
+
+    monkeypatch.setattr(cli, "run_scan", fake_scan)
+    sites = tmp_path / "sites.txt"
+    sites.write_text("a.ru\nb.ru\n", encoding="utf-8")
+    args = ["batch", str(sites), "--quick", "--no-open", "--out", str(tmp_path / "out")]
+    runner.invoke(app, [*args, "--dkim-selector", "EW"])
+    assert sorted(seen) == [("a.ru", ["ew"]), ("b.ru", ["ew"])]
+    bad = runner.invoke(app, [*args, "--dkim-selector", "ew._domainkey"])
+    assert bad.exit_code != 0 and "без ._domainkey" in bad.output

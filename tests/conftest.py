@@ -1,6 +1,8 @@
 import os
 import tempfile
 
+import pytest
+
 # Every check a module produces must be in catalog.py (see suveren.checks.STRICT_IDS).
 os.environ["SUVEREN_STRICT_CHECK_IDS"] = "1"
 
@@ -15,3 +17,13 @@ os.environ["COLUMNS"] = "200"
 # Downloaded databases and lists (retire.js, cloud ranges, sanctions) are read from the
 # cache: tests must not see what the developer's own scans left there.
 os.environ["SUVEREN_CACHE"] = tempfile.mkdtemp(prefix="suveren-test-cache-")
+
+
+@pytest.fixture(autouse=True)
+def _network_not_marked_down():
+    """``net.offline`` is per run; one test's "network is unreachable" must not leak."""
+    from suveren import net
+
+    net._OFFLINE.clear()
+    yield
+    net._OFFLINE.clear()

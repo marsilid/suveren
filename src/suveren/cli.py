@@ -965,15 +965,24 @@ def batch(
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
     ignore_file: IgnorePath = None,
+    dkim_selector: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--dkim-selector",
+            help="Свой селектор DKIM, можно несколько раз: проверяется у каждого сайта "
+            "списка вместе с распространёнными.",
+        ),
+    ] = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     _trace(verbose)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
+        selectors = dkim_selectors(dkim_selector or [])
         threshold = _validate_grade(fail_under)
         accepted = load_ignore(ignore_file)
-    except SuverenError as exc:
+    except (SuverenError, ValueError) as exc:
         raise _fail(str(exc)) from exc
     try:
         hosts, skipped = read_targets(file)
@@ -1026,6 +1035,7 @@ def batch(
                         host,
                         timeout=timeout,
                         dns_mode=dns_mode.value,
+                        dkim_selectors=selectors,
                         **plan.kwargs(),  # type: ignore[arg-type]
                     ),
                     max_time,

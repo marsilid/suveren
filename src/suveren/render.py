@@ -28,8 +28,9 @@ from suveren.errors import ModuleError
 from suveren.net import BLOCKED, public_addresses
 
 INSTALL_HINT = (
-    "для режима --browser установите Playwright: pip install playwright "
-    "(нужен Edge или Chrome; иначе ещё playwright install chromium)"
+    'для режима --browser установите Playwright: python3 -m pip install "suveren[browser]" '
+    "(на Windows py -m pip …; нужен Python 3.11 и новее, а также Edge или Chrome, иначе "
+    "ещё playwright install chromium)"
 )
 CHANNELS = ("msedge", "chrome", None)  # None = Playwright's bundled Chromium
 USER_AGENT = (
