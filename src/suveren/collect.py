@@ -764,3 +764,8 @@ def locate(facts: Facts, db: geoip.GeoDb) -> None:
     facts.geo_origin = db.origin
     for net in facts.web:
         net.located = db.country_of(net.ip)
+    # DNS and mail servers too: a Russian host's network may be registered abroad, and
+    # its own mail server in Russia was called foreign (borisdenis, 2.2.3).
+    for h in (*facts.ns, *facts.mx):
+        if h.net is not None:
+            h.net.located = db.country_of(h.net.ip)

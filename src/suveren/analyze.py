@@ -12,7 +12,7 @@ from suveren.collect import DNS_SECTIONS, Facts, HostInfo, NetInfo
 from suveren.models import Category, Dependency, Finding, Report, Severity
 from suveren.page import page_code
 from suveren.services import Service
-from suveren.utils import registrable_domain
+from suveren.utils import country_name, registrable_domain
 
 # Layers where a domestic server next to a foreign one is real redundancy.
 # Shown when the security stage did not run: its TLS check (SUV-WEB-008) says it better.
@@ -91,11 +91,23 @@ def _from_service(category: Category, service: Service, evidence: str) -> Depend
 
 
 def _from_network(
-    category: Category, net: NetInfo | None, fallback: str, evidence: str
+    category: Category,
+    net: NetInfo | None,
+    fallback: str,
+    evidence: str,
+    geo_origin: str = "",
 ) -> Dependency:
     country = net.country if net else None
     name = (net.as_name if net else None) or fallback
     dep = Dependency(category=category, service=name, country=country, evidence=evidence)
+    if net is not None and net.located == "RU" and dep.foreign:
+        # Only the network's registration is known for an unknown server, and some
+        # Russian hosters' networks are registered abroad: the server itself stands in
+        # Russia, so it is not called foreign and no move is advised (borisdenis, 2.2.3).
+        dep.note = f"Сеть записана на {country_name(country)}, но сервер стоит в России" + (
+            f" (по базе {geo_origin})." if geo_origin else "."
+        )
+        dep.country = "RU"
     if dep.foreign:
         dep.severity = category.info.severity
     return dep
@@ -116,8 +128,8 @@ def _merge(deps: Iterable[Dependency]) -> list[Dependency]:
     return list(merged.values())
 
 
-def _own(category: Category, net: NetInfo, evidence: str) -> Dependency:
-    dep = _from_network(category, net, net.ip, evidence)
+def _own(category: Category, net: NetInfo, evidence: str, geo_origin: str = "") -> Dependency:
+    dep = _from_network(category, net, net.ip, evidence, geo_origin)
     dep.service = f"Собственная сеть ({dep.service})"
     if dep.foreign:
         dep.severity = Severity.LOW
@@ -136,6 +148,7 @@ def _server_deps(
     lookup: Callable[[str], Service | None],
     label: str,
     domain: str,
+    geo_origin: str = "",
 ) -> list[Dependency]:
     deps = []
     for h in hosts:
@@ -153,9 +166,9 @@ def _server_deps(
             dep.service = f"{_name_domain(h.host)} (на сети {carrier.name})"
             deps.append(dep)
         elif h.net is not None and own_network(h.net, domain):
-            deps.append(_own(category, h.net, evidence))
+            deps.append(_own(category, h.net, evidence, geo_origin))
         else:
-            deps.append(_from_network(category, h.net, h.host, evidence))
+            deps.append(_from_network(category, h.net, h.host, evidence, geo_origin))
     return deps
 
 
@@ -188,8 +201,9 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
             country = "RU" if _RU_REGISTRAR.search(facts.registrar) else None
             deps.append(Dependency(Category.REGISTRAR, facts.registrar, country, "WHOIS"))
 
-    deps += _server_deps(Category.DNS, facts.ns, db.by_ns, "NS", facts.domain)
-    deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX", facts.domain)
+    origin = facts.geo_origin
+    deps += _server_deps(Category.DNS, facts.ns, db.by_ns, "NS", facts.domain, origin)
+    deps += _server_deps(Category.MAIL, facts.mx, db.by_mx, "MX", facts.domain, origin)
 
     hidden_origin = False
     edge = _edge(facts.headers)
@@ -205,9 +219,9 @@ def find_dependencies(facts: Facts) -> tuple[list[Dependency], list[str]]:
             hidden_origin |= service.cdn
             dep = _from_service(category, service, evidence)
         elif own_network(net, facts.domain):
-            dep = _own(Category.HOSTING, net, evidence)
+            dep = _own(Category.HOSTING, net, evidence, origin)
         else:
-            dep = _from_network(Category.HOSTING, net, net.ip, evidence)
+            dep = _from_network(Category.HOSTING, net, net.ip, evidence, origin)
         if dep.category is Category.HOSTING and net.located:
             # A CDN or anycast address answers from many countries: no place for it.
             dep.located, dep.located_by = net.located, facts.geo_origin
