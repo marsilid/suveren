@@ -138,7 +138,8 @@ class Facts:
 
     def _no_page(self) -> str:
         if self.home_error:
-            return f"главная страница не открылась: {self.home_error}"
+            page = "главная страница" if self.start_path == "/" else f"страница {self.start_path}"
+            return f"{page} не открылась, причина: {self.home_error}"
         if self.page_status:
             return f"сайт ответил кодом {self.page_status} без страницы"
         return "главная страница не загрузилась"
@@ -631,7 +632,7 @@ def home_reason(exc: BaseException) -> str:
     if text == "имя сервера не найдено в DNS":
         return "адрес сайта не найден в DNS"
     if text in ("нет связи с сервером", "сервер оборвал соединение", "ошибка сети"):
-        why = f"{text}: сайт недоступен или закрыт для вашей сети"
+        why = f"{text}, сайт недоступен или закрыт для вашей сети"
         if proxy_note():
             why += ", а прокси из окружения Suveren не использует"
         return why
@@ -737,9 +738,11 @@ async def collect(
         if isinstance(value, BaseException):
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
-            facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
             if key == "homepage":
+                # Said once, with its reason, in the note about the page (analyze.py).
                 facts.home_error = home_reason(value)
+            else:
+                facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
             if key in DNS_SECTIONS:
                 facts.dns_unanswered.append(key)
             continue

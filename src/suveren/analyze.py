@@ -333,16 +333,25 @@ def analyze(facts: Facts, started_at: datetime | None = None) -> Report:
             "" if facts.rendered else " Попробуйте режим --browser: он открывает сайт в браузере."
         )
         cap = ", оценки не выше B" if facts.page_unseen else ""
+        named = "Главную страницу" if facts.start_path == "/" else f"Страницу {facts.start_path}"
+        why = (
+            f"{problem[0].upper()}{problem[1:]}."
+            if facts.home_error
+            else f"{named} проанализировать не удалось: {facts.page_unseen or problem}."
+        )
         report.notes.append(
-            f"Главную страницу проанализировать не удалось: {facts.page_unseen or problem}. "
-            f"Скрипты и виджеты не проверены{cap}, проверка 152-ФЗ неполная.{hint}"
+            f"{why} Скрипты и виджеты не проверены{cap}, проверка 152-ФЗ неполная.{hint}"
         )
     elif facts.html:
         pages = 1 + len(facts.extra_pages)
+        # A named page is not the home page: the note above says so, this must agree.
+        first = "главная" if facts.start_path == "/" else facts.start_path
         where = (
-            f"Проверено страниц: {pages} (главная и ещё {pages - 1})"
+            f"Проверено страниц: {pages} ({first} и ещё {pages - 1})"
             if pages > 1
             else "Проверена только главная страница"
+            if facts.start_path == "/"
+            else f"Проверена только страница {facts.start_path}"
         )
         if facts.rendered:
             how = "Сайт открывался в браузере, учтены все скрипты, загруженные страницами."

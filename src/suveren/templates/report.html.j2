@@ -223,7 +223,7 @@
         {% for d in deps %}
         <tr>
           <td>{{ d.service }}</td>
-          <td class="country">{% if d.located %}сеть: {{ d.country_ru }}<br>сервер: {{ d.located_ru }}{% else %}{{ d.country_ru }}{% endif %}</td>
+          <td class="country">{% if d.located and d.located != d.country %}сеть: {{ d.country_ru }}<br>сервер: {{ d.located_ru }}{% else %}{{ d.country_ru }}{% endif %}{% if d.note and d.foreign is sameas false %}<br><small>{{ d.note }}</small>{% endif %}</td>
           <td class="evidence">{{ d.evidence }}</td>
           <td>
             {# The risk the dependency card above gives (lowered when part is in Russia). #}

@@ -110,7 +110,7 @@ def test_the_reason_reaches_the_152fz_section_and_json():
     facts = Facts(host="shop.ru", domain="shop.ru")
     facts.home_error = home_reason(httpx.ReadTimeout("t"))
     assert facts.page_problem == (
-        "главная страница не открылась: сайт не ответил вовремя, возможно, он перегружен "
+        "главная страница не открылась, причина: сайт не ответил вовремя, возможно, он перегружен "
         "или закрыт для вашей сети"
     )
     assert facts.page_unseen == facts.page_problem
