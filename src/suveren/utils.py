@@ -111,6 +111,17 @@ def normalize_domain(raw: str) -> str:
     return value
 
 
+def target_path(raw: str) -> str:
+    """The page a target names: "/suveren/" for "https://marsilid.github.io/suveren/",
+    "/" for a bare domain. The query and the fragment are dropped: they may carry
+    tokens, and a site's checks are about the page, not one view of it."""
+    value = raw.strip()
+    if "://" not in value:
+        value = "https://" + value
+    path = urlsplit(value).path or "/"
+    return path if path.startswith("/") else "/" + path
+
+
 def registrable_domain(domain: str) -> str:
     """'example.co.uk' from 'www.shop.example.co.uk', by the Public Suffix List with its
     private section: 'mysite.github.io', not 'github.io' (psl.py)."""

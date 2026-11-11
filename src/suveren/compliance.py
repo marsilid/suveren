@@ -22,6 +22,7 @@ from suveren.crawl import MAX_HTML_CHARS, FetchedPage, get_once_more
 from suveren.discover import discover_inns, is_requisites_path
 from suveren.errors import ModuleError, describe
 from suveren.inn import find_inns, own_ad_inns
+from suveren.leaks import inline_scripts
 from suveren.logins import (
     LoginEvidence,
     find_evidence,
@@ -31,8 +32,9 @@ from suveren.logins import (
 )
 from suveren.metanote import meta_note_check
 from suveren.models import Category, Dependency
-from suveren.page import Form, FormInput, Link, Page, parse_page
+from suveren.page import Form, FormInput, Link, Page, page_code, parse_page
 from suveren.pdpolicy import (
+    REALITY_TITLE,
     ConsentFinding,
     bundled_in_form,
     bundled_in_text,
@@ -81,16 +83,22 @@ _CONSENT_NEARBY = re.compile(
     r"обработк\w* моих персональных",
     re.I,
 )
+# Marks of a banner in the page's code (class names, script addresses). "cookie-policy"
+# is not one: it is the address of a document, linked from many footers.
 _COOKIE_WIDGETS = re.compile(
     r"cookiebot|onetrust|cookieyes|cookie-?notice|cookie-?consent|cookieconsent|cookie-?banner|"
-    r"cookies?-?(?:popup|alert|bar|warning|policy|accept)|t-cookies|klaro|ccm19|cookie_agree",
+    r"cookies?-?(?:popup|alert|bar|warning|accept)|t-cookies|klaro|ccm19|cookie_agree",
     re.I,
 )
 _COOKIE_TEXT = re.compile(r"cookie|куки", re.I)
 # Verbs of a notice ("мы используем cookie", "вы соглашаетесь", "принять"), not the nouns
 # of a document title: a footer link "Политика использования файлов cookie" next to
 # "Пользовательское соглашение" is no notice.
-_COOKIE_CONTEXT = re.compile(r"соглаша|согласн|использу|принять|принимаю|accept|продолжая", re.I)
+_COOKIE_VERBS = r"соглаша|согласн|использу(?:ем|ет|ют|ю)(?!\w)|принять|принимаю|продолжая"
+_COOKIE_CONTEXT = re.compile(_COOKIE_VERBS + r"|accept|we use|site uses", re.I)
+# In a script only Russian words count: its code says "accept" and "cookie" on its own.
+_COOKIE_CONTEXT_CODE = re.compile(_COOKIE_VERBS, re.I)
+_COOKIE_WINDOW = 150  # a notice is a sentence or two
 # Visitor-tracking categories: they set cookies whatever the provider's country.
 _TRACKING = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT})
 # Who receives visitor data as a third party, and who sets cookies, for policy claims.
@@ -272,13 +280,45 @@ def _unique_forms(located: list[tuple[str, Form]]) -> list[tuple[str, Form]]:
 
 
 def has_cookie_notice(html: str) -> bool:
-    if _COOKIE_WIDGETS.search(html):
+    """A cookie banner: a known widget in the code, or a notice in what a visitor reads,
+    or the text of one inside a script that shows it later.
+
+    The raw HTML is not searched as a whole: there "cookie" is document.cookie of any
+    counter, "accept" is accept-charset of a form, and a page with either next to
+    "мы используем…" about anything was "showing a notice"."""
+    if _COOKIE_WIDGETS.search(page_code(html, links=False)):
         return True
-    for match in _COOKIE_TEXT.finditer(html):
-        window = html[max(0, match.start() - 300) : match.end() + 300]
-        if _COOKIE_CONTEXT.search(window):
-            return True
+    for text, context in (
+        (parse_page(html).text, _COOKIE_CONTEXT),
+        (inline_scripts(html), _COOKIE_CONTEXT_CODE),
+    ):
+        for match in _COOKIE_TEXT.finditer(text):
+            # Back to the start of the sentence only: "Мы используем лучшие материалы."
+            # before a footer link "Политика использования файлов cookie" is no notice.
+            start = max(0, match.start() - _COOKIE_WINDOW)
+            ends = [m.end() for m in _SENTENCE_END.finditer(text, start, match.start())]
+            if context.search(text, ends[-1] if ends else start, match.end() + _COOKIE_WINDOW):
+                return True
     return False
+
+
+_SENTENCE_END = re.compile(r"[.!?…]\s")
+# A document about cookies or personal data says "сайт использует cookie" too, and it
+# is not a banner: only the pages a visitor lands on are searched for one.
+_DOCUMENT_PATH = re.compile(
+    r"cookie|polic|polit|privacy|konfiden|confiden|agreement|soglas|oferta|offer|terms|legal|"
+    r"rules|pravila|personal|pdn|152",
+    re.I,
+)
+
+
+def notice_pages(data: ComplianceInput, html: str) -> list[str]:
+    """HTML of the pages where a cookie banner is looked for: the home page and the
+    inner pages, without the site's legal documents."""
+    policy = urlsplit(data.policy.url or "").path
+    return [html] + [
+        h for path, h, _ in data.extra if path != policy and not _DOCUMENT_PATH.search(path)
+    ]
 
 
 def evaluate(data: ComplianceInput, html: str) -> list[Check]:
@@ -380,12 +420,25 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
             )
         )
         if policy.fetched and not policy.is_pdf and not policy.unreadable:
-            checks.append(policy_content(policy.text, bool(foreign_visitor), policy.scripted))
+            content = policy_content(policy.text, bool(foreign_visitor), policy.scripted)
+            checks.append(content)
             site = " ".join([html, *(h for _, h, _ in data.extra)])
             site_inns = [] if data.inn_from_ad else find_inns(site)
             hosts = {urlsplit(u).hostname or "" for u in (data.final_url, policy.url) if u}
             checks.append(
-                policy_reality(
+                # A text that was not read (drawn by a script, or a page that only links
+                # to the policy) says nothing about cookies, and proves nothing by that.
+                Check(
+                    GROUP_152,
+                    REALITY_TITLE,
+                    Status.UNKNOWN,
+                    "Не проверено: текст политики прочитать не удалось (см. «Содержание "
+                    "политики»), сравнивать с сайтом нечего.",
+                    "Проверьте страницу политики вручную или запустите проверку с "
+                    "параметром --browser.",
+                )
+                if content.status is Status.UNKNOWN
+                else policy_reality(
                     policy.text,
                     _names(d for d in data.deps if d.category in _THIRD_PARTIES),
                     _names(foreign_visitor),
@@ -514,7 +567,7 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     # 3. Cookie notice.
     if tracking:
         names = ", ".join(dict.fromkeys(d.service for d in tracking))
-        if has_cookie_notice(html) or any(has_cookie_notice(h) for _, h, _ in data.extra):
+        if any(has_cookie_notice(h) for h in notice_pages(data, html)):
             checks.append(
                 Check(
                     GROUP_152,
@@ -530,7 +583,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     "Уведомление о cookies",
                     Status.WARN,
                     f"Сайт использует {names}, но уведомление о cookies не найдено. По позиции "
-                    "Роскомнадзора данные метрических сервисов могут быть персональными данными.",
+                    "Роскомнадзора данные метрических сервисов могут быть персональными данными."
+                    + (
+                        ""
+                        if data.rendered
+                        else " Без браузера не виден баннер, который показывает скрипт: "
+                        "перепроверьте в режиме --browser."
+                    ),
                     "Добавьте баннер с уведомлением о cookies и ссылкой на политику.",
                 )
             )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 _SKIP_TEXT = frozenset({"script", "style", "noscript", "template", "svg"})
 _FORM_BREAKS = frozenset(
@@ -42,6 +43,9 @@ class Page:
     links: list[Link] = field(default_factory=list)
     forms: list[Form] = field(default_factory=list)
     text: str = ""
+    # The first <base href>, as written. Links and form actions are already resolved
+    # against it, so callers join them with the page address as before.
+    base: str = ""
 
 
 class _Parser(HTMLParser):
@@ -56,6 +60,8 @@ class _Parser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         a = {k: (v or "") for k, v in attrs}
+        if tag == "base" and not self.page.base and a.get("href", "").strip():
+            self.page.base = a["href"].strip()
         if tag in _SKIP_TEXT:
             self._skip += 1
         elif tag == "a":
@@ -112,6 +118,38 @@ class _Parser(HTMLParser):
         if self._form is not None:  # unclosed <form>
             self._finish_form()
         self.page.text = re.sub(r"\s+", " ", " ".join(self._text)).strip()
+        if self.page.base:
+            for link in self.page.links:
+                link.href = with_base(self.page.base, link.href)
+            for form in self.page.forms:
+                form.action = with_base(self.page.base, form.action)
+
+
+# What a <base href> does not touch: a jump within the page, a script, mail and phone.
+_NOT_RESOLVED = ("#", "javascript:", "mailto:", "tel:", "data:")
+_BASE_TAG = re.compile(r"""(?is)<base\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""")
+
+
+def with_base(base_href: str, href: str) -> str:
+    """``href`` resolved against the page's <base href> (redfox0: ``<base href="/ru/">``
+    and relative links gave 404). The result is still joined with the page address, which
+    resolves a relative base itself: urljoin(page, urljoin(base, href)) is the RFC 3986
+    result for every kind of href."""
+    href = href.strip()
+    if not href or not base_href or href.lower().startswith(_NOT_RESOLVED):
+        return href
+    return urljoin(base_href, href)
+
+
+def document_base(url: str, html: str) -> str:
+    """The address that relative URLs in ``html`` resolve against: ``url``, or its first
+    <base href> when there is one. For code that reads src= and href= from raw HTML."""
+    m = _BASE_TAG.search(html)
+    href = next((g for g in m.groups() if g is not None), "").strip() if m else ""
+    if not href:
+        return url
+    joined = urljoin(url, href)
+    return joined if joined.startswith(("http://", "https://")) else url
 
 
 _LINKED_FORM = re.compile(
@@ -119,6 +157,18 @@ _LINKED_FORM = re.compile(
     r"jotform\.com|surveymonkey\.com|tally\.so|airtable\.com/shr",
     re.I,
 )
+
+
+# A player address with no video in it, inside a script: a template a video library
+# fills in ("youtube.com/embed/" + id, "{{videoId}}") for whichever service a block
+# uses. redfox0's site played RUTUBE and was reported as embedding YouTube. A real
+# embed has the video's id right after the slash, and a frame's src is a tag, not this.
+_EMBED_TEMPLATE = re.compile(
+    r"(?i)youtube(?:-nocookie)?\.com/embed(?:/(?![A-Za-z0-9_-])|(?![/A-Za-z0-9_-]))",
+)
+
+
+_DATA_SCRIPTS = frozenset({"application/ld+json", "application/json"})
 
 
 class _CodeParser(HTMLParser):
@@ -129,6 +179,7 @@ class _CodeParser(HTMLParser):
         self.parts: list[str] = []
         self._raw = 0
         self._links = links
+        self._data = False  # inside a script that holds data, not code
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if (
@@ -142,6 +193,11 @@ class _CodeParser(HTMLParser):
         self.parts.append(self.get_starttag_text() or "")
         if tag in ("script", "style"):
             self._raw += 1
+            # Data, not code: JSON-LD for search engines, the page's content as JSON
+            # (Next.js keeps the article's text in __NEXT_DATA__). It loads nothing, and
+            # an article about Google Analytics there is not Google Analytics on the site.
+            kind = (dict(attrs).get("type") or "").lower()
+            self._data = not self._links and tag == "script" and kind in _DATA_SCRIPTS
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.parts.append(self.get_starttag_text() or "")
@@ -149,10 +205,11 @@ class _CodeParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag in ("script", "style") and self._raw:
             self._raw -= 1
+            self._data = False
 
     def handle_data(self, data: str) -> None:
-        if self._raw:
-            self.parts.append(data)
+        if self._raw and not self._data:
+            self.parts.append(_EMBED_TEMPLATE.sub("", data))
 
 
 def page_code(html: str, *, links: bool = True) -> str:
@@ -160,7 +217,8 @@ def page_code(html: str, *, links: bool = True) -> str:
 
     An article that merely mentions "googletagmanager.com" must not count as the site
     using Google Tag Manager, and a commented-out tag loads nothing either. Without
-    ``links`` plain links are dropped too, for finding the services a page uses.
+    ``links`` plain links and scripts that hold JSON data are dropped too, for finding
+    the services a page uses.
     """
     parser = _CodeParser(links=links)
     try:

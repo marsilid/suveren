@@ -7,6 +7,8 @@ intervals, so that "100%" on twelve sites reads as what it is.
 
     python tools/accuracy.py labels.csv reports/            # table in the terminal
     python tools/accuracy.py labels.csv reports/ --markdown # for docs/accuracy.md
+    python tools/accuracy.py labels.csv reports/ --mismatches diff.md  # each disagreement
+    python tools/accuracy.py template sites.txt --checks pd,mail > labels.csv
 
 labels.csv (UTF-8, one row per site and check; see docs/accuracy-sample.md):
 
@@ -63,6 +65,8 @@ def read_labels(path: Path) -> list[Label]:
             site = (row.get("site") or "").strip().lower()
             check = (row.get("check") or "").strip().upper()
             expected = (row.get("expected") or "").strip().lower()
+            if site and check and not expected:
+                continue  # a template row the labeller could not judge: left empty
             if not site or not check.startswith("SUV-") or expected not in STATUSES:
                 raise LabelError(f"{path}:{n}: нужны site, check (SUV-...) и expected ({STATUSES})")
             labels.append(Label(site, check, expected))
@@ -82,6 +86,79 @@ def read_reports(folder: Path) -> dict[str, dict[str, str]]:
         site = str(data.get("target", "")).lower()
         found[site] = {c.get("id", ""): c.get("status", "") for c in data["checks"]}
     return found
+
+
+def read_details(folder: Path) -> dict[tuple[str, str], tuple[str, str]]:
+    """(site, check ID) -> (title, details): what the report said, for reading a miss."""
+    found: dict[tuple[str, str], tuple[str, str]] = {}
+    for path in sorted(folder.rglob("*.json")):
+        try:
+            data = json.loads(path.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict) or "checks" not in data:
+            continue
+        site = str(data.get("target", "")).lower()
+        for c in data["checks"]:
+            found[(site, c.get("id", ""))] = (c.get("title", ""), c.get("details", ""))
+    return found
+
+
+def mismatches(
+    labels: list[Label],
+    reports: dict[str, dict[str, str]],
+    details: dict[tuple[str, str], tuple[str, str]],
+) -> str:
+    """Every label the report disagrees with, false alarms first, as markdown: the list a
+    person reads to tell Suveren's mistakes from their own."""
+    alarms, missed = [], []
+    for label in labels:
+        got = reports.get(label.site, {}).get(label.check)
+        if got is None or (label.expected in PROBLEM) == (got in PROBLEM):
+            continue
+        title, said = details.get((label.site, label.check), ("", ""))
+        item = (
+            f"- **{label.site}**, {label.check} {title}: разметка {label.expected}, "
+            f"Suveren {got}.\n  > {said or 'текста нет'}"
+        )
+        (missed if label.expected in PROBLEM else alarms).append(item)
+    parts = []
+    if alarms:
+        parts += ["## Ложные тревоги", "", *alarms, ""]
+    if missed:
+        parts += ["## Пропущенные проблемы", "", *missed, ""]
+    return "\n".join(parts) if parts else "Расхождений нет.\n"
+
+
+def template(sites: list[str], checks: list[str]) -> str:
+    """A blank labels.csv: one row per site and check, ``expected`` left empty. Made
+    without looking at any report, so the labels don't copy Suveren's answers."""
+    rows = ["site,check,expected,labeller,date,note"]
+    rows += [f"{site},{check},,,," for site in sites for check in checks]
+    return "\n".join(rows) + "\n"
+
+
+def _template_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="accuracy.py template", description="Пустой labels.csv для разметки."
+    )
+    parser.add_argument("sites", type=Path, help="файл со списком сайтов, по одному в строке")
+    parser.add_argument(
+        "--checks", default="pd", help="какие проверки размечать, как у suveren --checks"
+    )
+    args = parser.parse_args(argv)
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from suveren.catalog import select
+
+    try:
+        checks = sorted(select(args.checks))
+    except Exception as exc:  # the catalog says what is wrong with the expression
+        print(exc, file=sys.stderr)
+        return 2
+    lines = args.sites.read_text("utf-8-sig").splitlines()
+    sites = [s.strip().lower() for s in lines if s.strip() and not s.lstrip().startswith("#")]
+    sys.stdout.write(template(sites, checks))
+    return 0
 
 
 @dataclass(slots=True)
@@ -138,17 +215,26 @@ def markdown(rows: dict[str, Row]) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["template"]:
+        return _template_main(argv[1:])
     parser = argparse.ArgumentParser(description="Точность Suveren на размеченной выборке.")
     parser.add_argument("labels", type=Path)
     parser.add_argument("reports", type=Path)
     parser.add_argument("--markdown", action="store_true")
+    parser.add_argument(
+        "--mismatches", type=Path, help="записать каждое расхождение с текстом отчёта (markdown)"
+    )
     args = parser.parse_args(argv)
     try:
         labels = read_labels(args.labels)
     except LabelError as exc:
         print(exc, file=sys.stderr)
         return 2
-    rows = compare(labels, read_reports(args.reports))
+    reports = read_reports(args.reports)
+    rows = compare(labels, reports)
+    if args.mismatches:
+        text = mismatches(labels, reports, read_details(args.reports))
+        args.mismatches.write_text(text, "utf-8")
     if args.markdown:
         print(markdown(rows))
         return 0

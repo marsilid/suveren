@@ -23,7 +23,15 @@ from suveren import __version__, geoip, trace
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
-from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport, open_public
+from suveren.net import (
+    ACCEPT_ENCODING,
+    bound_body,
+    guarded_transport,
+    note_unreachable,
+    offline,
+    open_public,
+    proxy_note,
+)
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -79,6 +87,9 @@ class Facts:
     registrar: str | None = None
     tls_issuer: str | None = None
     tls_trusted: bool | None = None
+    # A program on the checking computer re-signs HTTPS (an antivirus, a proxy): its
+    # issuer name. The site's own certificate was not seen.
+    tls_intercepted: str = ""
     final_url: str | None = None
     page_status: int | None = None
     html: str = ""
@@ -92,6 +103,12 @@ class Facts:
     # HTTPS timed out or broke off and the page came over plain HTTP: whether the site
     # has HTTPS is unknown (a geo block, a slow port), not "no HTTPS". The reason.
     https_unanswered: str | None = None
+    # Why the home page did not open at all, in plain words (domix32: "the home page did
+    # not load" alone did not say whether the tool or the site was broken).
+    home_error: str = ""
+    # The page the user named ("/suveren/" of marsilid.github.io/suveren/), opened
+    # instead of the root: on a shared host the root is someone else's site.
+    start_path: str = "/"
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     # Who started each script request on the home page (--browser): script URL ->
@@ -119,8 +136,16 @@ class Facts:
     def page_problem(self) -> str | None:
         """Why the home page can't be analysed, or None if it can."""
         if not self.html:
-            return "главная страница не загрузилась"
+            return self._no_page()
         return page_problem(self.page_status, self.html, rendered=self.rendered)
+
+    def _no_page(self) -> str:
+        if self.home_error:
+            page = "главная страница" if self.start_path == "/" else f"страница {self.start_path}"
+            return f"{page} не открылась, причина: {self.home_error}"
+        if self.page_status:
+            return f"сайт ответил кодом {self.page_status} без страницы"
+        return "главная страница не загрузилась"
 
     @property
     def page_unseen(self) -> str | None:
@@ -128,9 +153,7 @@ class Facts:
         or an error page stood in for it. A thin page built by scripts is seen: its
         scripts are in the code. After --browser the status and HTML are the browser's."""
         if not self.html:
-            if self.page_status:
-                return f"сайт ответил кодом {self.page_status} без страницы"
-            return "главная страница не загрузилась"
+            return self._no_page()
         return bot_wall(self.page_status, self.html)
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,6 +170,7 @@ class Facts:
             "page_status": self.page_status,
             "rendered": self.rendered,
             "page_problem": self.page_problem,
+            "home_error": self.home_error or None,
             "page_unseen": self.page_unseen,
             "dns_unanswered": list(self.dns_unanswered),
             "extra_pages": [p.url for p in self.extra_pages],
@@ -310,6 +334,11 @@ class Collector:
         self._net_cache: dict[str, NetInfo] = {}
         self._insecure: httpx.AsyncClient | None = None
         self.https_unanswered: str | None = None
+        self.start_path = "/"
+        # The bare name did not open and www. did: (bare host, why it did not open).
+        self.www_fallback: tuple[str, str] | None = None
+        # Who signs the certificates this computer gets instead of the sites' own.
+        self.tls_intercepted = ""
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -390,11 +419,31 @@ class Collector:
         return list(await asyncio.gather(*(self.net_info(ip) for ip in unique)))
 
     async def homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:
-        """(final URL, HTTP status, HTML, headers). Tolerates certificates Python doesn't
-        trust, such as the Russian НУЦ Минцифры root, before falling back to plain HTTP."""
+        """(final URL, HTTP status, HTML, headers). When the bare name does not answer at
+        all, www. is tried: some sites live only there (domix32)."""
+        try:
+            return await self._homepage(host)
+        except ModuleError as exc:
+            if host.startswith("www.") or offline():
+                raise
+            # A dead site has no www. either: a DNS question first, not a second round
+            # of timeouts for each of them in a batch.
+            try:
+                if not await self.resolver.resolve(f"www.{host}", "A"):
+                    raise
+                found = await self._homepage(f"www.{host}")
+            except (ModuleError, DnsLookupError):
+                raise exc from None
+            self.www_fallback = (host, home_reason(exc))
+            return found
+
+    async def _homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:
+        """Tolerates certificates Python doesn't trust, such as the Russian НУЦ Минцифры
+        root, before falling back to plain HTTP."""
         last_error: Exception | None = None
-        attempts = ((self.client, f"https://{host}/"), (None, f"https://{host}/"))
-        for client, url in (*attempts, (self.client, f"http://{host}/")):
+        path = self.start_path
+        attempts = ((self.client, f"https://{host}{path}"), (None, f"https://{host}{path}"))
+        for client, url in (*attempts, (self.client, f"http://{host}{path}")):
             if client is None:
                 if not _is_tls_error(last_error):
                     continue
@@ -409,6 +458,8 @@ class Collector:
             if url.startswith("http://") and isinstance(last_error, _UNANSWERED):
                 self.https_unanswered = describe(last_error)
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
+        if last_error is not None:
+            note_unreachable(last_error)
         raise ModuleError(
             f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
         )
@@ -463,32 +514,78 @@ class Collector:
         except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
         try:
-            return await self._issuer(host, verify=False), False
+            issuer = await self._issuer(host, verify=False)
         except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
+        if issuer and issuer == await local_interceptor(self.timeout):
+            # Not the site's certificate: the one a program on this computer made.
+            self.tls_intercepted = issuer
+            return None, None
+        return issuer, False
 
     async def _issuer(self, host: str, *, verify: bool) -> str | None:
-        context = browser_trust()
-        if not verify:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-        with trace.step(f"TLS {host}:443" + ("" if verify else " (без проверки цепочки)")):
-            _, writer = await open_public(
-                host, 443, self.timeout, ssl=context, server_hostname=host
-            )
+        return await peer_issuer(host, self.timeout, verify=verify)
+
+
+async def peer_issuer(host: str, timeout: float, *, verify: bool) -> str | None:
+    """The organisation that issued the certificate ``host`` shows; with ``verify`` the
+    chain is checked as a browser checks it (ssl.SSLCertVerificationError when it fails)."""
+    context = browser_trust()
+    if not verify:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    with trace.step(f"TLS {host}:443" + ("" if verify else " (без проверки цепочки)")):
+        _, writer = await open_public(host, 443, timeout, ssl=context, server_hostname=host)
+    try:
+        sslobj = writer.get_extra_info("ssl_object")
+        if sslobj is None:
+            return None
+        if verify:
+            cert = sslobj.getpeercert()
+            return issuer_org(cert) if cert else None
+        der = sslobj.getpeercert(binary_form=True)
+        return issuer_from_der(der) if der else None
+    finally:
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+
+
+# A site whose certificate every browser trusts. When its chain fails too, and with the
+# same issuer as the checked site's, the certificates come from a program on this
+# computer that opens HTTPS to look inside (an antivirus, a corporate proxy), not from
+# the sites: Python does not know that program's root, browsers on this computer do.
+CONTROL_HOST = "ya.ru"
+_interceptors: dict[str, str | None] = {}
+
+
+async def local_interceptor(timeout: float) -> str | None:
+    """Who signs the certificates this computer gets in place of the real ones, or None
+    when nobody does (or the control site did not answer). Asked once per run."""
+    if CONTROL_HOST in _interceptors:
+        return _interceptors[CONTROL_HOST]
+    try:
+        await peer_issuer(CONTROL_HOST, timeout, verify=True)
+        found = None
+    except ssl.SSLCertVerificationError:
         try:
-            sslobj = writer.get_extra_info("ssl_object")
-            if sslobj is None:
-                return None
-            if verify:
-                cert = sslobj.getpeercert()
-                return issuer_org(cert) if cert else None
-            der = sslobj.getpeercert(binary_form=True)
-            return issuer_from_der(der) if der else None
-        finally:
-            writer.close()
-            with contextlib.suppress(Exception):
-                await writer.wait_closed()
+            found = await peer_issuer(CONTROL_HOST, timeout, verify=False)
+        except (OSError, *TIMEOUTS, ssl.SSLError):
+            return None
+    except (OSError, *TIMEOUTS, ssl.SSLError):
+        return None  # no answer is no proof either way: asked again next time
+    _interceptors[CONTROL_HOST] = found
+    return found
+
+
+def interception_note(who: str) -> str:
+    return (
+        f"HTTPS-соединения на этом компьютере вскрывает программа или прокси (сертификаты "
+        f"подписывает «{who}»): так делают антивирусы и корпоративные шлюзы. Suveren видит "
+        "её сертификат вместо сертификата сайта, поэтому издатель сертификата сайта не "
+        "определён, а проверка TLS не выполнена. Повторите проверку с другого компьютера "
+        "или отключите проверку защищённых соединений в этой программе."
+    )
 
 
 async def whois_query(server: str, query: str, timeout: float) -> str:
@@ -572,6 +669,27 @@ def guess_encoding(content: bytes) -> str:
 _UNANSWERED = (httpx.TimeoutException, httpx.ReadError, httpx.RemoteProtocolError)
 
 
+def home_reason(exc: BaseException) -> str:
+    """Why the home page did not open, in words that say whose side the trouble is on."""
+    text = describe(exc)
+    if text.startswith("сайт не открылся (") and text.endswith(")"):
+        text = text[len("сайт не открылся (") : -1]
+    if down := offline():
+        return f"нет выхода в интернет с этого компьютера ({down})"
+    if text == "сервер не ответил вовремя":
+        return "сайт не ответил вовремя, возможно, он перегружен или закрыт для вашей сети"
+    if text == "не удалось установить защищённое соединение":
+        return "не удалось установить защищённое соединение (ошибка TLS на стороне сайта)"
+    if text == "имя сервера не найдено в DNS":
+        return "адрес сайта не найден в DNS"
+    if text in ("нет связи с сервером", "сервер оборвал соединение", "ошибка сети"):
+        why = f"{text}, сайт недоступен или закрыт для вашей сети"
+        if proxy_note():
+            why += ", а прокси из окружения Suveren не использует"
+        return why
+    return text
+
+
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
@@ -621,9 +739,16 @@ DNS_SECTIONS = {
 }
 
 
-async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto") -> Facts:
+async def collect(
+    host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto", start_path: str = "/"
+) -> Facts:
     domain = registrable_domain(host)
-    facts = Facts(host=host, domain=domain)
+    facts = Facts(host=host, domain=domain, start_path=start_path or "/")
+    if facts.start_path != "/":
+        facts.notes.append(
+            f"Проверена страница {host}{facts.start_path}, а не главная сайта. DNS, почта, "
+            "сертификат и реестры проверены для всего домена."
+        )
 
     async with make_client(timeout) as client:
         resolver, note = await create_resolver(dns_mode, timeout, client)
@@ -638,6 +763,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             raise TargetNotFoundError(f"адреса {host} не существует (NXDOMAIN)")
 
         c = Collector(resolver, client, timeout)
+        c.start_path = facts.start_path
         tasks = {
             "ns": c.ns(domain),
             "mx": c.mx(domain),
@@ -663,7 +789,11 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
         if isinstance(value, BaseException):
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
-            facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
+            if key == "homepage":
+                # Said once, with its reason, in the note about the page (analyze.py).
+                facts.home_error = home_reason(value)
+            else:
+                facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
             if key in DNS_SECTIONS:
                 facts.dns_unanswered.append(key)
             continue
@@ -679,10 +809,18 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.set_cookies = headers.get_list("set-cookie")
             facts.http_problem = bot_wall(facts.page_status, facts.html)
             facts.https_unanswered = c.https_unanswered
+            if c.www_fallback:
+                bare, why = c.www_fallback
+                facts.notes.append(
+                    f"{bare} не открылся ({why}), проверен сайт по адресу www.{bare}."
+                )
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":
             facts.tls_issuer, facts.tls_trusted = value
+            if c.tls_intercepted:
+                facts.tls_intercepted = c.tls_intercepted
+                facts.notes.append(interception_note(c.tls_intercepted))
         elif key == "geo":
             locate(facts, value)
     return facts
@@ -696,3 +834,8 @@ def locate(facts: Facts, db: geoip.GeoDb) -> None:
     facts.geo_origin = db.origin
     for net in facts.web:
         net.located = db.country_of(net.ip)
+    # DNS and mail servers too: a Russian host's network may be registered abroad, and
+    # its own mail server in Russia was called foreign (borisdenis, 2.2.3).
+    for h in (*facts.ns, *facts.mx):
+        if h.net is not None:
+            h.net.located = db.country_of(h.net.ip)

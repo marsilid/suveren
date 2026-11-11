@@ -1953,6 +1953,86 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         files=site_files(),
     ),
+    # --- pages that used to fool a check (the review of 2026-11-11) -------------------
+    Case(
+        "lab-cookie-doc-only",
+        "Метрика; баннера нет, есть только ссылка на документ о cookie и document.cookie в коде",
+        {"SUV-PD-005": "warn"},
+        html=page(
+            FORM_OK + '<script src="https://mc.yandex.ru/metrika/tag.js"></script>'
+            "<script>function uid(){return document.cookie.match(/uid=(\\w+)/)}</script>"
+            "<p>Мы используем только проверенные материалы.</p>"
+            '<p><a href="/cookie-policy">Политика использования файлов cookie</a></p>'
+        ),
+        files=site_files({"/cookie-policy": page("<p>Какие файлы cookie ставит сайт.</p>")}),
+    ),
+    Case(
+        "lab-banner-in-script",
+        "Метрика; текст баннера о cookies лежит в скрипте, который его показывает",
+        {"SUV-PD-005": "ok"},
+        html=page(
+            FORM_OK + '<script src="https://mc.yandex.ru/metrika/tag.js"></script>'
+            "<script>showBar('Мы используем файлы cookie. Оставаясь на сайте, вы "
+            "соглашаетесь с этим.');</script>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-fbq-leftover",
+        "пикселя Meta нет, в коде остался вызов события fbq('track'): передачи за рубеж нет",
+        {"SUV-PD-006": "ok"},
+        html=page(
+            FORM_OK + "<script>function lead(){if(window.fbq){fbq('track','Lead');}}</script>"
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-json-mention",
+        "Google Analytics и YouTube только упомянуты в JSON-данных страницы (JSON-LD, текст "
+        "статьи): передачи за рубеж нет",
+        {"SUV-PD-006": "ok"},
+        html=page(
+            FORM_OK + '<script type="application/ld+json">{"@type":"Organization","sameAs":'
+            '["https://www.youtube.com/embed/lab12345"]}</script>'
+            '<script id="__NEXT_DATA__" type="application/json">{"text":"Как поставить '
+            'https://www.googletagmanager.com/gtm.js на сайт"}</script>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-policy-shell",
+        "страница политики отдаёт оболочку сайта, текст рисует скрипт: сверять с сайтом нечего",
+        {"SUV-PD-001": "ok", "SUV-PD-002": "unknown", "SUV-PD-011": "unknown"},
+        html=page(FORM_OK + '<script src="https://mc.yandex.ru/metrika/tag.js"></script>'),
+        files=site_files({"/privacy": page('<div id="app"></div><script src="/app.js"></script>')}),
+    ),
+    Case(
+        "lab-tls-intercepted",
+        "HTTPS вскрывает антивирус на компьютере проверяющего: сертификат не сайта",
+        {"SUV-WEB-008": "unknown"},
+        html=page(FORM_OK),
+        tls=TlsInfo(
+            "x",
+            "TLSv1.2",
+            NOW + timedelta(days=300),
+            {"TLS 1.0": True, "TLS 1.1": True},
+            "self-signed certificate in certificate chain",
+            "CN=Kaspersky Anti-Virus Personal Root Certificate",
+            intercepted="Kaspersky Anti-Virus Personal Root Certificate",
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-dnssec-gost",
+        "DS с хэшем ГОСТ (тип 3), который проверка не считает: не «цепочка разорвана»",
+        {"SUV-WEB-013": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-dnssec-gost.ru", "DS"): ["12345 23 3 " + "ab" * 32],
+            ("lab-dnssec-gost.ru", "DNSKEY"): [dnskey(algorithm=23)],
+        },
+    ),
 ]
 
 # Expected and actual differ here for a stated reason; the table counts them as misses.

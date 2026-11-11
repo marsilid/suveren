@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
 from suveren.checks import Check, Evidence, Status
+from suveren.page import document_base
 from suveren.utils import registrable_domain
 
 TITLE = "Версия CMS"
@@ -63,6 +64,7 @@ def _generators(html: str) -> list[str]:
 def _own_links(html: str, base: str, domain: str) -> list[str]:
     """Addresses in src and href that lead to the site itself: a picture from another
     site's /wp-content/ says nothing about this one."""
+    base = document_base(base, html)
     out = []
     for m in _LINK.finditer(html):
         raw = next(g for g in m.groups() if g is not None).replace("&amp;", "&")

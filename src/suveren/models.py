@@ -270,7 +270,7 @@ class Dependency:
     @property
     def country_text(self) -> str:
         """ "Россия" or, for a server whose place is known, "сеть: Россия, сервер: Германия"."""
-        if not self.located:
+        if not self.located or self.located == self.country:
             return self.country_ru
         return f"сеть: {self.country_ru}, сервер: {self.located_ru}"
 

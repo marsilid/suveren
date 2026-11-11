@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from suveren.cache import cache_dir
+from suveren.page import document_base
 from suveren.services import ALL_SERVICES
 from suveren.utils import registrable_domain
 
@@ -32,6 +33,7 @@ MAX_DOMAINS = 2000
 
 def resource_urls(html: str, base: str) -> list[str]:
     """Absolute URLs of resources a page embeds (scripts, styles, frames, media)."""
+    base = document_base(base, html)
     urls = []
     for raw in _RESOURCE.findall(html):
         if raw.startswith(("data:", "javascript:", "#", "mailto:")):

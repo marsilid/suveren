@@ -26,12 +26,19 @@ from cryptography.x509 import ocsp
 
 from suveren.checks import Check, Evidence, Status
 from suveren.cms import cms_check, detect_cms
-from suveren.collect import Facts, browser_trust, make_client
+from suveren.collect import (
+    Facts,
+    browser_trust,
+    issuer_from_der,
+    local_interceptor,
+    make_client,
+)
 from suveren.dnsutil import DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
 from suveren.net import open_public
+from suveren.page import document_base
 from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
@@ -133,6 +140,7 @@ class _ResourceParser(HTMLParser):
 
 def page_resources(html: str, base: str, page: str = "/") -> tuple[list[Resource], list[str]]:
     """External scripts and stylesheets of a page, and CSP set in <meta> tags."""
+    base = document_base(base, html)
     parser = _ResourceParser(base, page)
     with contextlib.suppress(Exception):  # malformed markup: keep what was parsed
         parser.feed(html)
@@ -238,6 +246,9 @@ class TlsInfo:
     chain_incomplete: bool = False
     revoked: datetime | None = None  # when the CA revoked it, by its OCSP responder
     issued: datetime | None = None  # the certificate's notBefore
+    # A program on the checking computer re-signs HTTPS (an antivirus, a corporate proxy):
+    # its issuer name. Everything above is then about that program, not about the site.
+    intercepted: str = ""
 
 
 def _context(version: ssl.TLSVersion | None = None) -> ssl.SSLContext:
@@ -417,6 +428,7 @@ async def crl_revoked(
 async def probe_tls(host: str, timeout: float) -> TlsInfo:
     info = TlsInfo(host)
     cert = None
+    shown: bytes | None = None  # the certificate as received
     chain: list[bytes] = []
     # A second try: under a batch's load one handshake can time out on a site whose page
     # has just loaded over HTTPS (profi.ru, 2026-10-23), and the check went missing.
@@ -425,6 +437,7 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
             chain.clear()
             info.version, der = await _handshake(host, _context(), timeout, chain)
             if der:
+                shown = der
                 cert = x509.load_der_x509_certificate(der)
                 info.expires = cert.not_valid_after_utc
                 info.issued = cert.not_valid_before_utc
@@ -450,6 +463,13 @@ async def probe_tls(host: str, timeout: float) -> TlsInfo:
         info.verify_error = exc.verify_message or str(exc)
     except (OSError, *TIMEOUTS, ssl.SSLError, ValueError):
         info.verified = False
+    if info.verify_error and shown:
+        # The same untrusted issuer on a site every browser trusts: the certificate is a
+        # local program's, and nothing here says anything about the site.
+        who = await local_interceptor(timeout)
+        if who and who == issuer_from_der(shown):
+            info.intercepted = who
+            return info
     if info.verify_error and "local issuer" in info.verify_error.lower() and cert is not None:
         # "unable to get local issuer" is either a missing intermediate, which browsers
         # fetch by the AIA link, or a root nobody trusts (a private CA): try as they do.
@@ -1031,6 +1051,18 @@ def tls_check(w: WebFacts) -> Check | None:
     if t is None:
         return None
     title = TLS_CHECK_TITLE
+    if t.intercepted:
+        return Check(
+            GROUP_WEB,
+            title,
+            Status.UNKNOWN,
+            "Не проверено: HTTPS-соединения на этом компьютере вскрывает программа или прокси "
+            f"(сертификаты подписывает «{t.intercepted}»), так делают антивирусы и "
+            "корпоративные шлюзы. Suveren получил её сертификат вместо сертификата сайта: "
+            "срок, доверие браузеров и версии TLS были бы о ней, а не о сайте.",
+            "Повторите проверку с другого компьютера или отключите проверку защищённых "
+            "соединений в этой программе.",
+        )
     if t.version is None:
         # The page came over HTTPS, so there is TLS: a check that silently disappears
         # from the report reads as "nothing to say", which is not what happened.
@@ -1346,7 +1378,11 @@ async def run_web_checks(
     if https:
         # The address that was asked for: a redirect may lead to another company's server
         # (yandex.ru → sso.passport.yandex.ru), whose TLS is not this site's.
-        w.tls = await probe_tls(facts.host, timeout)
+        w.tls = (
+            TlsInfo(facts.host, intercepted=facts.tls_intercepted)
+            if facts.tls_intercepted
+            else await probe_tls(facts.host, timeout)
+        )
     data = {
         "third_party_scripts": _hosts([r for r in w.third_party if r.kind == "script"]),
         "without_sri": sorted(

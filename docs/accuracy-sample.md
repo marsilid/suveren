@@ -10,7 +10,10 @@
    прогона. Запишите, как выбирали.
 2. Для каждого сайта и каждой проверки, которую можете оценить, решите сами: ok, warn, fail
    или unknown. Не смотрите заранее в отчёт Suveren: иначе разметка повторит его ошибки.
-3. Запишите в `labels.csv` (UTF-8):
+3. Запишите в `labels.csv` (UTF-8). Пустую заготовку по списку сайтов даёт
+   `python tools/accuracy.py template sites.txt --checks pd,mail > labels.csv` (проверки
+   выбираются как у `suveren --checks`); строки, которые не смогли оценить, оставьте
+   пустыми, они не считаются:
 
    ```
    site,check,expected,labeller,date,note
@@ -20,7 +23,10 @@
 
 4. Проверьте сайты тем же Suveren с `--json` в одну папку (`suveren batch sites.txt` или
    `suveren scan сайт --json reports/сайт.json`).
-5. Сравните: `python tools/accuracy.py labels.csv reports/ --markdown`.
+5. Сравните: `python tools/accuracy.py labels.csv reports/ --markdown`. С
+   `--mismatches diff.md` каждое расхождение записывается в файл вместе с тем, что написал
+   отчёт: сначала ложные тревоги, потом пропуски. Так проще понять, ошибся Suveren или
+   разметка.
 
 ## Как читать
 

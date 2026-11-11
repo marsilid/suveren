@@ -210,13 +210,44 @@ def test_verdict(record, count, status, starts):
 
 
 def test_domain_without_mail_still_needs_protection():
-    check = verdict(facts(receives_mail=False, dmarc=None, dmarc_count=0))
+    silent = facts(receives_mail=False, dmarc=None, dmarc_count=0, spf=SpfResult(None, 0))
+    check = verdict(silent)
     assert check.status is Status.FAIL
     assert "не принимает почту" in check.details
     assert '"v=spf1 -all"' in check.recommendation
+    assert "p=reject" in dmarc_check(silent).recommendation
     # DKIM and MTA-STS make no sense without incoming mail.
     titles = [c.title for c in evaluate(facts(receives_mail=False))]
     assert not any("DKIM" in t or "MTA-STS" in t for t in titles)
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        "v=spf1 include:_spf.yandex.net ~all",
+        "v=spf1 ip4:203.0.113.5 -all",
+        "v=spf1 a mx ?all",
+        "v=spf1 redirect=_spf.example.net",
+    ],
+)
+def test_domain_without_mx_that_sends_mail_is_not_told_to_forbid_it(record):
+    # No MX, but the SPF names senders (a shop's order letters, a mailing service):
+    # "v=spf1 -all" would stop that mail.
+    sender = facts(
+        receives_mail=False, dmarc=None, dmarc_count=0, spf=SpfResult(parse_spf(record), 1)
+    )
+    check = verdict(sender)
+    assert check.status is Status.FAIL
+    assert "судя по SPF, отправляет" in check.details
+    assert "-all" not in check.recommendation and "p=none" in check.recommendation
+    assert "p=none" in dmarc_check(sender).recommendation
+
+
+def test_spf_that_only_forbids_does_not_make_a_sender():
+    closed = facts(
+        receives_mail=False, dmarc=None, dmarc_count=0, spf=SpfResult(parse_spf("v=spf1 -all"), 1)
+    )
+    assert '"v=spf1 -all"' in verdict(closed).recommendation
 
 
 # --- collection -----------------------------------------------------------------------
@@ -394,7 +425,7 @@ def test_a_domain_without_mail_gets_reject_at_once():
     missing = SpfResult(None, 0, 0, None)
     spf = spf_check(facts(spf=missing, receives_mail=False))
     assert "в спам" not in spf.details and "любой сервер" in spf.details
-    dmarc = dmarc_check(facts(receives_mail=False, dmarc=None, dmarc_count=0))
+    dmarc = dmarc_check(facts(spf=missing, receives_mail=False, dmarc=None, dmarc_count=0))
     assert "p=reject" in dmarc.recommendation and "p=none" not in dmarc.recommendation
     sending = dmarc_check(facts(dmarc=None, dmarc_count=0))
     assert "p=none" in sending.recommendation  # a domain with mail starts by watching

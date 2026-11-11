@@ -23,14 +23,17 @@ class _Error(Exception):
     pass
 
 
-def _fake_playwright(launched: list[dict], fail: bool = False):
+NO_SANDBOX = "Failed to launch: No usable sandbox!"
+
+
+def _fake_playwright(launched: list[dict], fail: bool = False, message: str = NO_SANDBOX):
     """A stand-in for playwright.async_api that records the launch arguments."""
 
     class Chromium:
         async def launch(self, **kwargs):
             launched.append(kwargs)
             if fail:  # what Chromium does when its sandbox cannot start (root, no userns)
-                raise _Error("Failed to launch: No usable sandbox!")
+                raise _Error(message)
             return types.SimpleNamespace(new_context=self.context, close=self.close)
 
         async def context(self, **kwargs):
@@ -60,10 +63,12 @@ def _fake_playwright(launched: list[dict], fail: bool = False):
 
 @pytest.fixture
 def fake(monkeypatch):
-    def install(fail=False):
+    def install(fail=False, message=NO_SANDBOX):
         launched: list[dict] = []
         monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
-        monkeypatch.setitem(sys.modules, "playwright.async_api", _fake_playwright(launched, fail))
+        monkeypatch.setitem(
+            sys.modules, "playwright.async_api", _fake_playwright(launched, fail, message)
+        )
         return launched
 
     return install
@@ -92,6 +97,21 @@ def test_a_browser_without_a_sandbox_is_not_used(fake):
         asyncio.run(go())
     assert "песочниц" in str(err.value) and "root" in str(err.value)
     assert len(launched) == len(render.CHANNELS)
+
+
+def test_playwright_without_a_browser_says_how_to_get_chromium(fake):
+    """redfox0: Playwright is installed, no browser. Do not tell them to install Playwright."""
+    fake(fail=True, message="Executable doesn't exist at /home/u/.cache/ms-playwright/chromium")
+
+    async def go():
+        async with BrowserSession():
+            pass
+
+    with pytest.raises(ModuleError) as err:
+        asyncio.run(go())
+    text = str(err.value)
+    assert "python3 -m playwright install chromium" in text
+    assert "pip install" not in text and "песочниц" not in text
 
 
 def test_docker_image_does_not_run_as_root():
