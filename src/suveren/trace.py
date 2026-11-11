@@ -80,8 +80,10 @@ def safe_url(url: str) -> str:
         host += f":{parts.port}"
     segments = ["…" if _SECRET_SEGMENT.search(s) else s for s in parts.path.split("/")]
     path = "/".join(segments)
-    if len(path) > 60:
-        path = path[:57] + "…"
+    # Full path: from a cut one the reader cannot tell which file did not load (redfox0).
+    # Only a pathological path is cut, and then its end, the file name, stays.
+    if len(path) > 300:
+        path = path[:100] + "…" + path[-199:]
     return host + path
 
 

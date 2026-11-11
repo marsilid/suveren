@@ -266,7 +266,7 @@ SPF (с обходом include и redirect), DMARC, MTA-STS, CSP, Set-Cookie и 
    «не найден браузер: установите Edge или Chrome, для режима --browser установите
    Playwright…» сбивает: Playwright уже установлен. Если пакет импортируется, а ни один
    канал не запустился, писать прямо: «выполните `python3 -m playwright install chromium`».
-6. В `--verbose` длинные адреса обрезаются (redfox0: `/files/static/v2461354112945/…`),
+6. ✅ В `--verbose` длинные адреса обрезаются (redfox0: `/files/static/v2461354112945/…`),
    из лога непонятно, что не скачалось. Печатать адрес целиком или хотя бы конец пути.
 7. YouTube вместо RUTUBE (redfox0, без адреса сайта). Вероятно, слово youtube.com в теле
    чужого скрипта: `page_code` в `src/suveren/page.py` оставляет тела `<script>`, и

@@ -60,6 +60,14 @@ def test_safe_url_drops_queries_and_secrets():
     )
 
 
+def test_safe_url_keeps_the_whole_path():
+    """redfox0: -v cut /files/static/v2461354112945/… and hid which file did not load."""
+    url = "https://shop.ru/files/static/v2461354112945/themes/main/assets/js/vendor/jquery.min.js"
+    assert trace.safe_url(url) == url.removeprefix("https://")
+    long = trace.safe_url("https://h.ru/" + "a/" * 300 + "app.js")
+    assert len(long) < 320 and long.endswith("/app.js")
+
+
 def test_http_requests_are_traced_with_host_and_code(lines):
     from suveren.net import Traced
 
