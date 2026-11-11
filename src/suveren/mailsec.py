@@ -348,6 +348,20 @@ def _dmarc_hint(domain: str) -> str:
     )
 
 
+def sends_mail(m: MailFacts) -> bool:
+    """The domain takes mail, or its SPF names servers that send for it. A domain without
+    MX may still send (orders from a shop, a mailing service): "v=spf1 -all", the advice
+    for a domain with no mail at all, would stop those letters."""
+    spf = m.spf.spf
+    return m.receives_mail or (
+        spf is not None
+        and bool(spf.includes or spf.targets or spf.redirect or _SPF_SENDER.search(spf.record))
+    )
+
+
+_SPF_SENDER = re.compile(r"(?i)(?<!\S)[+?~]?(?:ip4|ip6|a|mx|exists|ptr)(?=[:/\s]|$)")
+
+
 def verdict(m: MailFacts) -> Check:
     title = f"Можно ли подделать письмо от имени @{m.domain}"
     d = m.dmarc
@@ -407,10 +421,14 @@ def verdict(m: MailFacts) -> Check:
         reason = f"в DMARC-записи {d.invalid or 'нет корректной политики p='}, и её не применяют"
     else:
         reason = "у домена нет DMARC-записи"
+    sends = sends_mail(m)
     tail = (
-        " Домен не принимает почту, но мошенники всё равно могут писать от его имени."
-        if not m.receives_mail
-        else ""
+        ""
+        if m.receives_mail
+        else " Домен не принимает почту, но, судя по SPF, отправляет её, и мошенники могут "
+        "писать от его имени."
+        if sends
+        else " Домен не принимает почту, но мошенники всё равно могут писать от его имени."
     )
     if m.spf.effective_all in ("-", "~"):
         tail += (
@@ -425,7 +443,7 @@ def verdict(m: MailFacts) -> Check:
         "всего, дойдёт до получателя, и подмену он не заметит. Так рассылают фишинг и "
         f"поддельные счета от имени компании.{tail}",
         _dmarc_hint(m.domain)
-        if m.receives_mail
+        if sends
         else f'Запретите отправку от имени домена: TXT {m.domain} "v=spf1 -all" и TXT '
         f'_dmarc.{m.domain} "v=DMARC1; p=reject".',
     )
@@ -613,7 +631,7 @@ def _dmarc_policy_check(m: MailFacts) -> Check:
             # A domain without mail has no real letters to watch first: reject at once,
             # as the verdict says (a gradual p=none start is for domains that send mail).
             _dmarc_hint(m.domain)
-            if m.receives_mail
+            if sends_mail(m)
             else f'Добавьте TXT-запись _dmarc.{m.domain} со значением "v=DMARC1; p=reject": '
             "домен почту не отправляет, поэтому сразу запретите письма от его имени.",
         )
