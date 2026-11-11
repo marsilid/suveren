@@ -1197,7 +1197,7 @@
    "category": "analytics",
    "page": [
     "connect\\.facebook\\.net/[^\\\"']*fbevents",
-    "fbq\\("
+    "fbq\\(\\s*[\"']init[\"']"
    ],
    "severity": "medium",
    "note": "Meta Platforms признана в России экстремистской организацией, Facebook и Instagram заблокированы.",

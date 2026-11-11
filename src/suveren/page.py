@@ -168,6 +168,9 @@ _EMBED_TEMPLATE = re.compile(
 )
 
 
+_DATA_SCRIPTS = frozenset({"application/ld+json", "application/json"})
+
+
 class _CodeParser(HTMLParser):
     """Keeps tags, attributes and script/style bodies; drops visible text and comments."""
 
@@ -176,6 +179,7 @@ class _CodeParser(HTMLParser):
         self.parts: list[str] = []
         self._raw = 0
         self._links = links
+        self._data = False  # inside a script that holds data, not code
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if (
@@ -189,6 +193,11 @@ class _CodeParser(HTMLParser):
         self.parts.append(self.get_starttag_text() or "")
         if tag in ("script", "style"):
             self._raw += 1
+            # Data, not code: JSON-LD for search engines, the page's content as JSON
+            # (Next.js keeps the article's text in __NEXT_DATA__). It loads nothing, and
+            # an article about Google Analytics there is not Google Analytics on the site.
+            kind = (dict(attrs).get("type") or "").lower()
+            self._data = not self._links and tag == "script" and kind in _DATA_SCRIPTS
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.parts.append(self.get_starttag_text() or "")
@@ -196,9 +205,10 @@ class _CodeParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag in ("script", "style") and self._raw:
             self._raw -= 1
+            self._data = False
 
     def handle_data(self, data: str) -> None:
-        if self._raw:
+        if self._raw and not self._data:
             self.parts.append(_EMBED_TEMPLATE.sub("", data))
 
 
@@ -207,7 +217,8 @@ def page_code(html: str, *, links: bool = True) -> str:
 
     An article that merely mentions "googletagmanager.com" must not count as the site
     using Google Tag Manager, and a commented-out tag loads nothing either. Without
-    ``links`` plain links are dropped too, for finding the services a page uses.
+    ``links`` plain links and scripts that hold JSON data are dropped too, for finding
+    the services a page uses.
     """
     parser = _CodeParser(links=links)
     try:
