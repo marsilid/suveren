@@ -15,6 +15,7 @@ import httpx
 from suveren.cache import cache_dir, fetch_cached, stale_days
 from suveren.checks import GROUP_BLOCK, Check, Evidence, Status
 from suveren.errors import ModuleError
+from suveren.utils import registrable_domain
 
 SOURCE = "https://antifilter.download/list/"
 DOMAINS = "domains.lst"
@@ -23,10 +24,28 @@ DOMAINS = "domains.lst"
 IP_LISTS = ("ip.lst", "subnet.lst")
 
 
-def domain_candidates(host: str) -> list[str]:
-    """'a.b.example.ru' -> ['a.b.example.ru', 'b.example.ru', 'example.ru']."""
+def _parents(host: str) -> list[str]:
     labels = host.lower().strip(".").split(".")
     return [".".join(labels[i:]) for i in range(len(labels) - 1)]
+
+
+def domain_candidates(host: str) -> list[str]:
+    """'a.b.example.ru' -> ['a.b.example.ru', 'b.example.ru', 'example.ru'].
+
+    The climb stops at the registrable domain: above it is a suffix shared by other
+    people's sites. The register has "pages.dev", and by it every site of Cloudflare
+    Pages came out blocked ("shop.pages.dev" is its own site, as in the Public Suffix
+    List)."""
+    own = registrable_domain(host.lower().strip("."))
+    found = _parents(host)
+    return [c for c in found if c == own or c.endswith("." + own)] or found[:1]
+
+
+def shared_parents(host: str) -> list[str]:
+    """The shared suffixes above the host's registrable domain: 'pages.dev' for
+    'shop.pages.dev', nothing for 'shop.example.ru'."""
+    own = domain_candidates(host)
+    return [c for c in _parents(host) if c not in own]
 
 
 def _normalize(line: str) -> str:
@@ -175,9 +194,27 @@ async def run_blocklist(
     no_ips: Check | None = None  # the IP check that had nothing to look up
     others = sorted(set(third_party or ()))
     # One pass over the register for the site and every third-party host.
-    found = blocked_hosts(_lines(domains_path), [host, *others])
+    shared = shared_parents(host)
+    found = blocked_hosts(_lines(domains_path), [host, *others, *shared])
     blocked = {found[host]} if host in found else set()
-    if blocked:
+    shared_hit = next((s for s in shared if found.get(s) == s), None)
+    if shared_hit and not blocked:
+        # The whole hosting may be blocked or only its own front page: the copy of the
+        # register does not keep the difference, so this is not "the site is blocked".
+        checks.append(
+            Check(
+                GROUP_BLOCK,
+                "Домен в реестре блокировок",
+                Status.WARN,
+                f"Самого адреса {host} в реестре нет, но есть {shared_hit}: это общий домен "
+                "хостинга, на котором размещены и чужие сайты. Заблокированы ли вместе с ним "
+                "все его сайты, по выгрузке реестра не видно.",
+                "Откройте сайт из России без VPN. Если он не открывается, перенесите его на "
+                "собственный домен.",
+                evidence=[Evidence("registry", "Запись в выгрузке реестра", shared_hit)],
+            )
+        )
+    elif blocked:
         checks.append(
             Check(
                 GROUP_BLOCK,
