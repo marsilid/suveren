@@ -233,6 +233,16 @@ def matching_ds(zone: str, ds_records: list[str], keys: list[str]) -> list[tuple
     return found
 
 
+def unread_digests(ds_records: list[str]) -> list[int]:
+    """Digest types of the DS records that this check cannot compute, once each."""
+    found = []
+    for text in ds_records:
+        ds = _rdata("DS", text)
+        if isinstance(ds, dns.rdtypes.dsbase.DSBase) and ds.digest_type not in DS_DIGESTS:
+            found.append(int(ds.digest_type))
+    return sorted(set(found))
+
+
 def _algorithm(number: int) -> str:
     return f"{DNSSEC_ALGORITHMS.get(number, 'неизвестный')} ({number})"
 
@@ -272,6 +282,20 @@ def dnssec_check(result: DnssecResult) -> Check:
             fix,
         )
     matched = matching_ds(zone, result.ds, result.dnskey)
+    unread = unread_digests(result.ds)
+    if not matched and unread:
+        # A DS with a digest this check cannot compute (GOST R 34.11, type 3, in some .ru
+        # zones) may well match: "the chain is broken" would be a guess.
+        kinds = ", ".join(str(k) for k in unread)
+        return Check(
+            GROUP_WEB,
+            DNSSEC_TITLE,
+            Status.UNKNOWN,
+            f"Не проверено: запись DS для {zone} посчитана по алгоритму хэша с номером {kinds} "
+            "(например, ГОСТ Р 34.11), который Suveren сверять не умеет. Зона подписана, но "
+            "сходится ли DS с ключом зоны, не видно.",
+            "Проверьте цепочку на dnsviz.net или командой delv.",
+        )
     if not matched:
         return Check(
             GROUP_WEB,
