@@ -87,6 +87,9 @@ class Facts:
     registrar: str | None = None
     tls_issuer: str | None = None
     tls_trusted: bool | None = None
+    # A program on the checking computer re-signs HTTPS (an antivirus, a proxy): its
+    # issuer name. The site's own certificate was not seen.
+    tls_intercepted: str = ""
     final_url: str | None = None
     page_status: int | None = None
     html: str = ""
@@ -334,6 +337,8 @@ class Collector:
         self.start_path = "/"
         # The bare name did not open and www. did: (bare host, why it did not open).
         self.www_fallback: tuple[str, str] | None = None
+        # Who signs the certificates this computer gets instead of the sites' own.
+        self.tls_intercepted = ""
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -509,32 +514,78 @@ class Collector:
         except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
         try:
-            return await self._issuer(host, verify=False), False
+            issuer = await self._issuer(host, verify=False)
         except (OSError, *TIMEOUTS, ssl.SSLError):
             return None, None
+        if issuer and issuer == await local_interceptor(self.timeout):
+            # Not the site's certificate: the one a program on this computer made.
+            self.tls_intercepted = issuer
+            return None, None
+        return issuer, False
 
     async def _issuer(self, host: str, *, verify: bool) -> str | None:
-        context = browser_trust()
-        if not verify:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-        with trace.step(f"TLS {host}:443" + ("" if verify else " (без проверки цепочки)")):
-            _, writer = await open_public(
-                host, 443, self.timeout, ssl=context, server_hostname=host
-            )
+        return await peer_issuer(host, self.timeout, verify=verify)
+
+
+async def peer_issuer(host: str, timeout: float, *, verify: bool) -> str | None:
+    """The organisation that issued the certificate ``host`` shows; with ``verify`` the
+    chain is checked as a browser checks it (ssl.SSLCertVerificationError when it fails)."""
+    context = browser_trust()
+    if not verify:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    with trace.step(f"TLS {host}:443" + ("" if verify else " (без проверки цепочки)")):
+        _, writer = await open_public(host, 443, timeout, ssl=context, server_hostname=host)
+    try:
+        sslobj = writer.get_extra_info("ssl_object")
+        if sslobj is None:
+            return None
+        if verify:
+            cert = sslobj.getpeercert()
+            return issuer_org(cert) if cert else None
+        der = sslobj.getpeercert(binary_form=True)
+        return issuer_from_der(der) if der else None
+    finally:
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+
+
+# A site whose certificate every browser trusts. When its chain fails too, and with the
+# same issuer as the checked site's, the certificates come from a program on this
+# computer that opens HTTPS to look inside (an antivirus, a corporate proxy), not from
+# the sites: Python does not know that program's root, browsers on this computer do.
+CONTROL_HOST = "ya.ru"
+_interceptors: dict[str, str | None] = {}
+
+
+async def local_interceptor(timeout: float) -> str | None:
+    """Who signs the certificates this computer gets in place of the real ones, or None
+    when nobody does (or the control site did not answer). Asked once per run."""
+    if CONTROL_HOST in _interceptors:
+        return _interceptors[CONTROL_HOST]
+    try:
+        await peer_issuer(CONTROL_HOST, timeout, verify=True)
+        found = None
+    except ssl.SSLCertVerificationError:
         try:
-            sslobj = writer.get_extra_info("ssl_object")
-            if sslobj is None:
-                return None
-            if verify:
-                cert = sslobj.getpeercert()
-                return issuer_org(cert) if cert else None
-            der = sslobj.getpeercert(binary_form=True)
-            return issuer_from_der(der) if der else None
-        finally:
-            writer.close()
-            with contextlib.suppress(Exception):
-                await writer.wait_closed()
+            found = await peer_issuer(CONTROL_HOST, timeout, verify=False)
+        except (OSError, *TIMEOUTS, ssl.SSLError):
+            return None
+    except (OSError, *TIMEOUTS, ssl.SSLError):
+        return None  # no answer is no proof either way: asked again next time
+    _interceptors[CONTROL_HOST] = found
+    return found
+
+
+def interception_note(who: str) -> str:
+    return (
+        f"HTTPS-соединения на этом компьютере вскрывает программа или прокси (сертификаты "
+        f"подписывает «{who}»): так делают антивирусы и корпоративные шлюзы. Suveren видит "
+        "её сертификат вместо сертификата сайта, поэтому издатель сертификата и проверка "
+        "TLS в отчёт не попали. Повторите проверку с другого компьютера или отключите "
+        "проверку защищённых соединений в этой программе."
+    )
 
 
 async def whois_query(server: str, query: str, timeout: float) -> str:
@@ -767,6 +818,9 @@ async def collect(
             facts.registrar = value
         elif key == "tls":
             facts.tls_issuer, facts.tls_trusted = value
+            if c.tls_intercepted:
+                facts.tls_intercepted = c.tls_intercepted
+                facts.notes.append(interception_note(c.tls_intercepted))
         elif key == "geo":
             locate(facts, value)
     return facts
