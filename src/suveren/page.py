@@ -159,6 +159,15 @@ _LINKED_FORM = re.compile(
 )
 
 
+# A player address with no video in it, inside a script: a template a video library
+# fills in ("youtube.com/embed/" + id, "{{videoId}}") for whichever service a block
+# uses. redfox0's site played RUTUBE and was reported as embedding YouTube. A real
+# embed has the video's id right after the slash, and a frame's src is a tag, not this.
+_EMBED_TEMPLATE = re.compile(
+    r"(?i)youtube(?:-nocookie)?\.com/embed(?:/(?![A-Za-z0-9_-])|(?![/A-Za-z0-9_-]))",
+)
+
+
 class _CodeParser(HTMLParser):
     """Keeps tags, attributes and script/style bodies; drops visible text and comments."""
 
@@ -190,7 +199,7 @@ class _CodeParser(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if self._raw:
-            self.parts.append(data)
+            self.parts.append(_EMBED_TEMPLATE.sub("", data))
 
 
 def page_code(html: str, *, links: bool = True) -> str:
