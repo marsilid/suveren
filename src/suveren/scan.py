@@ -341,7 +341,7 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
                 GROUP_152,
                 "Проверка 152-ФЗ",
                 Status.UNKNOWN,
-                "Главная страница не загрузилась, проверять нечего.",
+                f"Не проверено: {facts.page_problem}.",
             )
         ]
     return await run_compliance(

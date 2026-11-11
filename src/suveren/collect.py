@@ -23,7 +23,15 @@ from suveren import __version__, geoip, trace
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
-from suveren.net import ACCEPT_ENCODING, bound_body, guarded_transport, open_public
+from suveren.net import (
+    ACCEPT_ENCODING,
+    bound_body,
+    guarded_transport,
+    note_unreachable,
+    offline,
+    open_public,
+    proxy_note,
+)
 from suveren.page import parse_page
 from suveren.utils import registrable_domain
 
@@ -92,6 +100,9 @@ class Facts:
     # HTTPS timed out or broke off and the page came over plain HTTP: whether the site
     # has HTTPS is unknown (a geo block, a slow port), not "no HTTPS". The reason.
     https_unanswered: str | None = None
+    # Why the home page did not open at all, in plain words (domix32: "the home page did
+    # not load" alone did not say whether the tool or the site was broken).
+    home_error: str = ""
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     # Who started each script request on the home page (--browser): script URL ->
@@ -119,8 +130,15 @@ class Facts:
     def page_problem(self) -> str | None:
         """Why the home page can't be analysed, or None if it can."""
         if not self.html:
-            return "главная страница не загрузилась"
+            return self._no_page()
         return page_problem(self.page_status, self.html, rendered=self.rendered)
+
+    def _no_page(self) -> str:
+        if self.home_error:
+            return f"главная страница не открылась: {self.home_error}"
+        if self.page_status:
+            return f"сайт ответил кодом {self.page_status} без страницы"
+        return "главная страница не загрузилась"
 
     @property
     def page_unseen(self) -> str | None:
@@ -128,9 +146,7 @@ class Facts:
         or an error page stood in for it. A thin page built by scripts is seen: its
         scripts are in the code. After --browser the status and HTML are the browser's."""
         if not self.html:
-            if self.page_status:
-                return f"сайт ответил кодом {self.page_status} без страницы"
-            return "главная страница не загрузилась"
+            return self._no_page()
         return bot_wall(self.page_status, self.html)
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,6 +163,7 @@ class Facts:
             "page_status": self.page_status,
             "rendered": self.rendered,
             "page_problem": self.page_problem,
+            "home_error": self.home_error or None,
             "page_unseen": self.page_unseen,
             "dns_unanswered": list(self.dns_unanswered),
             "extra_pages": [p.url for p in self.extra_pages],
@@ -310,6 +327,8 @@ class Collector:
         self._net_cache: dict[str, NetInfo] = {}
         self._insecure: httpx.AsyncClient | None = None
         self.https_unanswered: str | None = None
+        # The bare name did not open and www. did: (bare host, why it did not open).
+        self.www_fallback: tuple[str, str] | None = None
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -390,8 +409,27 @@ class Collector:
         return list(await asyncio.gather(*(self.net_info(ip) for ip in unique)))
 
     async def homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:
-        """(final URL, HTTP status, HTML, headers). Tolerates certificates Python doesn't
-        trust, such as the Russian НУЦ Минцифры root, before falling back to plain HTTP."""
+        """(final URL, HTTP status, HTML, headers). When the bare name does not answer at
+        all, www. is tried: some sites live only there (domix32)."""
+        try:
+            return await self._homepage(host)
+        except ModuleError as exc:
+            if host.startswith("www.") or offline():
+                raise
+            # A dead site has no www. either: a DNS question first, not a second round
+            # of timeouts for each of them in a batch.
+            try:
+                if not await self.resolver.resolve(f"www.{host}", "A"):
+                    raise
+                found = await self._homepage(f"www.{host}")
+            except (ModuleError, DnsLookupError):
+                raise exc from None
+            self.www_fallback = (host, home_reason(exc))
+            return found
+
+    async def _homepage(self, host: str) -> tuple[str, int, str, httpx.Headers]:
+        """Tolerates certificates Python doesn't trust, such as the Russian НУЦ Минцифры
+        root, before falling back to plain HTTP."""
         last_error: Exception | None = None
         attempts = ((self.client, f"https://{host}/"), (None, f"https://{host}/"))
         for client, url in (*attempts, (self.client, f"http://{host}/")):
@@ -409,6 +447,8 @@ class Collector:
             if url.startswith("http://") and isinstance(last_error, _UNANSWERED):
                 self.https_unanswered = describe(last_error)
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
+        if last_error is not None:
+            note_unreachable(last_error)
         raise ModuleError(
             f"сайт не открылся ({describe(last_error) if last_error else 'нет ответа'})"
         )
@@ -572,6 +612,27 @@ def guess_encoding(content: bytes) -> str:
 _UNANSWERED = (httpx.TimeoutException, httpx.ReadError, httpx.RemoteProtocolError)
 
 
+def home_reason(exc: BaseException) -> str:
+    """Why the home page did not open, in words that say whose side the trouble is on."""
+    text = describe(exc)
+    if text.startswith("сайт не открылся (") and text.endswith(")"):
+        text = text[len("сайт не открылся (") : -1]
+    if down := offline():
+        return f"нет выхода в интернет с этого компьютера ({down})"
+    if text == "сервер не ответил вовремя":
+        return "сайт не ответил вовремя, возможно, он перегружен или закрыт для вашей сети"
+    if text == "не удалось установить защищённое соединение":
+        return "не удалось установить защищённое соединение (ошибка TLS на стороне сайта)"
+    if text == "имя сервера не найдено в DNS":
+        return "адрес сайта не найден в DNS"
+    if text in ("нет связи с сервером", "сервер оборвал соединение", "ошибка сети"):
+        why = f"{text}: сайт недоступен или закрыт для вашей сети"
+        if proxy_note():
+            why += ", а прокси из окружения Suveren не использует"
+        return why
+    return text
+
+
 def make_client(timeout: float, *, verify: bool = True) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=timeout,
@@ -664,6 +725,8 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             if not isinstance(value, (ModuleError, httpx.HTTPError, OSError, *TIMEOUTS)):
                 raise value
             facts.notes.append(f"Не удалось получить {labels[key]}: {describe(value)}")
+            if key == "homepage":
+                facts.home_error = home_reason(value)
             if key in DNS_SECTIONS:
                 facts.dns_unanswered.append(key)
             continue
@@ -679,6 +742,11 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             facts.set_cookies = headers.get_list("set-cookie")
             facts.http_problem = bot_wall(facts.page_status, facts.html)
             facts.https_unanswered = c.https_unanswered
+            if c.www_fallback:
+                bare, why = c.www_fallback
+                facts.notes.append(
+                    f"{bare} не открылся ({why}), проверен сайт по адресу www.{bare}."
+                )
         elif key == "registrar":
             facts.registrar = value
         elif key == "tls":
