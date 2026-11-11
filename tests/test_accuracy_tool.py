@@ -56,3 +56,47 @@ def test_bad_labels_are_refused(tmp_path, capsys):
         acc.read_labels(labels)
     assert acc.main([str(labels), str(tmp_path)]) == 2
     assert "нужны site" in capsys.readouterr().err
+
+
+def test_template_is_blank_and_reads_back(tmp_path, capsys):
+    sites = tmp_path / "sites.txt"
+    sites.write_text("A.ru\n# comment\n\nb.ru\n", "utf-8")
+    assert acc.main(["template", str(sites), "--checks", "SUV-WEB-005,SUV-PD-001"]) == 0
+    text = capsys.readouterr().out
+    assert text.splitlines() == [
+        "site,check,expected,labeller,date,note",
+        "a.ru,SUV-PD-001,,,,",
+        "a.ru,SUV-WEB-005,,,,",
+        "b.ru,SUV-PD-001,,,,",
+        "b.ru,SUV-WEB-005,,,,",
+    ]
+    labels = tmp_path / "labels.csv"
+    labels.write_text(text.replace("a.ru,SUV-PD-001,,", "a.ru,SUV-PD-001,ok,"), "utf-8")
+    # Rows nobody judged are skipped, not an error.
+    assert [(x.site, x.check) for x in acc.read_labels(labels)] == [("a.ru", "SUV-PD-001")]
+
+
+def test_mismatches_quote_what_the_report_said(tmp_path):
+    labels = tmp_path / "labels.csv"
+    labels.write_text(
+        "site,check,expected,labeller,date,note\n"
+        "a.ru,SUV-WEB-005,ok,me,2026-11-01,\n"
+        "b.ru,SUV-WEB-005,warn,me,2026-11-01,\n"
+        "c.ru,SUV-WEB-005,warn,me,2026-11-01,\n",
+        "utf-8",
+    )
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    for site, status, said in (
+        ("a.ru", "warn", "HSTS нет"),
+        ("b.ru", "ok", "HSTS есть"),
+        ("c.ru", "fail", "HSTS нет"),
+    ):
+        check = {"id": "SUV-WEB-005", "status": status, "title": "HSTS", "details": said}
+        (reports / f"{site}.json").write_text(json.dumps({"target": site, "checks": [check]}))
+    out = tmp_path / "diff.md"
+    assert acc.main([str(labels), str(reports), "--mismatches", str(out)]) == 0
+    text = out.read_text("utf-8")
+    alarms, missed = text.split("## Пропущенные проблемы")
+    assert "**a.ru**" in alarms and "разметка ok, Suveren warn" in alarms and "> HSTS нет" in alarms
+    assert "**b.ru**" in missed and "> HSTS есть" in missed and "c.ru" not in text
