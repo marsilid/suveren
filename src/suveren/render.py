@@ -494,7 +494,10 @@ class BrowserSession:
                     "в браузере без неё. Не запускайте от имени root."
                 )
             raise ModuleError(
-                "не найден браузер: установите Edge или Chrome, " + INSTALL_HINT + "." + why
+                "не найден браузер: Playwright установлен, но ни Edge, ни Chrome, ни его "
+                "собственный Chromium не запустились. Установите Edge или Chrome либо выполните "
+                "python3 -m playwright install chromium (на Windows py -m playwright install "
+                "chromium)." + why
             )
         try:
             self._context = await self._browser.new_context(

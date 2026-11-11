@@ -262,7 +262,7 @@ SPF (с обходом include и redirect), DMARC, MTA-STS, CSP, Set-Cookie и 
    `discover.py`, `compliance.py`, `cms.py`, `logins.py`) брать базу из первого `<base href>`
    страницы, если он есть. Тест офлайн: страница с `<base href="/ru/">` и относительными
    ссылками.
-5. `--browser` на Linux: Playwright стоит, а браузера нет (redfox0). Сейчас сообщение
+5. ✅ `--browser` на Linux: Playwright стоит, а браузера нет (redfox0). Сейчас сообщение
    «не найден браузер: установите Edge или Chrome, для режима --browser установите
    Playwright…» сбивает: Playwright уже установлен. Если пакет импортируется, а ни один
    канал не запустился, писать прямо: «выполните `python3 -m playwright install chromium`».
