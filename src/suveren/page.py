@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 _SKIP_TEXT = frozenset({"script", "style", "noscript", "template", "svg"})
 _FORM_BREAKS = frozenset(
@@ -42,6 +43,9 @@ class Page:
     links: list[Link] = field(default_factory=list)
     forms: list[Form] = field(default_factory=list)
     text: str = ""
+    # The first <base href>, as written. Links and form actions are already resolved
+    # against it, so callers join them with the page address as before.
+    base: str = ""
 
 
 class _Parser(HTMLParser):
@@ -56,6 +60,8 @@ class _Parser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         a = {k: (v or "") for k, v in attrs}
+        if tag == "base" and not self.page.base and a.get("href", "").strip():
+            self.page.base = a["href"].strip()
         if tag in _SKIP_TEXT:
             self._skip += 1
         elif tag == "a":
@@ -112,6 +118,38 @@ class _Parser(HTMLParser):
         if self._form is not None:  # unclosed <form>
             self._finish_form()
         self.page.text = re.sub(r"\s+", " ", " ".join(self._text)).strip()
+        if self.page.base:
+            for link in self.page.links:
+                link.href = with_base(self.page.base, link.href)
+            for form in self.page.forms:
+                form.action = with_base(self.page.base, form.action)
+
+
+# What a <base href> does not touch: a jump within the page, a script, mail and phone.
+_NOT_RESOLVED = ("#", "javascript:", "mailto:", "tel:", "data:")
+_BASE_TAG = re.compile(r"""(?is)<base\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""")
+
+
+def with_base(base_href: str, href: str) -> str:
+    """``href`` resolved against the page's <base href> (redfox0: ``<base href="/ru/">``
+    and relative links gave 404). The result is still joined with the page address, which
+    resolves a relative base itself: urljoin(page, urljoin(base, href)) is the RFC 3986
+    result for every kind of href."""
+    href = href.strip()
+    if not href or not base_href or href.lower().startswith(_NOT_RESOLVED):
+        return href
+    return urljoin(base_href, href)
+
+
+def document_base(url: str, html: str) -> str:
+    """The address that relative URLs in ``html`` resolve against: ``url``, or its first
+    <base href> when there is one. For code that reads src= and href= from raw HTML."""
+    m = _BASE_TAG.search(html)
+    href = next((g for g in m.groups() if g is not None), "").strip() if m else ""
+    if not href:
+        return url
+    joined = urljoin(url, href)
+    return joined if joined.startswith(("http://", "https://")) else url
 
 
 _LINKED_FORM = re.compile(

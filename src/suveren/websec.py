@@ -32,6 +32,7 @@ from suveren.errors import TIMEOUTS
 from suveren.leaks import TITLE as LEAK_TITLE
 from suveren.leaks import leak_check, scan_scripts
 from suveren.net import open_public
+from suveren.page import document_base
 from suveren.scriptgraph import build as build_graph
 from suveren.scriptgraph import graph_check
 from suveren.scriptgraph import svg as graph_svg
@@ -133,6 +134,7 @@ class _ResourceParser(HTMLParser):
 
 def page_resources(html: str, base: str, page: str = "/") -> tuple[list[Resource], list[str]]:
     """External scripts and stylesheets of a page, and CSP set in <meta> tags."""
+    base = document_base(base, html)
     parser = _ResourceParser(base, page)
     with contextlib.suppress(Exception):  # malformed markup: keep what was parsed
         parser.feed(html)
