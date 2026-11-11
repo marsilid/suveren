@@ -75,7 +75,7 @@ from suveren.sanctions import SOURCES as SANCTION_SOURCES
 from suveren.sarif import sarif_text
 from suveren.scan import gather_limited, run_scan
 from suveren.services import ALL_SERVICES
-from suveren.utils import country_name, normalize_domain, plural, reports_dir
+from suveren.utils import country_name, normalize_domain, plural, reports_dir, target_path
 from suveren.view import (
     ACCENT,
     DIM,
@@ -715,6 +715,7 @@ def scan(
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         host = normalize_domain(target)
+        start_path = target_path(target)
         threshold = _validate_grade(fail_under)
         if form_phone is not None and not form_leaks:
             raise SuverenError("--form-phone работает только вместе с --form-leaks")
@@ -775,7 +776,7 @@ def scan(
         meta += " · плагины: " + ", ".join(p.name for p in plugins)
     if checks:
         meta += f" · проверки: {checks}"
-    console.print(header(__version__, host, meta))
+    console.print(header(__version__, host + (start_path if start_path != "/" else ""), meta))
     console.print()
     if "formleaks" in plan.modules:
         console.print(f"[{DIM}]{FORM_LEAKS_NOTE}[/]\n")
@@ -793,6 +794,7 @@ def scan(
                         plugins=plugins,
                         form_phone=phone,
                         dkim_selectors=selectors,
+                        start_path=start_path,
                         **plan.kwargs(),  # type: ignore[arg-type]
                     ),
                 )

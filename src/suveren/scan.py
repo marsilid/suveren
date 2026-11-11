@@ -86,14 +86,16 @@ async def run_scan(
     form_phone: str | None = None,
     plugins: list[Plugin] | None = None,
     dkim_selectors: list[str] | None = None,
+    start_path: str = "/",
 ) -> Report:
-    """``only``: IDs of the checks to report (from ``--checks``); None reports all.
+    """``start_path``: the page the user named, opened instead of the root.
+    ``only``: IDs of the checks to report (from ``--checks``); None reports all.
     ``form_phone``: the owner's own number for the form experiment (ten digits).
     ``dkim_selectors``: the owner's DKIM selectors, tried on top of the common ones."""
     progress = progress or _quiet
     started = datetime.now(UTC)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
-        facts = await collect(host, timeout=timeout, dns_mode=dns_mode)
+        facts = await collect(host, timeout=timeout, dns_mode=dns_mode, start_path=start_path)
     if browser:
         async with _stage(
             progress, "Сайт в браузере" + (f" (до {pages + 1} стр.)" if pages else "")
@@ -411,7 +413,8 @@ def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:
 
 async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -> None:
     async with BrowserSession(timeout=timeout) as session:
-        home = await session.open(facts.final_url or f"https://{host}/", initiators=True)
+        start = facts.final_url or f"https://{host}{facts.start_path}"
+        home = await session.open(start, initiators=True)
         facts.final_url, facts.page_status, facts.html = home.final_url, home.status, home.html
         facts.loaded_urls, facts.rendered = home.requests, True
         facts.initiators = home.initiators

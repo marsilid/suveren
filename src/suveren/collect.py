@@ -103,6 +103,9 @@ class Facts:
     # Why the home page did not open at all, in plain words (domix32: "the home page did
     # not load" alone did not say whether the tool or the site was broken).
     home_error: str = ""
+    # The page the user named ("/suveren/" of marsilid.github.io/suveren/), opened
+    # instead of the root: on a shared host the root is someone else's site.
+    start_path: str = "/"
     # Extra hosts the page loaded at runtime (filled by the --browser mode).
     loaded_urls: list[str] = field(default_factory=list)
     # Who started each script request on the home page (--browser): script URL ->
@@ -327,6 +330,7 @@ class Collector:
         self._net_cache: dict[str, NetInfo] = {}
         self._insecure: httpx.AsyncClient | None = None
         self.https_unanswered: str | None = None
+        self.start_path = "/"
         # The bare name did not open and www. did: (bare host, why it did not open).
         self.www_fallback: tuple[str, str] | None = None
 
@@ -431,8 +435,9 @@ class Collector:
         """Tolerates certificates Python doesn't trust, such as the Russian НУЦ Минцифры
         root, before falling back to plain HTTP."""
         last_error: Exception | None = None
-        attempts = ((self.client, f"https://{host}/"), (None, f"https://{host}/"))
-        for client, url in (*attempts, (self.client, f"http://{host}/")):
+        path = self.start_path
+        attempts = ((self.client, f"https://{host}{path}"), (None, f"https://{host}{path}"))
+        for client, url in (*attempts, (self.client, f"http://{host}{path}")):
             if client is None:
                 if not _is_tls_error(last_error):
                     continue
@@ -682,9 +687,16 @@ DNS_SECTIONS = {
 }
 
 
-async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto") -> Facts:
+async def collect(
+    host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = "auto", start_path: str = "/"
+) -> Facts:
     domain = registrable_domain(host)
-    facts = Facts(host=host, domain=domain)
+    facts = Facts(host=host, domain=domain, start_path=start_path or "/")
+    if facts.start_path != "/":
+        facts.notes.append(
+            f"Проверена страница {host}{facts.start_path}, а не главная сайта. DNS, почта, "
+            "сертификат и реестры проверены для всего домена."
+        )
 
     async with make_client(timeout) as client:
         resolver, note = await create_resolver(dns_mode, timeout, client)
@@ -699,6 +711,7 @@ async def collect(host: str, *, timeout: float = 10.0, dns_mode: ResolverMode = 
             raise TargetNotFoundError(f"адреса {host} не существует (NXDOMAIN)")
 
         c = Collector(resolver, client, timeout)
+        c.start_path = facts.start_path
         tasks = {
             "ns": c.ns(domain),
             "mx": c.mx(domain),
