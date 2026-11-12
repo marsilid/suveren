@@ -31,8 +31,14 @@ MAX_EXAMPLES = 5
 MAX_DOMAINS = 2000
 
 
+# A commented-out tag loads nothing: pk.altstu.ru keeps an old YouTube player in a
+# comment next to its RUTUBE ones, and "data goes to YouTube (USA)" came of it (redfox0).
+_COMMENT = re.compile(r"<!--.*?(?:-->|$)", re.S)
+
+
 def resource_urls(html: str, base: str) -> list[str]:
     """Absolute URLs of resources a page embeds (scripts, styles, frames, media)."""
+    html = _COMMENT.sub("", html)
     base = document_base(base, html)
     urls = []
     for raw in _RESOURCE.findall(html):

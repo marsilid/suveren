@@ -280,3 +280,24 @@ def test_probe_tls_asks_the_control_site_before_blaming_the_certificate(monkeypa
     monkeypatch.setattr(websec, "local_interceptor", interceptor)
     info = asyncio.run(websec.probe_tls("example.ru", 1.0))
     assert info.intercepted == AV and not info.legacy  # old protocols were not even tried
+
+
+# --- SUV-PD-010 and the block list: a commented-out tag ---------------------------------
+
+
+def test_commented_out_player_is_not_a_resource():
+    # pk.altstu.ru keeps an old YouTube player in a comment next to its RUTUBE ones
+    # (redfox0): "data goes to YouTube (USA)" came of it.
+    from suveren.unknown import resource_urls
+
+    html = (
+        '<!-- <iframe src="https://www.youtube.com/embed/6r_HiF9RxXo"></iframe> -->'
+        '<iframe src="https://rutube.ru/play/embed/ad99/"></iframe>'
+        '<!--[if lt IE 9]><script src="https://oss.maxcdn.com/html5shiv.js"></script><![endif]-->'
+        '<script src="/app.js"></script>'
+    )
+    assert resource_urls(html, "https://pk.example.ru/") == [
+        "https://rutube.ru/play/embed/ad99/",
+        "https://pk.example.ru/app.js",
+    ]
+    assert found(html) == {"RUTUBE"}
