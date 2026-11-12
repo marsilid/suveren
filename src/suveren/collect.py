@@ -25,11 +25,13 @@ from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_re
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
 from suveren.net import (
     ACCEPT_ENCODING,
+    PACKED_HEADER,
     bound_body,
     guarded_transport,
     note_unreachable,
     offline,
     open_public,
+    packed_reason,
     proxy_note,
 )
 from suveren.page import parse_page
@@ -339,6 +341,8 @@ class Collector:
         self.www_fallback: tuple[str, str] | None = None
         # Who signs the certificates this computer gets instead of the sites' own.
         self.tls_intercepted = ""
+        # The home page came packed in an encoding we cannot unpack ("br"): no HTML.
+        self.packed = ""
 
     async def net_info(self, ip: str) -> NetInfo:
         if ip not in self._net_cache:
@@ -457,6 +461,8 @@ class Collector:
                 continue
             if url.startswith("http://") and isinstance(last_error, _UNANSWERED):
                 self.https_unanswered = describe(last_error)
+            if PACKED_HEADER in resp.headers:
+                self.packed = resp.headers[PACKED_HEADER]
             return str(resp.url), resp.status_code, resp.text[:MAX_HTML_CHARS], resp.headers
         if last_error is not None:
             note_unreachable(last_error)
@@ -809,6 +815,9 @@ async def collect(
             facts.set_cookies = headers.get_list("set-cookie")
             facts.http_problem = bot_wall(facts.page_status, facts.html)
             facts.https_unanswered = c.https_unanswered
+            if c.packed:
+                # The headers are the site's own; only the page's content is unseen.
+                facts.html, facts.home_error = "", packed_reason(c.packed)
             if c.www_fallback:
                 bare, why = c.www_fallback
                 facts.notes.append(

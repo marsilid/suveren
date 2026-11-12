@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "suveren"
-version = "2.2.4"
+version = "2.2.5"
 description = "Аудит сайта и компании: иностранные сервисы, 152-ФЗ, блокировки РКН, ЕГРЮЛ и санкционные списки"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,7 @@ dependencies = [
     "rich>=13.7",
     "jinja2>=3.1",
     "cryptography>=42",
+    "brotli>=1.2",  # pages some servers send packed with brotli whatever is asked; 1.2 bounds the output
 ]
 
 [project.optional-dependencies]

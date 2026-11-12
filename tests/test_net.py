@@ -4,6 +4,7 @@ import asyncio
 import gzip
 import zlib
 
+import brotli
 import httpcore
 import httpx
 import pytest
@@ -122,8 +123,20 @@ def test_small_gzip_is_unpacked():
     assert _read(gzip.compress(b"<html>ok</html>"), "gzip") == b"<html>ok</html>"
 
 
-def test_unknown_encoding_stays_packed():
-    assert _read(b"\x1b\x00br-bytes", "br") == b"\x1b\x00br-bytes"
+def test_unknown_encoding_is_not_read_as_the_page():
+    # Packed bytes read as text were "the page", with no policy and no forms: an encoding
+    # we cannot unpack leaves the body empty and says which it was.
+    async def go():
+        request = httpx.Request("GET", "https://site.test/")
+        response = httpx.Response(
+            200, headers={"content-encoding": "zstd"}, stream=_Chunks(b"\x28\xb5"), request=request
+        )
+        await net.bound_body(response)
+        return response, await response.aread()
+
+    response, body = asyncio.run(go())
+    assert body == b"" and response.headers[net.PACKED_HEADER] == "zstd"
+    assert "content-encoding" not in response.headers
 
 
 def test_dataset_request_may_be_bigger():
@@ -215,3 +228,21 @@ def test_browser_lets_local_schemes_through_and_files_only_for_printing():
     printing = BrowserSession(allow_files=True)
     assert asyncio.run(go(printing, "file:///C:/Users/me/report.html")) == "fallback"
     assert asyncio.run(go(printing, "file:///home/me/reports/r.html")) == "fallback"
+
+
+def test_brotli_page_is_unpacked():
+    # pk.altstu.ru sends brotli whatever it is asked (redfox0, 2.2.5).
+    page = "<html><body>Политика обработки персональных данных</body></html>".encode()
+    assert _read(brotli.compress(page), "br") == page
+    assert "br" in net.ACCEPT_ENCODING
+
+
+def test_brotli_bomb_is_cut():
+    bomb = brotli.compress(bytes(net.MAX_BODY * 50))
+    assert len(bomb) < 100_000
+    assert len(_read(bomb, "br")) == net.MAX_BODY
+
+
+def test_broken_brotli_is_an_error_not_a_page():
+    with pytest.raises(httpx.DecodingError):
+        _read(bytes([255, 255, 255]) + b" not brotli at all", "br")

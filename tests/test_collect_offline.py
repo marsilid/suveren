@@ -262,3 +262,40 @@ def test_aaaa_that_does_not_answer_leaves_ipv4():
 
     nets = asyncio.run(Collector(Silent6(DNS), None, 5).web("example.com"))  # type: ignore[arg-type]
     assert [n.ip for n in nets] == ["192.0.2.10"]
+
+
+class _Packed(httpx.AsyncByteStream):
+    async def __aiter__(self):
+        yield b"\x1b\x2a\x00\xf8packed-bytes"
+
+
+def test_home_page_packed_unknown_way_is_unseen_not_misread(offline, monkeypatch):
+    # Packed bytes read as text were a page with no policy, no forms and stray
+    # "services" (pk.altstu.ru with brotli, before Suveren unpacked it).
+    from suveren.net import bound_body
+
+    def packed(request):
+        if request.url.host == "example.com":
+            return httpx.Response(
+                200,
+                headers={
+                    "content-type": "text/html",
+                    "content-encoding": "zstd",
+                    "x-frame-options": "DENY",
+                },
+                stream=_Packed(),
+            )
+        return handler(request)
+
+    def make_client(timeout, *, verify=True):
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(packed),
+            follow_redirects=True,
+            event_hooks={"response": [bound_body]},
+        )
+
+    monkeypatch.setattr(collect_module, "make_client", make_client)
+    facts = asyncio.run(collect("example.com"))
+    assert facts.html == "" and facts.page_status == 200
+    assert "сжатую методом zstd" in facts.page_problem
+    assert facts.headers["x-frame-options"] == "DENY"  # the headers are the site's own
