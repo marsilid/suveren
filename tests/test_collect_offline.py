@@ -269,9 +269,9 @@ class _Packed(httpx.AsyncByteStream):
         yield b"\x1b\x2a\x00\xf8packed-bytes"
 
 
-def test_home_page_packed_with_brotli_is_unseen_not_misread(offline, monkeypatch):
-    # pk.altstu.ru answers with brotli whatever it is asked (redfox0): the packed bytes
-    # read as text were a page with no policy, no forms and stray "services".
+def test_home_page_packed_unknown_way_is_unseen_not_misread(offline, monkeypatch):
+    # Packed bytes read as text were a page with no policy, no forms and stray
+    # "services" (pk.altstu.ru with brotli, before Suveren unpacked it).
     from suveren.net import bound_body
 
     def packed(request):
@@ -280,7 +280,7 @@ def test_home_page_packed_with_brotli_is_unseen_not_misread(offline, monkeypatch
                 200,
                 headers={
                     "content-type": "text/html",
-                    "content-encoding": "br",
+                    "content-encoding": "zstd",
                     "x-frame-options": "DENY",
                 },
                 stream=_Packed(),
@@ -297,5 +297,5 @@ def test_home_page_packed_with_brotli_is_unseen_not_misread(offline, monkeypatch
     monkeypatch.setattr(collect_module, "make_client", make_client)
     facts = asyncio.run(collect("example.com"))
     assert facts.html == "" and facts.page_status == 200
-    assert "сжатую методом br" in facts.page_problem
+    assert "сжатую методом zstd" in facts.page_problem
     assert facts.headers["x-frame-options"] == "DENY"  # the headers are the site's own

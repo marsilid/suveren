@@ -26,6 +26,7 @@ from collections.abc import AsyncIterator, Iterable
 from pathlib import Path
 from typing import Any
 
+import brotli
 import certifi
 import httpcore
 import httpx
@@ -39,7 +40,7 @@ MAX_BODY = 10 * 1024 * 1024
 MAX_BODY_KEY = "suveren_max_body"
 
 # Only what bound_body can unpack within its limit.
-ACCEPT_ENCODING = "gzip, deflate"
+ACCEPT_ENCODING = "gzip, deflate, br"
 BLOCKED = "внутренний адрес"
 ALLOW_PRIVATE_ENV = "SUVEREN_ALLOW_PRIVATE"
 
@@ -255,8 +256,29 @@ class _Inflate:
         return bool(self._obj.unconsumed_tail)
 
 
+class _Unbrotli:
+    """brotli, unpacked no further than asked: brotli 1.2 stops its output at a limit,
+    so a small packed answer cannot grow into gigabytes (a brotli bomb)."""
+
+    def __init__(self) -> None:
+        self._obj = brotli.Decompressor()
+
+    def __call__(self, data: bytes, limit: int) -> bytes:
+        try:
+            return self._obj.process(data, output_buffer_limit=max(limit, 1))[:limit]
+        except brotli.error as exc:
+            raise httpx.DecodingError(f"сжатие повреждено ({exc})") from exc
+
+    @property
+    def has_more(self) -> bool:
+        # The output stopped at the limit with input still waiting: the body is cut here.
+        return not self._obj.is_finished() and not self._obj.can_accept_more_data()
+
+
 class _BoundedStream(httpx.AsyncByteStream):
-    def __init__(self, inner: httpx.AsyncByteStream, inflate: _Inflate | None, limit: int):
+    def __init__(
+        self, inner: httpx.AsyncByteStream, inflate: _Inflate | _Unbrotli | None, limit: int
+    ):
         self._inner = inner
         self._inflate = inflate
         self._limit = limit
@@ -280,8 +302,9 @@ class _BoundedStream(httpx.AsyncByteStream):
 async def bound_body(response: httpx.Response) -> None:
     """Response hook: cut the body at the limit, before and after unpacking.
 
-    Unpacking moves here from httpx so it can stop early; an encoding other than
-    gzip or deflate (not asked for) is left packed rather than unpacked unbounded.
+    Unpacking moves here from httpx so it can stop early. A body in an encoding other
+    than gzip, deflate or brotli (not asked for) is dropped, with the encoding named in
+    PACKED_HEADER: packed bytes are not the page.
     """
     if hasattr(response, "_content"):  # already read (a test transport)
         return
@@ -291,9 +314,11 @@ async def bound_body(response: httpx.Response) -> None:
         for e in response.headers.get("content-encoding", "").lower().split(",")
         if e.strip() not in ("", "identity")
     ]
-    inflate = None
+    inflate: _Inflate | _Unbrotli | None = None
     if len(encodings) == 1 and encodings[0] in ("gzip", "x-gzip", "deflate"):
         inflate = _Inflate(encodings[0])
+    elif encodings == ["br"]:
+        inflate = _Unbrotli()
     if isinstance(response.stream, httpx.AsyncByteStream):
         response.headers.pop("content-encoding", None)
         if encodings and inflate is None:
@@ -313,8 +338,8 @@ PACKED_HEADER = "x-suveren-packed"
 
 def packed_reason(encoding: str) -> str:
     return (
-        f"сайт прислал страницу, сжатую методом {encoding}, хотя Suveren просил только gzip "
-        "или deflate; такое сжатие Suveren не распаковывает, и содержимое страницы не "
+        f"сайт прислал страницу, сжатую методом {encoding}, которого Suveren не просил и не "
+        "распаковывает (умеет gzip, deflate и brotli), поэтому содержимое страницы не "
         "проверено"
     )
 
