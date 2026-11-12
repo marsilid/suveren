@@ -296,7 +296,27 @@ async def bound_body(response: httpx.Response) -> None:
         inflate = _Inflate(encodings[0])
     if isinstance(response.stream, httpx.AsyncByteStream):
         response.headers.pop("content-encoding", None)
+        if encodings and inflate is None:
+            # Packed in a way we did not ask for (pk.altstu.ru sends brotli to everyone):
+            # its bytes are not the page, and read as text they were "the page" with no
+            # policy and no forms. The body is dropped and the reason kept in a header.
+            response.headers[PACKED_HEADER] = ", ".join(encodings)
+            response.stream = _BoundedStream(response.stream, None, 0)
+            return
         response.stream = _BoundedStream(response.stream, inflate, limit)
+
+
+# Set on a response whose body came packed in an encoding we cannot unpack; the body is
+# then empty. Its value is the encoding ("br").
+PACKED_HEADER = "x-suveren-packed"
+
+
+def packed_reason(encoding: str) -> str:
+    return (
+        f"сайт прислал страницу, сжатую методом {encoding}, хотя Suveren просил только gzip "
+        "или deflate; такое сжатие Suveren не распаковывает, и содержимое страницы не "
+        "проверено"
+    )
 
 
 PROXY_VARS = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")

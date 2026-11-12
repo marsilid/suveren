@@ -122,8 +122,20 @@ def test_small_gzip_is_unpacked():
     assert _read(gzip.compress(b"<html>ok</html>"), "gzip") == b"<html>ok</html>"
 
 
-def test_unknown_encoding_stays_packed():
-    assert _read(b"\x1b\x00br-bytes", "br") == b"\x1b\x00br-bytes"
+def test_unknown_encoding_is_not_read_as_the_page():
+    # pk.altstu.ru sends brotli whatever it is asked: the packed bytes read as text were
+    # "the page", with no policy and no forms (redfox0, 2.2.4).
+    async def go():
+        request = httpx.Request("GET", "https://site.test/")
+        response = httpx.Response(
+            200, headers={"content-encoding": "br"}, stream=_Chunks(b"\x1b\x00br"), request=request
+        )
+        await net.bound_body(response)
+        return response, await response.aread()
+
+    response, body = asyncio.run(go())
+    assert body == b"" and response.headers[net.PACKED_HEADER] == "br"
+    assert "content-encoding" not in response.headers
 
 
 def test_dataset_request_may_be_bigger():
