@@ -68,11 +68,13 @@ jobs:
           sbomenv\Scripts\python.exe -m pip install --quiet --no-deps (Get-Item dist\*.whl).FullName
           cyclonedx-py environment --of JSON -o dist/suveren-sbom.cdx.json sbomenv\Scripts\python.exe
       - name: Checksums
+        # Written as bytes: write_text on Windows turns \n into \r\n, and then
+        # `sha256sum -c SHA256SUMS.txt` on Linux looks for files named "Suveren.exe\r".
         run: >-
           python -c "import hashlib, pathlib;
           files = sorted(p for p in pathlib.Path('dist').iterdir() if p.is_file());
-          pathlib.Path('dist/SHA256SUMS.txt').write_text(''.join(
-          f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files))"
+          pathlib.Path('dist/SHA256SUMS.txt').write_bytes(''.join(
+          f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files).encode('ascii'))"
       - name: Sign build provenance
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
