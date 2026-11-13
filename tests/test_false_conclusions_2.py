@@ -200,7 +200,8 @@ def test_hosts_of_unknown_country_are_not_called_no_foreign_services():
     hosts = {"cdn.some.io": HostInfo("cdn.some.io", None, None)}
     check = page_check(PageCutoff(unknown=["cdn.some.io"]), hosts)
     assert check.status is Status.UNKNOWN
-    assert "cdn.some.io" in check.details
+    # The hosts left on are named in brackets.
+    assert check.details.partition("(")[2].partition(")")[0] == "cdn.some.io"
     assert page_check(PageCutoff(), {}).status is Status.OK
 
 
