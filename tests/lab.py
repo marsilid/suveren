@@ -289,6 +289,9 @@ class Case:
     # Domains DNS answers NXDOMAIN for, and the registry (RDAP) says are free.
     missing: frozenset[str] = frozenset()
     own_site: bool = False  # the owner's own site: the "own site" checks run too
+    # The site lives on www.<host>: the bare host answers the service-file paths with a
+    # redirect there (their bodies are in ``files`` under the full www URL).
+    www_redirect: bool = False
 
     @property
     def host(self) -> str:
@@ -1843,6 +1846,63 @@ CASES: list[Case] = [
         files=site_files(),
         own_site=True,
     ),
+    Case(
+        "lab-own-www-env",
+        "свой сайт: адрес без www переадресует на www, а там открыт .env",
+        {"SUV-OWN-001": "fail"},
+        html=page(FORM_OK),
+        files=site_files(
+            {"https://www.lab-own-www-env.ru/.env": "APP_ENV=production\nDB_PASSWORD=s3cret\n"}
+        ),
+        own_site=True,
+        www_redirect=True,
+    ),
+    Case(
+        "lab-own-www-clean",
+        "свой сайт: адрес без www переадресует на www, служебных файлов нет и там",
+        {"SUV-OWN-001": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        own_site=True,
+        www_redirect=True,
+    ),
+    # --- subdomain takeover: a free domain, a deleted app, a deleted load balancer -----
+    Case(
+        "lab-takeover-expired",
+        "promo. указывает через CNAME на домен, который никто не продлил: его можно купить",
+        {"SUV-SUB-002": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["promo"],
+        dns={("promo.lab-takeover-expired.ru", "CNAME"): ["shop.expired-shop.com."]},
+        missing=frozenset({"expired-shop.com"}),
+    ),
+    Case(
+        "lab-takeover-app",
+        "old. указывает на удалённое приложение Azure: имя можно занять заново, но это не "
+        "свободный домен",
+        {"SUV-SUB-002": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["old"],
+        dns={("old.lab-takeover-app.ru", "CNAME"): ["oldshop.azurewebsites.net."]},
+        missing=frozenset({"oldshop.azurewebsites.net"}),
+    ),
+    Case(
+        "lab-takeover-balancer",
+        "lb. указывает на удалённый балансировщик AWS: его имя со случайными цифрами "
+        "никто не займёт, и это не домен на продажу",
+        {"SUV-SUB-002": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["lb"],
+        dns={
+            ("lb.lab-takeover-balancer.ru", "CNAME"): [
+                "my-lb-1234567890.eu-west-1.elb.amazonaws.com."
+            ]
+        },
+        missing=frozenset({"my-lb-1234567890.eu-west-1.elb.amazonaws.com"}),
+    ),
     # --- a record that times out: only the checks resting on it are unknown -----------
     Case(
         "lab-mta-sts-silent",
@@ -1936,6 +1996,16 @@ CASES: list[Case] = [
         html=page(
             FORM_OK + '<p><a href="https://instagram.com/lab">Instagram</a> '
             '<a href="https://www.facebook.com/lab">Facebook</a></p>'
+        ),
+        files=site_files(),
+    ),
+    Case(
+        "lab-meta-commented",
+        "ссылку на Instagram закомментировали в коде, а не удалили: посетитель её не видит",
+        {"SUV-LAW-004": "нет проверки"},
+        html=page(
+            FORM_OK + '<!-- <a href="https://www.instagram.com/lab/">Мы в Instagram</a> -->'
+            '<p><a href="https://vk.com/lab">Мы ВКонтакте</a></p>'
         ),
         files=site_files(),
     ),
@@ -2072,6 +2142,9 @@ class FakeResolver:
         return any(n == name or n.endswith("." + name) for n in names)
 
 
+DOTFILES = ("/.git/HEAD", "/.git/config", "/.env", "/.env.production")
+
+
 def _transport(case: Case) -> httpx.MockTransport:
     base = f"{'http' if case.http else 'https'}://{case.host}"
     bodies = {(k if "://" in k else base + k): v for k, v in case.files.items()}
@@ -2088,6 +2161,12 @@ def _transport(case: Case) -> httpx.MockTransport:
             return httpx.Response(
                 200, json=[{"name_value": f"{n}.{case.host}"} for n in case.subdomains or []]
             )
+        if case.www_redirect and request.url.host == case.host and request.url.path in DOTFILES:
+            return httpx.Response(
+                301, headers={"location": f"https://www.{case.host}{request.url.path}"}
+            )
+        if case.www_redirect and request.url.host == f"www.{case.host}" and url not in bodies:
+            return httpx.Response(404, text="нет такой страницы")
         if request.url.host.endswith("." + case.host) and url not in bodies:
             raise httpx.ConnectError("lab: nothing listens", request=request)
         if not case.http and url in (f"http://{case.host}/", f"http://{case.host}"):
