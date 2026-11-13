@@ -15,6 +15,8 @@ from suveren.checks import Check, Status
 from suveren.models import Category, Dependency
 
 GROUP_ATTACK = "Сценарии атак"
+# How the HSTS check (websec.hsts_check) begins when the header is absent.
+NO_HSTS = "Заголовка Strict-Transport-Security нет"
 
 
 @dataclass(slots=True)
@@ -55,9 +57,17 @@ class Scenario:
 
 def _phishing_steps(f: Facts) -> list[str]:
     target = "форму оплаты" if f.pays else "форму с личными данными"
-    return [
+    # "Частично" in the mail check (quarantine, reject with sp=none, pct below 100) is
+    # not "any letter gets through": the scenario says what the check says.
+    first = (
         f"Письмо от имени любого адреса @{f.domain} не отклоняется почтовыми сервисами "
-        "(SUV-MAIL-001).",
+        "(SUV-MAIL-001)."
+        if f.bad("SUV-MAIL-001", warn=False)
+        else f"Часть поддельных писем от имени @{f.domain} доходит до получателей: защита "
+        "от подделки неполная (SUV-MAIL-001)."
+    )
+    return [
+        first,
         f"Клиенты привыкли вводить данные на сайте: в письме — ссылка на копию сайта и {target}.",
         "Письмо от «вашего» адреса вызывает доверие: данные и деньги уходят злоумышленнику.",
     ]
@@ -99,8 +109,14 @@ def _takeover_steps(f: Facts) -> list[str]:
 
 
 def _first_visit_steps(f: Facts) -> list[str]:
+    # The HSTS check also warns about a header that is there but short, repeated or
+    # switched off: "нет" would be untrue about those.
+    absent = f.details.get("SUV-WEB-005", "").startswith(NO_HSTS)
     return [
-        "Нет HSTS (SUV-WEB-005): заход по http:// можно перехватить в общественном Wi-Fi.",
+        "Нет HSTS (SUV-WEB-005): заход по http:// можно перехватить в общественном Wi-Fi."
+        if absent
+        else "HSTS настроен ненадёжно (SUV-WEB-005): когда он не действует, заход по http:// "
+        "можно перехватить в общественном Wi-Fi.",
         "Посетитель видит подменённую страницу на вашем адресе и вводит данные в форму.",
     ]
 
@@ -180,7 +196,8 @@ SCENARIOS: tuple[Scenario, ...] = (
         when=lambda f: f.bad("SUV-WEB-005") and f.collects_data,
         severe=lambda f: False,
         steps=_first_visit_steps,
-        fix="Добавьте заголовок Strict-Transport-Security со сроком от полугода: это рвёт цепочку.",
+        fix="Включите HSTS: заголовок Strict-Transport-Security со сроком от полугода. Это рвёт "
+        "цепочку.",
     ),
     Scenario(
         "Утёкший ключ",

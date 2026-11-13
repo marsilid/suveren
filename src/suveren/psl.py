@@ -43,14 +43,21 @@ def _ascii(name: str) -> str:
         return name
 
 
+_PRIVATE_SECTION = "===BEGIN PRIVATE DOMAINS==="
+
+
 @cache
-def rules() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
-    """(plain rules, wildcard parents "*.ck" -> "ck", exceptions "!www.ck" -> "www.ck")."""
+def rules(private: bool = True) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """(plain rules, wildcard parents "*.ck" -> "ck", exceptions "!www.ck" -> "www.ck").
+    Without ``private``: only the suffixes registries sell names under (the ICANN
+    section), so "azurewebsites.net" is a domain and not a suffix."""
     text = files("suveren").joinpath("data/public_suffix_list.dat").read_text("utf-8")
-    plain: set[str] = set(SUVEREN_PRIVATE)
+    plain: set[str] = set(SUVEREN_PRIVATE) if private else set()
     wild: set[str] = set()
     exceptions: set[str] = set()
     for line in text.splitlines():
+        if not private and _PRIVATE_SECTION in line:
+            break
         rule = line.strip().split(" ", 1)[0].lower()
         if not rule or rule.startswith("//"):
             continue
@@ -65,11 +72,11 @@ def rules() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
 
 
 @cache
-def public_suffix(domain: str) -> str:
+def public_suffix(domain: str, private: bool = True) -> str:
     """The longest public suffix of ``domain`` by the list's algorithm; a name the list
     does not know has its last label as the suffix (the "*" rule)."""
     labels = domain.lower().rstrip(".").split(".")
-    plain, wild, exceptions = rules()
+    plain, wild, exceptions = rules(private)
     best = labels[-1:]
     for i in range(len(labels)):
         candidate = ".".join(labels[i:])
@@ -83,9 +90,10 @@ def public_suffix(domain: str) -> str:
     return ".".join(best)
 
 
-def registrable(domain: str) -> str:
+def registrable(domain: str, private: bool = True) -> str:
     """The suffix plus one label: 'example.co.uk' from 'www.shop.example.co.uk'. A name
-    that is itself a public suffix is returned as it is."""
+    that is itself a public suffix is returned as it is. Without ``private``: the domain
+    a registry sells, 'azurewebsites.net' from 'shop.azurewebsites.net'."""
     labels = domain.lower().rstrip(".").split(".")
-    size = len(public_suffix(domain).split(".")) + 1
+    size = len(public_suffix(domain, private).split(".")) + 1
     return ".".join(labels[-size:]) if len(labels) >= size else ".".join(labels)

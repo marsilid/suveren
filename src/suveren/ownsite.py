@@ -23,6 +23,7 @@ import smtplib
 import ssl
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from cryptography import x509
@@ -33,6 +34,7 @@ from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS
 from suveren.net import open_public, public_addresses
+from suveren.utils import registrable_domain
 
 GROUP_OWN = "Свой сайт"
 
@@ -51,19 +53,41 @@ def looks_like(path: str, status: int, body: str) -> bool:
     return bool(SERVICE_FILES[path].search(body[:20000]))
 
 
+MAX_REDIRECTS = 3
+
+
+async def get_on_site(client: httpx.AsyncClient, url: str, host: str) -> httpx.Response:
+    """GET that follows redirects only while they stay on the site: a site that sends
+    example.ru to www.example.ru answers every path with 301, and the files are on www.
+    A redirect to another site is the answer itself: nothing is asked there."""
+    site = registrable_domain(host)
+    resp = await client.get(url, follow_redirects=False)
+    for _ in range(MAX_REDIRECTS):
+        location = resp.headers.get("location")
+        if not resp.is_redirect or not location:
+            break
+        target = urljoin(str(resp.url), location)
+        parts = urlsplit(target)
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            break
+        if registrable_domain(parts.hostname) != site or target == str(resp.url):
+            break
+        resp = await client.get(target, follow_redirects=False)
+    return resp
+
+
 async def exposed_files_check(client: httpx.AsyncClient, host: str) -> Check:
     title = "Открытые служебные файлы (.git, .env)"
     found: list[str] = []
     errors = 0
     for path in SERVICE_FILES:
-        url = f"https://{host}{path}"
         try:
-            resp = await client.get(url, follow_redirects=False)
-        except (httpx.HTTPError, *TIMEOUTS):
+            resp = await get_on_site(client, f"https://{host}{path}", host)
+        except (httpx.HTTPError, ValueError, *TIMEOUTS):
             errors += 1
             continue
         if looks_like(path, resp.status_code, resp.text):
-            found.append(url)
+            found.append(str(resp.url))
     if found:
         check = Check(
             GROUP_OWN,

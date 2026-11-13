@@ -28,8 +28,9 @@ from suveren.cloud import CloudRanges, load_ranges
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
+from suveren.psl import registrable
 from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
-from suveren.utils import registrable_domain
+from suveren.utils import plural
 
 GROUP_SUB = "Поддомены"
 
@@ -225,6 +226,11 @@ def page_matches(sig: Signature, status: int, body: str) -> bool:
     return False
 
 
+def sold_domain(name: str) -> str:
+    """The domain of ``name`` that a registry sells (the ICANN section of the list)."""
+    return registrable(name, private=False)
+
+
 async def _fetch(client: httpx.AsyncClient, name: str) -> tuple[int, str] | None:
     for url in (f"https://{name}/", f"http://{name}/"):
         try:
@@ -238,8 +244,13 @@ async def _fetch(client: httpx.AsyncClient, name: str) -> tuple[int, str] | None
 
 
 async def _missing_from_dns(resolver: DnsResolver, target: str, own: str) -> str | None:
-    """The CNAME target's domain if DNS says it does not exist."""
-    reg = registrable_domain(target)
+    """The CNAME target's domain if DNS says it does not exist.
+
+    The domain a registry sells, not a name inside someone's service: for
+    my-lb-123.eu-west-1.elb.amazonaws.com or shop.azurewebsites.net (a "domain" by the
+    private section of the Public Suffix List) the registry answers 404 as for any name
+    it keeps no record of, and nobody can buy it. Those are left to the signatures."""
+    reg = sold_domain(target)
     if reg == own or "." not in reg:
         return None
     tld = reg.rsplit(".", 1)[1]
@@ -471,7 +482,7 @@ async def find_dangling_ns(
     found = []
     for name, servers in zip(names, delegations, strict=True):
         for ns in servers:
-            domain = registrable_domain(ns)
+            domain = sold_domain(ns)
             if domain == own or "." not in domain:
                 continue
             state = await registered(domain)
@@ -556,7 +567,8 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             GROUP_SUB,
             "Захват поддоменов",
             Status.OK,
-            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов."
+            f"Признаков захвата не найдено среди {len(scan.resolved)} "
+            f"{plural(len(scan.resolved), 'поддомена', 'поддоменов', 'поддоменов')}."
             + (
                 f" DNS не ответил для {len(failed)}, они не проверены: "
                 + ", ".join(s.name for s in failed[:5])

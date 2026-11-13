@@ -76,11 +76,25 @@ def find(text: str, ids: dict[str, str], person: str | None) -> list[ListMatch]:
     return found
 
 
+PERSON = "руководителя по полному ФИО"
+
+
+def searched(ids: dict[str, str], person: str | None) -> tuple[str, ...]:
+    """What find() really looks for: the identifiers that are known and the head's name
+    when it has three words. The clean answer names these and nothing else."""
+    what = [f"{by} компании" for by, value in ids.items() if value]
+    if person and len(normalize(person).split()) >= 3:
+        what.append(PERSON)
+    return tuple(what)
+
+
 @dataclass(slots=True)
 class RuScreening:
     matches: list[ListMatch] = field(default_factory=list)
     source: str | None = None  # the copy used and its date
     error: str | None = None
+    # What was looked for (searched()); None when the caller did not say.
+    searched: tuple[str, ...] | None = None
 
 
 async def screen(
@@ -96,7 +110,9 @@ async def screen(
     if "ТЕРРОРИСТ" not in text and "ЭКСТРЕМИСТ" not in text:
         # A stub or a block page, not the list: "not found" in it would mean nothing.
         return RuScreening(error="вместо перечня пришла другая страница")
-    return RuScreening(find(text, ids, person), copy_of(FEDSFM_NAME, path))
+    return RuScreening(
+        find(text, ids, person), copy_of(FEDSFM_NAME, path), searched=searched(ids, person)
+    )
 
 
 def not_connected_note() -> str:
@@ -142,9 +158,21 @@ def list_check(result: RuScreening, *, asked: bool) -> Check:
             f"{m.value} («{m.excerpt}»). Это может быть тёзка: сверьте дату и место рождения.",
             "Сверьте запись на fedsfm.ru: дата рождения в перечне указана.",
         )
-    return Check(
-        GROUP,
-        TITLE,
-        Status.OK,
-        "В перечне Росфинмониторинга нет ни ИНН и ОГРН компании, ни руководителя по полному ФИО.",
-    )
+    if result.searched is None:
+        return Check(GROUP, TITLE, Status.OK, "В перечне Росфинмониторинга совпадений не найдено.")
+    if not result.searched:
+        return Check(
+            GROUP,
+            TITLE,
+            Status.UNKNOWN,
+            "Не проверено: нет ни ИНН, ни ОГРН, а руководителя ищут только по полному ФИО "
+            "из трёх слов (фамилия и имя совпадают у слишком многих).",
+        )
+    # Only what was looked for: "нет руководителя" about a head nobody searched for
+    # would claim a check that was not made.
+    items = result.searched
+    listed = items[0] if len(items) == 1 else f"{', '.join(items[:-1])} и {items[-1]}"
+    details = f"В перечне Росфинмониторинга искали {listed}: совпадений нет."
+    if PERSON not in result.searched:
+        details += " Руководителя по ФИО не искали: полное ФИО не известно."
+    return Check(GROUP, TITLE, Status.OK, details)
