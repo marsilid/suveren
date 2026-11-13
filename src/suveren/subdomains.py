@@ -30,6 +30,7 @@ from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.psl import registrable
 from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
+from suveren.utils import plural
 
 GROUP_SUB = "Поддомены"
 
@@ -566,7 +567,8 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             GROUP_SUB,
             "Захват поддоменов",
             Status.OK,
-            f"Признаков захвата не найдено среди {len(scan.resolved)} поддоменов."
+            f"Признаков захвата не найдено среди {len(scan.resolved)} "
+            f"{plural(len(scan.resolved), 'поддомена', 'поддоменов', 'поддоменов')}."
             + (
                 f" DNS не ответил для {len(failed)}, они не проверены: "
                 + ", ".join(s.name for s in failed[:5])

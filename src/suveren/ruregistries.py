@@ -170,7 +170,9 @@ def list_check(result: RuScreening, *, asked: bool) -> Check:
         )
     # Only what was looked for: "нет руководителя" about a head nobody searched for
     # would claim a check that was not made.
-    details = f"В перечне Росфинмониторинга не найдено: {', '.join(result.searched)}."
+    items = result.searched
+    listed = items[0] if len(items) == 1 else f"{', '.join(items[:-1])} и {items[-1]}"
+    details = f"В перечне Росфинмониторинга искали {listed}: совпадений нет."
     if PERSON not in result.searched:
         details += " Руководителя по ФИО не искали: полное ФИО не известно."
     return Check(GROUP, TITLE, Status.OK, details)

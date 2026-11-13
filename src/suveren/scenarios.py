@@ -196,7 +196,8 @@ SCENARIOS: tuple[Scenario, ...] = (
         when=lambda f: f.bad("SUV-WEB-005") and f.collects_data,
         severe=lambda f: False,
         steps=_first_visit_steps,
-        fix="Добавьте заголовок Strict-Transport-Security со сроком от полугода: это рвёт цепочку.",
+        fix="Включите HSTS: заголовок Strict-Transport-Security со сроком от полугода. Это рвёт "
+        "цепочку.",
     ),
     Scenario(
         "Утёкший ключ",
