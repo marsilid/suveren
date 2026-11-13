@@ -37,14 +37,23 @@ _BANNED = (
 _NOTE = re.compile(rf"(?is){_NAMES}.{{0,200}}?{_BANNED}|{_BANNED}.{{0,200}}?{_NAMES}")
 
 
+_COMMENT = re.compile(r"(?s)<!--.*?(?:-->|$)")
+
+
+def live(page: str) -> str:
+    """The page without HTML comments: many owners commented their Instagram links out
+    in 2022 instead of deleting them, and a commented-out link or note is not shown."""
+    return _COMMENT.sub(" ", page)
+
+
 def page_text(page: str) -> str:
-    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", page)
+    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", live(page))
     text = htmllib.unescape(re.sub(r"<[^>]+>", " ", text))
     return " ".join(text.replace("Ё", "Е").replace("ё", "е").split())
 
 
 def meta_links(page: str) -> list[str]:
-    return sorted({m.group(1).lower() for m in _LINK.finditer(page)})
+    return sorted({m.group(1).lower() for m in _LINK.finditer(live(page))})
 
 
 def has_note(page: str) -> bool:
@@ -82,7 +91,7 @@ def meta_note_check(pages: list[tuple[str, str]]) -> Check | None:
         Evidence("html", f"Ссылка без пометки (страница {where})", m.group(0))
         for where, html in linked
         if where in bare
-        for m in [_LINK.search(html)]
+        for m in [_LINK.search(live(html))]
         if m
     ][:10]
     return check
