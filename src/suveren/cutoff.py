@@ -147,6 +147,25 @@ def infra_check(deps: list[Dependency]) -> Check:
     if mail:
         names = ", ".join(dict.fromkeys(d.service for d in mail))
         parts.append(f"Перестанет работать почта домена ({names}).")
+    # "Russian" is said only about what is known: a provider whose country was not
+    # determined (the network lookup failed) may be foreign, and with no DNS or hosting
+    # provider found at all there is nothing to judge by.
+    unknown = [d for d in deps if d.foreign is None and d.category in (*WHOLE_SITE, Category.MAIL)]
+    known = any(d.foreign is False and d.category in WHOLE_SITE for d in deps)
+    if not parts and (unknown or not known):
+        names = ", ".join(dict.fromkeys(f"{d.category.title}: {d.service}" for d in unknown))
+        return Check(
+            GROUP_CUT,
+            INFRA_TITLE,
+            Status.UNKNOWN,
+            "Не проверено: "
+            + (
+                f"не удалось определить страну провайдеров ({names})."
+                if unknown
+                else "не удалось определить, у кого DNS и хостинг сайта."
+            )
+            + " Иностранных провайдеров среди распознанных нет.",
+        )
     if not parts:
         return Check(
             GROUP_CUT,
@@ -352,6 +371,19 @@ def _list(items: list[str]) -> str:
 
 
 def page_check(r: PageCutoff, hosts: dict[str, HostInfo]) -> Check:
+    if not r.blocked and r.unknown:
+        # Nothing was switched off because nothing is known to be foreign, not because
+        # nothing is: the hosts whose country was not determined stayed on.
+        return Check(
+            GROUP_CUT,
+            PAGE_TITLE,
+            Status.UNKNOWN,
+            "Не проверено: страну сторонних адресов, с которых страница что-то загружает, "
+            f"определить не удалось ({', '.join(r.unknown[:SHOWN])}"
+            + (f" и ещё {len(r.unknown) - SHOWN}" if len(r.unknown) > SHOWN else "")
+            + "), поэтому их не отключали. Сервисов, про которые известно, что они "
+            "иностранные, страница не загружает.",
+        )
     if not r.blocked:
         return Check(
             GROUP_CUT,
