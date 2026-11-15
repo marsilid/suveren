@@ -2,9 +2,9 @@
 # requirements.txt plus Playwright for --browser, at the versions and hashes of the locks
 # (requirements.txt and requirements-release.txt). tests/test_supply_chain.py keeps the
 # three in step; regenerate after `uv pip compile` by copying the blocks from them.
-annotated-doc==0.0.5 \
-    --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101 \
-    --hash=sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb
+annotated-doc==0.0.6 \
+    --hash=sha256:361ca0950cc7082f53fa69e9328409f40a62c61e57e0a47e1825a08078a58a53 \
+    --hash=sha256:7969bb69912085b2285849c0dcac0b4b374fd180c13cf10a87f284ffcf347bbf
 anyio==4.16.0 \
     --hash=sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb \
     --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026
