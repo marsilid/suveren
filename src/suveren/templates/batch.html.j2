@@ -24,7 +24,7 @@
           <td class="nowrap">
             {% if row.fails %}<span class="st-fail">✗ {{ row.fails }}</span>{% endif %}
             {% if row.warns %}<span class="st-warn">! {{ row.warns }}</span>{% endif %}
-            {% if not row.fails and not row.warns %}<span class="st-ok">✓</span>{% endif %}
+            {% if not row.fails and not row.warns %}{% if row.pd_checked %}<span class="st-ok">✓</span>{% else %}<span class="empty">не проверено</span>{% endif %}{% endif %}
           </td>
           <td>{% for f in row.top %}{{ f.title }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="empty">нет</span>{% endfor %}</td>
         </tr>

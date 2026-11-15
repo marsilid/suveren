@@ -404,3 +404,36 @@ def test_a_needs_the_checks_to_have_run():
         spec = BY_ID[check_id]
         report.checks.append(Check(spec.group, spec.title, Status.OK, "В порядке."))
     assert overall_score(report) == 89 and overall_grade(report) == "B"
+
+
+def test_batch_html_counts_152fz_problems_only_in_its_column(tmp_path):
+    # The column is titled "152-ФЗ": a mail or header problem is not a 152-ФЗ problem.
+    report = sample_report()
+    report.checks = [
+        Check(GROUP_152, "Защищённое соединение", Status.OK, "Сайт работает по HTTPS."),
+        Check(
+            "Защита почты от подделки",
+            "DMARC: что делать с поддельными письмами",
+            Status.FAIL,
+            "Нет.",
+        ),
+        Check("Безопасность сайта", "Политика безопасности контента (CSP)", Status.WARN, "Нет."),
+    ]
+    html = write_batch_html([report], [], tmp_path / "a.html").read_text(encoding="utf-8")
+    assert "✗" not in html and 'class="st-warn"' not in html
+    assert 'class="st-ok"' in html
+    report.checks.append(
+        Check(GROUP_152, "Политика обработки персональных данных", Status.FAIL, "Нет.")
+    )
+    html = write_batch_html([report], [], tmp_path / "b.html").read_text(encoding="utf-8")
+    assert "✗ 1" in html
+
+
+def test_batch_html_does_not_call_an_unchecked_152fz_section_fine(tmp_path):
+    report = sample_report()
+    report.checks = [
+        Check(GROUP_152, "Политика обработки персональных данных", Status.UNKNOWN, "Не проверено.")
+    ]
+    html = write_batch_html([report], [], tmp_path / "c.html").read_text(encoding="utf-8")
+    assert 'class="st-ok"' not in html
+    assert "не проверено" in html
