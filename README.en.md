@@ -14,21 +14,25 @@ foreign dependencies · personal-data law (152-FZ) · blocking · mail spoofing 
 ![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
-[Русская версия](README.md)
+[Website (in Russian)](https://marsilid.github.io/suveren/) · [Русская версия](README.md)
 
 </div>
 
-Give it a website and in about a minute you get a report: what on the site depends on foreign
+Give it a website and in under a minute you get a report: what on the site depends on foreign
 services, which legal requirements are broken and what fine that can mean, whether mail can be
 forged in the company's name, and what to fix first. Every finding comes with its evidence: a DNS
-record, a response header, a quote from the privacy policy, a script address.
+record, a response header, a quote from the privacy policy, a script address. The report helps
+set priorities and is not a legal opinion.
+
+It helps business owners and IT directors, web studios, lawyers and personal-data officers,
+procurement departments checking counterparties.
 
 The tool, its reports and the guide are in Russian: the audience is Russian businesses.
 
 ![Suveren in the terminal](docs/demo.svg)
 
-<sub>The pictures show made-up sites in the reserved `.test` zone: real audit data with names,
-addresses and IPs replaced so as not to expose other companies.</sub>
+<sub>The pictures show made-up sites and a company in the reserved `.test` zone, from the
+project's test lab ([`tests/lab.py`](tests/lab.py)): the real checks, but no one else's data.</sub>
 
 ## Quick start
 
@@ -37,16 +41,19 @@ addresses and IPs replaced so as not to expose other companies.</sub>
 command line and no Python needed. Windows may warn about an unknown publisher — "More info" →
 "Run anyway".
 
+![Suveren menu](docs/menu.svg)
+
 **Any system** (Python 3.11+):
 
 ```bash
-pip install "suveren[browser]"
+python3 -m pip install "suveren[browser]"
 suveren scan example.ru
 ```
 
-If pip says `Could not find a version that satisfies the requirement suveren`
-("from versions: none"), your Python is older than 3.11: check `python --version` and upgrade
-it, or download the ready exe.
+On Windows write `py` instead of `python3`. Install exactly through `python3 -m pip`: a bare
+`pip` command is sometimes from an old Python 2 or 3.8. If pip says `Could not find a version
+that satisfies the requirement suveren` ("from versions: none"), its Python is older than 3.11:
+check `python3 --version` and upgrade Python, or download the ready exe.
 
 <details>
 <summary>Other ways: from source and Docker</summary>
@@ -58,8 +65,6 @@ unpack it and run the batch file — on first launch it installs everything it n
 docker build -t suveren https://github.com/marsilid/suveren.git
 docker run --rm -v "$PWD:/work" suveren scan example.ru
 ```
-
-![Suveren menu](docs/menu.svg)
 
 </details>
 
@@ -123,10 +128,13 @@ saved as PDF or Word, as a one-page summary for management, or under your studio
 suveren scan site.ru                    # regular audit, about 20 seconds
 suveren scan site.ru --profile deep     # deep: browser, up to 12 pages, service cut-off
 suveren scan site.ru --pdf report.pdf   # plus PDF; --docx for Word, --summary for management
-suveren company 7707083893              # a company by INN, OGRN or website
+suveren company 7700990010              # a company by INN, OGRN or website
 suveren batch sites.txt                 # a list of sites: summary table, CSV, a report each
 suveren watch sites.txt --every 24h     # watch sites; changes can go to Telegram
-suveren research sites.txt             # a study: only the share of sites with each finding
+suveren research sites.txt              # a study: only the share of sites with each finding
+suveren diff old.json new.json          # what changed between two audits
+suveren draft report.json               # a draft policy or consent: show it to a lawyer
+suveren menu                            # the menu, no command line
 suveren scan site.ru -v                 # every network step with timings: see where it hangs
 suveren scan site.ru --dkim-selector ew # also check your own DKIM selector, not just common ones
 ```
@@ -170,12 +178,37 @@ report but does not fail the build, and counts again after the deadline. More in
 
 All sources are open and free, no API keys: DNS, RDAP and WHOIS, the state register, the register
 of personal-data operators, the block list export by antifilter.download, certificate
-transparency logs, sanctions lists, the retire.js vulnerability database. `suveren doctor` checks
-that they all answer.
+transparency logs, sanctions lists, the retire.js vulnerability database, the server-location
+database [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0, downloaded once a month).
+`suveren doctor` checks that they all answer.
 
 The report helps set priorities and **is not a legal opinion**: every 152-FZ check links to the
 article of law. Where a check could not be done, Suveren says "not checked" rather than a false
 "OK". All limitations are in the [guide](docs/guide.md#ограничения).
+
+## How it differs from online checkers
+
+Online 152-FZ checkers are convenient: nothing to install, and for a fee they often offer
+document templates and a lawyer's advice. Suveren works differently:
+
+| | Suveren | Online 152-FZ services |
+|---|---|---|
+| Where it runs | on your computer or in CI | on the service's server |
+| Code | open (AGPL), you can see how each check works | not published |
+| Price | free, no sign-up | short summary free, detailed report paid |
+| What it checks | 152-FZ, plus foreign dependencies (DNS, mail, hosting, CDN), mail spoofing (SPF, DKIM, DMARC), the block list, site security, the company in the state register and sanctions lists | mostly 152-FZ: documents, forms, cookies, third-party scripts, where the server is |
+| For a team | JSON, SARIF, `--fail-on` for CI, checking a list of sites | a report on the service's site |
+| Accuracy | every check has a permanent ID, answers verified on the [lab](docs/accuracy.md) | the method is usually not published |
+
+What Suveren lacks: a lawyer's advice. It drafts a policy and a consent from what it found on
+the site, but they need finishing and a lawyer's review. The report is not a legal opinion.
+
+## Written about
+
+- [The author's article on Habr](https://habr.com/ru/articles/1105240/) (in Russian) on how
+  Suveren works and what it checks.
+- [News on Anti-Malware.ru](https://www.anti-malware.ru/news/2026-11-09-111332/51972) (in
+  Russian), 9 November 2026.
 
 ## Contributing
 
