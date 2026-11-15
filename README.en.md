@@ -14,7 +14,7 @@ foreign dependencies · personal-data law (152-FZ) · blocking · mail spoofing 
 ![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
-[Русская версия](README.md)
+[Website (in Russian)](https://marsilid.github.io/suveren/) · [Русская версия](README.md)
 
 </div>
 
@@ -27,8 +27,8 @@ The tool, its reports and the guide are in Russian: the audience is Russian busi
 
 ![Suveren in the terminal](docs/demo.svg)
 
-<sub>The pictures show made-up sites in the reserved `.test` zone: real audit data with names,
-addresses and IPs replaced so as not to expose other companies.</sub>
+<sub>The pictures show made-up sites and a company in the reserved `.test` zone, from the
+project's test lab ([`tests/lab.py`](tests/lab.py)): the real checks, but no one else's data.</sub>
 
 ## Quick start
 
@@ -40,13 +40,14 @@ command line and no Python needed. Windows may warn about an unknown publisher �
 **Any system** (Python 3.11+):
 
 ```bash
-pip install "suveren[browser]"
+python3 -m pip install "suveren[browser]"
 suveren scan example.ru
 ```
 
-If pip says `Could not find a version that satisfies the requirement suveren`
-("from versions: none"), your Python is older than 3.11: check `python --version` and upgrade
-it, or download the ready exe.
+On Windows write `py` instead of `python3`. Install exactly through `python3 -m pip`: a bare
+`pip` command is sometimes from an old Python 2 or 3.8. If pip says `Could not find a version
+that satisfies the requirement suveren` ("from versions: none"), its Python is older than 3.11:
+check `python3 --version` and upgrade Python, or download the ready exe.
 
 <details>
 <summary>Other ways: from source and Docker</summary>
@@ -85,6 +86,9 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
 About 70 checks with permanent IDs ([list](docs/checks.md)) and a database of 300+ services.
 Findings from different sections combine into attack scenarios: "mail can be forged" + "the site
 takes payments" = phishing in the company's name.
+
+Who it helps: business owners and IT directors, web studios, lawyers and personal-data
+officers, procurement departments checking counterparties.
 
 ## The report
 
@@ -126,7 +130,7 @@ suveren scan site.ru --pdf report.pdf   # plus PDF; --docx for Word, --summary f
 suveren company 7707083893              # a company by INN, OGRN or website
 suveren batch sites.txt                 # a list of sites: summary table, CSV, a report each
 suveren watch sites.txt --every 24h     # watch sites; changes can go to Telegram
-suveren research sites.txt             # a study: only the share of sites with each finding
+suveren research sites.txt              # a study: only the share of sites with each finding
 suveren scan site.ru -v                 # every network step with timings: see where it hangs
 suveren scan site.ru --dkim-selector ew # also check your own DKIM selector, not just common ones
 ```
@@ -170,8 +174,9 @@ report but does not fail the build, and counts again after the deadline. More in
 
 All sources are open and free, no API keys: DNS, RDAP and WHOIS, the state register, the register
 of personal-data operators, the block list export by antifilter.download, certificate
-transparency logs, sanctions lists, the retire.js vulnerability database. `suveren doctor` checks
-that they all answer.
+transparency logs, sanctions lists, the retire.js vulnerability database, the server-location
+database [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0, downloaded once a month).
+`suveren doctor` checks that they all answer.
 
 The report helps set priorities and **is not a legal opinion**: every 152-FZ check links to the
 article of law. Where a check could not be done, Suveren says "not checked" rather than a false
