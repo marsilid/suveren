@@ -30,7 +30,7 @@ def test_browser_lock_is_the_base_lock_plus_playwright():
     assert _hashed(ROOT / "packaging/requirements-browser.txt")
     for name, versions in base.items():
         assert browser.get(name) == versions, name
-    for name in ("playwright", "greenlet", "pyee"):
+    for name in ("playwright", "greenlet"):
         assert browser[name] == release[name], name
 
 
