@@ -22,7 +22,7 @@ from suveren.advice import (
     unchecked,
 )
 from suveren.brand import Brand
-from suveren.checks import GROUP_BLOCK, Status
+from suveren.checks import GROUP_152, GROUP_BLOCK, Status
 from suveren.company import CompanyReport
 from suveren.fines import DISCLAIMER, rub, span
 from suveren.migration import plan as migration_plan
@@ -337,9 +337,11 @@ def write_batch_html(
     """Summary page for `batch`: one row per site, linking to its own report."""
     rows = []
     for r in sorted(reports, key=lambda r: (overall_score(r), r.target)):
+        # The column is "152-ФЗ": only that section's checks, not mail or headers.
         checks = {status: 0 for status in Status}
         for c in r.checks:
-            checks[c.status] += 1
+            if c.group == GROUP_152:
+                checks[c.status] += 1
         rows.append(
             {
                 "report": r,
@@ -349,6 +351,10 @@ def write_batch_html(
                 "missed": missed_sections(r),
                 "fails": checks[Status.FAIL],
                 "warns": checks[Status.WARN],
+                # Nothing but "not checked" in the section: not a clean bill of health.
+                "pd_checked": any(
+                    n for status, n in checks.items() if status is not Status.UNKNOWN
+                ),
                 "blocked": any(
                     c.group == GROUP_BLOCK and c.status is Status.FAIL for c in r.checks
                 ),

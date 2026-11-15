@@ -70,3 +70,13 @@ def test_company_with_pdf():
 def test_watch_from_the_menu():
     assert run(["9", "sites.txt", "", "0"]) == [["watch", "sites.txt", "--once"]]
     assert run(["9", "", "", "0"]) == []
+
+
+def test_menu_numbers_run_in_order_on_the_screen():
+    console = Console(record=True, width=100)
+    console.input = lambda prompt="": "0"  # type: ignore[method-assign]
+    console.clear = lambda *a, **k: None  # type: ignore[method-assign]
+    run_menu(FakeApp(), console)
+    first_words = [line.split()[0] for line in console.export_text().splitlines() if line.split()]
+    shown = [word for word in first_words if len(word) == 1 and word.isdigit()]
+    assert shown == ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
