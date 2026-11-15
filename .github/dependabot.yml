@@ -13,8 +13,6 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # Playwright pins pyee (1.64: <15); it moves together with Playwright.
-      - dependency-name: pyee
       # typer 0.29 pulls in pydantic, which is not in the hashed locks (pip
       # install --require-hashes fails). Moves only together with a deliberate
       # re-lock; updates below 0.29 still come.
