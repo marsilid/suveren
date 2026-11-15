@@ -24,6 +24,11 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # This block also bumps the locks in packaging/, so it needs the same rule as
+      # the /packaging block above (a PR from here, #64, failed the docker job).
+      - dependency-name: typer
+        versions: [">=0.29"]
   # The base image of the Dockerfile, pinned by digest.
   - package-ecosystem: docker
     directory: /
