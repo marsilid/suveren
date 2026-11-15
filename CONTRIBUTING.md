@@ -54,6 +54,8 @@ suveren scan example.ru [--quick|--browser]
 - `tests/golden.py` — запись реальных сайтов в `corpus/` (только локально, в .gitignore),
   `test_corpus.py` их проигрывает.
 - `tools/nightly.py` — ночной прогон реальных сайтов, отчёт в `reports/nightly/<date>/`.
+- `tools/readme_shots.py` — картинки README и сайта (`docs/*.svg`, `docs/*.png`) с
+  выдуманных сайтов полигона; запускайте после правки вывода в терминале, меню или отчёта.
 
 ## Соглашения
 
