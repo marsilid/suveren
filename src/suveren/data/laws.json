@@ -12,8 +12,8 @@
     {"article": "ст. 18.1", "effective_from": null, "what": "опубликованная политика обработки", "checks": ["SUV-PD-001", "SUV-PD-002"]},
     {"article": "ст. 22", "effective_from": null, "what": "уведомление Роскомнадзора, реестр операторов", "checks": ["SUV-PD-009", "SUV-CO-006"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "ffa65ebd3df9bdd551af62e74dd380383f1477c6d522d1aa09721330f0d15523",
+   "checked": "2026-11-16"
   },
   {
    "id": "149-ФЗ",
@@ -24,8 +24,8 @@
     {"article": "ст. 8 ч. 10", "effective_from": "2026-07-07", "what": "вход на сайт через иностранные сервисы", "checks": ["SUV-LAW-001"]},
     {"article": "ст. 10.2-2", "effective_from": null, "what": "правила применения рекомендательных технологий", "checks": ["SUV-LAW-002"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "cc219d1964b8ff2923bcff97cc040313658f417c0c4ba29d8dfa2cd8fe231430",
+   "checked": "2026-11-16"
   },
   {
    "id": "КоАП",
@@ -37,8 +37,8 @@
     {"article": "ст. 13.55", "effective_from": "2026-07-07", "what": "штраф за вход через иностранные сервисы", "checks": ["SUV-LAW-001"]},
     {"article": "ст. 13.56", "effective_from": "2026-07-07", "what": "штраф за рекомендательные технологии без правил", "checks": ["SUV-LAW-002"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "0347020dd98ad1a03df00342b3fb910f25a369fd1ee764ac708f8c277d6f85b9",
+   "checked": "2026-11-16"
   },
   {
    "id": "ЗоЗПП",
@@ -48,8 +48,8 @@
    "provisions": [
     {"article": "ст. 26.1", "effective_from": null, "what": "сведения о продавце при дистанционной продаже", "checks": ["SUV-CO-007"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "4f5c40ae72931dbd01bc7a054d0f91bdf673271ca7c60b3398a1b8d4ddf9ee98",
+   "checked": "2026-11-16"
   },
   {
    "id": "115-ФЗ",
@@ -59,8 +59,8 @@
    "provisions": [
     {"article": "ст. 7", "effective_from": null, "what": "перечень организаций и физических лиц, причастных к экстремизму или терроризму", "checks": ["SUV-CO-008"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "76a7c895d6f39632444318813586866ea7c620bb92db1294becc20562cf6a6fe",
+   "checked": "2026-11-16"
   },
   {
    "id": "38-ФЗ",
@@ -70,8 +70,8 @@
    "provisions": [
     {"article": "ст. 18.1", "effective_from": null, "what": "учёт и маркировка интернет-рекламы (ERID)", "checks": ["SUV-LAW-003"]}
    ],
-   "text_sha256": null,
-   "checked": null
+   "text_sha256": "d14e3d89bf745b1bd497931054255ed21c1ecbaad27a693cfd7194f0f5736778",
+   "checked": "2026-11-16"
   }
  ]
 }
