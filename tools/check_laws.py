@@ -18,6 +18,7 @@ import argparse
 import datetime as dt
 import json
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -29,14 +30,37 @@ DATA = Path(__file__).resolve().parent.parent / "src" / "suveren" / "data" / "la
 UA = "Mozilla/5.0 (Suveren law watch; +https://github.com/marsilid/suveren)"
 
 
-def check(client: httpx.Client, data: dict, *, write: bool) -> tuple[list[str], int]:
+def _transient(exc: httpx.HTTPError) -> bool:
+    """A timeout, a broken connection or a 429/5xx may pass on its own; a 404 will not."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code == 429 or exc.response.status_code >= 500
+    return True
+
+
+def fetch(client: httpx.Client, url: str, *, attempts: int, pause: float) -> httpx.Response:
+    """GET with a few tries: the runners are abroad and consultant.ru is slow for them, so a
+    single timeout must not turn the weekly run red."""
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = client.get(url)
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPError as exc:
+            if attempt == attempts or not _transient(exc):
+                raise
+            time.sleep(pause * attempt)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def check(
+    client: httpx.Client, data: dict, *, write: bool, attempts: int = 3, pause: float = 20.0
+) -> tuple[list[str], int]:
     """Lines for the report and the exit code."""
     lines, code = [], 0
     today = dt.date.today().isoformat()
     for law in data["laws"]:
         try:
-            resp = client.get(law["url"])
-            resp.raise_for_status()
+            resp = fetch(client, law["url"], attempts=attempts, pause=pause)
         except httpx.HTTPError as exc:
             lines.append(f"{law['id']}: не загрузился ({exc})")
             code = 1

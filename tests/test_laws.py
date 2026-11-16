@@ -64,14 +64,50 @@ def test_check_laws_reports_new_changed_and_unloaded():
 
     data = _data()
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        lines, code = cl.check(client, data, write=False)
+        lines, code = cl.check(client, data, write=False, pause=0)
     assert lines[0] == "A: отпечаток снят впервые"
     assert lines[1] == "B: ТЕКСТ ИЗМЕНИЛСЯ — перечитайте ст. 2"
     assert lines[2].startswith("C: не загрузился") and code == 1
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        cl.check(client, data, write=True)
+        cl.check(client, data, write=True, pause=0)
     assert data["laws"][0]["text_sha256"] == fingerprint("<p>новый текст</p>")
     assert data["laws"][0]["checked"]
+
+
+def test_a_timeout_is_tried_again_and_a_missing_page_is_not():
+    calls: dict[str, int] = {}
+
+    def handler(request):
+        path = request.url.path
+        calls[path] = calls.get(path, 0) + 1
+        if path == "/slow" and calls[path] < 3:
+            raise httpx.ReadTimeout("The read operation timed out", request=request)
+        if path == "/gone":
+            return httpx.Response(404)
+        return httpx.Response(200, text="<p>текст</p>")
+
+    data = {
+        "laws": [
+            {"id": "S", "url": "https://x.example/slow", "provisions": [], "text_sha256": None},
+            {"id": "G", "url": "https://x.example/gone", "provisions": [], "text_sha256": None},
+        ]
+    }  # fmt: skip
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        lines, code = cl.check(client, data, write=False, pause=0)
+    assert lines[0] == "S: отпечаток снят впервые" and calls["/slow"] == 3
+    assert lines[1].startswith("G: не загрузился") and calls["/gone"] == 1
+    assert code == 1
+
+
+def test_a_law_that_keeps_timing_out_still_fails_the_run():
+    def handler(request):
+        raise httpx.ReadTimeout("The read operation timed out", request=request)
+
+    law = {"id": "T", "url": "https://x.example/t", "provisions": [], "text_sha256": None}
+    data = {"laws": [law]}
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        lines, code = cl.check(client, data, write=False, attempts=2, pause=0)
+    assert lines[0].startswith("T: не загрузился (The read operation timed out)") and code == 1
 
 
 def test_laws_file_is_valid_json_with_the_fields():
