@@ -16,6 +16,7 @@ import time
 import webbrowser
 from collections import Counter
 from collections.abc import Coroutine
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -60,6 +61,7 @@ from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
 from suveren.history import NotAReport, load_report, same_site
 from suveren.history import compare as compare_reports
+from suveren.ignore import IgnoreEntry
 from suveren.ignore import apply as apply_ignore
 from suveren.ignore import load as load_ignore
 from suveren.menu import run_menu
@@ -1049,62 +1051,103 @@ def batch(
         warn.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
     console.print()
 
-    results: list[tuple[str, Report | None, str | None]] = []
-
-    async def run_all() -> list[tuple[str, Report | None, str | None]]:
-        if "blocklist" in plan.modules:
-            # Fetched once for the whole list. If the source is down and nothing is
-            # cached, each site says "not checked" for the block list instead of the
-            # whole batch failing (it took the nightly run down with it).
-            try:
-                async with make_client(30.0) as client:
-                    await ensure_lists(client, refresh=refresh)
-            except ModuleError as exc:
-                console.print(f"[yellow]Реестр блокировок недоступен: {esc(exc)}.[/]")
-
-        async def one(host: str) -> tuple[str, Report | None, str | None]:
-            try:
-                # One stuck site must not hold up the whole list.
-                report = await asyncio.wait_for(
-                    run_scan(
-                        host,
-                        timeout=timeout,
-                        dns_mode=dns_mode.value,
-                        dkim_selectors=selectors,
-                        **plan.kwargs(),
-                    ),
-                    max_time,
-                )
-            except (SuverenError, *TIMEOUTS) as exc:
-                reason = str(exc) or f"не уложилась в {max_time} с (--max-time)"
-                warn.print(f"  [#e5534b]✗[/] {esc(host):<32} [grey50]{esc(reason)}[/]")
-                return host, None, reason
-            report.notes += apply_ignore(report.checks, accepted, host, date.today())
-            write_html(report, folder / f"{host}.html", brand)
-            write_json(report, folder / f"{host}.json")
-            grade = overall_grade(report)
-            line = Text("  ")
-            # Padded to two: "B?" and "B" keep the hosts in one column.
-            line.append(f" {grade_label(report):<2} ", style=GRADE_STYLE[grade])
-            line.append(f" {host:<28} ")
-            line.append(f"{overall_score(report):>3}", style="bold")
-            line.append("   независимость ", style="grey50")
-            line.append_text(score_bar(report.score, report.grade, width=12))
-            line.append(f" {report.score:>3}", style="bold")
-            # The line is near 80 columns already: what was missed is in the table and CSV.
-            if missed_sections(report):
-                line.append("  неполная", style="grey50")
-            console.print(line)
-            return host, report, None
-
-        return await gather_limited([functools.partial(one, h) for h in hosts], jobs)
-
+    site = _BatchSite(plan, folder, brand, accepted, selectors, timeout, dns_mode, max_time, warn)
     with _spinner("[grey50]Проверка…[/]"):
-        results = asyncio.run(run_all())
+        results = asyncio.run(_scan_list(hosts, site, jobs=jobs, refresh=refresh))
 
     reports = [r for _, r, _ in results if r is not None]
     failed = [(h, err) for h, r, err in results if r is None]
+    csv_path, jsonl_path = _write_summaries(reports, failed, folder)
+    index_path = write_batch_html(reports, failed, folder / "index.html", brand)
+    _print_batch_total(reports, failed, index_path, csv_path, jsonl_path)
+    if open_report:
+        _open(index_path)
+    # The thresholds go by the worst site; a site not checked at all comes first (1).
+    code = ci_exit(reports, threshold, fail_on, allow_incomplete=allow_incomplete)
+    if failed or skipped:
+        # A list with gaps is not a clean run: scripts and CI must be able to tell.
+        raise typer.Exit(1)
+    if code:
+        raise typer.Exit(code)
 
+
+BatchResult = tuple[str, Report | None, str | None]
+
+
+@dataclass(frozen=True)
+class _BatchSite:
+    """How each site of a list is checked and where its reports go."""
+
+    plan: ScanPlan
+    folder: Path
+    brand: Brand | None
+    accepted: list[IgnoreEntry]
+    selectors: list[str]
+    timeout: float
+    dns_mode: DnsChoice
+    max_time: float
+    warn: Console
+
+
+async def _scan_list(
+    hosts: list[str], site: _BatchSite, *, jobs: int, refresh: bool
+) -> list[BatchResult]:
+    if "blocklist" in site.plan.modules:
+        # Fetched once for the whole list. If the source is down and nothing is
+        # cached, each site says "not checked" for the block list instead of the
+        # whole batch failing (it took the nightly run down with it).
+        try:
+            async with make_client(30.0) as client:
+                await ensure_lists(client, refresh=refresh)
+        except ModuleError as exc:
+            console.print(f"[yellow]Реестр блокировок недоступен: {esc(exc)}.[/]")
+    return await gather_limited([functools.partial(_scan_one, h, site) for h in hosts], jobs)
+
+
+async def _scan_one(host: str, site: _BatchSite) -> BatchResult:
+    try:
+        # One stuck site must not hold up the whole list.
+        report = await asyncio.wait_for(
+            run_scan(
+                host,
+                timeout=site.timeout,
+                dns_mode=site.dns_mode.value,
+                dkim_selectors=site.selectors,
+                **site.plan.kwargs(),
+            ),
+            site.max_time,
+        )
+    except (SuverenError, *TIMEOUTS) as exc:
+        reason = str(exc) or f"не уложилась в {site.max_time} с (--max-time)"
+        site.warn.print(f"  [#e5534b]✗[/] {esc(host):<32} [grey50]{esc(reason)}[/]")
+        return host, None, reason
+    report.notes += apply_ignore(report.checks, site.accepted, host, date.today())
+    write_html(report, site.folder / f"{host}.html", site.brand)
+    write_json(report, site.folder / f"{host}.json")
+    console.print(_batch_line(host, report))
+    return host, report, None
+
+
+def _batch_line(host: str, report: Report) -> Text:
+    grade = overall_grade(report)
+    line = Text("  ")
+    # Padded to two: "B?" and "B" keep the hosts in one column.
+    line.append(f" {grade_label(report):<2} ", style=GRADE_STYLE[grade])
+    line.append(f" {host:<28} ")
+    line.append(f"{overall_score(report):>3}", style="bold")
+    line.append("   независимость ", style="grey50")
+    line.append_text(score_bar(report.score, report.grade, width=12))
+    line.append(f" {report.score:>3}", style="bold")
+    # The line is near 80 columns already: what was missed is in the table and CSV.
+    if missed_sections(report):
+        line.append("  неполная", style="grey50")
+    return line
+
+
+def _write_summaries(
+    reports: list[Report], failed: list[tuple[str, str | None]], folder: Path
+) -> tuple[Path, Path]:
+    """summary.csv and summary.jsonl, worst site first."""
     csv_path = folder / "summary.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
         columns = list(batch_row(reports[0]).keys()) if reports else ["domain"]
@@ -1124,8 +1167,16 @@ def batch(
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         for host, err in failed:
             fh.write(json.dumps({"domain": host, "error": err}, ensure_ascii=False) + "\n")
-    index_path = write_batch_html(reports, failed, folder / "index.html", brand)
+    return csv_path, jsonl_path
 
+
+def _print_batch_total(
+    reports: list[Report],
+    failed: list[tuple[str, str | None]],
+    index_path: Path,
+    csv_path: Path,
+    jsonl_path: Path,
+) -> None:
     grades = Counter(overall_grade(r) for r in reports)
     section(console, "Итого")
     line = Text("  ")
@@ -1140,15 +1191,6 @@ def batch(
         f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}"
         f"\n[bold]JSONL:[/]  {jsonl_path}"
     )
-    if open_report:
-        _open(index_path)
-    # The thresholds go by the worst site; a site not checked at all comes first (1).
-    code = ci_exit(reports, threshold, fail_on, allow_incomplete=allow_incomplete)
-    if failed or skipped:
-        # A list with gaps is not a clean run: scripts and CI must be able to tell.
-        raise typer.Exit(1)
-    if code:
-        raise typer.Exit(code)
 
 
 # --- diff -----------------------------------------------------------------------------
