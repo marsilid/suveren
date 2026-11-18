@@ -21,7 +21,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from suveren.advice import overall_grade, overall_scope, overall_score, priorities
+from suveren.advice import grade_label, overall_grade, overall_scope, overall_score, priorities
 from suveren.checks import SOURCE_WHAT, Check, Status
 from suveren.fines import FineEstimate, rub
 from suveren.history import Changes
@@ -122,7 +122,7 @@ def check_counts(checks: Iterable[Check], *, words: bool = False) -> Text:
 def summary_panel(report: Report) -> Panel:
     grade, score = overall_grade(report), overall_score(report)
     top = Text.assemble(
-        (f" {grade} ", GRADE_STYLE[grade]),
+        (f" {grade_label(report)} ", GRADE_STYLE[grade]),
         ("  Общая оценка ", "bold"),
         (f"{score}", "bold"),
         ("/100", DIM),

@@ -10,10 +10,10 @@
   <h1>{{ report.target }}</h1>
 
   <section class="card summary-grade">
-    <div class="grade g-{{ overall.grade | lower }}">{{ overall.grade }}</div>
+    <div class="grade g-{{ overall.grade | lower }}{% if overall.label|length > 1 %} grade-partial{% endif %}">{{ overall.label }}</div>
     <div>
       <h2>Общая оценка: {{ overall.score }} из 100</h2>
-      <p class="muted-sum">{{ overall.scope | capitalize }}. Иностранных сервисов: {{ report.foreign_count }}, независимость {{ report.grade }} ({{ report.score }}/100).</p>
+      <p class="muted-sum">{{ overall.scope[:1] | upper }}{{ overall.scope[1:] }}. Иностранных сервисов: {{ report.foreign_count }}, независимость {{ report.grade }} ({{ report.score }}/100).</p>
     </div>
   </section>
 

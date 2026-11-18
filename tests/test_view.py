@@ -437,3 +437,12 @@ def test_batch_html_does_not_call_an_unchecked_152fz_section_fine(tmp_path):
     html = write_batch_html([report], [], tmp_path / "c.html").read_text(encoding="utf-8")
     assert 'class="st-ok"' not in html
     assert "не проверено" in html
+
+
+def test_batch_summary_marks_an_incomplete_grade(tmp_path):
+    walled = analyze(
+        Facts("walled.ru", "walled.ru", web=[NetInfo("1.1.1.1", 49505, "SELECTEL", "RU")],
+              page_status=403, html="<p>Access denied</p>")
+    )  # fmt: skip
+    html = write_batch_html([walled], [], tmp_path / "i.html").read_text(encoding="utf-8")
+    assert 'mini-grade grade-B grade-partial">B?</span>' in html

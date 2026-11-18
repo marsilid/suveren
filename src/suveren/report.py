@@ -14,6 +14,7 @@ from markupsafe import Markup, escape
 
 from suveren import __version__
 from suveren.advice import (
+    grade_label,
     missed_sections,
     overall_grade,
     overall_scope,
@@ -146,6 +147,7 @@ def render_html(report: Report, brand: Brand | None = None) -> str:
         overall={
             "score": overall_score(report),
             "grade": overall_grade(report),
+            "label": grade_label(report),
             "scope": overall_scope(report),
         },
         groups=[(c, deps) for c, deps in groups if deps],
@@ -279,6 +281,7 @@ def render_summary_html(report: Report, brand: Brand | None = None) -> str:
         overall={
             "score": overall_score(report),
             "grade": overall_grade(report),
+            "label": grade_label(report),
             "scope": overall_scope(report),
         },
     )
@@ -346,6 +349,7 @@ def write_batch_html(
             {
                 "report": r,
                 "grade": overall_grade(r),
+                "label": grade_label(r),
                 "score": overall_score(r),
                 "unchecked": unchecked(r),
                 "missed": missed_sections(r),

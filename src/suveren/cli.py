@@ -28,7 +28,13 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__, clirus, geoip, ownership, trace, unknown
-from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
+from suveren.advice import (
+    grade_label,
+    incomplete,
+    missed_sections,
+    overall_grade,
+    overall_score,
+)
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
@@ -1051,7 +1057,8 @@ def batch(
             write_json(report, folder / f"{host}.json")
             grade = overall_grade(report)
             line = Text("  ")
-            line.append(f" {grade} ", style=GRADE_STYLE[grade])
+            # Padded to two: "B?" and "B" keep the hosts in one column.
+            line.append(f" {grade_label(report):<2} ", style=GRADE_STYLE[grade])
             line.append(f" {host:<28} ")
             line.append(f"{overall_score(report):>3}", style="bold")
             line.append("   независимость ", style="grey50")

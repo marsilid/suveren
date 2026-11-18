@@ -59,6 +59,45 @@ def test_an_unseen_page_caps_the_grades_at_b():
         assert report.to_dict()["facts"]["page_unseen"] == report.page_unseen
 
 
+def test_an_incomplete_grade_is_shown_with_a_question_mark():
+    """sberbank.ru: a bot wall hid 10 of 25 checks and the report said a plain "B 89"."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from suveren.advice import grade_label, overall_grade
+    from suveren.docx import document_xml
+    from suveren.view import summary_panel
+
+    walled = analyze(make_facts(**DOMESTIC, page_status=403, html="<p>Access denied</p>"))
+    full = analyze(make_facts(**DOMESTIC, page_status=200, html="<p>Привет</p>" * 50))
+    assert grade_label(walled) == "B?" and overall_grade(walled) == "B"
+    assert grade_label(full) == overall_grade(full)
+    # The data keeps the bare letter: JSON, CSV and --fail-under compare letters.
+    assert walled.to_dict()["overall_grade"] == "B"
+    assert walled.to_dict()["overall_incomplete"]
+
+    out = StringIO()
+    Console(file=out, width=110, color_system=None).print(summary_panel(walled))
+    assert " B?   Общая оценка 89/100" in out.getvalue()
+    html = render_html(walled)
+    assert 'grade-B grade-partial"' in html and ">B?</div>" in html
+    assert "B? (89/100)" in document_xml(walled)
+
+
+def test_the_summary_keeps_the_case_of_the_scope(monkeypatch):
+    # Jinja's capitalize lowered the rest of the line: "оценка не выше b" on sberbank.ru.
+    from suveren import report as report_module
+
+    monkeypatch.setattr(
+        report_module, "overall_scope", lambda r: "проверено: почта; оценка не выше B"
+    )
+    walled = analyze(make_facts(**DOMESTIC, page_status=403, html="<p>Access denied</p>"))
+    summary = report_module.render_summary_html(walled)
+    assert ">B?</div>" in summary
+    assert "Проверено: почта; оценка не выше B." in summary
+
+
 def test_a_thin_script_page_is_seen():
     # Its scripts are in the code: a small single-page app keeps its A.
     report = analyze(make_facts(**DOMESTIC, page_status=200, html="<script src=/app.js></script>"))
