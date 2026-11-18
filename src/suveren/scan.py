@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -96,154 +96,178 @@ async def run_scan(
     started = datetime.now(UTC)
     async with _stage(progress, "DNS, почта, хостинг, сертификат, страница"):
         facts = await collect(host, timeout=timeout, dns_mode=dns_mode, start_path=start_path)
-    if browser:
-        async with _stage(
-            progress, "Сайт в браузере" + (f" (до {pages + 1} стр.)" if pages else "")
-        ):
-            try:
-                await _render_site(facts, host, timeout=max(timeout, 25.0), pages=pages)
-            except ModuleError as exc:
-                facts.notes.append(f"Режим --browser не сработал: {exc}. Использован обычный HTML.")
-            localsoft.clean(facts)
-    if pages and not facts.rendered and facts.html and not facts.page_problem:
-        async with (
-            _stage(progress, f"Внутренние страницы (до {pages})"),
-            make_client(timeout) as client,
-        ):
-            links = pick_links(parse_page(facts.html), facts.final_url or "", pages)
-            # Form pages the home page doesn't link to (a contacts page only in the
-            # footer menu drawn by a script) are often in the sitemap.
-            links += pick_from_sitemap(
-                await sitemap_urls(client, facts.final_url or ""),
-                facts.final_url or "",
-                set(links),
-            )
-            facts.extra_pages = _usable(await fetch_pages(client, links))
-    report = analyze(facts, started_at=started)
-    unseen = _unknown_domains(facts, host)
-    report.facts["unknown_domains"] = sorted(unseen)
-    unknown.record(unseen, host)
+    # Subdomains need only the domain and mostly wait on DNS and the certificate logs (up
+    # to two minutes on sberbank.ru): they run alongside the other stages, not after them.
+    sub_started = time.perf_counter()
+    sub_task = (
+        asyncio.create_task(_subdomains(facts.domain, dns_mode, timeout, refresh))
+        if subdomains
+        else None
+    )
+    try:
+        if browser:
+            async with _stage(
+                progress, "Сайт в браузере" + (f" (до {pages + 1} стр.)" if pages else "")
+            ):
+                try:
+                    await _render_site(facts, host, timeout=max(timeout, 25.0), pages=pages)
+                except ModuleError as exc:
+                    facts.notes.append(
+                        f"Режим --browser не сработал: {exc}. Использован обычный HTML."
+                    )
+                localsoft.clean(facts)
+        if pages and not facts.rendered and facts.html and not facts.page_problem:
+            async with (
+                _stage(progress, f"Внутренние страницы (до {pages})"),
+                make_client(timeout) as client,
+            ):
+                links = pick_links(parse_page(facts.html), facts.final_url or "", pages)
+                # Form pages the home page doesn't link to (a contacts page only in the
+                # footer menu drawn by a script) are often in the sitemap.
+                links += pick_from_sitemap(
+                    await sitemap_urls(client, facts.final_url or ""),
+                    facts.final_url or "",
+                    set(links),
+                )
+                facts.extra_pages = _usable(await fetch_pages(client, links))
+        report = analyze(facts, started_at=started)
+        unseen = _unknown_domains(facts, host)
+        report.facts["unknown_domains"] = sorted(unseen)
+        unknown.record(unseen, host)
 
-    if compliance or blocklist:
-        async with make_client(timeout) as client:
-            if compliance:
-                async with _stage(progress, "Персональные данные (152-ФЗ)"):
-                    report.checks += await _compliance(client, facts, report)
-                    report.checks.append(
-                        await _dataflow(client, facts, report, host, dns_mode, timeout)
-                    )
-            if blocklist:
-                async with _stage(progress, "Реестр блокировок"):
-                    readable = bool(facts.html) and not facts.page_problem
-                    checks, notes = await run_blocklist(
-                        client,
-                        host,
-                        None if "web" in facts.dns_unanswered else [n.ip for n in facts.web],
-                        refresh=refresh,
-                        third_party=unknown.third_party_hosts(_page_urls(facts, host), host)
-                        if readable
-                        else None,
-                    )
+        if compliance or blocklist:
+            async with make_client(timeout) as client:
+                if compliance:
+                    async with _stage(progress, "Персональные данные (152-ФЗ)"):
+                        report.checks += await _compliance(client, facts, report)
+                        report.checks.append(
+                            await _dataflow(client, facts, report, host, dns_mode, timeout)
+                        )
+                if blocklist:
+                    async with _stage(progress, "Реестр блокировок"):
+                        readable = bool(facts.html) and not facts.page_problem
+                        checks, notes = await run_blocklist(
+                            client,
+                            host,
+                            None if "web" in facts.dns_unanswered else [n.ip for n in facts.web],
+                            refresh=refresh,
+                            third_party=unknown.third_party_hosts(_page_urls(facts, host), host)
+                            if readable
+                            else None,
+                        )
+                    report.checks += checks
+                    report.notes += notes
+
+        if mail:
+            async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
+                resolver, _ = await create_resolver(dns_mode, timeout, client)
+                report.checks += await run_mail_checks(
+                    resolver, client, facts.domain, dkim_selectors or ()
+                )
+
+        if security and (facts.html or facts.headers):
+            async with _stage(progress, "Безопасность сайта"), make_client(timeout) as client:
+                resolver, _ = await create_resolver(dns_mode, timeout, client)
+                checks, data = await run_web_checks(facts, resolver, client, timeout)
                 report.checks += checks
-                report.notes += notes
-
-    if mail:
-        async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
-            resolver, _ = await create_resolver(dns_mode, timeout, client)
-            report.checks += await run_mail_checks(
-                resolver, client, facts.domain, dkim_selectors or ()
+                if any(c.id == "SUV-WEB-008" for c in checks):  # TLS: says it better
+                    report.notes = [n for n in report.notes if n != TLS_UNTRUSTED_NOTE]
+                svg = data.pop("script_graph_svg", "")
+                if svg:
+                    report.media["script_graph_svg"] = svg.encode("utf-8")
+                report.facts["web_security"] = data
+        elif security:
+            # No page and no headers: say so, or the section silently vanishes (gosuslugi.ru).
+            report.checks.append(
+                Check(
+                    GROUP_WEB,
+                    "Заголовки безопасности (CSP, HSTS и другие)",
+                    Status.UNKNOWN,
+                    "Не проверено: главная страница не загрузилась.",
+                )
             )
+        if security:
+            # DNS only, so it runs even when the page did not load.
+            async with _stage(progress, "CAA и DNSSEC"), make_client(timeout) as client:
+                resolver, _ = await create_resolver(dns_mode, timeout, client)
+                https = not facts.final_url or facts.final_url.startswith("https://")
+                report.checks += await run_zone_checks(resolver, facts.host, https=https)
 
-    if security and (facts.html or facts.headers):
-        async with _stage(progress, "Безопасность сайта"), make_client(timeout) as client:
-            resolver, _ = await create_resolver(dns_mode, timeout, client)
-            checks, data = await run_web_checks(facts, resolver, client, timeout)
-            report.checks += checks
-            if any(c.id == "SUV-WEB-008" for c in checks):  # TLS: says it better
-                report.notes = [n for n in report.notes if n != TLS_UNTRUSTED_NOTE]
-            svg = data.pop("script_graph_svg", "")
-            if svg:
-                report.media["script_graph_svg"] = svg.encode("utf-8")
-            report.facts["web_security"] = data
-    elif security:
-        # No page and no headers: say so, or the section silently vanishes (gosuslugi.ru).
-        report.checks.append(
-            Check(
-                GROUP_WEB,
-                "Заголовки безопасности (CSP, HSTS и другие)",
-                Status.UNKNOWN,
-                "Не проверено: главная страница не загрузилась.",
-            )
-        )
-    if security:
-        # DNS only, so it runs even when the page did not load.
-        async with _stage(progress, "CAA и DNSSEC"), make_client(timeout) as client:
-            resolver, _ = await create_resolver(dns_mode, timeout, client)
-            https = not facts.final_url or facts.final_url.startswith("https://")
-            report.checks += await run_zone_checks(resolver, facts.host, https=https)
-
-    if subdomains:
-        async with (
-            _stage(progress, "Поддомены и их захват"),
-            make_client(timeout) as client,
-            make_client(timeout, verify=False) as page_client,
-        ):
-            # Forgotten subdomains often have broken certificates; the page is only read.
-            resolver, _ = await create_resolver(dns_mode, timeout, client)
-            checks, data = await run_subdomain_checks(
-                resolver, client, page_client, facts.domain, refresh=refresh
-            )
+        if sub_task is not None:
+            # Started next to the other stages; waited for here so the report keeps its order.
+            if not sub_task.done():
+                progress(SUBDOMAIN_STAGE, None)
+            checks, data = await sub_task
+            progress(SUBDOMAIN_STAGE, time.perf_counter() - sub_started)
             report.checks += checks
             report.facts["subdomains"] = data
 
-    if cutoff:
-        async with (
-            _stage(progress, "Отключение иностранных сервисов (3 загрузки)"),
-            make_client(timeout) as client,
-        ):
-            report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
+        if cutoff:
+            async with (
+                _stage(progress, "Отключение иностранных сервисов (3 загрузки)"),
+                make_client(timeout) as client,
+            ):
+                report.checks += await _cutoff(client, facts, report, host, dns_mode, timeout)
 
-    if ownsite:
-        async with (
-            _stage(progress, "Свой сайт: служебные файлы, TLS, почта"),
-            make_client(timeout) as client,
-        ):
-            resolver, _ = await create_resolver(dns_mode, timeout, client)
-            report.checks += await run_own_site_checks(
-                client, resolver, facts.host, facts.domain, timeout
-            )
+        if ownsite:
+            async with (
+                _stage(progress, "Свой сайт: служебные файлы, TLS, почта"),
+                make_client(timeout) as client,
+            ):
+                resolver, _ = await create_resolver(dns_mode, timeout, client)
+                report.checks += await run_own_site_checks(
+                    client, resolver, facts.host, facts.domain, timeout
+                )
 
-    if formleaks:
-        async with (
-            _stage(progress, "Данные из форм до отправки (браузер)"),
-            make_client(timeout) as client,
-        ):
-            report.checks.append(
-                await _form_leaks(client, facts, report, host, dns_mode, timeout, form_phone)
-            )
+        if formleaks:
+            async with (
+                _stage(progress, "Данные из форм до отправки (браузер)"),
+                make_client(timeout) as client,
+            ):
+                report.checks.append(
+                    await _form_leaks(client, facts, report, host, dns_mode, timeout, form_phone)
+                )
 
-    if plugins:
-        report.plugins = [{"name": p.name, "source": p.source} for p in plugins]
-        async with _stage(progress, "Плагины"), make_client(timeout) as client:
-            ctx = PluginContext(
-                host,
-                facts.domain,
-                facts.final_url,
-                "" if facts.page_problem else facts.html,
-                dict(facts.headers),
-                [d.to_dict() for d in report.dependencies],
-                client,
-            )
-            report.checks += await run_plugins(plugins, ctx)
+        if plugins:
+            report.plugins = [{"name": p.name, "source": p.source} for p in plugins]
+            async with _stage(progress, "Плагины"), make_client(timeout) as client:
+                ctx = PluginContext(
+                    host,
+                    facts.domain,
+                    facts.final_url,
+                    "" if facts.page_problem else facts.html,
+                    dict(facts.headers),
+                    [d.to_dict() for d in report.dependencies],
+                    client,
+                )
+                report.checks += await run_plugins(plugins, ctx)
 
-    # Scenarios join what the modules found; they open the report.
-    report.checks = build_scenarios(report.checks, report.dependencies, facts.domain) + (
-        report.checks
-    )
-    if only is not None:
-        report.checks = narrow(report.checks, only)
-    report.finished_at = datetime.now(UTC)
-    return report
+        # Scenarios join what the modules found; they open the report.
+        report.checks = build_scenarios(report.checks, report.dependencies, facts.domain) + (
+            report.checks
+        )
+        if only is not None:
+            report.checks = narrow(report.checks, only)
+        report.finished_at = datetime.now(UTC)
+        return report
+    finally:
+        if sub_task is not None and not sub_task.done():
+            sub_task.cancel()
+
+
+SUBDOMAIN_STAGE = "Поддомены и их захват"
+
+
+async def _subdomains(
+    domain: str, dns_mode: ResolverMode, timeout: float, refresh: bool
+) -> tuple[list[Check], dict[str, Any]]:
+    async with (
+        make_client(timeout) as client,
+        make_client(timeout, verify=False) as page_client,
+    ):
+        # Forgotten subdomains often have broken certificates; the page is only read.
+        resolver, _ = await create_resolver(dns_mode, timeout, client)
+        return await run_subdomain_checks(resolver, client, page_client, domain, refresh=refresh)
 
 
 async def _cutoff(
