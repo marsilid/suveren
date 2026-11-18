@@ -65,6 +65,8 @@ def offline(monkeypatch, tmp_path):
     transports = {c.host: lab._transport(c) for c in lab.CASES}
 
     def route(request: httpx.Request) -> httpx.Response:
+        if str(request.url) in lab.CLOUD_LISTS:  # SPF against the clouds (SUV-MAIL-008)
+            return httpx.Response(200, text=lab.CLOUD_LISTS[str(request.url)])
         case = case_for(request.url.host)
         if case is None:  # crt.sh, RDAP, block lists: as if they were down
             return httpx.Response(503, text="нет в лаборатории")
@@ -330,6 +332,13 @@ class FakeBrowser:
     async def open_many(self, urls, *, concurrency=3):
         return [await self.open(u) for u in urls]
 
+    async def consent(self, url, *, settle_ms=None):
+        from suveren.consent import ConsentProbe, Request
+
+        page = await self.open(url)
+        hits = [Request(self.COLLECT, "xhr", 900)] if page.requests else []
+        return ConsentProbe(url, before=hits, loads=[(page.status, page.html)])
+
 
 def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, tmp_path):
     monkeypatch.setattr(scan_module, "BrowserSession", FakeBrowser)
@@ -343,6 +352,9 @@ def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, t
     assert data["facts"]["rendered"] is True
     statuses = {c["id"]: c["status"] for c in data["checks"]}
     assert "SUV-WEB-011" in statuses  # the script graph exists only in the browser
+    # GA got data at once and there is no banner to refuse it: a warning, not a verdict.
+    assert statuses["SUV-PD-013"] == "warn"
+    assert data["facts"]["consent"]["button"] is None
     for check_id, want in case.expect.items():
         assert statuses.get(check_id) == want, check_id
     assert audit(data) == []

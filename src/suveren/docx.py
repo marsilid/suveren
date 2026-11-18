@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from suveren.advice import overall_grade, overall_score, priorities
+from suveren.advice import grade_label, overall_score, priorities
 from suveren.fines import rub
 from suveren.models import Report
 from suveren.utils import clean_text
@@ -66,7 +66,7 @@ def document_xml(report: Report) -> str:
         _p(_run(f"Проверено {report.started_at:%d.%m.%Y}.")),
         _p(
             _run("Общая оценка: ", bold=True),
-            _run(f"{overall_grade(report)} ({overall_score(report)}/100). "),
+            _run(f"{grade_label(report)} ({overall_score(report)}/100). "),
             _run("Независимость: ", bold=True),
             _run(f"{report.grade} ({report.score}/100)."),
         ),

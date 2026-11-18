@@ -33,6 +33,7 @@ from suveren.analyze import analyze
 from suveren.checks import Check, Status
 from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
+from suveren.consent import ConsentProbe, Request, consent_check
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
 from suveren.dnszone import run_zone_checks
@@ -40,6 +41,7 @@ from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.ownsite import exposed_files_check
 from suveren.page import parse_page
+from suveren.render import foreign_frame
 from suveren.subdomains import run_subdomain_checks
 from suveren.websec import TlsInfo, run_web_checks
 
@@ -128,6 +130,14 @@ CONSENT_DOC = """<h1>Согласие на обработку персональ
 <p>Я, субъект персональных данных, даю согласие ООО «Лаборатория» на обработку моих
 персональных данных: имени и номера телефона, в целях обработки заявки.</p>"""
 
+MAP_URL = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2245.3!2d37.6!3d55.7"
+MAP_FRAME = f'<iframe src="{MAP_URL}" width="600" height="450" loading="lazy"></iframe>'
+GSC_META = '<meta name="google-site-verification" content="lab-AbCdEf0123456789">'
+# A consent script's list of what to hold back until the visitor agrees: names, not loads.
+BLOCKLIST_SCRIPT = (
+    "<script>window.consentConfig={block:['googleadservices.com','doubleclick.net',"
+    '"googlesyndication.com"],mode:"opt-in"};</script>'
+)
 GA = (
     '<script async src="https://www.googletagmanager.com/gtag/js?id=G-LAB1234"></script>'
     "<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}"
@@ -250,6 +260,11 @@ CLOUD_LISTS = {
     "https://digitalocean.com/geo/google.csv": "104.131.0.0/18,US,US-NY,New York,10001\n",
 }
 
+# Requests the browser makes for counters (--browser, the cookie banner experiment).
+METRIKA_JS = Request("https://mc.yandex.ru/metrika/tag.js", "script", 350)
+METRIKA_HIT = Request("https://mc.yandex.ru/watch/12345?page-url=https%3A%2F%2Fx", "ping", 1200)
+GTAG_JS = Request("https://www.googletagmanager.com/gtag/js?id=G-1", "script", 300)
+
 # A DNS record whose lookup times out (put as the value in Case.dns).
 NO_ANSWER: list[str] = ["<нет ответа>"]
 
@@ -292,6 +307,11 @@ class Case:
     # The site lives on www.<host>: the bare host answers the service-file paths with a
     # redirect there (their bodies are in ``files`` under the full www URL).
     www_redirect: bool = False
+    # What the browser loaded (--browser): (URL, the frames it was requested from, the
+    # innermost first, without the page itself). Empty: a scan without a browser.
+    loaded: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    # The cookie banner experiment (--browser): what the browser saw; None: not run.
+    consent: ConsentProbe | None = None
 
     @property
     def host(self) -> str:
@@ -331,6 +351,7 @@ CASES: list[Case] = [
             "SUV-MAIL-004": "ok",
             "SUV-MAIL-005": "ok",
             "SUV-MAIL-006": "ok",
+            "SUV-MAIL-008": "ok",
             "SUV-WEB-012": "ok",
             "SUV-WEB-013": "ok",
             "SUV-WEB-014": "ok",
@@ -892,6 +913,50 @@ CASES: list[Case] = [
         html=page(FORM_OK + GA + COOKIE_BANNER),
         files=site_files(),
     ),
+    # --- what other services do is not the site's (DVORYAN, Habr, 2.2.2) ---------------
+    Case(
+        "lab-map-frame",
+        "карта Google в iframe: её собственные запросы (реклама Google) — не сервисы сайта",
+        # The map itself sends the visitor's address to Google: that transfer is real.
+        # Google Ads, which the map loads, is not the site's (test_render.py).
+        {"SUV-PD-006": "warn"},
+        html=page(FORM_OK + MAP_FRAME),
+        files=site_files(),
+        loaded=[
+            ("https://lab-map-frame.ru/", ()),
+            (MAP_URL, ()),
+            ("https://maps.gstatic.com/maps-api-v3/embed/js/main.js", (MAP_URL,)),
+            ("https://www.googleadservices.com/pagead/conversion_async.js", (MAP_URL,)),
+            ("https://googleads.g.doubleclick.net/pagead/id", ("about:blank", MAP_URL)),
+        ],
+    ),
+    Case(
+        "lab-ads-own",
+        "реклама Google загружается самой страницей (не из чужого iframe): передача остаётся",
+        {"SUV-PD-006": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        loaded=[
+            ("https://lab-ads-own.ru/", ()),
+            ("https://www.googleadservices.com/pagead/conversion_async.js", ()),
+            # A frame of the site itself (or an empty one) is still the site.
+            ("https://googleads.g.doubleclick.net/pagead/id", ("about:blank",)),
+        ],
+    ),
+    Case(
+        "lab-gsc-meta",
+        "только мета-тег подтверждения Google Search Console: данные посетителей не уходят",
+        {"SUV-PD-006": "ok"},
+        html=page(FORM_OK).replace("<head>", "<head>" + GSC_META, 1),
+        files=site_files(),
+    ),
+    Case(
+        "lab-ads-mentioned",
+        "адреса рекламы Google только перечислены строками в настройках скрипта (что блокировать)",
+        {"SUV-PD-006": "ok"},
+        html=page(FORM_OK + BLOCKLIST_SCRIPT),
+        files=site_files(),
+    ),
     # --- the policy against the site (152-ФЗ, ст. 18.1 ч. 1 п. 2) ---------------------
     Case(
         "lab-policy-copied",
@@ -1066,6 +1131,61 @@ CASES: list[Case] = [
                 "v=spf1 include:_spf.yandex.net include:spf.gone.example -all"
             ]
         },
+    ),
+    # --- SPF and the clouds' pool addresses: renting a server passes SPF and DMARC -----
+    Case(
+        "lab-spf-cloud",
+        "в SPF диапазон EC2 (ip4:3.5.140.0/22): любой арендатор AWS проходит SPF и DMARC",
+        {"SUV-MAIL-008": "fail", "SUV-MAIL-001": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-spf-cloud.ru", "TXT"): ["v=spf1 ip4:3.5.140.0/22 include:_spf.yandex.net -all"]},
+    ),
+    Case(
+        "lab-spf-cloud-include",
+        "диапазон Google Cloud пришёл через include стороннего сервиса",
+        {"SUV-MAIL-008": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-include.ru", "TXT"): [
+                "v=spf1 include:_spf.yandex.net include:spf.mailer.example -all"
+            ],
+            ("spf.mailer.example", "TXT"): ["v=spf1 ip4:34.0.0.0/16 -all"],
+        },
+    ),
+    Case(
+        "lab-spf-cloud-own-server",
+        "в SPF один адрес в AWS: это свой сервер, его никто другой не арендует",
+        {"SUV-MAIL-008": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-own-server.ru", "TXT"): [
+                "v=spf1 ip4:3.5.140.7 include:_spf.yandex.net -all"
+            ]
+        },
+    ),
+    Case(
+        "lab-spf-cloud-block",
+        "в SPF блок /29 внутри EC2: AWS может закрепить его за одним клиентом, а может и нет",
+        {"SUV-MAIL-008": "warn", "SUV-MAIL-001": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-block.ru", "TXT"): [
+                "v=spf1 ip4:3.5.140.8/29 include:_spf.yandex.net -all"
+            ]
+        },
+    ),
+    Case(
+        "lab-spf-cloud-lists-down",
+        "в SPF диапазоны, а списки облаков не скачались: проверить нельзя",
+        {"SUV-MAIL-008": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        clouds_down=True,
+        dns={("lab-spf-cloud-lists-down.ru", "TXT"): ["v=spf1 ip4:3.5.140.0/22 -all"]},
     ),
     # --- BIMI: information only, never a problem --------------------------------------
     Case(
@@ -1495,6 +1615,19 @@ CASES: list[Case] = [
     ),
     # --- DKIM key strength (RFC 8301, sections 3.1 and 3.2; RFC 8463) ----------------
     Case(
+        "lab-dkim-testing",
+        "единственный ключ DKIM в тестовом режиме (t=y): по RFC 6376 (3.6.1) получатель "
+        "не должен отличать такие письма от неподписанных",
+        {"SUV-MAIL-004": "warn", "SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-testing.ru", "TXT"): [
+                f"v=DKIM1; t=y; k=rsa; p={dkim_key(2048)}"
+            ]
+        },
+    ),
+    Case(
         "lab-dkim-1024",
         "ключ DKIM RSA 1024 бита: допустимо, но RFC 8301 советует не меньше 2048",
         {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "warn"},
@@ -1603,6 +1736,29 @@ CASES: list[Case] = [
         dns={("lab-caa-forbid.ru", "CAA"): ['0 issue ";"']},
     ),
     Case(
+        "lab-caa-trailing-dot",
+        'CAA issue "letsencrypt.org." с точкой на конце: не по грамматике RFC 8659 (4.2), '
+        "центр обязан читать это как запрет, а сайт работает по HTTPS",
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-trailing-dot.ru", "CAA"): ['0 issue "letsencrypt.org."']},
+    ),
+    Case(
+        "lab-caa-one-malformed",
+        "одна запись CAA по грамматике, другая с адресом https://: разрешения складываются, "
+        "сертификат выпустит первый центр",
+        {"SUV-WEB-012": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-caa-one-malformed.ru", "CAA"): [
+                '0 issue "letsencrypt.org"',
+                '0 issue "https://globalsign.com"',
+            ]
+        },
+    ),
+    Case(
         "lab-caa-silent",
         "DNS не ответил на запрос CAA: проверить нельзя",
         {"SUV-WEB-012": "unknown"},
@@ -1610,7 +1766,7 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("lab-caa-silent.ru", "CAA"): NO_ANSWER},
     ),
-    # --- DNSSEC (RFC 4035, section 5; RFC 8624) ---------------------------------------
+    # --- DNSSEC (RFC 4035, section 5; RFC 9904, RFC 9905) ---------------------------------------
     Case(
         "lab-dnssec-unsigned",
         "зона не подписана: подмену ответов DNS не заметят, но это не ошибка настройки",
@@ -1637,7 +1793,7 @@ CASES: list[Case] = [
     ),
     Case(
         "lab-dnssec-sha1",
-        "зона подписана RSASHA1 (алгоритм 5): по RFC 8624 подписывать им не рекомендуется",
+        "зона подписана RSASHA1 (алгоритм 5): по RFC 9905 подписывать им запрещено",
         {"SUV-WEB-013": "warn"},
         html=page(FORM_OK),
         files=site_files(),
@@ -1661,6 +1817,85 @@ CASES: list[Case] = [
         html=page(FORM_OK),
         files=site_files(),
         dns={("lab-dnssec-silent.ru", "DS"): NO_ANSWER},
+    ),
+    # --- the cookie banner in a browser: counters before any action, after "reject" ---
+    Case(
+        "lab-consent-before",
+        "Метрика получила данные сразу при загрузке; после «Отклонить» молчит",
+        {"SUV-PD-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-before.ru/",
+            before=[METRIKA_JS, METRIKA_HIT],
+            button="Отклонить",
+            after=[METRIKA_JS],
+        ),
+    ),
+    Case(
+        "lab-consent-ignored",
+        "после «Отклонить» и повторного открытия Метрика снова получает данные",
+        {"SUV-PD-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-ignored.ru/",
+            before=[METRIKA_JS, METRIKA_HIT],
+            button="Только необходимые",
+            after=[METRIKA_JS, METRIKA_HIT],
+        ),
+    ),
+    Case(
+        "lab-consent-waits",
+        "счётчик загружен, но данных не шлёт до согласия; после отказа тоже",
+        {"SUV-PD-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-waits.ru/",
+            before=[METRIKA_JS, Request("https://lab-consent-waits.ru/app.js", "script", 90)],
+            button="Отклонить все",
+            after=[METRIKA_JS],
+        ),
+    ),
+    Case(
+        "lab-consent-no-button",
+        "данные уходят при загрузке, а кнопки отказа нет: работает ли отказ, не проверить",
+        {"SUV-PD-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe("https://lab-consent-no-button.ru/", before=[METRIKA_JS, METRIKA_HIT]),
+    ),
+    Case(
+        "lab-consent-google-ping",
+        "после отказа Google шлёт запросы без cookies (Consent Mode, gcs=G100): так задумано",
+        {"SUV-PD-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-google-ping.ru/",
+            before=[GTAG_JS],
+            button="Reject all",
+            after=[
+                GTAG_JS,
+                Request(
+                    "https://region1.google-analytics.com/g/collect?v=2&tid=G-1&gcs=G100",
+                    "ping",
+                    800,
+                ),
+            ],
+        ),
+    ),
+    Case(
+        "lab-consent-browser-failed",
+        "браузер не открыл страницу второй раз: проверка не выполнена",
+        {"SUV-PD-013": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-browser-failed.ru/",
+            problem="браузер не открыл https://lab-consent-browser-failed.ru/ (Timeout)",
+        ),
     ),
     # --- dangling A records on cloud addresses (warning only) -------------------------
     Case(
@@ -1976,6 +2211,14 @@ CASES: list[Case] = [
         ),
         files=site_files(),
     ),
+    Case(
+        "lab-ad-erid-unmarked",
+        "баннер с токеном в data-erid, а слова «реклама» на странице нет: пометка может быть "
+        "на картинке, поэтому только «не ясно» с советом посмотреть глазами",
+        {"SUV-LAW-003": "unknown"},
+        html=page(FORM_OK + '<div class="banner" data-erid="Kra23f4Xy"><img src="b.png"></div>'),
+        files=site_files(),
+    ),
     # --- Instagram and Facebook links without the Meta note (a warning only) --------
     Case(
         "lab-meta-noted",
@@ -2225,6 +2468,7 @@ async def _run_case(case: Case) -> dict[str, Check]:
         set_cookies=list(case.cookies),
         geo_origin="DB-IP, https://db-ip.com, база от 01.11.2026" if case.located else "",
     )
+    facts.loaded_urls = [u for u, chain in case.loaded if not foreign_frame(chain, final_url)]
     records = {**good_dns(host), **(case.dns or {})}
     tls = case.tls or good_tls(host)
 
@@ -2260,6 +2504,8 @@ async def _run_case(case: Case) -> dict[str, Check]:
             checks += mail_checks(
                 await collect_mail(FakeResolver(records, case.missing), client, host)
             )
+            if case.consent is not None:
+                checks.append(consent_check(case.consent, host))
             if case.own_site:
                 checks.append(await exposed_files_check(client, host))
             if case.subdomains is not None:

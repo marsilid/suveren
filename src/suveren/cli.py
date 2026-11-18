@@ -16,6 +16,7 @@ import time
 import webbrowser
 from collections import Counter
 from collections.abc import Coroutine
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -28,7 +29,13 @@ from rich.table import Table
 from rich.text import Text
 
 from suveren import __version__, clirus, geoip, ownership, trace, unknown
-from suveren.advice import incomplete, missed_sections, overall_grade, overall_score
+from suveren.advice import (
+    grade_label,
+    incomplete,
+    missed_sections,
+    overall_grade,
+    overall_score,
+)
 from suveren.blocklist import ensure_lists
 from suveren.brand import Brand, brand_from
 from suveren.cache import cache_dir
@@ -54,6 +61,7 @@ from suveren.formleaks import NOTE as FORM_LEAKS_NOTE
 from suveren.formleaks import own_phone
 from suveren.history import NotAReport, load_report, same_site
 from suveren.history import compare as compare_reports
+from suveren.ignore import IgnoreEntry
 from suveren.ignore import apply as apply_ignore
 from suveren.ignore import load as load_ignore
 from suveren.menu import run_menu
@@ -61,6 +69,9 @@ from suveren.models import Report
 from suveren.net import proxy_note
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
+from suveren.proxy import set_proxy
+from suveren.proxy import unreachable as proxy_unreachable
+from suveren.proxy import warning as proxy_warning
 from suveren.render import print_pdf
 from suveren.report import (
     json_text,
@@ -271,6 +282,7 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+# The commands that go to the network take --proxy and say how they get out.
 PROXY_NOTE_COMMANDS = {"scan", "company", "batch", "research", "doctor", "watch"}
 
 
@@ -286,8 +298,6 @@ def main(
     console.quiet = False  # scan -q sets it for its own run only
     trace.disable()  # --verbose is per command too
     console.stderr = False  # and `--json -` moves the view to stderr for its own run
-    if ctx.invoked_subcommand in PROXY_NOTE_COMMANDS and (note := proxy_note()):
-        errors_console.print(f"[#e6b450]{esc(note)}[/]")
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
@@ -340,6 +350,16 @@ def _open(path: Path) -> None:
         webbrowser.open(path.resolve().as_uri())
 
 
+ProxyOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--proxy",
+        metavar="URL",
+        help="HTTP-прокси, через который идут все соединения: http://узел:порт или "
+        "http://логин:пароль@узел:порт. Прокси увидит адреса и имена проверяемых сайтов; "
+        "DNS-запросы идут мимо него. Переменные HTTPS_PROXY и HTTP_PROXY не используются.",
+    ),
+]
 VerboseOpt = Annotated[
     bool,
     typer.Option(
@@ -369,6 +389,21 @@ def dkim_selectors(given: list[str]) -> list[str]:
         if name not in out:
             out.append(name)
     return out
+
+
+def _use_proxy(url: str | None) -> None:
+    """--proxy for this run, said up front; without it, a proxy in the environment is
+    said not to be used (net.proxy_note)."""
+    try:
+        upstream = set_proxy(url)
+    except ValueError as exc:
+        raise _fail(f"--proxy: {exc}") from None
+    if upstream and (why := proxy_unreachable(upstream)):
+        set_proxy(None)
+        raise _fail(f"--proxy: {why}. Проверьте адрес и порт или запустите без --proxy.")
+    note = proxy_warning(upstream) if upstream else proxy_note()
+    if note:
+        errors_console.print(f"[#e6b450]{esc(note)}[/]")
 
 
 def _trace(on: bool) -> None:
@@ -708,10 +743,12 @@ def scan(
             rich_help_panel="Отчёты",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         host = normalize_domain(target)
@@ -975,10 +1012,12 @@ def batch(
             "списка вместе с распространёнными.",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         selectors = dkim_selectors(dkim_selector or [])
@@ -1016,61 +1055,103 @@ def batch(
         warn.print(f"  [#e6b450]![/] пропущена {esc(skip)}")
     console.print()
 
-    results: list[tuple[str, Report | None, str | None]] = []
-
-    async def run_all() -> list[tuple[str, Report | None, str | None]]:
-        if "blocklist" in plan.modules:
-            # Fetched once for the whole list. If the source is down and nothing is
-            # cached, each site says "not checked" for the block list instead of the
-            # whole batch failing (it took the nightly run down with it).
-            try:
-                async with make_client(30.0) as client:
-                    await ensure_lists(client, refresh=refresh)
-            except ModuleError as exc:
-                console.print(f"[yellow]Реестр блокировок недоступен: {esc(exc)}.[/]")
-
-        async def one(host: str) -> tuple[str, Report | None, str | None]:
-            try:
-                # One stuck site must not hold up the whole list.
-                report = await asyncio.wait_for(
-                    run_scan(
-                        host,
-                        timeout=timeout,
-                        dns_mode=dns_mode.value,
-                        dkim_selectors=selectors,
-                        **plan.kwargs(),
-                    ),
-                    max_time,
-                )
-            except (SuverenError, *TIMEOUTS) as exc:
-                reason = str(exc) or f"не уложилась в {max_time} с (--max-time)"
-                warn.print(f"  [#e5534b]✗[/] {esc(host):<32} [grey50]{esc(reason)}[/]")
-                return host, None, reason
-            report.notes += apply_ignore(report.checks, accepted, host, date.today())
-            write_html(report, folder / f"{host}.html", brand)
-            write_json(report, folder / f"{host}.json")
-            grade = overall_grade(report)
-            line = Text("  ")
-            line.append(f" {grade} ", style=GRADE_STYLE[grade])
-            line.append(f" {host:<28} ")
-            line.append(f"{overall_score(report):>3}", style="bold")
-            line.append("   независимость ", style="grey50")
-            line.append_text(score_bar(report.score, report.grade, width=12))
-            line.append(f" {report.score:>3}", style="bold")
-            # The line is near 80 columns already: what was missed is in the table and CSV.
-            if missed_sections(report):
-                line.append("  неполная", style="grey50")
-            console.print(line)
-            return host, report, None
-
-        return await gather_limited([functools.partial(one, h) for h in hosts], jobs)
-
+    site = _BatchSite(plan, folder, brand, accepted, selectors, timeout, dns_mode, max_time, warn)
     with _spinner("[grey50]Проверка…[/]"):
-        results = asyncio.run(run_all())
+        results = asyncio.run(_scan_list(hosts, site, jobs=jobs, refresh=refresh))
 
     reports = [r for _, r, _ in results if r is not None]
     failed = [(h, err) for h, r, err in results if r is None]
+    csv_path, jsonl_path = _write_summaries(reports, failed, folder)
+    index_path = write_batch_html(reports, failed, folder / "index.html", brand)
+    _print_batch_total(reports, failed, index_path, csv_path, jsonl_path)
+    if open_report:
+        _open(index_path)
+    # The thresholds go by the worst site; a site not checked at all comes first (1).
+    code = ci_exit(reports, threshold, fail_on, allow_incomplete=allow_incomplete)
+    if failed or skipped:
+        # A list with gaps is not a clean run: scripts and CI must be able to tell.
+        raise typer.Exit(1)
+    if code:
+        raise typer.Exit(code)
 
+
+BatchResult = tuple[str, Report | None, str | None]
+
+
+@dataclass(frozen=True)
+class _BatchSite:
+    """How each site of a list is checked and where its reports go."""
+
+    plan: ScanPlan
+    folder: Path
+    brand: Brand | None
+    accepted: list[IgnoreEntry]
+    selectors: list[str]
+    timeout: float
+    dns_mode: DnsChoice
+    max_time: float
+    warn: Console
+
+
+async def _scan_list(
+    hosts: list[str], site: _BatchSite, *, jobs: int, refresh: bool
+) -> list[BatchResult]:
+    if "blocklist" in site.plan.modules:
+        # Fetched once for the whole list. If the source is down and nothing is
+        # cached, each site says "not checked" for the block list instead of the
+        # whole batch failing (it took the nightly run down with it).
+        try:
+            async with make_client(30.0) as client:
+                await ensure_lists(client, refresh=refresh)
+        except ModuleError as exc:
+            console.print(f"[yellow]Реестр блокировок недоступен: {esc(exc)}.[/]")
+    return await gather_limited([functools.partial(_scan_one, h, site) for h in hosts], jobs)
+
+
+async def _scan_one(host: str, site: _BatchSite) -> BatchResult:
+    try:
+        # One stuck site must not hold up the whole list.
+        report = await asyncio.wait_for(
+            run_scan(
+                host,
+                timeout=site.timeout,
+                dns_mode=site.dns_mode.value,
+                dkim_selectors=site.selectors,
+                **site.plan.kwargs(),
+            ),
+            site.max_time,
+        )
+    except (SuverenError, *TIMEOUTS) as exc:
+        reason = str(exc) or f"не уложилась в {site.max_time} с (--max-time)"
+        site.warn.print(f"  [#e5534b]✗[/] {esc(host):<32} [grey50]{esc(reason)}[/]")
+        return host, None, reason
+    report.notes += apply_ignore(report.checks, site.accepted, host, date.today())
+    write_html(report, site.folder / f"{host}.html", site.brand)
+    write_json(report, site.folder / f"{host}.json")
+    console.print(_batch_line(host, report))
+    return host, report, None
+
+
+def _batch_line(host: str, report: Report) -> Text:
+    grade = overall_grade(report)
+    line = Text("  ")
+    # Padded to two: "B?" and "B" keep the hosts in one column.
+    line.append(f" {grade_label(report):<2} ", style=GRADE_STYLE[grade])
+    line.append(f" {host:<28} ")
+    line.append(f"{overall_score(report):>3}", style="bold")
+    line.append("   независимость ", style="grey50")
+    line.append_text(score_bar(report.score, report.grade, width=12))
+    line.append(f" {report.score:>3}", style="bold")
+    # The line is near 80 columns already: what was missed is in the table and CSV.
+    if missed_sections(report):
+        line.append("  неполная", style="grey50")
+    return line
+
+
+def _write_summaries(
+    reports: list[Report], failed: list[tuple[str, str | None]], folder: Path
+) -> tuple[Path, Path]:
+    """summary.csv and summary.jsonl, worst site first."""
     csv_path = folder / "summary.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
         columns = list(batch_row(reports[0]).keys()) if reports else ["domain"]
@@ -1090,8 +1171,16 @@ def batch(
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         for host, err in failed:
             fh.write(json.dumps({"domain": host, "error": err}, ensure_ascii=False) + "\n")
-    index_path = write_batch_html(reports, failed, folder / "index.html", brand)
+    return csv_path, jsonl_path
 
+
+def _print_batch_total(
+    reports: list[Report],
+    failed: list[tuple[str, str | None]],
+    index_path: Path,
+    csv_path: Path,
+    jsonl_path: Path,
+) -> None:
     grades = Counter(overall_grade(r) for r in reports)
     section(console, "Итого")
     line = Text("  ")
@@ -1106,15 +1195,6 @@ def batch(
         f"\n[bold]Сводка:[/] {index_path}\n[bold]CSV:[/]    {csv_path}"
         f"\n[bold]JSONL:[/]  {jsonl_path}"
     )
-    if open_report:
-        _open(index_path)
-    # The thresholds go by the worst site; a site not checked at all comes first (1).
-    code = ci_exit(reports, threshold, fail_on, allow_incomplete=allow_incomplete)
-    if failed or skipped:
-        # A list with gaps is not a clean run: scripts and CI must be able to tell.
-        raise typer.Exit(1)
-    if code:
-        raise typer.Exit(code)
 
 
 # --- diff -----------------------------------------------------------------------------
@@ -1321,8 +1401,10 @@ def watch(
             help="Куда присылать: ID чата или @канал.",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
 ) -> None:
     """Следить за сайтами: проверять снова и сообщать, что изменилось с прошлого раза."""
+    _use_proxy(proxy)
     import time
 
     from suveren.watch import (
@@ -1415,10 +1497,12 @@ def research(
         typer.Option("--summary-only", help="Не проверять, только пересобрать сводку из raw/."),
     ] = False,
     timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Исследование: проверить много сайтов и получить только сводку — доли по находкам."""
     _trace(verbose)
+    _use_proxy(proxy)
     from suveren.research import read_sites, run_research
     from suveren.research import write_summary as research_summary
 
@@ -1551,10 +1635,12 @@ def company(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     console.print(header(__version__, target, "проверка компании"))
     console.print()
@@ -1734,10 +1820,12 @@ def doctor(
             help="Запуск не из России: если ЕГРЮЛ или реестр РКН не отвечают, это не ошибка.",
         ),
     ] = False,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить, что все источники данных доступны и отвечают как ожидается."""
     _trace(verbose)
+    _use_proxy(proxy)
     with _spinner("[grey50]Проверяю источники данных…[/]"):
         probes = asyncio.run(run_doctor(timeout, abroad=abroad))
     table = Table(box=None, show_header=False, padding=(0, 1))

@@ -66,9 +66,9 @@
    "id": "38-ФЗ",
    "title": "Федеральный закон от 13.03.2006 № 38-ФЗ «О рекламе»",
    "url": "https://www.consultant.ru/document/cons_doc_LAW_58968/",
-   "edition": "не сверено: первоисточник не открылся",
+   "edition": "ред. от 04.08.2026, ст. 18.1 (сверено 2026-11-19)",
    "provisions": [
-    {"article": "ст. 18.1", "effective_from": null, "what": "учёт и маркировка интернет-рекламы (ERID)", "checks": ["SUV-LAW-003"]}
+    {"article": "ст. 18.1", "effective_from": null, "what": "учёт и маркировка интернет-рекламы: пометка «реклама» и рекламодатель (ч. 16), идентификатор erid (ч. 17)", "checks": ["SUV-LAW-003"]}
    ],
    "text_sha256": "d14e3d89bf745b1bd497931054255ed21c1ecbaad27a693cfd7194f0f5736778",
    "checked": "2026-11-16"

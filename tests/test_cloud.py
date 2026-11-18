@@ -196,3 +196,15 @@ def test_check_statuses():
 
     down = dangling_check(_scan(r=CloudRanges(missing=["AWS", "Google Cloud"])))
     assert down.status is Status.UNKNOWN and "AWS, Google Cloud" in down.details
+
+
+def test_overlaps_finds_networks_on_both_sides_of_a_pool_prefix():
+    r = CloudRanges()
+    r.add("AWS", ["3.5.140.0/22", "2600:1f00::/24"])
+    r.add("Google Cloud", ["34.0.0.0/15"])
+    assert [(str(n), c) for n, c in r.overlaps("3.5.141.0/24")] == [("3.5.141.0/24", "AWS")]
+    assert [(str(n), c) for n, c in r.overlaps("3.0.0.0/8")] == [("3.5.140.0/22", "AWS")]
+    assert [(str(n), c) for n, c in r.overlaps("3.5.140.7")] == [("3.5.140.7/32", "AWS")]
+    assert r.overlaps("2600:1f00:1::/48")[0][1] == "AWS"
+    assert r.overlaps("198.51.100.0/24") == []
+    assert r.overlaps("not-a-network") == []

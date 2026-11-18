@@ -72,6 +72,47 @@ def test_a_failed_probe_is_retried_later_a_good_one_is_kept(monkeypatch):
     assert isinstance(_pick()[0], DotResolver)  # a good answer stands
 
 
+def _timed(monkeypatch, *, system: tuple[bool, float], dot: tuple[bool, float]) -> list[str]:
+    """Probes that take the given seconds on a fake clock; returns who was asked."""
+    clock, asked = [1000.0], []
+
+    async def healthy(self) -> bool:
+        ok, took = dot if isinstance(self, DotResolver) else system
+        asked.append(self.kind)
+        clock[0] += took
+        return ok
+
+    monkeypatch.setattr(dnsutil.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(SystemResolver, "is_healthy", healthy)
+    return asked
+
+
+def test_a_slow_system_resolver_gives_way_to_a_faster_dot(monkeypatch):
+    # 2026-11-18: a router, a VPN and a Docker adapter, 5 s a query; ailaba.ru took 88 s.
+    _timed(monkeypatch, system=(True, 2.5), dot=(True, 0.2))
+    resolver, note = _pick()
+    assert isinstance(resolver, DotResolver)
+    assert note and "медленно (2.5 с" in note and "DNS-over-TLS" in note
+    # The choice is remembered: the other stages of the scan get the same resolver.
+    assert isinstance(_pick()[0], DotResolver)
+
+
+def test_a_fast_system_resolver_costs_no_dot_query(monkeypatch):
+    asked = _timed(monkeypatch, system=(True, 0.1), dot=(True, 0.05))
+    resolver, note = _pick()
+    assert type(resolver) is SystemResolver and note is None
+    assert asked == ["system"]
+
+
+def test_a_slow_system_resolver_stays_when_dot_is_no_better(monkeypatch):
+    _timed(monkeypatch, system=(True, 2.0), dot=(False, 3.0))
+    assert type(_pick()[0]) is SystemResolver
+    dnsutil._health.clear()
+    _timed(monkeypatch, system=(True, 1.5), dot=(True, 2.0))
+    resolver, note = _pick()
+    assert type(resolver) is SystemResolver and note is None
+
+
 def test_ru_mode_never_falls_back_abroad(monkeypatch):
     _health(monkeypatch, system=False, dot=False)
     resolver, note = _pick("ru")

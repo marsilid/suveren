@@ -31,7 +31,7 @@ import certifi
 import httpcore
 import httpx
 
-from suveren import trace
+from suveren import proxy, trace
 
 # Bytes read from the wire and bytes after unpacking, per response. A page or a
 # script bundle is far smaller; a bigger answer is cut, not read to the end.
@@ -120,8 +120,11 @@ async def open_public(
     except httpcore.ConnectError as exc:
         raise ConnectionRefusedError(str(exc)) from exc
     last: Exception | None = None
+    upstream = proxy.current()
     for ip in addrs:
         try:
+            if upstream is not None:
+                return await proxy.open_tunnel(upstream, ip, port, timeout, **kwargs)
             return await asyncio.wait_for(asyncio.open_connection(ip, port, **kwargs), timeout)
         except OSError as exc:
             note_unreachable(exc)
@@ -144,10 +147,15 @@ class _PublicOnlyBackend(httpcore.AsyncNetworkBackend):
         socket_options: Iterable[Any] | None = None,
     ) -> httpcore.AsyncNetworkStream:
         last: Exception | None = None
+        upstream = proxy.current()
         for ip in await public_addresses(host, port, timeout):
             try:
                 # TLS still checks the certificate against the name: httpcore
                 # passes the request's host as server_hostname, not this address.
+                if upstream is not None:
+                    return await proxy.httpcore_tunnel(
+                        self._inner, upstream, ip, port, timeout, local_address, socket_options
+                    )
                 return await self._inner.connect_tcp(
                     ip, port, timeout, local_address, socket_options
                 )
@@ -354,9 +362,11 @@ def proxy_note() -> str | None:
     keeps requests off internal addresses. Said up front, so a run that cannot get out
     doesn't look like a silent hang.
     """
-    if any(os.environ.get(v) or os.environ.get(v.lower()) for v in PROXY_VARS):
+    if proxy.current() is None and any(
+        os.environ.get(v) or os.environ.get(v.lower()) for v in PROXY_VARS
+    ):
         return (
-            "Прокси из окружения не используется: Suveren работает только с прямым доступом "
-            "в интернет."
+            "Прокси из окружения не используется: Suveren работает с прямым доступом в "
+            "интернет, а прокси задаётся явно: --proxy http://узел:порт."
         )
     return None

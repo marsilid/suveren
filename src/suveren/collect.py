@@ -20,6 +20,7 @@ import certifi
 import httpx
 
 from suveren import __version__, geoip, trace
+from suveren.consent import ConsentProbe
 from suveren.crawl import FetchedPage, get_once_more
 from suveren.dnsutil import DnsLookupError, DnsResolver, ResolverMode, create_resolver
 from suveren.errors import TIMEOUTS, ModuleError, TargetNotFoundError, describe
@@ -120,6 +121,8 @@ class Facts:
     # plain HTTP met a bot wall but the browser got through to the site.
     browser_headers: dict[str, str] = field(default_factory=dict)
     rendered: bool = False
+    # The cookie banner experiment (--browser, consent.py); None when it did not run.
+    consent: ConsentProbe | None = None
     # Internal pages fetched besides the home page (contacts, order forms, ...).
     extra_pages: list[FetchedPage] = field(default_factory=list)
     # Pages opened in the browser for later checks (the privacy policy), keyed by URL.

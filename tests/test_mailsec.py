@@ -843,3 +843,158 @@ def test_spf_include_is_asked_again_once_when_dns_does_not_answer():
     # The domain's own record is not retried here: its timeout is the caller's to report.
     with pytest.raises(DnsLookupError):
         asyncio.run(check_spf(Flaky(records, {"example.ru": 1}), "example.ru"))
+
+
+# --- SPF and the clouds' pool addresses (SUV-MAIL-008) -----------------------------------
+
+AWS_LIST = (
+    '{"prefixes": ['
+    '{"ip_prefix": "54.240.0.0/18", "service": "AMAZON"},'  # Amazon SES: not for rent
+    '{"ip_prefix": "3.5.140.0/22", "service": "EC2"},'
+    '{"ip_prefix": "52.0.0.0/15", "service": "EC2"}],'
+    '"ipv6_prefixes": [{"ipv6_prefix": "2600:1f00::/24", "service": "EC2"}]}'
+)
+GCP_LIST = '{"prefixes": [{"ipv4Prefix": "34.0.0.0/15"}]}'
+
+
+def cloud_mail(records: dict, *, lists: bool = True, gcp: bool = True) -> list:
+    from suveren import cloud
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if lists and url == cloud.SOURCES[0].url:
+            return httpx.Response(200, text=AWS_LIST)
+        if lists and gcp and url == cloud.SOURCES[1].url:
+            return httpx.Response(200, text=GCP_LIST)
+        return httpx.Response(404)
+
+    records = {("example.ru", "MX"): ["10 mx.yandex.net."], **records}
+    records.setdefault(("_dmarc.example.ru", "TXT"), ["v=DMARC1; p=reject"])
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_mail_checks(FakeResolver(records), client, "example.ru")
+
+    return asyncio.run(go())
+
+
+def by_id(checks: list, check_id: str):
+    return next(c for c in checks if c.id == check_id)
+
+
+@pytest.fixture
+def cache(tmp_path, monkeypatch):
+    monkeypatch.setenv("SUVEREN_CACHE", str(tmp_path))
+
+
+def test_spf_networks_are_collected_through_includes_with_their_owner():
+    spf = parse_spf("v=spf1 ip4:1.2.3.0/24 -ip4:5.6.7.8 ~ip6:2001:db8::/32 +ip6:2001:db8::1 -all")
+    assert spf.networks == ["1.2.3.0/24", "2001:db8::1"]
+    records = {
+        ("example.ru", "TXT"): ["v=spf1 ip4:1.2.3.0/24 include:a.ru include:a.ru -all"],
+        ("a.ru", "TXT"): ["v=spf1 ip4:3.5.140.0/22 -all"],
+    }
+    result = asyncio.run(check_spf(FakeResolver(records), "example.ru"))
+    assert result.networks == [("1.2.3.0/24", "example.ru"), ("3.5.140.0/22", "a.ru")]
+
+
+def test_mail_services_in_spf_are_not_rented_addresses(cache):
+    # Amazon SES and Google Workspace send from their own ranges, not from customers' pools.
+    checks = cloud_mail(
+        {
+            ("example.ru", "TXT"): ["v=spf1 include:amazonses.com include:_spf.google.com -all"],
+            ("amazonses.com", "TXT"): ["v=spf1 ip4:54.240.0.0/18 ip4:69.169.224.0/20 -all"],
+            ("_spf.google.com", "TXT"): ["v=spf1 ip4:35.190.247.0/24 ip4:64.233.160.0/19 ~all"],
+        }
+    )
+    check = by_id(checks, "SUV-MAIL-008")
+    assert check.status is Status.OK and "4 записи" in check.details
+    assert by_id(checks, "SUV-MAIL-001").status is Status.OK
+
+
+def test_wide_cloud_range_lets_anyone_send(cache):
+    checks = cloud_mail(
+        {
+            ("example.ru", "TXT"): ["v=spf1 ip4:52.0.0.0/16 ip4:3.0.0.0/8 include:m.example -all"],
+            ("m.example", "TXT"): ["v=spf1 ip4:34.1.0.0/16 -all"],
+        }
+    )
+    check = by_id(checks, "SUV-MAIL-008")
+    assert check.status is Status.FAIL
+    # 52.0/16 + the whole 3.5.140.0/22 inside 3/8 + 34.1/16, each counted once.
+    assert "AWS, Google Cloud: в SPF 132 096 таких адресов" in check.details
+    assert "ip4:34.1.0.0/16 (Google Cloud, из include:m.example)" in check.details
+    assert "m.example публикует сервис" in check.recommendation
+    assert by_id(checks, "SUV-MAIL-001").status is Status.WARN
+
+
+def test_a_block_inside_a_pool_may_be_one_customers(cache):
+    checks = cloud_mail({("example.ru", "TXT"): ["v=spf1 ip4:3.5.140.8/29 ip4:3.5.141.1 -all"]})
+    check = by_id(checks, "SUV-MAIL-008")
+    assert check.status is Status.WARN and "(8 адресов)" in check.details
+    assert "за вами;" in check.recommendation
+    assert by_id(checks, "SUV-MAIL-001").status is Status.OK
+
+
+def test_ipv6_only_and_many_ranges(cache):
+    many = " ".join(f"ip6:2600:1f{i:02x}::/32" for i in range(7))
+    check = by_id(cloud_mail({("example.ru", "TXT"): [f"v=spf1 {many} -all"]}), "SUV-MAIL-008")
+    assert check.status is Status.FAIL and "общие диапазоны IPv6" in check.details
+    assert "и ещё 2" in check.details
+    block = by_id(
+        cloud_mail({("example.ru", "TXT"): ["v=spf1 ip6:2600:1f00:1::/56 -all"]}), "SUV-MAIL-008"
+    )
+    assert block.status is Status.WARN and block.details.startswith("В SPF блоки адресов AWS:")
+
+
+def test_own_cloud_server_is_fine_and_named(cache):
+    check = by_id(
+        cloud_mail({("example.ru", "TXT"): ["v=spf1 ip4:3.5.140.7 ip4:198.51.100.0/24 -all"]}),
+        "SUV-MAIL-008",
+    )
+    assert check.status is Status.OK and "Отдельные адреса в облаке (3.5.140.7)" in check.details
+
+
+def test_cloud_lists_down_or_partial(cache):
+    spf = {("example.ru", "TXT"): ["v=spf1 ip4:52.0.0.0/16 -all"]}
+    down = by_id(cloud_mail(spf, lists=False), "SUV-MAIL-008")
+    assert down.status is Status.UNKNOWN
+    partial = by_id(cloud_mail(spf, gcp=False), "SUV-MAIL-008")
+    assert partial.status is Status.FAIL and "Google Cloud" in partial.details.split("Списки")[1]
+
+
+def test_spf_without_networks_needs_no_lists():
+    asked = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(str(request.url))
+        return httpx.Response(404)
+
+    records = {
+        ("example.ru", "MX"): ["10 mx.yandex.net."],
+        ("example.ru", "TXT"): ["v=spf1 include:_spf.yandex.net -all"],
+        ("_dmarc.example.ru", "TXT"): ["v=DMARC1; p=reject"],
+    }
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_mail_checks(FakeResolver(records), client, "example.ru")
+
+    check = by_id(asyncio.run(go()), "SUV-MAIL-008")
+    assert check.status is Status.OK and "нет диапазонов" in check.details
+    assert not any("ip-ranges" in u for u in asked)
+    no_spf = evaluate(facts(spf=SpfResult(None, 0)))
+    assert not any(c.id == "SUV-MAIL-008" for c in no_spf)
+
+
+def test_dkim_testing_mode_alone_warns():
+    # RFC 6376, 3.6.1: t=y means verifiers treat the mail as unsigned.
+    key = dkim_key(2048)
+    check = dkim_check(_dkim({"mail": [f"v=DKIM1; t=y; k=rsa; p={key}"]}))
+    assert check.status is Status.WARN and "t=y" in check.details and check.recommendation
+    flags = dkim_check(_dkim({"mail": [f"v=DKIM1; t=s:Y; k=rsa; p={key}"]}))
+    assert flags.status is Status.WARN
+    mixed = dkim_check(
+        _dkim({"mail": [f"v=DKIM1; t=y; p={key}"], "dkim": [f"v=DKIM1; t=s; p={key}"]})
+    )
+    assert mixed.status is Status.OK and "В тестовом режиме (t=y): mail" in mixed.details

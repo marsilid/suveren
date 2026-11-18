@@ -1,0 +1,43 @@
+# Перед релизом: ~30 разных по устройству сайтов из tools/nightly-sites.txt, по одному-два
+# из каждой группы. Только публичные главные страницы; проверка пассивная.
+# Первые три строки проверяются ещё и полным сканом во всех форматах (HTML, сводка, DOCX,
+# SARIF, терминал): на них должна быть и стена от ботов (неполная оценка «B?»).
+vkusvill.ru
+labirint.ru
+sberbank.ru
+# магазины и маркетплейсы
+ozon.ru
+wildberries.ru
+# банки
+tbank.ru
+# госсайты
+gosuslugi.ru
+nalog.gov.ru
+mos.ru
+minzdrav.gov.ru
+# медиа
+rbc.ru
+habr.com
+fontanka.ru
+# сервисы и IT
+hh.ru
+2gis.ru
+mts.ru
+# образование
+skillbox.ru
+netology.ru
+# путешествия и еда
+tutu.ru
+dodopizza.ru
+magnit.ru
+101hotels.com
+# малый бизнес и конструкторы
+nethouse.ru
+profi.ru
+drom.ru
+yclients.com
+# медицина, недвижимость, авто, одежда
+invitro.ru
+pik.ru
+kamaz.ru
+zarina.ru

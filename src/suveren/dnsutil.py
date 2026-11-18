@@ -65,7 +65,13 @@ HEALTH_TIMEOUT = 3.0
 # failure only for a while: the nightly run starts as the laptop wakes from sleep, before
 # the network is up, and one early failure sent all 300 sites of 2026-10-23 to Google DoH.
 HEALTH_RETRY = 120.0
-_health: dict[str, tuple[bool, float]] = {}
+# A system resolver can answer, but slowly: Windows listed a router, a VPN and a Docker
+# adapter, dnspython tried them in turn, and every query took 5 s. A scan of ailaba.ru
+# took 88 s instead of 12 and the subdomains of sberbank.ru never finished (2026-11-18).
+# Slower than this on the probe, the system resolver gives way to Yandex DoT if it is faster.
+SLOW_DNS = 1.0
+# name -> (answered, when it was asked, seconds the probe took)
+_health: dict[str, tuple[bool, float, float]] = {}
 
 DOH_ENDPOINTS = ("https://dns.google/resolve", "https://cloudflare-dns.com/dns-query")
 
@@ -264,18 +270,35 @@ async def create_resolver(
     if mode == "system":
         return system, None
     probe_timeout = min(timeout, HEALTH_TIMEOUT)
-    if await _healthy("system", SystemResolver(probe_timeout)):
+    system_ok, system_took = await _healthy("system", SystemResolver(probe_timeout))
+    if system_ok and system_took <= SLOW_DNS:
         return system, None
-    if await _healthy("dot", DotResolver(probe_timeout)):
+    # DoT is asked only now: a fast system resolver costs no extra query.
+    dot_ok, dot_took = await _healthy("dot", DotResolver(probe_timeout))
+    if system_ok:
+        if dot_ok and dot_took < system_took:
+            return DotResolver(timeout), note_slow(system_took)
+        return system, None
+    if dot_ok:
         return DotResolver(timeout), NOTE_DOT
     return DohResolver(client), NOTE_DOH
 
 
-async def _healthy(name: str, resolver: DnsResolver) -> bool:
-    """A probe can wait for a timeout on a filtering network, so its answer is reused."""
+def note_slow(seconds: float) -> str:
+    return (
+        f"Системный DNS отвечал медленно ({seconds:.1f} с на проверочный запрос), поэтому "
+        "использовался Яндекс DNS по защищённому каналу (DNS-over-TLS)."
+    )
+
+
+async def _healthy(name: str, resolver: DnsResolver) -> tuple[bool, float]:
+    """Whether the resolver answers and how long its probe took. A probe can wait for a
+    timeout on a filtering network, so its answer is reused."""
     known = _health.get(name)
     if known and (known[0] or time.monotonic() - known[1] < HEALTH_RETRY):
-        return known[0]
+        return known[0], known[2]
+    started = time.monotonic()
     ok = await resolver.is_healthy()
-    _health[name] = (ok, time.monotonic())
-    return ok
+    took = time.monotonic() - started
+    _health[name] = (ok, time.monotonic(), took)
+    return ok, took

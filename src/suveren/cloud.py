@@ -117,6 +117,33 @@ class CloudRanges:
                 return nets[net]
         return None
 
+    def overlaps(self, network: str) -> list[tuple[Network, str]]:
+        """The parts of ``network`` that are pool addresses: (the shared part, its cloud).
+
+        A cloud prefix holding the whole network gives the network itself; a smaller cloud
+        prefix inside it gives that prefix."""
+        try:
+            net = ipaddress.ip_network(network, strict=False)
+        except ValueError:
+            return []
+        found: list[tuple[Network, str]] = []
+        low, high = int(net.network_address), int(net.broadcast_address)
+        for length, nets in self.by_length.items():
+            if length > net.max_prefixlen:
+                continue
+            if length <= net.prefixlen:
+                outer = net.supernet(new_prefix=length) if length < net.prefixlen else net
+                if outer in nets:
+                    found.append((net, nets[outer]))
+                continue
+            # A longer prefix starting inside the network lies wholly inside it.
+            found += [
+                (n, cloud)
+                for n, cloud in nets.items()
+                if n.version == net.version and low <= int(n.network_address) <= high
+            ]
+        return found
+
     @property
     def empty(self) -> bool:
         return not self.by_length

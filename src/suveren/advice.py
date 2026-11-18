@@ -134,6 +134,14 @@ def overall_grade(report: Report) -> str:
     return grade_for(overall_score(report))
 
 
+def grade_label(report: Report) -> str:
+    """The overall grade as a person sees it: "B?" when it is incomplete. sberbank.ru's
+    bot wall hid 10 of 25 checks and the report said a plain "B 89", which read as a real
+    grade. The data (JSON, CSV, --fail-under, diff) keeps the bare letter."""
+    grade = overall_grade(report)
+    return f"{grade}?" if incomplete(report) else grade
+
+
 # Section words for what the overall grade covered, by the start of the group name.
 SCOPE = (
     ("Персональные", "законы"),

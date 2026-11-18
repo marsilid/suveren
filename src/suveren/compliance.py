@@ -326,8 +326,18 @@ def notice_pages(data: ComplianceInput, html: str) -> list[str]:
     ]
 
 
-def evaluate(data: ComplianceInput, html: str) -> list[Check]:
-    checks: list[Check] = []
+@dataclass(frozen=True, slots=True)
+class _Seen:
+    """What the sections of ``evaluate`` look at, worked out once."""
+
+    located: list[tuple[str, Form]]
+    forms: list[Form]
+    pages_checked: int
+    foreign_visitor: list[Dependency]
+    tracking: list[Dependency]
+
+
+def _seen(data: ComplianceInput) -> _Seen:
     page = data.page
     located = _unique_forms(
         [("главная", f) for f in pd_forms(page)]
@@ -337,6 +347,41 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
     pages_checked = 1 + len(data.extra)
     foreign_visitor = [d for d in data.deps if d.foreign and d.category.info.visitor_data]
     tracking = [d for d in data.deps if d.category in _TRACKING]
+    return _Seen(located, forms, pages_checked, foreign_visitor, tracking)
+
+
+def evaluate(data: ComplianceInput, html: str) -> list[Check]:
+    """The 152-ФЗ checks, section by section, in the order the report shows them."""
+    seen = _seen(data)
+    checks = _policy_checks(data, html, seen)
+    checks += _form_consent_checks(data, seen)
+
+    # 2a. Consent drawn up separately from other documents.
+    separate = _consent_check(data, seen.located)
+    if separate:
+        checks.append(separate)
+
+    checks += _cookie_checks(data, html, seen)
+    checks += _transfer_checks(seen)
+    checks += _storage_checks(data, seen)
+    checks += _encryption_checks(data, seen)
+
+    # 7. Register of personal-data operators.
+    checks.append(_operator_check(data))
+    if data.page_problem:
+        _mark_unverifiable(checks, data.page_problem)
+    for check in checks:
+        check.law = check.law or LAW_BY_ID.get(check.id)
+        if check.status is not Status.UNKNOWN and not check.evidence:
+            check.evidence = evidence(data, seen.located, check.id)
+    return checks
+
+
+def _policy_checks(data: ComplianceInput, html: str, seen: _Seen) -> list[Check]:
+    """The policy: published, readable, what it says and whether the site matches it."""
+    checks: list[Check] = []
+    page, forms, tracking = data.page, seen.forms, seen.tracking
+    foreign_visitor = seen.foreign_visitor
 
     # 1. Policy published.
     policy = data.policy
@@ -457,6 +502,14 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     ),
                 )
             )
+    return checks
+
+
+def _form_consent_checks(data: ComplianceInput, seen: _Seen) -> list[Check]:
+    """Consent to processing in the forms that collect personal data."""
+    checks: list[Check] = []
+    page, located, forms = data.page, seen.located, seen.forms
+    pages_checked = seen.pages_checked
 
     # 2. Consent in forms.
     if not forms:
@@ -563,11 +616,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     f"Форм с персональными данными: {len(forms)}, во всех есть согласие.",
                 )
             )
+    return checks
 
-    # 2a. Consent drawn up separately from other documents.
-    separate = _consent_check(data, located)
-    if separate:
-        checks.append(separate)
+
+def _cookie_checks(data: ComplianceInput, html: str, seen: _Seen) -> list[Check]:
+    """A cookie notice where counters that set cookies are on the pages."""
+    checks: list[Check] = []
+    tracking = seen.tracking
 
     # 3. Cookie notice.
     if tracking:
@@ -598,6 +653,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                     "Добавьте баннер с уведомлением о cookies и ссылкой на политику.",
                 )
             )
+    return checks
+
+
+def _transfer_checks(seen: _Seen) -> list[Check]:
+    """Visitors' data going to foreign services."""
+    checks: list[Check] = []
+    foreign_visitor = seen.foreign_visitor
 
     # 4. Cross-border transfer.
     if foreign_visitor:
@@ -622,6 +684,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Скрипты иностранных сервисов, получающие данные посетителей, не найдены.",
             )
         )
+    return checks
+
+
+def _storage_checks(data: ComplianceInput, seen: _Seen) -> list[Check]:
+    """Where the site's server, and so its database, stands."""
+    checks: list[Check] = []
+    forms = seen.forms
 
     # 5. Localisation of databases.
     hosting = [d for d in data.deps if d.category is Category.HOSTING]
@@ -703,6 +772,13 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
                 "Убедитесь, что база с персональными данными хранится в России.",
             )
         )
+    return checks
+
+
+def _encryption_checks(data: ComplianceInput, seen: _Seen) -> list[Check]:
+    """HTTPS for the site and for the forms."""
+    checks: list[Check] = []
+    forms = seen.forms
 
     # 6. Encryption.
     insecure_forms = [f for f in forms if f.action.lower().startswith("http://")]
@@ -748,15 +824,6 @@ def evaluate(data: ComplianceInput, html: str) -> list[Check]:
         checks.append(
             Check(GROUP_152, "Защищённое соединение", Status.OK, "Сайт работает по HTTPS.")
         )
-
-    # 7. Register of personal-data operators.
-    checks.append(_operator_check(data))
-    if data.page_problem:
-        _mark_unverifiable(checks, data.page_problem)
-    for check in checks:
-        check.law = check.law or LAW_BY_ID.get(check.id)
-        if check.status is not Status.UNKNOWN and not check.evidence:
-            check.evidence = evidence(data, located, check.id)
     return checks
 
 
@@ -1105,7 +1172,7 @@ async def run_compliance(
     recommendations = recommendation_check([html, *(h for _, h, _ in data.extra)])
     if recommendations:
         checks.append(recommendations)
-    ads = ad_marking_check([html, *(h for _, h, _ in data.extra)])
+    ads = ad_marking_check([("главная", html), *((str(p), h) for p, h, _ in data.extra)])
     if ads:
         checks.append(ads)
     meta = meta_note_check([("главная", html), *((str(p), h) for p, h, _ in data.extra)])

@@ -98,6 +98,9 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-PD-011", PD, "Политика и реальность", "compliance", "pd law",
           "Сходится ли политика с сайтом: оператор и сайт, данные из форм, cookies, третьи лица, "
           "страны."),
+    _spec("SUV-PD-013", PD, "Отказ от cookies: слушаются ли его счётчики", "compliance",
+          "pd law cookies browser", "Только с --browser: получают ли счётчики данные до действия "
+          "посетителя и после нажатия «Отклонить» в баннере cookies."),
     _spec("SUV-PD-012", PD, "Данные из форм до отправки", "formleaks", "pd law forms browser",
           "Эксперимент в браузере: уходят ли имя, телефон, почта, пароль сторонним сервисам "
           "до отправки формы."),
@@ -141,6 +144,9 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-MAIL-007", MAIL, "BIMI: логотип компании в почтовых программах", "mail",
           "mail bimi", "Запись BIMI для сведения: покажут ли почтовые программы логотип "
           "компании. Никогда не проблема."),
+    _spec("SUV-MAIL-008", MAIL, "SPF: адреса, которые может арендовать любой", "mail",
+          "mail spf", "Диапазоны ip4:/ip6: в SPF (с include) против арендуемых адресов AWS, "
+          "Google Cloud, Oracle Cloud и DigitalOcean: такой сервер проходит SPF и DMARC."),
     # --- web security -------------------------------------------------------------------
     _spec("SUV-WEB-000", WEB, "Заголовки безопасности (CSP, HSTS и другие)", "security",
           "web", "Проверка безопасности сайта не выполнена."),
@@ -177,7 +183,7 @@ CATALOG: tuple[CheckSpec, ...] = (
           "сайта (RFC 8659)."),
     _spec("SUV-WEB-013", WEB, "Подпись DNS (DNSSEC)", "security", "web dns",
           "Подписана ли зона и сходится ли запись DS у регистратора с ключом зоны "
-          "(RFC 4035, RFC 8624)."),
+          "(RFC 4035, RFC 9904, RFC 9905)."),
     _spec("SUV-WEB-014", WEB, "Перенаправление с HTTP на HTTPS", "security", "web tls",
           "Отправляет ли http:// сразу на HTTPS, а не отдаёт сайт в открытом виде."),
     _spec("SUV-WEB-015", WEB, "Политика Referrer-Policy", "security", "web headers",
@@ -361,6 +367,7 @@ LABELS = {
     "SUV-MAIL-005": ("look", "ip"),  # fetches https://mta-sts.<domain>/.well-known/...
     "SUV-WEB-008": ("probe", "ip"),  # handshakes with TLS 1.0 and 1.1 on purpose
     "SUV-WEB-011": ("look", "js"),  # only with --browser
+    "SUV-PD-013": ("look", "js"),  # only with --browser; presses the banner's "reject"
     "SUV-WEB-012": ("none", "none"),  # CAA records, DNS only
     "SUV-WEB-013": ("none", "none"),  # DS and DNSKEY records, DNS only
     "SUV-SUB-000": ("probe", "ip"),
