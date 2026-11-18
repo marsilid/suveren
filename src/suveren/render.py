@@ -26,6 +26,7 @@ from suveren import trace
 from suveren.egress import EgressProxy
 from suveren.errors import ModuleError
 from suveren.net import BLOCKED, public_addresses
+from suveren.utils import registrable_domain
 
 INSTALL_HINT = (
     'для режима --browser установите Playwright: python3 -m pip install "suveren[browser]" '
@@ -427,6 +428,40 @@ _IMAGE_DIFF = """async ([a, b]) => {
 }"""
 
 
+def foreign_frame(chain: tuple[str, ...] | list[str], page_url: str) -> str:
+    """The document of another site a request came from, or "" for the page's own.
+
+    ``chain``: the frames the request was made in, the innermost first, without the top
+    page. A Google map in an iframe loads Google's ads code itself: that is the map's
+    doing, not a service of the site (DVORYAN's site got "Google Ads" and a demand to
+    describe the transfer abroad, 2.2.2). The iframe's own address is the site's: the
+    site put the map there. about:blank and srcdoc frames belong to their parent."""
+    site = registrable_domain((urlsplit(page_url).hostname or "").lower())
+    for url in chain:
+        parts = urlsplit(url)
+        if parts.scheme.lower() not in ("http", "https"):
+            continue
+        if registrable_domain((parts.hostname or "").lower()) != site:
+            return url
+    return ""
+
+
+def frame_chain(request: Any) -> tuple[str, ...]:
+    """The frames ``request`` (a Playwright request) was made in, for foreign_frame. A
+    frame's own navigation is made by its parent: it starts there."""
+    try:
+        frame = request.frame
+        if request.is_navigation_request():
+            frame = frame.parent_frame
+        chain: list[str] = []
+        while frame is not None and frame.parent_frame is not None:
+            chain.append(frame.url)
+            frame = frame.parent_frame
+        return tuple(chain)
+    except Exception:  # a worker's request has no frame: count it as the page's
+        return ()
+
+
 def launch_options(channel: str | None, proxy_url: str) -> dict[str, Any]:
     """How the browser is started. ``chromium_sandbox=True``: without it Playwright adds
     --no-sandbox, and a hostile page that breaks the renderer reaches the operator's
@@ -559,7 +594,13 @@ class BrowserSession:
         page = await self._context.new_page()
         requests: list[str] = []
         started_by: dict[str, str] = {}
-        page.on("request", lambda req: requests.append(req.url))
+
+        def on_page_request(req: Any) -> None:
+            # Before the page has an address of its own, its first request is its own.
+            if not foreign_frame(frame_chain(req), page.url if page.url != "about:blank" else url):
+                requests.append(req.url)
+
+        page.on("request", on_page_request)
         if initiators:
 
             def on_request(params: dict[str, Any]) -> None:

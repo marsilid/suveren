@@ -40,6 +40,7 @@ from suveren.mailsec import collect_mail
 from suveren.mailsec import evaluate as mail_checks
 from suveren.ownsite import exposed_files_check
 from suveren.page import parse_page
+from suveren.render import foreign_frame
 from suveren.subdomains import run_subdomain_checks
 from suveren.websec import TlsInfo, run_web_checks
 
@@ -128,6 +129,14 @@ CONSENT_DOC = """<h1>Согласие на обработку персональ
 <p>Я, субъект персональных данных, даю согласие ООО «Лаборатория» на обработку моих
 персональных данных: имени и номера телефона, в целях обработки заявки.</p>"""
 
+MAP_URL = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2245.3!2d37.6!3d55.7"
+MAP_FRAME = f'<iframe src="{MAP_URL}" width="600" height="450" loading="lazy"></iframe>'
+GSC_META = '<meta name="google-site-verification" content="lab-AbCdEf0123456789">'
+# A consent script's list of what to hold back until the visitor agrees: names, not loads.
+BLOCKLIST_SCRIPT = (
+    "<script>window.consentConfig={block:['googleadservices.com','doubleclick.net',"
+    '"googlesyndication.com"],mode:"opt-in"};</script>'
+)
 GA = (
     '<script async src="https://www.googletagmanager.com/gtag/js?id=G-LAB1234"></script>'
     "<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}"
@@ -292,6 +301,9 @@ class Case:
     # The site lives on www.<host>: the bare host answers the service-file paths with a
     # redirect there (their bodies are in ``files`` under the full www URL).
     www_redirect: bool = False
+    # What the browser loaded (--browser): (URL, the frames it was requested from, the
+    # innermost first, without the page itself). Empty: a scan without a browser.
+    loaded: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
 
     @property
     def host(self) -> str:
@@ -890,6 +902,50 @@ CASES: list[Case] = [
         "Google Analytics с баннером cookies: баннер есть, передача за рубеж остаётся",
         {"SUV-PD-005": "ok", "SUV-PD-006": "warn"},
         html=page(FORM_OK + GA + COOKIE_BANNER),
+        files=site_files(),
+    ),
+    # --- what other services do is not the site's (DVORYAN, Habr, 2.2.2) ---------------
+    Case(
+        "lab-map-frame",
+        "карта Google в iframe: её собственные запросы (реклама Google) — не сервисы сайта",
+        # The map itself sends the visitor's address to Google: that transfer is real.
+        # Google Ads, which the map loads, is not the site's (test_render.py).
+        {"SUV-PD-006": "warn"},
+        html=page(FORM_OK + MAP_FRAME),
+        files=site_files(),
+        loaded=[
+            ("https://lab-map-frame.ru/", ()),
+            (MAP_URL, ()),
+            ("https://maps.gstatic.com/maps-api-v3/embed/js/main.js", (MAP_URL,)),
+            ("https://www.googleadservices.com/pagead/conversion_async.js", (MAP_URL,)),
+            ("https://googleads.g.doubleclick.net/pagead/id", ("about:blank", MAP_URL)),
+        ],
+    ),
+    Case(
+        "lab-ads-own",
+        "реклама Google загружается самой страницей (не из чужого iframe): передача остаётся",
+        {"SUV-PD-006": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        loaded=[
+            ("https://lab-ads-own.ru/", ()),
+            ("https://www.googleadservices.com/pagead/conversion_async.js", ()),
+            # A frame of the site itself (or an empty one) is still the site.
+            ("https://googleads.g.doubleclick.net/pagead/id", ("about:blank",)),
+        ],
+    ),
+    Case(
+        "lab-gsc-meta",
+        "только мета-тег подтверждения Google Search Console: данные посетителей не уходят",
+        {"SUV-PD-006": "ok"},
+        html=page(FORM_OK).replace("<head>", "<head>" + GSC_META, 1),
+        files=site_files(),
+    ),
+    Case(
+        "lab-ads-mentioned",
+        "адреса рекламы Google только перечислены строками в настройках скрипта (что блокировать)",
+        {"SUV-PD-006": "ok"},
+        html=page(FORM_OK + BLOCKLIST_SCRIPT),
         files=site_files(),
     ),
     # --- the policy against the site (152-ФЗ, ст. 18.1 ч. 1 п. 2) ---------------------
@@ -2225,6 +2281,7 @@ async def _run_case(case: Case) -> dict[str, Check]:
         set_cookies=list(case.cookies),
         geo_origin="DB-IP, https://db-ip.com, база от 01.11.2026" if case.located else "",
     )
+    facts.loaded_urls = [u for u, chain in case.loaded if not foreign_frame(chain, final_url)]
     records = {**good_dns(host), **(case.dns or {})}
     tls = case.tls or good_tls(host)
 

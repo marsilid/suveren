@@ -170,6 +170,11 @@ _EMBED_TEMPLATE = re.compile(
 
 _DATA_SCRIPTS = frozenset({"application/ld+json", "application/json"})
 
+# A bare host name in quotes inside a script: a name in a list ("hold back
+# googleadservices.com until the visitor agrees"), not an address anything is loaded
+# from: that needs a scheme, // or a path. A consent script's list read as Google Ads.
+_BARE_HOST = re.compile(r"""(["'])(?:[a-z0-9-]+\.)+[a-z]{2,63}\1""", re.IGNORECASE)
+
 
 class _CodeParser(HTMLParser):
     """Keeps tags, attributes and script/style bodies; drops visible text and comments."""
@@ -209,7 +214,10 @@ class _CodeParser(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if self._raw and not self._data:
-            self.parts.append(_EMBED_TEMPLATE.sub("", data))
+            code = _EMBED_TEMPLATE.sub("", data)
+            if not self._links:
+                code = _BARE_HOST.sub(r"\1\1", code)
+            self.parts.append(code)
 
 
 def page_code(html: str, *, links: bool = True) -> str:
