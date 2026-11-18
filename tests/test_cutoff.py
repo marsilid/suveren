@@ -76,7 +76,7 @@ def test_captcha_forms_text_drop_and_visual_change_beyond_noise():
     assert r.captcha_forms == 1
     assert round(r.text_drop, 2) == 0.4
     assert round(r.visual_change, 2) == 0.3
-    check = page_check(r, {})
+    check = page_check(r)
     assert check.status is Status.FAIL and check.id == "SUV-CUT-002"
     assert "капчей" in check.details and "40% текста" in check.details
 
@@ -84,10 +84,10 @@ def test_captcha_forms_text_drop_and_visual_change_beyond_noise():
 def test_nothing_visible_is_ok_and_nothing_foreign_is_ok():
     base = dom(["Купить"])
     r = run(base, base, base, {"fonts.googleapis.com"}, noise=0.01, change=0.02)
-    check = page_check(r, {})
+    check = page_check(r)
     assert check.status is Status.OK and "Заметных изменений нет" in check.details
     empty = run(base, base, base, set())
-    assert "отключать нечего" in page_check(empty, {}).details
+    assert "отключать нечего" in page_check(empty).details
 
 
 def test_render_blocking_resources_in_head_only():
@@ -99,7 +99,7 @@ def test_render_blocking_resources_in_head_only():
         '</head><body><script src="https://fonts.googleapis.com/late.js"></script></body></html>'
     )
     foreign = {"fonts.googleapis.com", "img.example-cdn.net", "cdn.example.com"}
-    assert render_blocking(html, "https://site.ru/", foreign) == [
+    assert render_blocking(html, foreign) == [
         "fonts.googleapis.com",
         "img.example-cdn.net",
     ]
@@ -109,7 +109,7 @@ def test_render_blocking_alone_is_a_warning():
     base = dom(["Купить"])
     r = run(base, base, base, {"fonts.googleapis.com"})
     r.render_blocking = ["fonts.googleapis.com"]
-    check = page_check(r, {})
+    check = page_check(r)
     assert check.status is Status.WARN and "останется белой" in check.details
 
 
@@ -120,7 +120,7 @@ def test_measured_hang_replaces_the_prediction():
         r = run(base, base, base, {"fonts.googleapis.com"})
         r.render_blocking = ["fonts.googleapis.com"]
         r.hang_stuck, r.hang_blank = hang_outcome(stuck, painted)
-        return r, page_check(r, {})
+        return r, page_check(r)
 
     # Nothing painted after the wait: the visitor sees a blank page, the worst case.
     r, check = measured(True, False)
@@ -190,11 +190,9 @@ def test_print_stylesheets_are_not_render_blocking():
         'onload="this.media=\'all\'"><link rel="stylesheet" media="all" '
         'href="https://fonts.googleapis.com/b.css"></head>'
     )
-    assert render_blocking(html, "https://site.ru/", {"fonts.googleapis.com"}) == [
-        "fonts.googleapis.com"
-    ]
+    assert render_blocking(html, {"fonts.googleapis.com"}) == ["fonts.googleapis.com"]
     only_print = html.split('<link rel="stylesheet" media="all"')[0] + "</head>"
-    assert render_blocking(only_print, "https://site.ru/", {"fonts.googleapis.com"}) == []
+    assert render_blocking(only_print, {"fonts.googleapis.com"}) == []
 
 
 def test_a_domain_the_site_redirected_to_is_its_own():

@@ -12,14 +12,14 @@ from suveren.page import Page, parse_page
 from suveren.utils import registrable_domain
 
 _CONTACT_TEXT = re.compile(
-    r"реквизит|контакт|о компании|о нас|юридическ|правов|requisites|contacts?|about", re.I
+    r"реквизит|контакт|о компании|о нас|юридическ|правов|requisites|contacts?|about", re.IGNORECASE
 )
 # The site's own details live on these pages; an ИНН in an article, a company blog
 # (/companies/haulmont/news/...), a product card or a review belongs to someone else.
 _REQUISITES_PATH = re.compile(
     r"/(?:rekvizit\w*|requisites?|contacts?|kontakt\w*|about(?:-us)?|o-nas|o-kompanii|company"
     r"|oferta|offer|legal|privacy(?:-policy)?|policy|politika\w*)(?:\.\w{2,4})?/?$",
-    re.I,
+    re.IGNORECASE,
 )
 MAX_EXTRA_PAGES = 3
 

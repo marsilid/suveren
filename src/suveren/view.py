@@ -108,16 +108,6 @@ def country_bar(report: Report, width: int = COUNTRY_BAR, limit: int = 5) -> Gro
     return Group(bar, legend)
 
 
-def country_line(report: Report, limit: int = 5) -> Text:
-    """Countries in one line (used where a bar does not fit)."""
-    line = Text()
-    colors = iter(COUNTRY_COLORS)
-    for code, share in report.countries[:limit]:
-        style = OK if code == "RU" else next(colors, DIM)
-        line.append(f"{country_name(code)} {share}%   ", style=style)
-    return line if report.countries else Text("страны не определены", style=DIM)
-
-
 def check_counts(checks: Iterable[Check], *, words: bool = False) -> Text:
     checks = list(checks)
     text = Text()

@@ -25,7 +25,7 @@ RKN_URL = "https://pd.rkn.gov.ru/operators-registry/operators-list/"
 EGRUL_SOURCE = "ЕГРЮЛ (egrul.nalog.ru)"
 RKN_SOURCE = "Реестр операторов ПДн Роскомнадзора (pd.rkn.gov.ru)"
 _ORG_NAME = re.compile(
-    r"общество|акционерн|компани|предприяти|учреждени|\b(?:ооо|ао|пао|зао|оао|нко)\b", re.I
+    r"общество|акционерн|компани|предприяти|учреждени|\b(?:ооо|ао|пао|зао|оао|нко)\b", re.IGNORECASE
 )
 
 
@@ -69,7 +69,7 @@ class EgrulRecord:
         if not self.individual:
             return self.head_name
         name = re.sub(
-            r"^\s*(индивидуальный\s+предприниматель|ип)\s+", "", self.name_full, flags=re.I
+            r"^\s*(индивидуальный\s+предприниматель|ип)\s+", "", self.name_full, flags=re.IGNORECASE
         )
         return name.strip() or None
 
@@ -170,12 +170,12 @@ class RknOperator:
         }
 
 
-_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
-_CELL_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.S | re.I)
+_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE)
+_CELL_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.DOTALL | re.IGNORECASE)
 
 
 def _text(fragment: str) -> str:
-    fragment = re.sub(r"<br\s*/?>", "\n", fragment, flags=re.I)
+    fragment = re.sub(r"<br\s*/?>", "\n", fragment, flags=re.IGNORECASE)
     fragment = re.sub(r"<[^>]+>", "", fragment)
     return html.unescape(fragment).replace("\xa0", " ").strip()
 

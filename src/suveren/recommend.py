@@ -27,13 +27,14 @@ _PERSONAL = re.compile(
     r"рекомендуем для вас|подобрали для вас|подборка для вас|специально для вас|"
     r"вам может понравиться|вы недавно смотрели|недавно просмотренные|"
     r"на основе ваших \w+|лента рекомендаций|моя лента)\b",
-    re.I,
+    re.IGNORECASE,
 )
-_HEADING = re.compile(r"<h[1-6][^>]*>(.*?)</h[1-6]>", re.I | re.S)
+_HEADING = re.compile(r"<h[1-6][^>]*>(.*?)</h[1-6]>", re.IGNORECASE | re.DOTALL)
 _TAG = re.compile(r"<[^>]+>")
-_RULES = re.compile(r"рекомендательн\w* технолог", re.I)
+_RULES = re.compile(r"рекомендательн\w* технолог", re.IGNORECASE)
 _RULES_HREF = re.compile(
-    r"recommend\w*[-_/]?(?:rule|technolog|polic)|rekomendat\w*[-_]?(?:tehnolog|tekhnolog)", re.I
+    r"recommend\w*[-_/]?(?:rule|technolog|polic)|rekomendat\w*[-_]?(?:tehnolog|tekhnolog)",
+    re.IGNORECASE,
 )
 
 

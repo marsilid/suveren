@@ -57,22 +57,27 @@ _PLATFORM_DOMAINS = frozenset(
         "jivo.ru", "jivosite.com", "cloudflare.com", "tilda.cc", "youtube.com",
     }
 )  # fmt: skip
-_PD_PHRASE = re.compile(r"персональн\w* данн|обработк\w* (?:персональн|данн)", re.I)
-_POLICY_HREF = re.compile(r"privacy|polit|policy|konfiden|confiden|personal|pdn|152", re.I)
+_PD_PHRASE = re.compile(r"персональн\w* данн|обработк\w* (?:персональн|данн)", re.IGNORECASE)
+_POLICY_HREF = re.compile(r"privacy|polit|policy|konfiden|confiden|personal|pdn|152", re.IGNORECASE)
 # Fallback documents that often contain the personal-data section on big sites.
-_LEGAL_TEXT = re.compile(r"соглашени|правов|юридическ|оферт|условия использования|terms", re.I)
-_LEGAL_HREF = re.compile(r"legal|terms|agreement|usage|oferta|soglash|rules", re.I)
+_LEGAL_TEXT = re.compile(
+    r"соглашени|правов|юридическ|оферт|условия использования|terms", re.IGNORECASE
+)
+_LEGAL_HREF = re.compile(r"legal|terms|agreement|usage|oferta|soglash|rules", re.IGNORECASE)
 _PD_FIELD = re.compile(
     r"phone|tel|e-?mail|mail|name|fio|фио|имя|телефон|почт|фамили|contact|whatsapp|telegram",
-    re.I,
+    re.IGNORECASE,
 )
 # What a consent checkbox is about: processing, the policy. "Согласен получать рассылку"
 # is a newsletter opt-in, not consent to processing.
 _CONSENT_TEXT = re.compile(
-    r"обработк|персональн|политик\w* конфиденциальн|политик\w* обработк|privacy|consent", re.I
+    r"обработк|персональн|политик\w* конфиденциальн|политик\w* обработк|privacy|consent",
+    re.IGNORECASE,
 )
 # A checkbox for news or ads: ticked in advance, it is not the consent to processing.
-_MARKETING_BOX = re.compile(r"news|subscri|mailing|promo|advert|реклам|рассыл|новост", re.I)
+_MARKETING_BOX = re.compile(
+    r"news|subscri|mailing|promo|advert|реклам|рассыл|новост", re.IGNORECASE
+)
 # A statement the visitor makes ("нажимая кнопку, вы соглашаетесь с политикой", "даю
 # согласие на обработку"), not the title of a document linked in the footer. The verb
 # varies: cloudpayments.ru has "вы предоставляете Согласие на обработку".
@@ -81,23 +86,23 @@ _CONSENT_NEARBY = re.compile(
     r"предоставить|выража\w*|подтвержда\w*)\s+(?:сво[её]\s+)?"
     r"согласие)(?:\s+[\w-]+){0,3}?\s+(?:на|с|со)\s+(?:обработк|политик|услови|правил)|"
     r"обработк\w* моих персональных",
-    re.I,
+    re.IGNORECASE,
 )
 # Marks of a banner in the page's code (class names, script addresses). "cookie-policy"
 # is not one: it is the address of a document, linked from many footers.
 _COOKIE_WIDGETS = re.compile(
     r"cookiebot|onetrust|cookieyes|cookie-?notice|cookie-?consent|cookieconsent|cookie-?banner|"
     r"cookies?-?(?:popup|alert|bar|warning|accept)|t-cookies|klaro|ccm19|cookie_agree",
-    re.I,
+    re.IGNORECASE,
 )
-_COOKIE_TEXT = re.compile(r"cookie|куки", re.I)
+_COOKIE_TEXT = re.compile(r"cookie|куки", re.IGNORECASE)
 # Verbs of a notice ("мы используем cookie", "вы соглашаетесь", "принять"), not the nouns
 # of a document title: a footer link "Политика использования файлов cookie" next to
 # "Пользовательское соглашение" is no notice.
 _COOKIE_VERBS = r"соглаша|согласн|использу(?:ем|ет|ют|ю)(?!\w)|принять|принимаю|продолжая"
-_COOKIE_CONTEXT = re.compile(_COOKIE_VERBS + r"|accept|we use|site uses", re.I)
+_COOKIE_CONTEXT = re.compile(_COOKIE_VERBS + r"|accept|we use|site uses", re.IGNORECASE)
 # In a script only Russian words count: its code says "accept" and "cookie" on its own.
-_COOKIE_CONTEXT_CODE = re.compile(_COOKIE_VERBS, re.I)
+_COOKIE_CONTEXT_CODE = re.compile(_COOKIE_VERBS, re.IGNORECASE)
 _COOKIE_WINDOW = 150  # a notice is a sentence or two
 # Visitor-tracking categories: they set cookies whatever the provider's country.
 _TRACKING = frozenset({Category.ANALYTICS, Category.ADS, Category.CHAT})
@@ -256,11 +261,11 @@ def _search_box(i: FormInput) -> bool:
 _NOT_PD_FIELD = re.compile(
     r"card|gift|promo|coupon|otp|sms|cvv|cvc|captcha|amount|qty|quantity|"
     r"city|town|station|airport|country|region|hotel|product|goods|item|file",
-    re.I,
+    re.IGNORECASE,
 )
 _FIRST_STEP = re.compile(
     r"(?<!\w)(?:продолжить|далее|получить код|отправить код|выбрать станцию|next|continue)(?!\w)",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -308,7 +313,7 @@ _SENTENCE_END = re.compile(r"[.!?…]\s")
 _DOCUMENT_PATH = re.compile(
     r"cookie|polic|polit|privacy|konfiden|confiden|agreement|soglas|oferta|offer|terms|legal|"
     r"rules|pravila|personal|pdn|152",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -847,11 +852,13 @@ LAW_BY_ID = {
 
 # What a form field asks for, by its type and name: the words of pdpolicy.DATA_WORDS.
 _ASKS = (
-    ("phone", re.compile(r"phone|tel|телефон|mobile", re.I)),
-    ("email", re.compile(r"e-?mail|почт", re.I)),
+    ("phone", re.compile(r"phone|tel|телефон|mobile", re.IGNORECASE)),
+    ("email", re.compile(r"e-?mail|почт", re.IGNORECASE)),
     (
         "name",
-        re.compile(r"(?<![a-z])(?:name|fio|first_?name|last_?name)(?![a-z])|фио|имя|фамили", re.I),
+        re.compile(
+            r"(?<![a-z])(?:name|fio|first_?name|last_?name)(?![a-z])|фио|имя|фамили", re.IGNORECASE
+        ),
     ),
 )
 
@@ -1111,7 +1118,7 @@ _HUB_TEXT = re.compile(
     r"^(?:документ\w*|правовая информация|правовые документы|юридическая информация|"
     r"правила(?: и лицензии| и документы| сервиса| сайта)?|договор\w*|"
     r"документы и (?:правила|лицензии)|legal|documents)$",
-    re.I,
+    re.IGNORECASE,
 )
 MAX_HUBS = 3
 

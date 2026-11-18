@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _names(lock: str) -> set[str]:
     text = (ROOT / "packaging" / lock).read_text(encoding="utf-8")
-    return {m.lower() for m in re.findall(r"^([A-Za-z0-9_.-]+)==", text, re.M)}
+    return {m.lower() for m in re.findall(r"^([A-Za-z0-9_.-]+)==", text, re.MULTILINE)}
 
 
 def _required(*extras: str) -> set[str]:

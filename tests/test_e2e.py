@@ -607,3 +607,61 @@ def test_since_in_html_warns_about_an_uneven_comparison(offline, tmp_path):
     assert result.exit_code == 0, result.output
     page = html.read_text(encoding="utf-8")
     assert "Сравнение неравноценное" in page and "проверки больше нет в отчёте: Старая" in page
+
+
+def _stub_subdomains(monkeypatch, seen, gate):
+    async def subdomains_stage(domain, *_):
+        seen.append("subdomains: start")
+        try:
+            await gate["event"].wait()
+        except asyncio.CancelledError:
+            seen.append("subdomains: cancelled")
+            raise
+        seen.append("subdomains: end")
+        return [], {"source": "crt.sh"}
+
+    monkeypatch.setattr(scan_module, "_subdomains", subdomains_stage)
+
+
+def test_subdomains_run_alongside_the_other_stages(offline, monkeypatch):
+    # sberbank.ru spent two minutes on subdomains after every other stage had finished.
+    host = offline("lab-good").host
+    seen, gate, stages = [], {}, []
+
+    async def mail(*_, **__):
+        seen.append("mail")
+        gate["event"].set()  # the subdomains wait for this: they must already be running
+        return []
+
+    _stub_subdomains(monkeypatch, seen, gate)
+    monkeypatch.setattr(scan_module, "run_mail_checks", mail)
+
+    async def go():
+        gate["event"] = asyncio.Event()
+        return await scan_module.run_scan(host, progress=lambda s, t: stages.append((s, t)))
+
+    report = asyncio.run(go())
+    assert seen == ["subdomains: start", "mail", "subdomains: end"]
+    assert report.facts["subdomains"] == {"source": "crt.sh"}
+    done = [s for s, t in stages if t is not None]
+    assert scan_module.SUBDOMAIN_STAGE in done
+
+
+def test_a_failed_scan_does_not_leave_the_subdomains_running(offline, monkeypatch):
+    host = offline("lab-good").host
+    seen, gate = [], {}
+
+    async def broken(*_, **__):
+        raise RuntimeError("mail stage broke")
+
+    _stub_subdomains(monkeypatch, seen, gate)
+    monkeypatch.setattr(scan_module, "run_mail_checks", broken)
+
+    async def go():
+        gate["event"] = asyncio.Event()
+        with pytest.raises(RuntimeError):
+            await scan_module.run_scan(host)
+        await asyncio.sleep(0)  # let the cancellation reach the task
+
+    asyncio.run(go())
+    assert seen == ["subdomains: start", "subdomains: cancelled"]

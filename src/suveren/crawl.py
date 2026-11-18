@@ -21,22 +21,27 @@ MAX_HTML_CHARS = 2_000_000
 
 # (pattern over link text + URL, weight)
 _PRIORITY = (
-    (re.compile(r"контакт|contact|kontakt", re.I), 10),
-    (re.compile(r"заявк|оформ|заказ|order|checkout|zakaz|zayavk", re.I), 9),
-    (re.compile(r"корзин|cart|basket|korzin", re.I), 8),
-    (re.compile(r"обратн\w* связ|callback|feedback|запис|записаться|booking|zapis", re.I), 8),
-    (re.compile(r"регистрац|signup|sign-up|register", re.I), 6),
-    (re.compile(r"доставк|оплат|delivery|payment|dostavk|oplat", re.I), 5),
-    (re.compile(r"услуг|services|uslug|прайс|price|цены|тариф", re.I), 4),
-    (re.compile(r"о компании|о нас|about|o-nas|o-kompanii", re.I), 3),
+    (re.compile(r"контакт|contact|kontakt", re.IGNORECASE), 10),
+    (re.compile(r"заявк|оформ|заказ|order|checkout|zakaz|zayavk", re.IGNORECASE), 9),
+    (re.compile(r"корзин|cart|basket|korzin", re.IGNORECASE), 8),
+    (
+        re.compile(
+            r"обратн\w* связ|callback|feedback|запис|записаться|booking|zapis", re.IGNORECASE
+        ),
+        8,
+    ),
+    (re.compile(r"регистрац|signup|sign-up|register", re.IGNORECASE), 6),
+    (re.compile(r"доставк|оплат|delivery|payment|dostavk|oplat", re.IGNORECASE), 5),
+    (re.compile(r"услуг|services|uslug|прайс|price|цены|тариф", re.IGNORECASE), 4),
+    (re.compile(r"о компании|о нас|about|o-nas|o-kompanii", re.IGNORECASE), 3),
 )
 _SKIP_EXT = re.compile(
     r"\.(?:pdf|jpe?g|png|gif|webp|svg|ico|zip|rar|7z|docx?|xlsx?|pptx?|mp4|mp3|avi|mov|xml|json|"
     r"txt|css|js)$",
-    re.I,
+    re.IGNORECASE,
 )
 _SKIP_PATH = re.compile(
-    r"/(?:login|logout|signin|auth|admin|wp-admin|account|lk|search)(?:/|$)", re.I
+    r"/(?:login|logout|signin|auth|admin|wp-admin|account|lk|search)(?:/|$)", re.IGNORECASE
 )
 
 
@@ -55,7 +60,7 @@ class FetchedPage:
 
 def _bare(host: str) -> str:
     host = host.lower().rstrip(".")
-    return host[4:] if host.startswith("www.") else host
+    return host.removeprefix("www.")
 
 
 def _normalize(url: str) -> str:
@@ -151,7 +156,7 @@ async def fetch_pages(
 SITEMAP_PAGES = 2  # pages added from the sitemap on top of the links
 _MAX_SITEMAPS = 4
 _MAX_SITEMAP_BYTES = 5_000_000
-_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
 _ROBOTS_SITEMAP = re.compile(r"(?im)^\s*sitemap\s*:\s*(\S+)")
 # Pages where forms with personal data live (contacts, orders, cart, callback).
 _FORM_PAGE_WEIGHT = 8
@@ -159,7 +164,7 @@ _FORM_PAGE_WEIGHT = 8
 # /contact-us): skillbox.ru's /course/vkontakte-promotion-specialist and
 # /courses/vzaimodeistvie-s-zakazchikom are courses, not a contacts or order page.
 _PATH_PRIORITY = tuple(
-    (re.compile(rf"(?:{rx.pattern})[\w-]{{0,12}}$", re.I), w) for rx, w in _PRIORITY
+    (re.compile(rf"(?:{rx.pattern})[\w-]{{0,12}}$", re.IGNORECASE), w) for rx, w in _PRIORITY
 )
 
 

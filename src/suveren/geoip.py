@@ -24,12 +24,11 @@ from pathlib import Path
 
 import httpx
 
-from suveren.cache import cache_dir, fetch_cached
+from suveren.cache import fetch_cached
 from suveren.checks import copy_of
 from suveren.errors import ModuleError
 
 NAME = "DB-IP"
-LICENCE = "IP Geolocation by DB-IP (db-ip.com), CC BY 4.0"
 HOME = "https://db-ip.com"
 FILENAME = "geoip/dbip-country-lite.csv.gz"
 URL = "https://download.db-ip.com/free/dbip-country-lite-{month}.csv.gz"
@@ -166,7 +165,3 @@ async def load(client: httpx.AsyncClient, *, refresh: bool = False) -> GeoDb:
         return GeoDb(problem=f"файл базы {NAME} пуст")
     db.origin = copy_of(f"{NAME}, {HOME}", path, "база")
     return db
-
-
-def cached_path() -> Path:
-    return cache_dir() / FILENAME

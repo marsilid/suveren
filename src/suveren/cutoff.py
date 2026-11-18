@@ -253,11 +253,11 @@ class PageCutoff:
 
 
 # Labels that change by themselves: relative times and counters ("+14", "1 234").
-_NUMERIC = re.compile(r"^[\d\s+\-–.,:%×xк]+$", re.I)
+_NUMERIC = re.compile(r"^[\d\s+\-–.,:%×xк]+$", re.IGNORECASE)
 _VOLATILE = re.compile(
     r"\d+\s*(?:сек|мин|час|дн|недел|месяц)\w*\.?\s+назад|^(?:вчера|сегодня|только что)\b|"
     r"\b\d+\s*(?:ago|min|hours?)\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -327,11 +327,11 @@ def hang_outcome(stuck: bool, painted: bool | None) -> tuple[bool, bool]:
     return stuck, painted is False
 
 
-_HEAD = re.compile(r"<head\b.*?</head>", re.I | re.S)
-_STYLESHEET = re.compile(r"<link\b[^>]*rel=[\"']?stylesheet[^>]*>", re.I)
-_SCRIPT = re.compile(r"<script\b[^>]*\bsrc=[^>]*>", re.I)
-_HREF = re.compile(r"\b(?:href|src)=[\"']?([^\"'\s>]+)", re.I)
-_MEDIA = re.compile(r"\bmedia=[\"']?([^\"'>]+)", re.I)
+_HEAD = re.compile(r"<head\b.*?</head>", re.IGNORECASE | re.DOTALL)
+_STYLESHEET = re.compile(r"<link\b[^>]*rel=[\"']?stylesheet[^>]*>", re.IGNORECASE)
+_SCRIPT = re.compile(r"<script\b[^>]*\bsrc=[^>]*>", re.IGNORECASE)
+_HREF = re.compile(r"\b(?:href|src)=[\"']?([^\"'\s>]+)", re.IGNORECASE)
+_MEDIA = re.compile(r"\bmedia=[\"']?([^\"'>]+)", re.IGNORECASE)
 
 
 def _media(tag: str) -> str:
@@ -339,7 +339,7 @@ def _media(tag: str) -> str:
     return m.group(1).strip().lower() if m else ""
 
 
-def render_blocking(html: str, base_url: str, foreign: set[str]) -> list[str]:
+def render_blocking(html: str, foreign: set[str]) -> list[str]:
     """Foreign stylesheets and synchronous scripts in <head>: if such a resource hangs
     (a block often drops packets rather than refusing), the page stays blank until the
     browser gives up."""
@@ -351,7 +351,7 @@ def render_blocking(html: str, base_url: str, foreign: set[str]) -> list[str]:
     styles = [t for t in _STYLESHEET.findall(head.group(0)) if _media(t) in ("", "all", "screen")]
     tags = styles + [
         t for t in _SCRIPT.findall(head.group(0))
-        if not re.search(r"\b(?:async|defer)\b|type=[\"']?module", t, re.I)
+        if not re.search(r"\b(?:async|defer)\b|type=[\"']?module", t, re.IGNORECASE)
     ]  # fmt: skip
     for tag in tags:
         m = _HREF.search(tag)
@@ -370,7 +370,7 @@ def _list(items: list[str]) -> str:
     return shown + (f" и ещё {len(items) - SHOWN}" if len(items) > SHOWN else "")
 
 
-def page_check(r: PageCutoff, hosts: dict[str, HostInfo]) -> Check:
+def page_check(r: PageCutoff) -> Check:
     if not r.blocked and r.unknown:
         # Nothing was switched off because nothing is known to be foreign, not because
         # nothing is: the hosts whose country was not determined stayed on.
@@ -548,9 +548,9 @@ async def run_cutoff(
         change=change,
     )
     if raw_html:
-        result.render_blocking = render_blocking(raw_html, base1.final_url, foreign)
+        result.render_blocking = render_blocking(raw_html, foreign)
     result.slower_ms = max(0, cut.ready_ms - max(base1.ready_ms, base2.ready_ms))
     if hung is not None and hung.blocked:
         result.hang_stuck, result.hang_blank = hang_outcome(hung.stuck, hung.painted)
     shots = {"before": base1.screenshot, "after": cut.screenshot}
-    return page_check(result, hosts), result, shots
+    return page_check(result), result, shots

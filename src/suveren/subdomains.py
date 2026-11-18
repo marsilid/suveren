@@ -13,7 +13,6 @@ one GET of the page it serves, as a browser would.
 from __future__ import annotations
 
 import asyncio
-import html
 import json
 import re
 from dataclasses import dataclass, field
@@ -30,7 +29,7 @@ from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
 from suveren.psl import registrable
 from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
-from suveren.utils import plural
+from suveren.utils import plural, visible_text
 
 GROUP_SUB = "Поддомены"
 
@@ -43,6 +42,10 @@ CERTSPOTTER_PAGES = 5
 # stage once pushed alfabank.ru and sovcombank.ru past the per-site deadline, losing
 # the whole report for want of one section.
 STAGE_BUDGET = 120.0
+CUT_SHORT_NOTE = (
+    f"Не проверено: за {STAGE_BUDGET:.0f} с не успели дойти до этого шага, DNS отвечал на "
+    "запросы о поддоменах слишком медленно."
+)
 STALE_TTL = 14 * 24 * 3600  # an old list, used only when both logs are down
 MAX_SUBDOMAINS = 300
 MAX_CNAME_HOPS = 4
@@ -203,14 +206,8 @@ class Candidate:
     edge: bool = False
 
 
-def page_text(body: str) -> str:
-    """Visible text: tags can split a fingerprint ("Request ID:<span>…")."""
-    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", body)
-    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
-
-
 def page_matches(sig: Signature, status: int, body: str) -> bool:
-    texts = (body, page_text(body))
+    texts = (body, visible_text(body))
     for fp in sig.fingerprints:
         if fp.startswith("HTTP_STATUS="):
             if str(status) == fp.split("=", 1)[1]:
@@ -378,6 +375,8 @@ async def find_cloud_hosts(
 
 def dangling_check(scan: SubdomainScan) -> Check:
     title = "Висящие A-записи на облачные адреса"
+    if scan.cut_short:
+        return Check(GROUP_SUB, title, Status.UNKNOWN, CUT_SHORT_NOTE)
     ranges = scan.ranges
     if ranges is None:
         return Check(
@@ -493,13 +492,16 @@ async def find_dangling_ns(
 
 def dangling_ns_check(scan: SubdomainScan) -> Check:
     title = "Висящие NS-записи"
+    if scan.cut_short:
+        return Check(GROUP_SUB, title, Status.UNKNOWN, CUT_SHORT_NOTE)
     if not scan.dangling_ns:
         return Check(
             GROUP_SUB,
             title,
             Status.OK,
             f"Делегирований на несуществующие NS-домены нет ({scan.domain} и "
-            f"{len(scan.resolved)} поддоменов).",
+            f"{len(scan.resolved)} "
+            f"{plural(len(scan.resolved), 'поддомен', 'поддомена', 'поддоменов')}).",
         )
     certain = any(d.certain for d in scan.dangling_ns)
     lines = "; ".join(
@@ -538,6 +540,10 @@ class SubdomainScan:
     # None: no subdomain has its own A record, so the lists were not needed.
     ranges: CloudRanges | None = None
     dangling_ns: list[DanglingNs] = field(default_factory=list)
+    # The stage budget ran out: names were not all checked, NS and cloud steps did not run.
+    cut_short: bool = False
+    # How many names were due for checking (the first MAX_SUBDOMAINS of the list).
+    planned: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -548,11 +554,16 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
     alive = [s for s in scan.resolved if s.alive]
     external = [s for s in scan.resolved if s.cnames]
     failed = [s for s in scan.resolved if s.failed]
-    more = (
-        f" Проверены первые {len(scan.resolved)} по алфавиту, всего их {len(scan.names)}."
-        if scan.truncated
-        else ""
-    )
+    if scan.cut_short:
+        more = (
+            f" За {STAGE_BUDGET:.0f} с успели проверить {len(scan.resolved)} из "
+            f"{scan.planned}, остальные не проверены: подождать ответа DNS от каждого не "
+            "хватило времени."
+        )
+    elif scan.truncated:
+        more = f" Проверены первые {len(scan.resolved)} по алфавиту, всего их {len(scan.names)}."
+    else:
+        more = ""
     inventory = Check(
         GROUP_SUB,
         "Поддомены в публичных журналах сертификатов",
@@ -562,7 +573,16 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
         "Этот список видит любой: проверьте, что среди них нет забытых тестовых и "
         "служебных адресов.",
     )
-    if not scan.candidates:
+    left = scan.planned - len(scan.resolved) if scan.cut_short else 0
+    if not scan.candidates and not scan.resolved and scan.cut_short:
+        takeover = Check(
+            GROUP_SUB,
+            "Захват поддоменов",
+            Status.UNKNOWN,
+            f"Не проверено: за {STAGE_BUDGET:.0f} с DNS не ответил ни для одного из "
+            f"{scan.planned} поддоменов.",
+        )
+    elif not scan.candidates:
         takeover = Check(
             GROUP_SUB,
             "Захват поддоменов",
@@ -572,11 +592,12 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
             + (
                 f" DNS не ответил для {len(failed)}, они не проверены: "
                 + ", ".join(s.name for s in failed[:5])
-                + ("…" if len(failed) > 5 else "")
-                + "."
+                # "…" ends the sentence by itself: "a.ru…." read as a typo in the report.
+                + ("…" if len(failed) > 5 else ".")
                 if failed
                 else ""
-            ),
+            )
+            + (f" Ещё {left} не успели проверить за {STAGE_BUDGET:.0f} с." if left else ""),
         )
     else:
         certain = any(c.certain for c in scan.candidates)
@@ -609,6 +630,14 @@ def evaluate(scan: SubdomainScan) -> list[Check]:
     return [inventory, takeover, dangling_check(scan), dangling_ns_check(scan)]
 
 
+def order_names(scan: SubdomainScan) -> None:
+    """Names finish in any order; the report lists them as the log did, candidates first
+    by certainty."""
+    rank = {name: i for i, name in enumerate(scan.names)}
+    scan.resolved.sort(key=lambda s: rank.get(s.name, len(rank)))
+    scan.candidates.sort(key=lambda c: (not c.certain, c.edge, c.sub.name))
+
+
 async def scan_subdomains(
     resolver: DnsResolver,
     client: httpx.AsyncClient,
@@ -616,23 +645,28 @@ async def scan_subdomains(
     domain: str,
     *,
     refresh: bool = False,
+    scan: SubdomainScan | None = None,
 ) -> SubdomainScan:
-    names, source = await ct_subdomains(client, domain, refresh=refresh)
+    """Fills ``scan`` as it goes, so a caller whose time ran out keeps what was checked."""
+    scan = scan or SubdomainScan(domain, [], "", [], [])
+    scan.names, scan.source = await ct_subdomains(client, domain, refresh=refresh)
+    due = scan.names[:MAX_SUBDOMAINS]
+    scan.planned = len(due)
     semaphore = asyncio.Semaphore(DNS_CONCURRENCY)
 
-    async def resolve(name: str) -> Subdomain:
+    async def one(name: str) -> None:
+        # Resolve and look for a takeover under one slot: with a slot for each step, all
+        # the resolves queue first and no name is finished until every one is resolved.
         async with semaphore:
-            return await resolve_subdomain(resolver, name)
+            sub = await resolve_subdomain(resolver, name)
+            candidate = await find_candidate(resolver, page_client, sub, domain)
+        scan.resolved.append(sub)
+        if candidate is not None:
+            scan.candidates.append(candidate)
 
-    async def check(sub: Subdomain) -> Candidate | None:
-        async with semaphore:
-            return await find_candidate(resolver, page_client, sub, domain)
-
-    resolved = list(await asyncio.gather(*(resolve(n) for n in names[:MAX_SUBDOMAINS])))
-    found = await asyncio.gather(*(check(s) for s in resolved))
-    candidates = [c for c in found if c is not None]
-    candidates.sort(key=lambda c: (not c.certain, c.edge, c.sub.name))
-    scan = SubdomainScan(domain, names, source, resolved, candidates)
+    await asyncio.gather(*(one(n) for n in due))
+    order_names(scan)
+    resolved = scan.resolved
     delegated = [domain] + [s.name for s in resolved if not s.failed]
     scan.dangling_ns = await find_dangling_ns(resolver, client, delegated, domain)
     if any(s.alive and not s.cnames for s in resolved):
@@ -650,12 +684,19 @@ async def run_subdomain_checks(
     refresh: bool = False,
 ) -> tuple[list[Check], dict[str, Any]]:
     """Checks for the report and raw data for the JSON facts."""
+    scan = SubdomainScan(domain, [], "", [], [])
     try:
-        scan = await asyncio.wait_for(
-            scan_subdomains(resolver, client, page_client, domain, refresh=refresh),
+        await asyncio.wait_for(
+            scan_subdomains(resolver, client, page_client, domain, refresh=refresh, scan=scan),
             STAGE_BUDGET,
         )
     except TIMEOUTS:
+        # The logs answered (often from the cache) but checking every name took too long
+        # (sberbank.ru, ozon.ru: 300 names, slow DNS): report what was checked.
+        if scan.source:
+            scan.cut_short = True
+            order_names(scan)
+            return _finish(scan, domain)
         return [
             Check(
                 GROUP_SUB,
@@ -669,9 +710,15 @@ async def run_subdomain_checks(
         return [
             Check(GROUP_SUB, "Поддомены и их захват", Status.UNKNOWN, f"Не проверено: {exc}.")
         ], {}
+    return _finish(scan, domain)
+
+
+def _finish(scan: SubdomainScan, domain: str) -> tuple[list[Check], dict[str, Any]]:
+    """The report's checks and the JSON facts of a finished or cut-short scan."""
     data = {
         "source": scan.source,
         "total": len(scan.names),
+        "cut_short": scan.cut_short,
         "checked": [s.to_dict() for s in scan.resolved],
         "dangling_ns": [
             {"name": d.name, "ns": d.ns, "domain": d.domain, "certain": d.certain}

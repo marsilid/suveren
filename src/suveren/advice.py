@@ -13,7 +13,7 @@ from suveren.models import UNSEEN_CAP, Report, Severity, grade_for
 def first_sentence(text: str) -> str:
     """Up to the first full stop that is followed by a capital letter (or the end), so
     abbreviations like «ст. 18.1 ч. 2» don't cut the sentence short."""
-    match = re.match(r"(.+?[.!?])(?=\s+[А-ЯЁA-Z]|\s*$)", text, re.S)
+    match = re.match(r"(.+?[.!?])(?=\s+[А-ЯЁA-Z]|\s*$)", text, re.DOTALL)
     return match.group(1) if match else text
 
 

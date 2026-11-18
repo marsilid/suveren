@@ -10,7 +10,6 @@ Spec: https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from suveren import __version__
@@ -143,9 +142,3 @@ def to_sarif(report: Report) -> dict[str, Any]:
 
 def sarif_text(report: Report) -> str:
     return json.dumps(to_sarif(report), ensure_ascii=False, indent=1)
-
-
-def write_sarif(report: Report, path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(sarif_text(report), encoding="utf-8")
-    return path

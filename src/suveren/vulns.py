@@ -39,7 +39,7 @@ _V = r"(\d+\.\d+(?:\.\d+)?)"
 # and "angular-moment" are other projects.
 _B = r"(?<![\w-])"
 _URL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
-    (lib, re.compile(p, re.I))
+    (lib, re.compile(p, re.IGNORECASE))
     for lib, p in (
         ("jquery-ui", rf"{_B}jquery[-.]?ui[-./@]v?{_V}(?:[./-]|$)"),
         ("jquery-ui", rf"/jqueryui/{_V}/"),

@@ -418,7 +418,7 @@ _SELLS = re.compile(
     r"в\s+корзину|добавить\s+в\s+корзину|оформить\s+заказ|add\s+to\s+cart|"
     r"href=[\"'][^\"']*/(?:cart|basket|korzina|checkout)\b|"
     r"itemprop=[\"']?(?:price|pricecurrency)\b|\"@type\"\s*:\s*\"offer\"",
-    re.I,
+    re.IGNORECASE,
 )
 
 

@@ -155,7 +155,7 @@ def document_base(url: str, html: str) -> str:
 _LINKED_FORM = re.compile(
     r"docs\.google\.com/forms|forms\.gle/|forms\.office\.com|forms\.yandex\.|typeform\.com|"
     r"jotform\.com|surveymonkey\.com|tally\.so|airtable\.com/shr",
-    re.I,
+    re.IGNORECASE,
 )
 
 

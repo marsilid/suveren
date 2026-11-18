@@ -184,8 +184,8 @@ def policy_content(text: str, foreign: bool, scripted: bool = True) -> Check:
 # --- Consent drawn up separately (152-ФЗ, ст. 9 ч. 1, since 01.09.2025) ----------------
 
 CONSENT_TITLE = "Отдельное согласие на обработку"
-_CONSENT_HREF = re.compile(r"soglas|consent|agreement|personal|pdn|152|pd[-_]", re.I)
-_CONSENT_DOC = re.compile(r"^(?:я\s+)?(?:даю\s+)?согласи\w*\s+(?:на|с)\s+обработк", re.I)
+_CONSENT_HREF = re.compile(r"soglas|consent|agreement|personal|pdn|152|pd[-_]", re.IGNORECASE)
+_CONSENT_DOC = re.compile(r"^(?:я\s+)?(?:даю\s+)?согласи\w*\s+(?:на|с)\s+обработк", re.IGNORECASE)
 # "согласие на обработку", "согласие Пользователя на обработку".
 _CONSENT_TO = r"соглас\w*(?:\s+[\w-]+){0,3}?\s+(?:на|с)\s+обработк"
 _PROCESSING = re.compile(
@@ -418,7 +418,7 @@ _REFERENCE_SITES = frozenset(
 )  # fmt: skip
 
 
-_COOKIE_DOC = re.compile(r"cookie|куки", re.I)
+_COOKIE_DOC = re.compile(r"cookie|куки", re.IGNORECASE)
 
 
 def cookie_doc_link(links: list[Link], base: str, policy: str | None) -> bool:

@@ -339,6 +339,92 @@ def test_a_slow_stage_gives_up_on_its_own_section_only(monkeypatch):
     assert checks[0].status is Status.UNKNOWN and "дольше" in checks[0].details and data == {}
 
 
+class SlowResolver(FakeResolver):
+    """Names starting with "slow" never answer within the test's budget."""
+
+    async def resolve(self, name, rtype):
+        if name.startswith("slow"):
+            await asyncio.sleep(5)
+        return await super().resolve(name, rtype)
+
+
+def _ct(*names):
+    def handler(request):
+        if request.url.host == "crt.sh":
+            return httpx.Response(200, json=[{"name_value": n} for n in names])
+        return httpx.Response(404)
+
+    return handler
+
+
+def test_out_of_time_keeps_the_names_already_checked(monkeypatch):
+    # sberbank.ru: 782 names in the log (from the cache), 300 due, slow DNS: the stage hit
+    # its budget every time, threw away what it had and blamed the certificate logs.
+    monkeypatch.setattr(subdomains, "STAGE_BUDGET", 0.3)
+    resolver = SlowResolver(
+        {("old.example.ru", "CNAME"): ["gone-site.com."]}, missing={"gone-site.com"}
+    )
+
+    async def go():
+        async with client(_ct("a.example.ru", "old.example.ru", "slow.example.ru")) as c:
+            return await run_subdomain_checks(resolver, c, c, "example.ru")
+
+    checks, data = run(go())
+    inventory, takeover, cloud, ns = checks
+    assert "журналы сертификатов отвечали" not in inventory.details
+    assert inventory.status is Status.OK and "успели проверить 2 из 3" in inventory.details
+    # What was checked still counts: the dead CNAME is found.
+    assert takeover.status is Status.FAIL and "old.example.ru" in takeover.details
+    # The steps after the names did not run: unknown, not a clean bill.
+    assert cloud.status is Status.UNKNOWN and ns.status is Status.UNKNOWN
+    assert data["cut_short"] is True
+    assert [s["name"] for s in data["checked"]] == ["a.example.ru", "old.example.ru"]
+
+
+def test_out_of_time_with_clean_names_says_how_many_were_left(monkeypatch):
+    monkeypatch.setattr(subdomains, "STAGE_BUDGET", 0.3)
+
+    async def go():
+        async with client(_ct("a.example.ru", "slow.example.ru")) as c:
+            return await run_subdomain_checks(SlowResolver(), c, c, "example.ru")
+
+    takeover = run(go())[0][1]
+    assert takeover.status is Status.OK
+    assert "среди 1 поддомена" in takeover.details and "Ещё 1 не успели" in takeover.details
+
+
+def test_out_of_time_before_any_name_is_unknown(monkeypatch):
+    monkeypatch.setattr(subdomains, "STAGE_BUDGET", 0.3)
+
+    async def go():
+        async with client(_ct("slow1.example.ru", "slow2.example.ru")) as c:
+            return await run_subdomain_checks(SlowResolver(), c, c, "example.ru")
+
+    takeover = run(go())[0][1]
+    assert takeover.status is Status.UNKNOWN and "ни для одного из 2" in takeover.details
+
+
+def test_report_texts_read_right():
+    # "ailaba.ru и 1 поддоменов" and "auth-portal.sberbank.ru…." were in real reports.
+    from suveren.subdomains import dangling_ns_check
+
+    def ns_text(n):
+        subs = [Subdomain(f"s{i}.example.ru") for i in range(n)]
+        return dangling_ns_check(SubdomainScan("example.ru", [], "crt.sh", subs, [])).details
+
+    assert ns_text(1).endswith("(example.ru и 1 поддомен).")
+    assert ns_text(3).endswith("(example.ru и 3 поддомена).")
+    assert ns_text(5).endswith("(example.ru и 5 поддоменов).")
+
+    many = [Subdomain(f"s{i}.example.ru", failed=True) for i in range(7)]
+    takeover = evaluate(SubdomainScan("example.ru", [], "crt.sh", many, []))[1]
+    assert "s4.example.ru…" in takeover.details and "…." not in takeover.details
+    few = [Subdomain("s0.example.ru", failed=True)]
+    assert evaluate(SubdomainScan("example.ru", [], "crt.sh", few, []))[1].details.endswith(
+        "s0.example.ru."
+    )
+
+
 def test_ct_down_uses_a_recent_saved_list(tmp_path, monkeypatch):
     import json as _json
     import os
@@ -419,8 +505,8 @@ def test_unanswered_subdomains_are_named_as_not_checked():
     assert "DNS не ответил для 1, они не проверены: s1.example.ru." in takeover.details
 
 
-def test_page_text_drops_scripts_and_styles_up_to_their_own_end_tag():
-    from suveren.subdomains import page_text
+def test_visible_text_drops_scripts_and_styles_up_to_their_own_end_tag():
+    from suveren.utils import visible_text as page_text
 
     body = (
         "<p>There isn't a GitHub Pages site here.</p>"

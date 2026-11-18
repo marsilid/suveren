@@ -186,15 +186,15 @@ _CHALLENGE = re.compile(
     r"запрос отклонен|пройдите проверку|подтвердите, что вы|checking your browser|"
     r"ddos-guard|servicepipe|qrator|antibot|are you a robot|не робот|access denied|"
     r"enable javascript|включите javascript|user_blocked",
-    re.I,
+    re.IGNORECASE,
 )
 # Marks of protection services in the code of their wall pages.
 _WALL_CODE = re.compile(
     r"cdn-cgi/challenge|challenge-platform|_cf_chl|ddos-guard|__ddg|servicepipe|qrator|"
     r"antibot|user_blocked|checking your browser",
-    re.I,
+    re.IGNORECASE,
 )
-_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 # Answers a protection service gives a robot; a 404 or a 500 is the site's own answer.
 _WALL_STATUSES = frozenset({401, 403, 405, 406, 429, 503})
 
@@ -644,7 +644,7 @@ def browser_trust() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=certifi.where())
 
 
-_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)""", re.I)
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)""", re.IGNORECASE)
 
 
 def guess_encoding(content: bytes) -> str:
