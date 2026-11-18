@@ -343,6 +343,7 @@ CASES: list[Case] = [
             "SUV-MAIL-004": "ok",
             "SUV-MAIL-005": "ok",
             "SUV-MAIL-006": "ok",
+            "SUV-MAIL-008": "ok",
             "SUV-WEB-012": "ok",
             "SUV-WEB-013": "ok",
             "SUV-WEB-014": "ok",
@@ -1122,6 +1123,61 @@ CASES: list[Case] = [
                 "v=spf1 include:_spf.yandex.net include:spf.gone.example -all"
             ]
         },
+    ),
+    # --- SPF and the clouds' pool addresses: renting a server passes SPF and DMARC -----
+    Case(
+        "lab-spf-cloud",
+        "в SPF диапазон EC2 (ip4:3.5.140.0/22): любой арендатор AWS проходит SPF и DMARC",
+        {"SUV-MAIL-008": "fail", "SUV-MAIL-001": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-spf-cloud.ru", "TXT"): ["v=spf1 ip4:3.5.140.0/22 include:_spf.yandex.net -all"]},
+    ),
+    Case(
+        "lab-spf-cloud-include",
+        "диапазон Google Cloud пришёл через include стороннего сервиса",
+        {"SUV-MAIL-008": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-include.ru", "TXT"): [
+                "v=spf1 include:_spf.yandex.net include:spf.mailer.example -all"
+            ],
+            ("spf.mailer.example", "TXT"): ["v=spf1 ip4:34.0.0.0/16 -all"],
+        },
+    ),
+    Case(
+        "lab-spf-cloud-own-server",
+        "в SPF один адрес в AWS: это свой сервер, его никто другой не арендует",
+        {"SUV-MAIL-008": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-own-server.ru", "TXT"): [
+                "v=spf1 ip4:3.5.140.7 include:_spf.yandex.net -all"
+            ]
+        },
+    ),
+    Case(
+        "lab-spf-cloud-block",
+        "в SPF блок /29 внутри EC2: AWS может закрепить его за одним клиентом, а может и нет",
+        {"SUV-MAIL-008": "warn", "SUV-MAIL-001": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-spf-cloud-block.ru", "TXT"): [
+                "v=spf1 ip4:3.5.140.8/29 include:_spf.yandex.net -all"
+            ]
+        },
+    ),
+    Case(
+        "lab-spf-cloud-lists-down",
+        "в SPF диапазоны, а списки облаков не скачались: проверить нельзя",
+        {"SUV-MAIL-008": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        clouds_down=True,
+        dns={("lab-spf-cloud-lists-down.ru", "TXT"): ["v=spf1 ip4:3.5.140.0/22 -all"]},
     ),
     # --- BIMI: information only, never a problem --------------------------------------
     Case(

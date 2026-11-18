@@ -65,6 +65,8 @@ def offline(monkeypatch, tmp_path):
     transports = {c.host: lab._transport(c) for c in lab.CASES}
 
     def route(request: httpx.Request) -> httpx.Response:
+        if str(request.url) in lab.CLOUD_LISTS:  # SPF against the clouds (SUV-MAIL-008)
+            return httpx.Response(200, text=lab.CLOUD_LISTS[str(request.url)])
         case = case_for(request.url.host)
         if case is None:  # crt.sh, RDAP, block lists: as if they were down
             return httpx.Response(503, text="нет в лаборатории")

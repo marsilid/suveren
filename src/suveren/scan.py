@@ -162,7 +162,7 @@ async def run_scan(
             async with _stage(progress, "Защита почты от подделки"), make_client(timeout) as client:
                 resolver, _ = await create_resolver(dns_mode, timeout, client)
                 report.checks += await run_mail_checks(
-                    resolver, client, facts.domain, dkim_selectors or ()
+                    resolver, client, facts.domain, dkim_selectors or (), refresh=refresh
                 )
 
         if security and (facts.html or facts.headers):

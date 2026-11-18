@@ -15,6 +15,7 @@ import asyncio
 import base64
 import binascii
 import contextlib
+import ipaddress
 import re
 import secrets
 from dataclasses import dataclass, field
@@ -23,10 +24,11 @@ import httpx
 
 from suveren import services as db
 from suveren.checks import Check, Evidence, Status
+from suveren.cloud import SOURCES, CloudRanges, load_ranges
 from suveren.collect import parse_mx
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, describe
-from suveren.utils import registrable_domain
+from suveren.utils import plural, registrable_domain
 
 GROUP_MAIL = "Защита почты от подделки"
 
@@ -66,6 +68,7 @@ class Spf:
     lookups: int = 0  # DNS-querying terms in this record alone
     uses_ptr: bool = False  # "ptr" SHOULD NOT be used (RFC 7208, section 5.5)
     targets: list[tuple[str, str]] = field(default_factory=list)  # ("A", host) for a:host
+    networks: list[str] = field(default_factory=list)  # "3.5.140.0/22" of +ip4:/+ip6: terms
 
 
 def spf_records(txt: list[str]) -> list[str]:
@@ -92,6 +95,9 @@ def parse_spf(record: str) -> Spf:
             spf.includes.append(value.rstrip("."))
         elif name == "ptr":
             spf.uses_ptr = True
+        elif name in ("ip4", "ip6") and value and qualifier == "+":
+            # Only "+" lets a server pass; "~ip4:" and "-ip4:" say the opposite.
+            spf.networks.append(value)
         elif name in ("a", "mx") and value and "%{" not in value:
             spf.targets.append((name.upper(), value.split("/", 1)[0].rstrip(".")))
         if name in _SPF_LOOKUP_TERMS:
@@ -112,6 +118,8 @@ class SpfResult:
     problems: list[str] = field(default_factory=list)
     void: list[str] = field(default_factory=list)  # a:/mx: names with an empty answer
     records: list[str] = field(default_factory=list)  # v=spf1 records at the domain, as is
+    # Every +ip4:/+ip6: network a receiver evaluates, with the name whose record holds it.
+    networks: list[tuple[str, str]] = field(default_factory=list)
 
 
 async def _txt(resolver: DnsResolver, name: str) -> list[str]:
@@ -159,6 +167,9 @@ async def check_spf(resolver: DnsResolver, domain: str) -> SpfResult:
         twice counts twice (RFC 7208, section 4.6.4); a redirect hands over its target's
         "all", however long the chain (section 6.1)."""
         total, effective = record.lookups, record.all
+        for network in record.networks:
+            if (network, path[-1]) not in result.networks:
+                result.networks.append((network, path[-1]))
         for rtype, host in record.targets:
             # A name with no answer is a "void lookup"; more than two in one evaluation
             # are a permerror (RFC 7208, section 4.6.4).
@@ -295,6 +306,8 @@ class MailFacts:
     bimi: list[str] | None = None
     # The DNS answers the verdicts rest on, as received: "TXT _dmarc.example.ru" -> records.
     raw: dict[str, list[str]] = field(default_factory=dict)
+    # The clouds' pool addresses, loaded only when SPF lists networks (SUV-MAIL-008).
+    clouds: CloudRanges | None = None
 
 
 # What each mail provider asks to put in SPF; every name was checked to publish an SPF
@@ -381,6 +394,19 @@ def verdict(m: MailFacts) -> Check:
                 "но для поддоменов стоит sp=none: письмо от имени, например, "
                 f"noreply@mail.{m.domain} дойдёт.",
                 "Уберите sp=none из DMARC-записи или замените на sp=reject.",
+            )
+        rented = cloud_overlap(m)
+        if rented:
+            return Check(
+                GROUP_MAIL,
+                title,
+                Status.WARN,
+                "Частично. DMARC с политикой reject отклонит письмо с чужого сервера, но SPF "
+                "разрешает отправку с адресов, которые может арендовать любой клиент "
+                f"{_join({h.cloud for h in rented})}: письмо с такого сервера пройдёт и SPF, "
+                "и DMARC (подробности — в проверке «SPF: адреса, которые может арендовать "
+                "любой»).",
+                "Уберите из SPF диапазоны облачных адресов, оставьте адреса своих серверов.",
             )
         return Check(
             GROUP_MAIL,
@@ -574,6 +600,185 @@ def spf_check(m: MailFacts) -> Check:
             "письма, не прошедшие проверку. Речь о доставке вашей настоящей почты."
         )
     return Check(GROUP_MAIL, title, status, " ".join(details), recommendation)
+
+
+# --- SPF and the clouds' pool addresses -----------------------------------------------
+
+CLOUD_TITLE = "SPF: адреса, которые может арендовать любой"
+# A cloud can give one customer a whole block (AWS: contiguous /29-/30 blocks from IPAM by
+# default and larger ones on request, an IPv6 /56 per VPC and IPAM pools up to /40), so a
+# network this long or longer inside a pool prefix may be one customer's own: a warning.
+# A big mail service (HubSpot: a /23 inside EC2) may well hold such a block.
+_BLOCK_PREFIX = {4: 20, 6: 40}
+
+
+@dataclass(frozen=True, slots=True)
+class CloudHit:
+    network: str  # as written in SPF
+    owner: str  # the name whose SPF record holds it
+    cloud: str
+    shared: bool  # surely shared by the cloud's customers; False: maybe one customer's block
+
+
+def cloud_hits(m: MailFacts) -> list[CloudHit]:
+    """SPF networks holding a public cloud's pool addresses. A single address is the
+    owner's own server (an elastic IP) and is left out."""
+    if m.clouds is None or m.spf.spf is None:
+        return []
+    hits = []
+    for network, owner in m.spf.networks:
+        try:
+            net = ipaddress.ip_network(network, strict=False)
+        except ValueError:
+            continue
+        if net.num_addresses == 1:
+            continue
+        overlap = m.clouds.overlaps(network)
+        if not overlap:
+            continue
+        # A whole published pool prefix in the SPF network (a bigger one, or the network
+        # itself), or a wide network inside a prefix: no one customer holds that.
+        whole = net in m.clouds.by_length.get(net.prefixlen, {})
+        shared = whole or any(part != net for part, _ in overlap)
+        shared = shared or net.prefixlen < _BLOCK_PREFIX[net.version]
+        hits.append(CloudHit(network, owner, overlap[0][1], shared))
+    return hits
+
+
+def cloud_overlap(m: MailFacts) -> list[CloudHit]:
+    """The networks that surely let anyone who rents a cloud server pass SPF."""
+    return [h for h in cloud_hits(m) if h.shared]
+
+
+def _v4_count(m: MailFacts, hits: list[CloudHit]) -> int:
+    """IPv4 pool addresses inside these networks, each counted once."""
+    assert m.clouds is not None
+    parts = [
+        part
+        for h in hits
+        for part, _ in m.clouds.overlaps(h.network)
+        if isinstance(part, ipaddress.IPv4Network)
+    ]
+    return sum(n.num_addresses for n in ipaddress.collapse_addresses(parts))
+
+
+def _join(clouds: set[str]) -> str:
+    order = [s.name for s in SOURCES]
+    return ", ".join(sorted(clouds, key=lambda c: order.index(c) if c in order else 99))
+
+
+def _number(n: int) -> str:
+    return f"{n:,}".replace(",", " ")
+
+
+def _terms(m: MailFacts, hits: list[CloudHit]) -> str:
+    terms = [
+        f"ip{'6' if ':' in h.network else '4'}:{h.network} ({h.cloud}"
+        + ("" if h.owner == m.domain else f", из include:{h.owner}")
+        + ")"
+        for h in hits[:5]
+    ]
+    return "; ".join(terms) + (f" и ещё {len(hits) - 5}" if len(hits) > 5 else "")
+
+
+def _foreign(m: MailFacts, hits: list[CloudHit]) -> list[str]:
+    return sorted({h.owner for h in hits if h.owner != m.domain})
+
+
+def cloud_spf_check(m: MailFacts) -> Check | None:
+    if m.spf.spf is None:
+        return None  # no single SPF record: SUV-MAIL-002 says so
+    if not m.spf.networks:
+        return Check(
+            GROUP_MAIL,
+            CLOUD_TITLE,
+            Status.OK,
+            "В SPF (вместе с include) нет диапазонов адресов ip4:/ip6:, только имена серверов "
+            "и сервисов, поэтому арендуемых облачных адресов там нет.",
+        )
+    if m.clouds is None or m.clouds.empty:
+        return Check(
+            GROUP_MAIL,
+            CLOUD_TITLE,
+            Status.UNKNOWN,
+            "Не проверено: списки адресов облаков не загрузились, и сравнить с ними диапазоны "
+            "из SPF нельзя.",
+        )
+    looked = _join({s.name for s in SOURCES} - set(m.clouds.missing))
+    missing = (
+        f" Списки {', '.join(m.clouds.missing)} не загрузились, с ними не сравнивали."
+        if m.clouds.missing
+        else ""
+    )
+    hits = cloud_hits(m)
+    shared = [h for h in hits if h.shared]
+    blocks = [h for h in hits if not h.shared]
+    if shared:
+        clouds = _join({h.cloud for h in shared})
+        count = _v4_count(m, shared)
+        lead = f"От имени домена может отправлять любой, кто арендует сервер в {clouds}: в SPF "
+        head = (
+            f"{lead}{_number(count)} "
+            f"{plural(count, 'такой адрес', 'таких адреса', 'таких адресов')}."
+            if count
+            else f"{lead}есть общие диапазоны IPv6 этих облаков."
+        )
+        advice = (
+            "Замените широкие диапазоны на конкретные адреса своих серверов (ip4:адрес без маски)."
+        )
+        foreign = _foreign(m, shared)
+        if foreign:
+            advice += (
+                f" Диапазоны из {', '.join(foreign)} публикует сервис, на который ссылается "
+                "ваш include: спросите у него, зачем там облачные адреса, или уберите include, "
+                "если сервисом больше не пользуетесь."
+            )
+        return Check(
+            GROUP_MAIL,
+            CLOUD_TITLE,
+            Status.FAIL,
+            f"{head} Записи: {_terms(m, shared)}. Облако раздаёт эти адреса всем своим "
+            "клиентам, и письмо с такого сервера с адресом отправителя вашего домена пройдёт "
+            f"SPF, а значит и DMARC, даже при p=reject.{missing}",
+            advice,
+        )
+    if blocks:
+        count = _v4_count(m, blocks)
+        whose = "за вами или за сервисом из include" if _foreign(m, blocks) else "за вами"
+        return Check(
+            GROUP_MAIL,
+            CLOUD_TITLE,
+            Status.WARN,
+            f"В SPF блоки адресов {_join({h.cloud for h in blocks})}"
+            + (
+                f" ({_number(count)} {plural(count, 'адрес', 'адреса', 'адресов')})"
+                if count
+                else ""
+            )
+            + f": {_terms(m, blocks)}. Облако может закрепить такой блок целиком за одним "
+            "клиентом, а может раздавать адреса из него поштучно разным; по спискам облаков "
+            "это не различить. Если блок закреплён не целиком, письмо с сервера, арендованного "
+            f"в нём, пройдёт SPF, а значит и DMARC.{missing}",
+            f"Уточните, закреплён ли каждый блок целиком {whose}; если нет — замените его "
+            "конкретными адресами серверов.",
+        )
+    n = len(m.spf.networks)
+    singles = [x for x, _ in m.spf.networks if m.clouds.overlaps(x)]
+    own = (
+        f" Отдельные адреса в облаке ({', '.join(singles[:3])}) — скорее всего, ваши "
+        "серверы: такой адрес получит другой клиент, только когда вы его освободите, "
+        "поэтому убирайте его из SPF вместе с сервером."
+        if singles
+        else ""
+    )
+    return Check(
+        GROUP_MAIL,
+        CLOUD_TITLE,
+        Status.OK,
+        f"В SPF {n} {plural(n, 'запись', 'записи', 'записей')} ip4:/ip6: (вместе с "
+        f"include), арендуемых адресов облаков ({looked}) среди них нет.{own}{missing} "
+        "Azure и российские облака списков адресов не публикуют, их не проверить.",
+    )
 
 
 def _rank(status: Status) -> int:
@@ -1010,6 +1215,9 @@ def bimi_check(m: MailFacts) -> Check:
 
 def evaluate(m: MailFacts) -> list[Check]:
     checks = [verdict(m), spf_check(m), dmarc_check(m)]
+    cloud = cloud_spf_check(m)
+    if cloud is not None:
+        checks.append(cloud)
     if m.receives_mail:
         checks += [dkim_check(m), transport_check(m)]
         if m.dkim:
@@ -1025,6 +1233,7 @@ def evaluate(m: MailFacts) -> list[Check]:
 _EVIDENCE_NAMES = {
     "SUV-MAIL-001": ("TXT {d}", "TXT _dmarc.{d}"),
     "SUV-MAIL-002": ("TXT {d}",),
+    "SUV-MAIL-008": ("TXT {d}",),
     "SUV-MAIL-003": ("TXT _dmarc.{d}",),
     "SUV-MAIL-005": ("MX {d}", "TXT _mta-sts.{d}", "TXT _smtp._tls.{d}"),
     "SUV-MAIL-007": ("TXT default._bimi.{d}", "TXT _dmarc.{d}"),
@@ -1192,6 +1401,8 @@ async def collect_mail(
     client: httpx.AsyncClient,
     domain: str,
     dkim_selectors: list[str] | tuple[str, ...] = (),
+    *,
+    refresh: bool = False,
 ) -> MailFacts:
     mx = await resolver.resolve(domain, "MX")
     # A null MX ("0 .") says the domain takes no mail at all (RFC 7505).
@@ -1210,6 +1421,8 @@ async def collect_mail(
         raw=raw,
         dkim_given=list(dkim_selectors),
     )
+    if spf.networks:
+        facts.clouds = await load_ranges(client, refresh=refresh)
     if facts.dmarc:
         facts.dmarc_unauthorized = await _dmarc_unauthorized(resolver, domain, facts.dmarc)
     # BIMI is information only: without an answer the check is left out.
@@ -1241,9 +1454,13 @@ async def run_mail_checks(
     client: httpx.AsyncClient,
     domain: str,
     dkim_selectors: list[str] | tuple[str, ...] = (),
+    *,
+    refresh: bool = False,
 ) -> list[Check]:
     try:
-        return evaluate(await collect_mail(resolver, client, domain, dkim_selectors))
+        return evaluate(
+            await collect_mail(resolver, client, domain, dkim_selectors, refresh=refresh)
+        )
     except DnsLookupError as exc:
         return [
             Check(
