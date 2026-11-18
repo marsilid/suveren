@@ -1,4 +1,4 @@
-"""CAA (RFC 8659) and DNSSEC (RFC 4035, RFC 8624): DNS-only checks of the site's zone."""
+"""CAA (RFC 8659) and DNSSEC (RFC 4035, RFC 9904, RFC 9905): DNS-only checks of the site's zone."""
 
 import asyncio
 import sys
@@ -186,11 +186,18 @@ def test_ds_without_keys_or_with_a_stale_key_is_broken():
     assert stale.status is Status.FAIL and stale.recommendation
 
 
-@pytest.mark.parametrize(("algorithm", "word"), [(5, "не рекомендуется"), (12, "запрещено")])
-def test_old_algorithms_warn(algorithm, word):
+@pytest.mark.parametrize(
+    ("algorithm", "word", "insecure"),
+    [(5, "запрещено", True), (7, "запрещено", True), (10, "не рекомендуется", False),
+     (12, "запрещено", False)],
+)  # fmt: skip
+def test_old_algorithms_warn(algorithm, word, insecure):
+    # RFC 9905 (November 2025): RSASHA1 MUST NOT sign, and validators MUST treat a zone
+    # signed with it alone as insecure; RSASHA512 is only NOT RECOMMENDED (RFC 9904).
     key = dnskey(algorithm=algorithm)
     check = sec([ds_for(ZONE, key)], [key])
     assert check.status is Status.WARN and word in check.details
+    assert ("обязаны считать такую зону неподписанной" in check.details) is insecure
 
 
 def test_rollover_to_a_good_algorithm_is_ok():
@@ -245,3 +252,45 @@ def test_old_algorithm_is_low_urgency_but_broken_chain_is_urgent():
         report = Report(target=ZONE)
         report.checks = [sec(ds, keys)]
         assert [a.severity for a in priorities(report)] == [severity]
+
+
+# --- CAA grammar (RFC 8659, section 4.2) ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "malformed"),
+    [
+        ("letsencrypt.org", False),
+        (";", False),
+        ("", False),
+        (" ca.example.net ; account=230123 ; validationmethods=dns-01", False),
+        ("letsencrypt.org.", True),
+        ("https://letsencrypt.org", True),
+        ("%%%%%", True),
+        ("Let's Encrypt", True),
+        ("ca.example.net; bad param", True),
+    ],
+)
+def test_caa_issue_value_grammar(value, malformed):
+    record = parse_caa(f'0 issue "{value}"')
+    assert record is not None and record.malformed is malformed
+    assert (record.issuer == "") is (malformed or value.strip() in ("", ";"))
+
+
+def test_caa_malformed_value_forbids_issuance():
+    check = caa(['0 issue "letsencrypt.org."'])
+    assert check.status is Status.WARN
+    assert "по стандарту запрещает" in check.details and '"letsencrypt.org."' in check.details
+    assert "без точки на конце" in (check.recommendation or "")
+    two = caa(['0 issue "a.example."', '0 issue "https://b.example"'])
+    assert "Значения" in two.details and "соответствуют" in two.details
+
+
+def test_caa_malformed_value_next_to_a_good_one_is_ok_with_a_fix():
+    # Authorizations add up: the good value still lets its authority issue.
+    check = caa(['0 issue "letsencrypt.org"', '0 issue "https://globalsign.com"'])
+    assert check.status is Status.OK and "только letsencrypt.org" in check.details
+    assert "обязан читать его как запрет" in check.details and check.recommendation
+    # A malformed issuewild only closes wildcards.
+    wild = caa(['0 issue "letsencrypt.org"', '0 issuewild "letsencrypt.org."'])
+    assert wild.status is Status.OK and "сертификаты *. запрещены" in wild.details

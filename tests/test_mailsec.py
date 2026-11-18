@@ -985,3 +985,16 @@ def test_spf_without_networks_needs_no_lists():
     assert not any("ip-ranges" in u for u in asked)
     no_spf = evaluate(facts(spf=SpfResult(None, 0)))
     assert not any(c.id == "SUV-MAIL-008" for c in no_spf)
+
+
+def test_dkim_testing_mode_alone_warns():
+    # RFC 6376, 3.6.1: t=y means verifiers treat the mail as unsigned.
+    key = dkim_key(2048)
+    check = dkim_check(_dkim({"mail": [f"v=DKIM1; t=y; k=rsa; p={key}"]}))
+    assert check.status is Status.WARN and "t=y" in check.details and check.recommendation
+    flags = dkim_check(_dkim({"mail": [f"v=DKIM1; t=s:Y; k=rsa; p={key}"]}))
+    assert flags.status is Status.WARN
+    mixed = dkim_check(
+        _dkim({"mail": [f"v=DKIM1; t=y; p={key}"], "dkim": [f"v=DKIM1; t=s; p={key}"]})
+    )
+    assert mixed.status is Status.OK and "В тестовом режиме (t=y): mail" in mixed.details

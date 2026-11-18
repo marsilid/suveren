@@ -1615,6 +1615,19 @@ CASES: list[Case] = [
     ),
     # --- DKIM key strength (RFC 8301, sections 3.1 and 3.2; RFC 8463) ----------------
     Case(
+        "lab-dkim-testing",
+        "единственный ключ DKIM в тестовом режиме (t=y): по RFC 6376 (3.6.1) получатель "
+        "не должен отличать такие письма от неподписанных",
+        {"SUV-MAIL-004": "warn", "SUV-MAIL-006": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("mail._domainkey.lab-dkim-testing.ru", "TXT"): [
+                f"v=DKIM1; t=y; k=rsa; p={dkim_key(2048)}"
+            ]
+        },
+    ),
+    Case(
         "lab-dkim-1024",
         "ключ DKIM RSA 1024 бита: допустимо, но RFC 8301 советует не меньше 2048",
         {"SUV-MAIL-004": "ok", "SUV-MAIL-006": "warn"},
@@ -1723,6 +1736,29 @@ CASES: list[Case] = [
         dns={("lab-caa-forbid.ru", "CAA"): ['0 issue ";"']},
     ),
     Case(
+        "lab-caa-trailing-dot",
+        'CAA issue "letsencrypt.org." с точкой на конце: не по грамматике RFC 8659 (4.2), '
+        "центр обязан читать это как запрет, а сайт работает по HTTPS",
+        {"SUV-WEB-012": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={("lab-caa-trailing-dot.ru", "CAA"): ['0 issue "letsencrypt.org."']},
+    ),
+    Case(
+        "lab-caa-one-malformed",
+        "одна запись CAA по грамматике, другая с адресом https://: разрешения складываются, "
+        "сертификат выпустит первый центр",
+        {"SUV-WEB-012": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        dns={
+            ("lab-caa-one-malformed.ru", "CAA"): [
+                '0 issue "letsencrypt.org"',
+                '0 issue "https://globalsign.com"',
+            ]
+        },
+    ),
+    Case(
         "lab-caa-silent",
         "DNS не ответил на запрос CAA: проверить нельзя",
         {"SUV-WEB-012": "unknown"},
@@ -1730,7 +1766,7 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("lab-caa-silent.ru", "CAA"): NO_ANSWER},
     ),
-    # --- DNSSEC (RFC 4035, section 5; RFC 8624) ---------------------------------------
+    # --- DNSSEC (RFC 4035, section 5; RFC 9904, RFC 9905) ---------------------------------------
     Case(
         "lab-dnssec-unsigned",
         "зона не подписана: подмену ответов DNS не заметят, но это не ошибка настройки",
@@ -1757,7 +1793,7 @@ CASES: list[Case] = [
     ),
     Case(
         "lab-dnssec-sha1",
-        "зона подписана RSASHA1 (алгоритм 5): по RFC 8624 подписывать им не рекомендуется",
+        "зона подписана RSASHA1 (алгоритм 5): по RFC 9905 подписывать им запрещено",
         {"SUV-WEB-013": "warn"},
         html=page(FORM_OK),
         files=site_files(),

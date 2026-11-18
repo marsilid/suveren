@@ -887,12 +887,27 @@ def _dmarc_policy_check(m: MailFacts) -> Check:
 def dkim_check(m: MailFacts) -> Check:
     title = "DKIM: цифровая подпись писем"
     if m.dkim:
-        return Check(
-            GROUP_MAIL,
-            title,
-            Status.OK,
-            "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + "." + looked_at(m),
-        )
+        found = "Найдены ключи DKIM с селекторами: " + ", ".join(m.dkim) + "."
+        keys = [dkim_key(s, m.raw.get(f"TXT {s}._domainkey.{m.domain}", [])) for s in m.dkim]
+        testing = [k.selector for k in keys if k.testing]
+        if testing and len(testing) == len(keys):
+            return Check(
+                GROUP_MAIL,
+                title,
+                Status.WARN,
+                f"{found} {'Ключ' if len(keys) == 1 else 'Все они'} в тестовом режиме (t=y): "
+                "по RFC 6376 (раздел 3.6.1) "
+                "получатель не должен отличать такие письма от неподписанных. Многие почтовые "
+                "службы этот флаг не учитывают, но полагаться на это нельзя." + looked_at(m),
+                "Если подпись настроена и письма её проходят, уберите t=y из записей DKIM.",
+            )
+        if testing:
+            found += (
+                f" В тестовом режиме (t=y): {', '.join(testing)} — получатель не должен "
+                "отличать подписанные этими ключами письма от неподписанных (RFC 6376, "
+                "раздел 3.6.1)."
+            )
+        return Check(GROUP_MAIL, title, Status.OK, found + looked_at(m))
     if m.dkim_node:
         return Check(
             GROUP_MAIL,
@@ -998,6 +1013,7 @@ class DkimKey:
     kind: str  # "rsa", "ed25519" or what k= says
     bits: int | None  # None: the key could not be read
     sha1_only: bool = False  # h= allows no hash but SHA-1
+    testing: bool = False  # t=y: the domain is testing DKIM (RFC 6376, 3.6.1)
 
     @property
     def text(self) -> str:
@@ -1013,15 +1029,22 @@ def dkim_key(selector: str, records: list[str]) -> DkimKey:
     tags = dkim_tags(record)
     kind = (tags.get("k") or "rsa").lower()
     hashes = {h.lower() for h in tags.get("h", "").split(":") if h}
+    testing = "y" in {f.strip().lower() for f in tags.get("t", "").split(":")}
     try:
         key = base64.b64decode(tags.get("p", ""), validate=True)
     except (binascii.Error, ValueError):
         return DkimKey(selector, kind, None)
     if kind == "ed25519":  # RFC 8463: the raw 32-byte public key
-        return DkimKey(selector, kind, 256 if len(key) == 32 else None)
+        return DkimKey(selector, kind, 256 if len(key) == 32 else None, testing=testing)
     if kind != "rsa":
-        return DkimKey(selector, kind, None)
-    return DkimKey(selector, kind, rsa_bits(key), sha1_only=bool(hashes) and hashes <= {"sha1"})
+        return DkimKey(selector, kind, None, testing=testing)
+    return DkimKey(
+        selector,
+        kind,
+        rsa_bits(key),
+        sha1_only=bool(hashes) and hashes <= {"sha1"},
+        testing=testing,
+    )
 
 
 def dkim_strength_check(m: MailFacts) -> Check:

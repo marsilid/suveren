@@ -183,7 +183,7 @@ CATALOG: tuple[CheckSpec, ...] = (
           "сайта (RFC 8659)."),
     _spec("SUV-WEB-013", WEB, "Подпись DNS (DNSSEC)", "security", "web dns",
           "Подписана ли зона и сходится ли запись DS у регистратора с ключом зоны "
-          "(RFC 4035, RFC 8624)."),
+          "(RFC 4035, RFC 9904, RFC 9905)."),
     _spec("SUV-WEB-014", WEB, "Перенаправление с HTTP на HTTPS", "security", "web tls",
           "Отправляет ли http:// сразу на HTTPS, а не отдаёт сайт в открытом виде."),
     _spec("SUV-WEB-015", WEB, "Политика Referrer-Policy", "security", "web headers",

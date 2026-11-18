@@ -10,7 +10,7 @@ the site never sees these queries.
   tag they do not know (section 4.1), and ``issue ";"`` allows nobody (4.2).
 * DNSSEC, RFC 4035 section 5: a DS record in the parent zone must match a DNSKEY of the
   zone, or validating resolvers find the answers bogus and return SERVFAIL — the site
-  and its mail disappear for their users. Algorithms per RFC 8624, section 3.1.
+  and its mail disappear for their users. Algorithms per RFC 9904, table 2, and RFC 9905.
   Signatures (RRSIG) and their dates are not checked: the resolvers we use don't hand
   them over.
 """
@@ -18,6 +18,7 @@ the site never sees these queries.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 
 import dns.dnssec
@@ -38,9 +39,18 @@ DNSSEC_TITLE = "Подпись DNS (DNSSEC)"
 
 CAA_CRITICAL = 0x80  # RFC 8659, 4.1: the Issuer Critical flag
 CAA_KNOWN_TAGS = frozenset({"issue", "issuewild", "iodef", "contactemail", "contactphone"})
+# RFC 8659, section 4.2: the ABNF of an issue (and issuewild) value. A value that does not
+# match it MUST be read as an empty issuer-domain-name, i.e. as forbidding issuance.
+_LABEL = r"[A-Za-z0-9](?:-*[A-Za-z0-9])*"
+_PARAM = rf"{_LABEL}[ \t]*=[ \t]*[\x21-\x3a\x3c-\x7e]*"
+_ISSUE_VALUE = re.compile(
+    rf"[ \t]*(?:{_LABEL}(?:\.{_LABEL})*[ \t]*)?"
+    rf"(?:;[ \t]*(?:{_PARAM}(?:[ \t]*;[ \t]*{_PARAM})*[ \t]*)?)?"
+)
 
-# RFC 8624, section 3.1, the "DNSSEC Signing" column; algorithm numbers from the IANA
-# registry. 23 is GOST R 34.10-2012 (RFC 9558), which replaced 12.
+# RFC 9904 (which obsoleted RFC 8624), table 2, the "Use for DNSSEC Signing" column, with
+# RFC 9905 on top: RSASHA1 (5, 7) MUST NOT sign since November 2025. Algorithm numbers from
+# the IANA registry. 23 is GOST R 34.10-2012 (RFC 9558), which replaced 12.
 DNSSEC_ALGORITHMS = {
     1: "RSAMD5",
     3: "DSA",
@@ -56,9 +66,13 @@ DNSSEC_ALGORITHMS = {
     16: "ED448",
     23: "ECC-GOST12",
 }
-SIGN_MUST_NOT = frozenset({1, 3, 6, 12})
-SIGN_NOT_RECOMMENDED = frozenset({5, 7, 10})
-# RFC 8624, section 3.3: a SHA-1 digest MUST NOT be used for a new DS record.
+SIGN_MUST_NOT = frozenset({1, 3, 5, 6, 7, 12})
+SIGN_NOT_RECOMMENDED = frozenset({10})
+# Signed with these alone, a zone is insecure to a validating resolver: validation of 1, 3
+# and 6 MUST NOT be done (RFC 9904, table 2), and 5 and 7 MUST be treated as unsupported
+# (RFC 9905, section 2). 12 and 10 may still validate.
+VALIDATION_INSECURE = frozenset({1, 3, 5, 6, 7})
+# RFC 9904, table 3: a SHA-1 digest MUST NOT be used for a DS record.
 DS_DIGESTS = {1: "SHA1", 2: "SHA256", 4: "SHA384"}
 
 
@@ -72,8 +86,16 @@ class Caa:
     value: str
 
     @property
+    def malformed(self) -> bool:
+        """An issue/issuewild value outside the grammar of RFC 8659, section 4.2."""
+        return self.tag in ("issue", "issuewild") and not _ISSUE_VALUE.fullmatch(self.value)
+
+    @property
     def issuer(self) -> str:
-        """The authority domain of an issue/issuewild value, "" for "nobody"."""
+        """The authority domain of an issue/issuewild value, "" for "nobody": a malformed
+        value counts as "nobody" too (RFC 8659, section 4.2)."""
+        if self.malformed:
+            return ""
         return self.value.split(";", 1)[0].strip().lower()
 
 
@@ -150,6 +172,15 @@ def caa_check(result: CaaResult, *, https: bool) -> Check:
     wild = [c for c in parsed if c.tag == "issuewild"]
     allowed = sorted({c.issuer for c in issue if c.issuer})
     allowed_wild = sorted({c.issuer for c in wild if c.issuer})
+    broken = sorted({f'{c.tag} "{c.value}"' for c in parsed if c.malformed})
+    misread = ""
+    if broken:
+        one = len(broken) == 1
+        misread = (
+            f" {'Значение' if one else 'Значения'} {', '.join(broken)} не "
+            f"{'соответствует' if one else 'соответствуют'} грамматике RFC 8659 (раздел 4.2), "
+            f"и центр сертификации обязан читать {'его' if one else 'их'} как запрет выпуска."
+        )
     if issue and not allowed and https:
         extra = (
             f" Только для сертификатов на *.{result.host}: {', '.join(allowed_wild)}."
@@ -160,10 +191,16 @@ def caa_check(result: CaaResult, *, https: bool) -> Check:
             GROUP_WEB,
             CAA_TITLE,
             Status.WARN,
-            f'CAA{where} запрещает выпуск всем центрам (issue ";"), а сайт работает по '
-            "HTTPS: когда сертификат истечёт, новый не выпустят (RFC 8659, раздел 4.2)." + extra,
+            (
+                f"CAA{where} по стандарту запрещает выпуск всем центрам"
+                if broken
+                else f'CAA{where} запрещает выпуск всем центрам (issue ";")'
+            )
+            + ", а сайт работает по HTTPS: когда сертификат истечёт, новый не выпустят "
+            "(RFC 8659, раздел 4.2)." + misread + extra,
             "Впишите в CAA центр, который выпускает ваш сертификат: "
-            f'«{result.name}. CAA 0 issue "<домен центра>"».',
+            f'«{result.name}. CAA 0 issue "<домен центра>"»'
+            + (" — имя без точки на конце, кавычек внутри и адреса https://." if broken else "."),
         )
     if issue:
         who = (
@@ -179,6 +216,21 @@ def caa_check(result: CaaResult, *, https: bool) -> Check:
         who += "; сертификаты *. запрещены"
     iodef = [c.value for c in parsed if c.tag == "iodef"]
     report = f" Сообщения об отказах: {', '.join(iodef)}." if iodef else ""
+    if broken:
+        # A malformed value next to good ones only narrows the list (authorizations are
+        # additive): still worth fixing, nothing breaks.
+        return Check(
+            GROUP_WEB,
+            CAA_TITLE,
+            Status.OK,
+            f"CAA{where}: {who}.{report}{misread}"
+            + (
+                " Разрешения складываются, поэтому центры из правильных записей выпускать могут."
+                if allowed
+                else ""
+            ),
+            "Исправьте или удалите запись с ошибкой.",
+        )
     return Check(GROUP_WEB, CAA_TITLE, Status.OK, f"CAA{where}: {who}.{report}")
 
 
@@ -313,19 +365,24 @@ def dnssec_check(result: DnssecResult) -> Check:
     if len(old) == len(algorithms):
         must = any(a in SIGN_MUST_NOT for a in old)
         level = "подписывать им запрещено" if must else "подписывать им не рекомендуется"
+        resolvers = (
+            "Проверяющие резолверы обязаны считать такую зону неподписанной: защиты DNSSEC у "
+            "неё фактически нет."
+            if all(a in VALIDATION_INSECURE for a in old)
+            else "Часть резолверов уже считает такую зону неподписанной."
+        )
         return Check(
             GROUP_WEB,
             DNSSEC_TITLE,
             Status.WARN,
             f"Зона {zone} подписана, цепочка DS → DNSKEY сходится, но алгоритм {names} "
-            f"устарел: по RFC 8624 (раздел 3.1) {level}. Часть резолверов уже считает такую "
-            "зону неподписанной.",
+            f"устарел: по RFC 9904 (таблица 2) и RFC 9905 {level}. {resolvers}",
             "Перейдите на алгоритм 13 (ECDSAP256SHA256) или 8 (RSASHA256): у DNS-хостинга "
             "смените ключи, у регистратора — запись DS.",
         )
     sha1 = all(d == 1 for _, d in matched)
     digest = (
-        " Запись DS посчитана по SHA-1: для новых DS это запрещено (RFC 8624, раздел 3.3), "
+        " Запись DS посчитана по SHA-1: для DS это запрещено (RFC 9904, таблица 3), "
         "при следующей смене ключа выберите SHA-256."
         if sha1
         else ""
