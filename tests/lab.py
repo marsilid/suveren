@@ -2211,6 +2211,14 @@ CASES: list[Case] = [
         ),
         files=site_files(),
     ),
+    Case(
+        "lab-ad-erid-unmarked",
+        "баннер с токеном в data-erid, а слова «реклама» на странице нет: пометка может быть "
+        "на картинке, поэтому только «не ясно» с советом посмотреть глазами",
+        {"SUV-LAW-003": "unknown"},
+        html=page(FORM_OK + '<div class="banner" data-erid="Kra23f4Xy"><img src="b.png"></div>'),
+        files=site_files(),
+    ),
     # --- Instagram and Facebook links without the Meta note (a warning only) --------
     Case(
         "lab-meta-noted",

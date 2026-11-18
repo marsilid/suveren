@@ -1172,7 +1172,7 @@ async def run_compliance(
     recommendations = recommendation_check([html, *(h for _, h, _ in data.extra)])
     if recommendations:
         checks.append(recommendations)
-    ads = ad_marking_check([html, *(h for _, h, _ in data.extra)])
+    ads = ad_marking_check([("главная", html), *((str(p), h) for p, h, _ in data.extra)])
     if ads:
         checks.append(ads)
     meta = meta_note_check([("главная", html), *((str(p), h) for p, h, _ in data.extra)])
