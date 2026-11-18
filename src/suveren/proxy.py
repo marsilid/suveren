@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import socket
 from collections.abc import Iterable
 from dataclasses import dataclass
 from ssl import SSLContext
@@ -92,6 +93,21 @@ def set_proxy(url: str | None) -> Proxy | None:
 
 def current() -> Proxy | None:
     return _CURRENT[0] if _CURRENT else None
+
+
+PROBE_TIMEOUT = 5.0
+
+
+def unreachable(proxy: Proxy, timeout: float = PROBE_TIMEOUT) -> str | None:
+    """Why the proxy cannot be reached, or None when it accepts a connection. A dead
+    --proxy made every request fail and the report blamed the site: "главная страница
+    не открылась… сайт недоступен" (2026-11-19), so the run stops before it starts."""
+    try:
+        socket.create_connection((proxy.host, proxy.port), timeout=timeout).close()
+    except OSError as exc:
+        why = "не ответил вовремя" if isinstance(exc, TimeoutError) else "соединение не открылось"
+        return f"прокси {proxy.label} не отвечает: {why} ({exc.strerror or exc})"
+    return None
 
 
 def warning(proxy: Proxy) -> str:

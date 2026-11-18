@@ -6,6 +6,7 @@ import asyncio
 import httpx
 import pytest
 
+import suveren.cli as cli_module
 from suveren import net, proxy
 from suveren.cli import app
 from suveren.collect import make_client
@@ -194,6 +195,7 @@ def test_without_proxy_nothing_changes(monkeypatch):
 
 
 def test_scan_says_where_it_goes_with_a_proxy(monkeypatch):
+    monkeypatch.setattr(cli_module, "proxy_unreachable", lambda p: None)  # it answers
     monkeypatch.setenv("HTTPS_PROXY", "http://10.9.9.9:3128")
     result = runner.invoke(
         app, ["scan", "not a domain", "--proxy", "http://user:secret@10.0.0.1:3128"]
@@ -205,6 +207,28 @@ def test_scan_says_where_it_goes_with_a_proxy(monkeypatch):
     # The next command without --proxy goes directly again.
     runner.invoke(app, ["scan", "not a domain"])
     assert proxy.current() is None
+
+
+def test_a_dead_proxy_stops_the_run_instead_of_blaming_the_site(monkeypatch):
+    # 2026-11-19: with a proxy that did not answer the report said "главная страница не
+    # открылась… сайт недоступен" and gave a grade.
+    def refuse(address, timeout):
+        assert address == ("10.0.0.1", 3128) and timeout == proxy.PROBE_TIMEOUT
+        raise ConnectionRefusedError(10061, "No connection could be made")
+
+    monkeypatch.setattr(proxy.socket, "create_connection", refuse)
+    result = runner.invoke(app, ["scan", "example.ru", "--proxy", "http://10.0.0.1:3128"])
+    assert result.exit_code == 2
+    assert "прокси 10.0.0.1:3128 не отвечает" in result.output
+    assert "Общая оценка" not in result.output
+    assert proxy.current() is None
+
+    def slow(address, timeout):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(proxy.socket, "create_connection", slow)
+    why = proxy.unreachable(proxy.parse_proxy("http://10.0.0.1:3128"))
+    assert why and "не ответил вовремя" in why
 
 
 def test_a_bad_proxy_address_stops_the_command():

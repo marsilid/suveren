@@ -70,6 +70,7 @@ from suveren.net import proxy_note
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
 from suveren.proxy import set_proxy
+from suveren.proxy import unreachable as proxy_unreachable
 from suveren.proxy import warning as proxy_warning
 from suveren.render import print_pdf
 from suveren.report import (
@@ -397,6 +398,9 @@ def _use_proxy(url: str | None) -> None:
         upstream = set_proxy(url)
     except ValueError as exc:
         raise _fail(f"--proxy: {exc}") from None
+    if upstream and (why := proxy_unreachable(upstream)):
+        set_proxy(None)
+        raise _fail(f"--proxy: {why}. Проверьте адрес и порт или запустите без --proxy.")
     note = proxy_warning(upstream) if upstream else proxy_note()
     if note:
         errors_console.print(f"[#e6b450]{esc(note)}[/]")
