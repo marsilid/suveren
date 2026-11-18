@@ -83,108 +83,121 @@ def clear_screen(console: Console) -> None:
 
 
 def run_menu(app: typer.Typer, console: Console) -> None:
-    def call(*args: str) -> None:
+    _Menu(app, console).loop()
+
+
+class _Menu:
+    def __init__(self, app: typer.Typer, console: Console) -> None:
+        self.app = app
+        self.console = console
+        self.actions: dict[str, tuple[Callable[[], None], bool]] = {
+            "1": (self.scan, True),
+            "2": (self.batch, True),
+            "3": (self.company, True),
+            "4": (self.diff, True),
+            "5": (lambda: self.call("services"), True),
+            "6": (lambda: self.call("update"), True),
+            "9": (self.watch, True),
+            "7": (lambda: self.call("doctor"), True),
+            "8": (self.reports, False),
+        }
+
+    def call(self, *args: str) -> None:
         with contextlib.suppress(SystemExit, typer.Exit, typer.Abort):
             try:
-                app(list(args), standalone_mode=False)
+                self.app(list(args), standalone_mode=False)
             except TyperException as exc:
                 # A mistyped flag ("--json" without a file) is said, not fatal: the menu
                 # runs in its own window, which would close.
                 format_message = getattr(exc, "format_message", None)
                 message = translate(format_message() if format_message else str(exc))
-                console.print(f"  [red]{escape(message)}[/]")
+                self.console.print(f"  [red]{escape(message)}[/]")
 
-    def ask(prompt: str) -> str:
+    def ask(self, prompt: str) -> str:
         try:
-            return console.input(f"  [{DIM}]{prompt}[/]  ").strip().strip('"')
+            return self.console.input(f"  [{DIM}]{prompt}[/]  ").strip().strip('"')
         except (EOFError, KeyboardInterrupt):
             return ""
 
-    def pause() -> None:
-        console.print()
-        ask("Enter — вернуться в меню")
+    def pause(self) -> None:
+        self.console.print()
+        self.ask("Enter — вернуться в меню")
 
-    def yes(prompt: str) -> bool:
-        answer = ask(f"{prompt}  [{ACCENT}]д[/]/[bold]Н[/]")
+    def yes(self, prompt: str) -> bool:
+        answer = self.ask(f"{prompt}  [{ACCENT}]д[/]/[bold]Н[/]")
         return answer.lower() in ("д", "да", "y", "yes")
 
-    def scan() -> None:
+    def scan(self) -> None:
         # After the address the flags of `suveren scan` may follow, as on the command
         # line ("сайт.ru --pages 30 --pdf отчёт.pdf"); what they set is not asked again.
-        words = ask("Адрес сайта (можно с флагами, как в командной строке)").split()
+        words = self.ask("Адрес сайта (можно с флагами, как в командной строке)").split()
         if not words:
             return
         target, flags = words[0], words[1:]
         REPORTS.mkdir(exist_ok=True)
         args = ["scan", target]
         if "--profile" not in flags and "-P" not in flags and "--quick" not in flags:
-            console.print(f"  [bold {ACCENT}]1[/]  Обычная  [{DIM}]~20 с: без браузера[/]")
-            console.print(
+            self.console.print(f"  [bold {ACCENT}]1[/]  Обычная  [{DIM}]~20 с: без браузера[/]")
+            self.console.print(
                 f"  [bold {ACCENT}]2[/]  Глубокая [{DIM}]~1 мин: браузер, отключение "
                 "иностранных сервисов[/]"
             )
-            deep = ask("Какая проверка? (Enter — обычная)") == "2"
+            deep = self.ask("Какая проверка? (Enter — обычная)") == "2"
             args += ["--profile", "deep" if deep else "standard"]
-        if "--pdf" not in flags and yes("Сохранить ещё и PDF"):
+        if "--pdf" not in flags and self.yes("Сохранить ещё и PDF"):
             args += ["--pdf", str(REPORTS / f"{safe_name(target)}.pdf")]
-        console.print()
-        call(*args, *flags)
+        self.console.print()
+        self.call(*args, *flags)
 
-    def batch() -> None:
-        console.print(f"  [{DIM}]Нужен текстовый файл: по одному сайту в строке.[/]")
-        path = ask("Файл со списком (Enter — создать шаблон)")
+    def batch(self) -> None:
+        self.console.print(f"  [{DIM}]Нужен текстовый файл: по одному сайту в строке.[/]")
+        path = self.ask("Файл со списком (Enter — создать шаблон)")
         if not path:
             REPORTS.mkdir(exist_ok=True)
             template = REPORTS / "sites.txt"
             if not template.exists():
                 template.write_text(SITES_TEMPLATE, encoding="utf-8")
             open_path(template)
-            console.print(f"  Открыл {template}. Заполните, сохраните и выберите пункт 2 снова.")
+            self.console.print(
+                f"  Открыл {template}. Заполните, сохраните и выберите пункт 2 снова."
+            )
             return
-        call("batch", path, "--browser")
+        self.call("batch", path, "--browser")
 
-    def company() -> None:
-        console.print(f"  [{DIM}]Первая проверка скачивает санкционные списки (около 100 МБ).[/]")
-        target = ask("ИНН, ОГРН или сайт компании")
+    def company(self) -> None:
+        self.console.print(
+            f"  [{DIM}]Первая проверка скачивает санкционные списки (около 100 МБ).[/]"
+        )
+        target = self.ask("ИНН, ОГРН или сайт компании")
         if target:
             pdf = ["--pdf", str(REPORTS / f"{safe_name(target)}.pdf")]
             REPORTS.mkdir(exist_ok=True)
-            call("company", target, "--browser", *(pdf if yes("Сохранить ещё и PDF") else []))
+            self.call(
+                "company", target, "--browser", *(pdf if self.yes("Сохранить ещё и PDF") else [])
+            )
 
-    def diff() -> None:
-        old = ask("Старый отчёт (JSON)")
-        new = ask("Новый отчёт (JSON)") if old else ""
+    def diff(self) -> None:
+        old = self.ask("Старый отчёт (JSON)")
+        new = self.ask("Новый отчёт (JSON)") if old else ""
         if old and new:
-            call("diff", old, new)
+            self.call("diff", old, new)
 
-    def watch() -> None:
-        console.print(
+    def watch(self) -> None:
+        self.console.print(
             f"  [{DIM}]Один круг: сайты проверяются снова и сравниваются с прошлым разом. Чтобы "
             "изменения приходили в Telegram, задайте SUVEREN_TELEGRAM_TOKEN и "
             "SUVEREN_TELEGRAM_CHAT.[/]"
         )
-        path = ask("Файл со списком сайтов")
+        path = self.ask("Файл со списком сайтов")
         if path:
-            call("watch", path, "--once")
+            self.call("watch", path, "--once")
 
-    def reports() -> None:
+    def reports(self) -> None:
         REPORTS.mkdir(exist_ok=True)
         open_path(REPORTS.resolve())
 
-    actions: dict[str, tuple[Callable[[], None], bool]] = {
-        "1": (scan, True),
-        "2": (batch, True),
-        "3": (company, True),
-        "4": (diff, True),
-        "5": (lambda: call("services"), True),
-        "6": (lambda: call("update"), True),
-        "9": (watch, True),
-        "7": (lambda: call("doctor"), True),
-        "8": (reports, False),
-    }
-
-    empty = 0
-    while True:
+    def draw(self) -> None:
+        console = self.console
         clear_screen(console)
         console.print()
         console.print(
@@ -199,20 +212,25 @@ def run_menu(app: typer.Typer, console: Console) -> None:
             for key, title, hint in items:
                 console.print(f"    [bold {ACCENT}]{key}[/]   {title:<22}[{DIM}]{hint}[/]")
         console.print()
-        try:
-            choice = console.input(f"  [bold {ACCENT}]›[/] ").strip()
-        except (EOFError, KeyboardInterrupt):
-            choice = ""
-        if choice == "0":
-            return
-        if choice not in actions:
-            empty += not choice
-            if empty >= 5:  # input is closed: don't spin forever
-                return
-            continue
+
+    def loop(self) -> None:
         empty = 0
-        action, wait = actions[choice]
-        console.print()
-        action()
-        if wait:
-            pause()
+        while True:
+            self.draw()
+            try:
+                choice = self.console.input(f"  [bold {ACCENT}]›[/] ").strip()
+            except (EOFError, KeyboardInterrupt):
+                choice = ""
+            if choice == "0":
+                return
+            if choice not in self.actions:
+                empty += not choice
+                if empty >= 5:  # input is closed: don't spin forever
+                    return
+                continue
+            empty = 0
+            action, wait = self.actions[choice]
+            self.console.print()
+            action()
+            if wait:
+                self.pause()
