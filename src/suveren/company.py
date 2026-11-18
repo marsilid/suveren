@@ -129,6 +129,30 @@ def render_age(registered: date, today: date) -> str:
 
 def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: date) -> list[Check]:
     """``sanctions_ok`` is None when screening was switched off."""
+    checks = _egrul_checks(report)
+    checks += _age_checks(report, today)
+    checks += _sanction_checks(report, sanctions_ok)
+    checks += _operator_checks(report)
+
+    if report.ru_screening is not None:
+        ru = list_check(report.ru_screening, asked=report.ru_asked)
+        if report.ru_screening.source:
+            ru.evidence.append(source(report.ru_screening.source))
+        checks.append(ru)
+    if report.domain:
+        checks.append(_site_check(report))
+    laws = {"SUV-CO-006": "152-ФЗ, ст. 22", "SUV-CO-007": "ЗоЗПП, ст. 26.1"}
+    for check in checks:
+        check.law = laws.get(check.id)
+        for key in SOURCES_BY_CHECK.get(check.id, ()):
+            for name, text in report.sources.items():
+                if name == key or name.startswith(f"{key}:"):
+                    check.evidence.append(source(text))
+    return checks
+
+
+def _egrul_checks(report: CompanyReport) -> list[Check]:
+    """Whether ЕГРЮЛ / ЕГРИП has the company, and whether it is active."""
     checks: list[Check] = []
     rec = report.egrul
 
@@ -166,6 +190,13 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                 "Не заключайте договоры с ликвидированной организацией.",
             )
         )
+    return checks
+
+
+def _age_checks(report: CompanyReport, today: date) -> list[Check]:
+    """How long ago the company was registered."""
+    checks: list[Check] = []
+    rec = report.egrul
 
     if rec and rec.registered:
         days = (today - rec.registered).days
@@ -190,6 +221,13 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     f"Зарегистрирована {rec.registered:%d.%m.%Y} ({age}).",
                 )
             )
+    return checks
+
+
+def _sanction_checks(report: CompanyReport, sanctions_ok: bool | None) -> list[Check]:
+    """The company and its head in the sanctions lists; nothing when screening is off."""
+    checks: list[Check] = []
+    rec = report.egrul
 
     sources = ", ".join(SOURCE_TITLES.get(s, s) for s in report.sanctions_sources)
     # "Не найдена в списках: США" read as clean while the EU and UK lists had not loaded:
@@ -347,6 +385,12 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                         retry,
                     )
                 )
+    return checks
+
+
+def _operator_checks(report: CompanyReport) -> list[Check]:
+    """The register of personal-data operators."""
+    checks: list[Check] = []
 
     if report.inn:
         if report.operator:
@@ -382,21 +426,6 @@ def build_checks(report: CompanyReport, *, sanctions_ok: bool | None, today: dat
                     "она обязана подать уведомление (152-ФЗ, ст. 22).",
                 )
             )
-
-    if report.ru_screening is not None:
-        ru = list_check(report.ru_screening, asked=report.ru_asked)
-        if report.ru_screening.source:
-            ru.evidence.append(source(report.ru_screening.source))
-        checks.append(ru)
-    if report.domain:
-        checks.append(_site_check(report))
-    laws = {"SUV-CO-006": "152-ФЗ, ст. 22", "SUV-CO-007": "ЗоЗПП, ст. 26.1"}
-    for check in checks:
-        check.law = laws.get(check.id)
-        for key in SOURCES_BY_CHECK.get(check.id, ()):
-            for name, text in report.sources.items():
-                if name == key or name.startswith(f"{key}:"):
-                    check.evidence.append(source(text))
     return checks
 
 
