@@ -74,13 +74,13 @@ docker run --rm -v "$PWD:/work" suveren scan example.ru
   registrar, certificate, scripts and widgets. An independence grade from A to F and a migration
   plan.
 - **Does the site comply with 152-FZ?** The privacy policy and its contents, consent in forms,
-  cookies, cross-border transfer, the register of personal-data operators, Google and Apple
-  sign-in, Instagram and Facebook links without the note that Meta is banned. The total of
-  possible administrative fines.
+  cookies and whether refusing them works (in the browser), cross-border transfer, the register
+  of personal-data operators, Google and Apple sign-in, Instagram and Facebook links without the
+  note that Meta is banned, ad labelling. The total of possible administrative fines.
 - **Does the site open in Russia?** The domain and IPs in the block list, blocked services on the
   pages.
 - **Can mail be forged in the company's name?** SPF, DMARC, DKIM, MTA-STS and a plain answer:
-  yes, partly or no.
+  yes, partly or no. Also: does the SPF allow addresses anyone can rent in a public cloud.
 - **Are there forgotten subdomains that can be taken over?**
 - **Whose code runs on the site?** Third-party and abandoned scripts, vulnerable libraries, keys
   in the code, security headers, cookies, TLS, CAA and DNSSEC.
@@ -137,6 +137,7 @@ suveren draft report.json               # a draft policy or consent: show it to 
 suveren menu                            # the menu, no command line
 suveren scan site.ru -v                 # every network step with timings: see where it hangs
 suveren scan site.ru --dkim-selector ew # also check your own DKIM selector, not just common ones
+suveren scan site.ru --proxy http://proxy:3128  # behind a corporate proxy
 ```
 
 All commands and options are in the [guide](docs/guide.md#все-команды) (in Russian) and in
