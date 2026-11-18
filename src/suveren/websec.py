@@ -92,13 +92,13 @@ TLS_CHECK_TITLE = "TLS: сертификат и протоколы"
 _SESSION_COOKIE = re.compile(
     r"sess|^sid$|[._-]sid$|^sid[._-]|auth(?!or)|jwt|remember|access[._-]?token"
     r"|refresh[._-]?token",
-    re.I,
+    re.IGNORECASE,
 )
-_CSRF_COOKIE = re.compile(r"csrf|xsrf", re.I)
+_CSRF_COOKIE = re.compile(r"csrf|xsrf", re.IGNORECASE)
 # Analytics and chat widgets that count visits in a "session" cookie their own scripts
 # read: sourcebuster (sbjs_session), Hotjar, Intercom, Amplitude, Mixpanel, Segment,
 # Yandex Metrica, Google Analytics. They hold no login, and HttpOnly would break them.
-_ANALYTICS_COOKIE = re.compile(r"^(sbjs_|_hj|intercom-|amp_|mp_|ajs_|_ym|_ga|_gid)", re.I)
+_ANALYTICS_COOKIE = re.compile(r"^(sbjs_|_hj|intercom-|amp_|mp_|ajs_|_ym|_ga|_gid)", re.IGNORECASE)
 
 
 # --- Scripts --------------------------------------------------------------------------
@@ -755,7 +755,7 @@ def hsts_check(w: WebFacts) -> Check | None:
             "перехватить в общественном Wi-Fi и подменить страницу.",
             "Добавьте заголовок Strict-Transport-Security: max-age=31536000; includeSubDomains.",
         )
-    ages = re.findall(r"max-age\s*=\s*\"?(\d+)", value, re.I)
+    ages = re.findall(r"max-age\s*=\s*\"?(\d+)", value, re.IGNORECASE)
     if len(ages) > 1:
         # bi.zone sends the header four times; joined, it repeats max-age, and a header
         # with a repeated directive is invalid (RFC 6797, section 6.1).

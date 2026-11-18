@@ -5,14 +5,14 @@ tools/check_laws.py compares the text's fingerprint to the recorded one."""
 from __future__ import annotations
 
 import hashlib
-import html
 import json
-import re
 from dataclasses import dataclass
 from datetime import date
 from functools import cache
 from importlib.resources import files
 from typing import Any
+
+from suveren.utils import visible_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,13 +67,7 @@ def law_urls() -> dict[str, str]:
     return {law.id: law.url for law in laws()}
 
 
-def provisions_for(check_id: str) -> list[tuple[Law, Provision]]:
-    return [(law, p) for law in laws() for p in law.provisions if check_id in p.checks]
-
-
 def fingerprint(page: str) -> str:
     """sha256 of the law's text without markup, scripts and spacing: a new banner or a
     reordered menu should not count as a change of the law, a changed word should."""
-    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", page)
-    text = html.unescape(re.sub(r"<[^>]+>", " ", text))
-    return hashlib.sha256(" ".join(text.split()).encode("utf-8")).hexdigest()
+    return hashlib.sha256(visible_text(page).encode("utf-8")).hexdigest()

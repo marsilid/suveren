@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from suveren.checks import Check, Status
-from suveren.cutoff import HostInfo, PageCutoff, infra_check, page_check
+from suveren.cutoff import PageCutoff, infra_check, page_check
 from suveren.metanote import meta_note_check
 from suveren.models import Category, Dependency, Severity
 from suveren.ownsite import exposed_files_check
@@ -197,12 +197,11 @@ def test_a_commented_out_note_is_no_note():
 
 
 def test_hosts_of_unknown_country_are_not_called_no_foreign_services():
-    hosts = {"cdn.some.io": HostInfo("cdn.some.io", None, None)}
-    check = page_check(PageCutoff(unknown=["cdn.some.io"]), hosts)
+    check = page_check(PageCutoff(unknown=["cdn.some.io"]))
     assert check.status is Status.UNKNOWN
     # The hosts left on are named in brackets.
     assert check.details.partition("(")[2].partition(")")[0] == "cdn.some.io"
-    assert page_check(PageCutoff(), {}).status is Status.OK
+    assert page_check(PageCutoff()).status is Status.OK
 
 
 def dep(category, service, country):

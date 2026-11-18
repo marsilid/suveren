@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TypedDict
 
 from suveren.catalog import SelectionError, modules_for, select
 from suveren.crawl import DEFAULT_PAGES
@@ -44,14 +45,38 @@ class ScanPlan:
     pages: int
     only: frozenset[str] | None = None  # check IDs to report; None = all
 
-    def kwargs(self) -> dict[str, object]:
-        """Arguments for ``run_scan``."""
-        return {
-            **{m: m in self.modules for m in SCAN_MODULES},
-            "browser": self.browser,
-            "pages": self.pages,
-            "only": self.only,
-        }
+    def kwargs(self) -> ScanKwargs:
+        """Arguments for ``run_scan``; typed, so mypy checks them against its signature."""
+        on = self.modules.__contains__
+        return ScanKwargs(
+            compliance=on("compliance"),
+            blocklist=on("blocklist"),
+            mail=on("mail"),
+            security=on("security"),
+            subdomains=on("subdomains"),
+            cutoff=on("cutoff"),
+            formleaks=on("formleaks"),
+            ownsite=on("ownsite"),
+            browser=self.browser,
+            pages=self.pages,
+            only=self.only,
+        )
+
+
+class ScanKwargs(TypedDict):
+    """One key per name in SCAN_MODULES (a test keeps them in step), plus the rest."""
+
+    compliance: bool
+    blocklist: bool
+    mail: bool
+    security: bool
+    subdomains: bool
+    cutoff: bool
+    formleaks: bool
+    ownsite: bool
+    browser: bool
+    pages: int
+    only: frozenset[str] | None
 
 
 def make_plan(

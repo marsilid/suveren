@@ -11,6 +11,7 @@ import pytest
 
 from suveren import geoip
 from suveren.analyze import analyze
+from suveren.cache import cache_dir
 from suveren.collect import Facts, NetInfo, locate
 from suveren.models import Category
 
@@ -76,7 +77,7 @@ def test_load_falls_back_to_last_month_and_is_read_once(tmp_path, monkeypatch):
     assert db.origin.startswith("DB-IP, https://db-ip.com, база от ")
     assert len(asked) == 2 and asked[1] == geoip.month_urls()[1]
     assert load(handler) is db  # fresh and unchanged: not downloaded or parsed again
-    assert geoip.cached_path().exists()
+    assert (cache_dir() / geoip.FILENAME).exists()
 
 
 def test_load_without_any_copy_says_so(tmp_path, monkeypatch):

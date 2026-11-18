@@ -22,7 +22,7 @@ from suveren.utils import registrable_domain
 
 _RESOURCE = re.compile(
     r"<(?:script|iframe|link|img|source|embed|video|audio)\b[^>]*?\s(?:src|href)\s*=\s*[\"']([^\"']+)",
-    re.I,
+    re.IGNORECASE,
 )
 _PATTERNS = tuple(rx for s in ALL_SERVICES for rx in s._page_re)
 MAX_EXAMPLES = 5
@@ -33,7 +33,7 @@ MAX_DOMAINS = 2000
 
 # A commented-out tag loads nothing: pk.altstu.ru keeps an old YouTube player in a
 # comment next to its RUTUBE ones, and "data goes to YouTube (USA)" came of it (redfox0).
-_COMMENT = re.compile(r"<!--.*?(?:-->|$)", re.S)
+_COMMENT = re.compile(r"<!--.*?(?:-->|$)", re.DOTALL)
 
 
 def resource_urls(html: str, base: str) -> list[str]:

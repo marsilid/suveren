@@ -25,7 +25,7 @@ LINK = re.compile(r'(\]\(|\b(?:src|srcset)=")([^)"\s]+)')
 def absolute(text: str, ref: str, repo: str = REPO) -> str:
     def fix(m: re.Match[str]) -> str:
         opener, target = m.groups()
-        if re.match(r"[a-z][a-z0-9+.-]*:|#|/", target, re.I):
+        if re.match(r"[a-z][a-z0-9+.-]*:|#|/", target, re.IGNORECASE):
             return m.group(0)
         path = target.removeprefix("./")
         if path.split("#", 1)[0].lower().endswith(IMAGES):

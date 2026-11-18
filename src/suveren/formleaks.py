@@ -478,7 +478,7 @@ def pages_with_fields(
 _HAS_FIELD = re.compile(
     r"<input\b[^>]*\btype=[\"']?(?:email|tel|password)\b"
     r"|<input\b[^>]*\bname=[\"']?[^\"'>]*(?:phone|email|name|fio)",
-    re.I,
+    re.IGNORECASE,
 )
 
 

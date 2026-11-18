@@ -16,7 +16,7 @@ from typing import Any
 # Words that mean "do something" or "this is dangerous": out of place in an OK check.
 _ALARM = re.compile(
     r"\b(?:уберите|опасн|может (?:выполнить|украсть|перехват)|исправьте|замените|перенесите)",
-    re.I,
+    re.IGNORECASE,
 )
 # Names quoted from registers: "БЕЗОПАСНАЯ ИНФОРМАЦИОННАЯ ЗОНА" is bi.zone's legal name.
 _QUOTED = re.compile(r'"[^"]*"|«[^»]*»')
@@ -24,7 +24,7 @@ _QUOTED = re.compile(r'"[^"]*"|«[^»]*»')
 _CALM = re.compile(
     r"^(?:таких \w+ не найдено|замечаний нет|всё в порядке|противоречий[^.]* нет)|"
     r"не заблокирован\w*\.$",
-    re.I,
+    re.IGNORECASE,
 )
 
 

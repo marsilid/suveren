@@ -202,9 +202,9 @@ def build(made: Site) -> Report:
     return report
 
 
-TEXT = re.compile(r'<text class="[^"]*" x="[\d.]+" y="([\d.]+)"[^>]*>(.*?)</text>', re.S)
-LINE_TEXT = re.compile(r'<text [^>]*clip-path="url\(#[\w-]+-line-(\d+)\)">.*?</text>', re.S)
-LINE_CLIP = re.compile(r'<clipPath id="[\w-]+-line-(\d+)">.*?</clipPath>', re.S)
+TEXT = re.compile(r'<text class="[^"]*" x="[\d.]+" y="([\d.]+)"[^>]*>(.*?)</text>', re.DOTALL)
+LINE_TEXT = re.compile(r'<text [^>]*clip-path="url\(#[\w-]+-line-(\d+)\)">.*?</text>', re.DOTALL)
+LINE_CLIP = re.compile(r'<clipPath id="[\w-]+-line-(\d+)">.*?</clipPath>', re.DOTALL)
 CELL = re.compile(r'<rect [^>]*y="([\d.]+)"[^>]*crispEdges"/>')
 
 

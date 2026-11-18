@@ -164,11 +164,13 @@ _LABEL = re.compile(
     + r"\s+(?:через|с\s+помощью|с|with|using|via)\s+(?:аккаунт\w*\s+|account\s+)?("
     + "|".join(_LABEL_NAMES.values())
     + r")(?!\w)(?!\s*pay\b)",  # "Продолжить с Apple Pay" is a payment, not a sign-in
-    re.I,
+    re.IGNORECASE,
 )
-_ATTR_TEXT = re.compile(r"""(?:aria-label|title|alt|value)\s*=\s*["']([^"'<>]{3,100})["']""", re.I)
+_ATTR_TEXT = re.compile(
+    r"""(?:aria-label|title|alt|value)\s*=\s*["']([^"'<>]{3,100})["']""", re.IGNORECASE
+)
 # Icons inside a button are long SVG paths, so the limit is generous.
-_BUTTON = re.compile(r"<button\b[^>]*>(.{0,4000}?)</button\s*>", re.I | re.S)
+_BUTTON = re.compile(r"<button\b[^>]*>(.{0,4000}?)</button\s*>", re.IGNORECASE | re.DOTALL)
 _TAG = re.compile(r"<[^>]+>")
 _MAX_LABEL = 60  # a button says "Войти через Google", an article headline says more
 
@@ -193,27 +195,31 @@ _ALL_NAMES = "|".join(
 # The route sits near the start of the path (/users/auth/github, /ru/api/auth/google),
 # not deep in a help article (/help/login/google, /docs/oauth/github).
 _OWN_PATH = re.compile(
-    rf"^(?:/[\w-]+){{0,2}}/{_AUTH_SEGMENT}/(?:[\w-]+/)?({_ALL_NAMES})(?:[/?#.]|$)", re.I
+    rf"^(?:/[\w-]+){{0,2}}/{_AUTH_SEGMENT}/(?:[\w-]+/)?({_ALL_NAMES})(?:[/?#.]|$)", re.IGNORECASE
 )
 _DOC_SEGMENT = re.compile(
     r"/(?:help|docs?|documentation|faq|support|kb|wiki|blog|news|articles?|guides?|manual)"
     r"(?:/|$)",
-    re.I,
+    re.IGNORECASE,
 )
 # Plugins name the network in a parameter (WordPress Nextend, 1C-Bitrix). A bare
 # ?provider= counts only on a sign-in route: ?service=apple may be a repair shop.
 _OWN_QUERY = re.compile(
-    rf"[?&](?:loginSocial|auth_service_id)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.I
+    rf"[?&](?:loginSocial|auth_service_id)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.IGNORECASE
 )
-_AUTH_QUERY = re.compile(rf"[?&](?:provider|backend)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.I)
+_AUTH_QUERY = re.compile(
+    rf"[?&](?:provider|backend)=({_ALL_NAMES})(?:oauth\w*)?(?:[&#]|$)", re.IGNORECASE
+)
 # A whole path word: "/authors/?provider=google" is not a sign-in route.
-_AUTH_WORD = re.compile(r"(?:^|[/_.-])(?:o?auth2?|login|signin|sign-in|sso)(?:$|[/_.-])", re.I)
+_AUTH_WORD = re.compile(
+    r"(?:^|[/_.-])(?:o?auth2?|login|signin|sign-in|sso)(?:$|[/_.-])", re.IGNORECASE
+)
 _PROVIDER_KEYS = {n.lower(): (p.name, True) for p in FOREIGN for n in p.names} | {
     n.lower(): (p.name, False) for p in RUSSIAN for n in p.names
 }
 
 # uLogin (a Russian widget) shows whatever networks the site lists in its settings.
-_ULOGIN = re.compile(r"""data-ulogin(?:id)?\s*=\s*["']([^"']+)["']""", re.I)
+_ULOGIN = re.compile(r"""data-ulogin(?:id)?\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 _ULOGIN_NAMES = {
     "google": "Google", "googleplus": "Google", "apple": "Apple", "facebook": "Facebook",
     "github": "GitHub", "microsoft": "Microsoft", "liveid": "Microsoft", "twitter": "X (Twitter)",
@@ -228,13 +234,13 @@ _LOGIN_TEXT = re.compile(
     r"^(?:войти|вход|вход на сайт|войти на сайт|войти в (?:личный )?кабинет|личный кабинет|"
     r"кабинет|авторизация|авторизоваться|вход \| регистрация|вход / регистрация|вход и регистрация|"
     r"войти / зарегистрироваться|войти или зарегистрироваться|log ?in|sign ?in)$",
-    re.I,
+    re.IGNORECASE,
 )
 _LOGIN_HREF = re.compile(
     r"/(?:login|signin|sign-in|sign_in|sign|auth|lk|cabinet|personal|account|user/login|"
     r"members/login)"
     r"(?:/|\.php|$)",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -291,7 +297,7 @@ def find_evidence(
     for foreign, providers in ((True, FOREIGN), (False, RUSSIAN)):
         for p in providers:
             for rx in p.endpoints:
-                match = re.search(rf"(?<![\w-]){rx}", code, re.I)
+                match = re.search(rf"(?<![\w-]){rx}", code, re.IGNORECASE)
                 if match:
                     tail = _URL_TAIL.match(code, match.start())
                     add(p.name, OAUTH, _short(tail.group(0) if tail else match.group(0)), foreign)
@@ -324,7 +330,7 @@ def find_evidence(
         for match in _LABEL.finditer(text):
             name = match.group(1)
             provider = next(
-                (p for p, rx in _LABEL_NAMES.items() if re.fullmatch(rx, name, re.I)), None
+                (p for p, rx in _LABEL_NAMES.items() if re.fullmatch(rx, name, re.IGNORECASE)), None
             )
             if provider:
                 add(provider, BUTTON, " ".join(match.group(0).split()))
@@ -356,7 +362,8 @@ def find_login_page(page: Page, base: str) -> str | None:
 # Where to go after signing in, and tracking: drom.ru hides the Telegram button when
 # the sign-in page is opened with ?return=...
 _RETURN_PARAM = re.compile(
-    r"^(?:return\w*|back\w*|redirect\w*|next|from|ret|goto|continue|utm_\w+|hhtm\w*)$", re.I
+    r"^(?:return\w*|back\w*|redirect\w*|next|from|ret|goto|continue|utm_\w+|hhtm\w*)$",
+    re.IGNORECASE,
 )
 
 

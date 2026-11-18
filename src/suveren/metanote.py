@@ -15,10 +15,10 @@ the usual wordings: "Meta … признана экстремистской", "�
 
 from __future__ import annotations
 
-import html as htmllib
 import re
 
 from suveren.checks import GROUP_LAWS, Check, Evidence, Status
+from suveren.utils import visible_text
 
 TITLE = "Ссылки на Instagram и Facebook без пометки о Meta"
 
@@ -47,9 +47,7 @@ def live(page: str) -> str:
 
 
 def page_text(page: str) -> str:
-    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", live(page))
-    text = htmllib.unescape(re.sub(r"<[^>]+>", " ", text))
-    return " ".join(text.replace("Ё", "Е").replace("ё", "е").split())
+    return visible_text(live(page)).replace("Ё", "Е").replace("ё", "е")
 
 
 def meta_links(page: str) -> list[str]:

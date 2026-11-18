@@ -35,6 +35,10 @@ def test_checks_choose_modules_and_skip_wins():
     assert make_plan(checks="dkim", skip={"mail"}).modules == frozenset()
     kwargs = plan.kwargs()
     assert kwargs["mail"] and kwargs["security"] and not kwargs["compliance"]
+    # Every module has its switch: a new one added to SCAN_MODULES only must not be lost.
+    from suveren.plan import SCAN_MODULES
+
+    assert set(kwargs) == {*SCAN_MODULES, "browser", "pages", "only"}
 
 
 def test_narrow_keeps_why_a_chosen_check_is_missing():

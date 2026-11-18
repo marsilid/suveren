@@ -1,6 +1,6 @@
 import pytest
 
-from suveren.inn import classify, find_inns, find_ogrns, is_valid_inn, is_valid_ogrn
+from suveren.inn import classify, find_inns, is_valid_inn, is_valid_ogrn
 
 
 @pytest.mark.parametrize("inn", ["7707083893", "7810962785", "7801451618", "500100732259"])
@@ -30,7 +30,6 @@ def test_find_inns_in_markup():
         "ОГРН 1027700132195. Телефон 7707083894</footer>"
     )
     assert find_inns(html) == ["7707083893"]
-    assert find_ogrns(html) == ["1027700132195"]
 
 
 def test_find_inns_ignores_bad_checksum():

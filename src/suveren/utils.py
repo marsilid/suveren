@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -155,13 +156,20 @@ def plural(n: int, one: str, few: str, many: str) -> str:
 # Code points, not a regex range: what is removed is listed exactly.
 _CONTROL = dict.fromkeys(
     [
-        *range(0x00, 0x09),  # C0 before tab
+        *range(0x09),  # C0 before tab
         *range(0x0B, 0x20),  # C0 after newline (CR included)
         *range(0x7F, 0xA0),  # DEL and C1
         *range(0x202A, 0x202F),  # LRE, RLE, PDF, LRO, RLO
         *range(0x2066, 0x206A),  # LRI, RLI, FSI, PDI
     ]
 )
+
+
+def visible_text(page: str) -> str:
+    """What a reader sees: no scripts, styles or tags, entities decoded, spaces collapsed.
+    Tags can split a phrase ("Request ID:<span>…"), so matching runs on this text."""
+    text = re.sub(r"(?is)<(script|style)\b.*?</\1\s*>", " ", page)
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
 
 
 def clean_text(text: str) -> str:

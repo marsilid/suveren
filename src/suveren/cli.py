@@ -795,7 +795,7 @@ def scan(
                         form_phone=phone,
                         dkim_selectors=selectors,
                         start_path=start_path,
-                        **plan.kwargs(),  # type: ignore[arg-type]
+                        **plan.kwargs(),
                     ),
                 )
             )
@@ -1038,7 +1038,7 @@ def batch(
                         timeout=timeout,
                         dns_mode=dns_mode.value,
                         dkim_selectors=selectors,
-                        **plan.kwargs(),  # type: ignore[arg-type]
+                        **plan.kwargs(),
                     ),
                     max_time,
                 )
@@ -1348,7 +1348,7 @@ def watch(
     plan = make_plan(Profile.standard)
 
     async def scan_one(host: str) -> Report:
-        return await run_scan(host, timeout=timeout, **plan.kwargs())  # type: ignore[arg-type]
+        return await run_scan(host, timeout=timeout, **plan.kwargs())
 
     while True:
         console.print(
@@ -1435,7 +1435,7 @@ def research(
     async def scan_one(host: str) -> Report:
         return await _within(
             SITE_DEADLINE,
-            run_scan(host, timeout=timeout, **plan.kwargs()),  # type: ignore[arg-type]
+            run_scan(host, timeout=timeout, **plan.kwargs()),
         )
 
     if not summary_only:

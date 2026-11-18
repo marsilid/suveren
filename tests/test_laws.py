@@ -10,7 +10,12 @@ import httpx
 
 from suveren.catalog import BY_ID
 from suveren.checks import LAW_URLS
-from suveren.laws import fingerprint, laws, provisions_for
+from suveren.laws import fingerprint, laws
+
+
+def provisions_for(check_id):
+    return [(law, p) for law in laws() for p in law.provisions if check_id in p.checks]
+
 
 _spec = importlib.util.spec_from_file_location(
     "check_laws", Path(__file__).parent.parent / "tools" / "check_laws.py"

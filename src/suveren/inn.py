@@ -13,7 +13,6 @@ _INN_RE = re.compile(
     r"[\s:№#./-]{0,6}(\d{10}|\d{12})(?!\d)",
     re.IGNORECASE,
 )
-_OGRN_RE = re.compile(r"(?:огрнип|огрн|ogrn)[\s:№#./-]{0,6}(\d{13}|\d{15})(?!\d)", re.IGNORECASE)
 
 
 def _weighted(digits: str, weights: tuple[int, ...]) -> int:
@@ -62,15 +61,15 @@ def _clean(text: str) -> str:
 
 # An ad label under 38-ФЗ names the advertiser: "Реклама. ООО «X», ИНН …, erid: …".
 # That ИНН is someone else's, not the site owner's.
-_AD_LABEL = re.compile(r"\berid\b", re.I)
+_AD_LABEL = re.compile(r"\berid\b", re.IGNORECASE)
 # So is a partner's in a document: rbc.ru's offer names "партнер Администрации ООО
 # «Тривиум» (ОГРН …, ИНН 7806297293)", the operator of a course platform.
-_PARTNER = re.compile(r"партн[её]р", re.I)
+_PARTNER = re.compile(r"партн[её]р", re.IGNORECASE)
 
 
 # A bank or a payment service named next to its ИНН: "Платежи принимает АО «Альфа-Банк»
 # ИНН …". It may recur in the payment blocks more often than the owner in the footer.
-_PAYER = re.compile(r"банк|bank|эквайр|эквайер|плат[её]ж|оплат|страхов", re.I)
+_PAYER = re.compile(r"банк|bank|эквайр|эквайер|плат[её]ж|оплат|страхов", re.IGNORECASE)
 
 
 def find_inns(text: str, *, first: bool = False) -> list[str]:
@@ -162,8 +161,3 @@ def own_ad_inns(text: str, domain: str) -> list[tuple[str, str]]:
         if labels & set(words):
             found[(value, names[-1].strip())] += 1
     return [pair for pair, _ in found.most_common()]
-
-
-def find_ogrns(text: str) -> list[str]:
-    counts = Counter(m for m in _OGRN_RE.findall(_clean(text)) if is_valid_ogrn(m))
-    return [o for o, _ in counts.most_common()]

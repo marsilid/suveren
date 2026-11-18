@@ -48,7 +48,6 @@ GROUPS = (
         ("0", "Выход", ""),
     )),
 )  # fmt: skip
-ITEMS = tuple((key, title) for _, items in GROUPS for key, title, _ in items)
 
 
 def safe_name(target: str) -> str:
