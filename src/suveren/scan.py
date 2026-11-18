@@ -20,6 +20,7 @@ from suveren.catalog import BY_ID
 from suveren.checks import GROUP_152, Check, Status
 from suveren.collect import Collector, Facts, collect, make_client, page_problem
 from suveren.compliance import policy_target, run_compliance
+from suveren.consent import ConsentProbe, consent_check
 from suveren.crawl import (
     DEFAULT_PAGES,
     FetchedPage,
@@ -110,7 +111,9 @@ async def run_scan(
                 progress, "Сайт в браузере" + (f" (до {pages + 1} стр.)" if pages else "")
             ):
                 try:
-                    await _render_site(facts, host, timeout=max(timeout, 25.0), pages=pages)
+                    await _render_site(
+                        facts, host, timeout=max(timeout, 25.0), pages=pages, consent=compliance
+                    )
                 except ModuleError as exc:
                     facts.notes.append(
                         f"Режим --browser не сработал: {exc}. Использован обычный HTML."
@@ -370,7 +373,7 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
                 f"Не проверено: {facts.page_problem}.",
             )
         ]
-    return await run_compliance(
+    checks = await run_compliance(
         client,
         facts.final_url,
         facts.html,
@@ -382,6 +385,10 @@ async def _compliance(client: httpx.AsyncClient, facts: Facts, report: Report) -
         rendered=facts.rendered,
         https_unanswered=facts.https_unanswered,
     )
+    if facts.consent is not None:
+        checks.append(consent_check(facts.consent, facts.host))
+        report.facts["consent"] = facts.consent.to_dict()
+    return checks
 
 
 async def _dataflow(
@@ -435,7 +442,9 @@ def _usable(pages: list[FetchedPage]) -> list[FetchedPage]:
     return [p for p in pages if not page_problem(p.status, p.html, rendered=bool(p.loaded_urls))]
 
 
-async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -> None:
+async def _render_site(
+    facts: Facts, host: str, *, timeout: float, pages: int, consent: bool = False
+) -> None:
     async with BrowserSession(timeout=timeout) as session:
         start = facts.final_url or f"https://{host}{facts.start_path}"
         home = await session.open(start, initiators=True)
@@ -466,6 +475,22 @@ async def _render_site(facts: Facts, host: str, *, timeout: float, pages: int) -
                 facts.prefetched[url] = FetchedPage(
                     doc.final_url, doc.status, doc.html, doc.requests
                 )
+        if consent:
+            # The home page again, with no cookies: does the banner's "reject" work?
+            facts.consent = consent_walls(await session.consent(home.final_url))
+
+
+def consent_walls(probe: ConsentProbe) -> ConsentProbe:
+    """A bot wall or an error page in place of the page leaves the experiment unanswered:
+    no counters there says nothing about the site."""
+    for status, html in probe.loads:
+        # A 403 from an anti-bot wall can look like a page (ozon.ru, 2026-11-19).
+        wall = page_problem(status, html, rendered=True) or (
+            f"ответ {status}" if status and status >= 400 else None
+        )
+        if wall and not probe.problem:
+            probe.problem = f"страница в браузере не открылась как обычно ({wall})"
+    return probe
 
 
 async def gather_limited(jobs: list[Callable[[], Awaitable[T]]], limit: int) -> list[T]:

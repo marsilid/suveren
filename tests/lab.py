@@ -33,6 +33,7 @@ from suveren.analyze import analyze
 from suveren.checks import Check, Status
 from suveren.collect import Collector, Facts, NetInfo
 from suveren.compliance import run_compliance
+from suveren.consent import ConsentProbe, Request, consent_check
 from suveren.crawl import DEFAULT_PAGES, fetch_pages, pick_from_sitemap, pick_links, sitemap_urls
 from suveren.dnsutil import DnsLookupError
 from suveren.dnszone import run_zone_checks
@@ -259,6 +260,11 @@ CLOUD_LISTS = {
     "https://digitalocean.com/geo/google.csv": "104.131.0.0/18,US,US-NY,New York,10001\n",
 }
 
+# Requests the browser makes for counters (--browser, the cookie banner experiment).
+METRIKA_JS = Request("https://mc.yandex.ru/metrika/tag.js", "script", 350)
+METRIKA_HIT = Request("https://mc.yandex.ru/watch/12345?page-url=https%3A%2F%2Fx", "ping", 1200)
+GTAG_JS = Request("https://www.googletagmanager.com/gtag/js?id=G-1", "script", 300)
+
 # A DNS record whose lookup times out (put as the value in Case.dns).
 NO_ANSWER: list[str] = ["<нет ответа>"]
 
@@ -304,6 +310,8 @@ class Case:
     # What the browser loaded (--browser): (URL, the frames it was requested from, the
     # innermost first, without the page itself). Empty: a scan without a browser.
     loaded: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    # The cookie banner experiment (--browser): what the browser saw; None: not run.
+    consent: ConsentProbe | None = None
 
     @property
     def host(self) -> str:
@@ -1774,6 +1782,85 @@ CASES: list[Case] = [
         files=site_files(),
         dns={("lab-dnssec-silent.ru", "DS"): NO_ANSWER},
     ),
+    # --- the cookie banner in a browser: counters before any action, after "reject" ---
+    Case(
+        "lab-consent-before",
+        "Метрика получила данные сразу при загрузке; после «Отклонить» молчит",
+        {"SUV-PD-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-before.ru/",
+            before=[METRIKA_JS, METRIKA_HIT],
+            button="Отклонить",
+            after=[METRIKA_JS],
+        ),
+    ),
+    Case(
+        "lab-consent-ignored",
+        "после «Отклонить» и повторного открытия Метрика снова получает данные",
+        {"SUV-PD-013": "fail"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-ignored.ru/",
+            before=[METRIKA_JS, METRIKA_HIT],
+            button="Только необходимые",
+            after=[METRIKA_JS, METRIKA_HIT],
+        ),
+    ),
+    Case(
+        "lab-consent-waits",
+        "счётчик загружен, но данных не шлёт до согласия; после отказа тоже",
+        {"SUV-PD-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-waits.ru/",
+            before=[METRIKA_JS, Request("https://lab-consent-waits.ru/app.js", "script", 90)],
+            button="Отклонить все",
+            after=[METRIKA_JS],
+        ),
+    ),
+    Case(
+        "lab-consent-no-button",
+        "данные уходят при загрузке, а кнопки отказа нет: работает ли отказ, не проверить",
+        {"SUV-PD-013": "warn"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe("https://lab-consent-no-button.ru/", before=[METRIKA_JS, METRIKA_HIT]),
+    ),
+    Case(
+        "lab-consent-google-ping",
+        "после отказа Google шлёт запросы без cookies (Consent Mode, gcs=G100): так задумано",
+        {"SUV-PD-013": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-google-ping.ru/",
+            before=[GTAG_JS],
+            button="Reject all",
+            after=[
+                GTAG_JS,
+                Request(
+                    "https://region1.google-analytics.com/g/collect?v=2&tid=G-1&gcs=G100",
+                    "ping",
+                    800,
+                ),
+            ],
+        ),
+    ),
+    Case(
+        "lab-consent-browser-failed",
+        "браузер не открыл страницу второй раз: проверка не выполнена",
+        {"SUV-PD-013": "unknown"},
+        html=page(FORM_OK),
+        files=site_files(),
+        consent=ConsentProbe(
+            "https://lab-consent-browser-failed.ru/",
+            problem="браузер не открыл https://lab-consent-browser-failed.ru/ (Timeout)",
+        ),
+    ),
     # --- dangling A records on cloud addresses (warning only) -------------------------
     Case(
         "lab-cloud-silent",
@@ -2373,6 +2460,8 @@ async def _run_case(case: Case) -> dict[str, Check]:
             checks += mail_checks(
                 await collect_mail(FakeResolver(records, case.missing), client, host)
             )
+            if case.consent is not None:
+                checks.append(consent_check(case.consent, host))
             if case.own_site:
                 checks.append(await exposed_files_check(client, host))
             if case.subdomains is not None:

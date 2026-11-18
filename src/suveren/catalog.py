@@ -98,6 +98,9 @@ CATALOG: tuple[CheckSpec, ...] = (
     _spec("SUV-PD-011", PD, "Политика и реальность", "compliance", "pd law",
           "Сходится ли политика с сайтом: оператор и сайт, данные из форм, cookies, третьи лица, "
           "страны."),
+    _spec("SUV-PD-013", PD, "Отказ от cookies: слушаются ли его счётчики", "compliance",
+          "pd law cookies browser", "Только с --browser: получают ли счётчики данные до действия "
+          "посетителя и после нажатия «Отклонить» в баннере cookies."),
     _spec("SUV-PD-012", PD, "Данные из форм до отправки", "formleaks", "pd law forms browser",
           "Эксперимент в браузере: уходят ли имя, телефон, почта, пароль сторонним сервисам "
           "до отправки формы."),
@@ -364,6 +367,7 @@ LABELS = {
     "SUV-MAIL-005": ("look", "ip"),  # fetches https://mta-sts.<domain>/.well-known/...
     "SUV-WEB-008": ("probe", "ip"),  # handshakes with TLS 1.0 and 1.1 on purpose
     "SUV-WEB-011": ("look", "js"),  # only with --browser
+    "SUV-PD-013": ("look", "js"),  # only with --browser; presses the banner's "reject"
     "SUV-WEB-012": ("none", "none"),  # CAA records, DNS only
     "SUV-WEB-013": ("none", "none"),  # DS and DNSKEY records, DNS only
     "SUV-SUB-000": ("probe", "ip"),

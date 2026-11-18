@@ -332,6 +332,13 @@ class FakeBrowser:
     async def open_many(self, urls, *, concurrency=3):
         return [await self.open(u) for u in urls]
 
+    async def consent(self, url, *, settle_ms=None):
+        from suveren.consent import ConsentProbe, Request
+
+        page = await self.open(url)
+        hits = [Request(self.COLLECT, "xhr", 900)] if page.requests else []
+        return ConsentProbe(url, before=hits, loads=[(page.status, page.html)])
+
 
 def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, tmp_path):
     monkeypatch.setattr(scan_module, "BrowserSession", FakeBrowser)
@@ -345,6 +352,9 @@ def test_browser_mode_sees_requests_and_who_started_them(offline, monkeypatch, t
     assert data["facts"]["rendered"] is True
     statuses = {c["id"]: c["status"] for c in data["checks"]}
     assert "SUV-WEB-011" in statuses  # the script graph exists only in the browser
+    # GA got data at once and there is no banner to refuse it: a warning, not a verdict.
+    assert statuses["SUV-PD-013"] == "warn"
+    assert data["facts"]["consent"]["button"] is None
     for check_id, want in case.expect.items():
         assert statuses.get(check_id) == want, check_id
     assert audit(data) == []

@@ -23,6 +23,8 @@ from urllib.parse import urlsplit
 import httpcore
 
 from suveren import trace
+from suveren.consent import REJECT_RE, ConsentProbe
+from suveren.consent import Request as ConsentRequest
 from suveren.egress import EgressProxy
 from suveren.errors import ModuleError
 from suveren.net import BLOCKED, public_addresses
@@ -41,6 +43,37 @@ USER_AGENT = (
 SETTLE_MS = 8000
 EXTRA_SETTLE_MS = 4000
 SCROLL_SETTLE_MS = 2500
+CONSENT_SETTLE_MS = 2000
+CONSENT_SAVE_MS = 1500
+CONSENT_BUTTON_TRIES, CONSENT_BUTTON_PAUSE_MS = 12, 500  # up to 6 s for the banner
+# The first visible button, link or role=button whose short text matches the pattern; it
+# is marked for the click. Plain buttons only: a checkbox or a form is never touched.
+_FIND_REJECT = """(pattern) => {
+  const re = new RegExp(pattern, 'i');
+  const sel = 'button, a, [role=button], input[type=button], input[type=submit]';
+  // Consent managers (Usercentrics and others) draw the banner in a shadow root.
+  const els = [];
+  const walk = (root) => {
+    els.push(...root.querySelectorAll(sel));
+    for (const host of root.querySelectorAll('*')) if (host.shadowRoot) walk(host.shadowRoot);
+  };
+  walk(document);
+  for (const el of els) {
+    const text = (el.innerText || el.value || el.getAttribute('aria-label') || '')
+      .replace(/\\s+/g, ' ').trim();
+    if (!text || text.length > 40 || !re.test(text)) continue;
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const form = el.closest('form');
+    if (form && form.querySelector(
+        'input[type=text], input[type=email], input[type=tel], textarea')) continue;
+    if (box.width < 1 || box.height < 1 || style.visibility === 'hidden'
+        || style.display === 'none') continue;
+    el.setAttribute('data-suveren-reject', '1');
+    return text;
+  }
+  return null;
+}"""
 
 
 @dataclass(slots=True)
@@ -535,20 +568,98 @@ class BrowserSession:
                 "chromium)." + why
             )
         try:
-            self._context = await self._browser.new_context(
-                user_agent=USER_AGENT,
-                locale="ru-RU",
-                viewport={"width": 1366, "height": 900},
-                ignore_https_errors=True,
-                # A site cannot drop a file on the operator's disk.
-                accept_downloads=False,
-            )
-            await self._context.route("**/*", self._only_public)
+            self._context = await self._new_context()
         except PlaywrightError as exc:
             # The browser is running: close it, or it outlives the scan.
             await self.__aexit__(None, None, None)
             raise ModuleError(f"браузер не запустился ({first_line(exc)})") from exc
         return self
+
+    async def _new_context(self) -> Any:
+        context = await self._browser.new_context(
+            user_agent=USER_AGENT,
+            locale="ru-RU",
+            viewport={"width": 1366, "height": 900},
+            ignore_https_errors=True,
+            # A site cannot drop a file on the operator's disk.
+            accept_downloads=False,
+        )
+        await context.route("**/*", self._only_public)
+        return context
+
+    async def consent(self, url: str, *, settle_ms: int = SETTLE_MS) -> ConsentProbe:
+        """The cookie banner experiment (consent.py) in a context of its own, with no
+        cookies: the page's requests before any action; the banner's reject button pressed,
+        as a visitor would; the page opened again in a new tab and its requests. Nothing
+        else is clicked or typed."""
+        probe = ConsentProbe(url)
+        context = await self._new_context()
+        try:
+            page = await context.new_page()
+            probe.loads.append(await self._consent_load(page, url, probe.before, settle_ms))
+            probe.button = await self._press_reject(page)
+            if probe.button is not None:
+                # The banner keeps the choice (a cookie, localStorage); the old tab is
+                # closed so its timers and farewell beacons are not counted as the new one's.
+                await page.wait_for_timeout(CONSENT_SAVE_MS)
+                with contextlib.suppress(Exception):
+                    await page.close()
+                page = await context.new_page()
+                load = await self._consent_load(page, url, probe.after, settle_ms)
+                probe.loads.append(load)
+        except ModuleError as exc:
+            probe.problem = str(exc)
+        finally:
+            with contextlib.suppress(Exception):
+                await context.close()
+        return probe
+
+    async def _consent_load(
+        self, page: Any, url: str, into: list[ConsentRequest], settle_ms: int
+    ) -> tuple[int | None, str]:
+        """Open ``url``, recording its requests into ``into``; the status and the HTML."""
+        started = time.monotonic()
+
+        def on_request(req: Any) -> None:
+            if not foreign_frame(frame_chain(req), page.url if page.url != "about:blank" else url):
+                ms = int((time.monotonic() - started) * 1000)
+                into.append(ConsentRequest(req.url, req.resource_type, ms))
+
+        page.on("request", on_request)
+        try:
+            response = await page.goto(
+                url, wait_until="domcontentloaded", timeout=self.timeout * 1000
+            )
+        except self._error as exc:
+            raise ModuleError(f"браузер не открыл {url} ({first_line(exc)})") from exc
+        with contextlib.suppress(self._error):
+            await page.wait_for_load_state("networkidle", timeout=settle_ms)
+        # Counters send their first hit a moment after the page settles.
+        await page.wait_for_timeout(CONSENT_SETTLE_MS)
+        html = ""
+        with contextlib.suppress(self._error):
+            html = await page.content()
+        return (response.status if response else None), html
+
+    async def _press_reject(self, page: Any) -> str | None:
+        """Press the first visible button whose text refuses cookies, in the page or in
+        one of its frames; its text, or None when there is none. Banners often appear a
+        few seconds after the page, so it is looked for a while."""
+        for _ in range(CONSENT_BUTTON_TRIES):
+            for frame in page.frames:
+                try:
+                    text = await frame.evaluate(_FIND_REJECT, REJECT_RE)
+                except self._error:
+                    continue
+                if not text:
+                    continue
+                try:
+                    await frame.locator("[data-suveren-reject]").first.click(timeout=5000)
+                except self._error:
+                    continue
+                return str(text)
+            await page.wait_for_timeout(CONSENT_BUTTON_PAUSE_MS)
+        return None
 
     async def _only_public(self, route: Any) -> None:
         """Every request of every page, redirects included: none goes to an internal
