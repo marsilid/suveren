@@ -67,6 +67,8 @@ from suveren.models import Report
 from suveren.net import proxy_note
 from suveren.plan import PROFILE_HELP, Profile, ScanPlan, make_plan
 from suveren.plugins import load as load_plugin
+from suveren.proxy import set_proxy
+from suveren.proxy import warning as proxy_warning
 from suveren.render import print_pdf
 from suveren.report import (
     json_text,
@@ -277,6 +279,7 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+# The commands that go to the network take --proxy and say how they get out.
 PROXY_NOTE_COMMANDS = {"scan", "company", "batch", "research", "doctor", "watch"}
 
 
@@ -292,8 +295,6 @@ def main(
     console.quiet = False  # scan -q sets it for its own run only
     trace.disable()  # --verbose is per command too
     console.stderr = False  # and `--json -` moves the view to stderr for its own run
-    if ctx.invoked_subcommand in PROXY_NOTE_COMMANDS and (note := proxy_note()):
-        errors_console.print(f"[#e6b450]{esc(note)}[/]")
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
@@ -346,6 +347,16 @@ def _open(path: Path) -> None:
         webbrowser.open(path.resolve().as_uri())
 
 
+ProxyOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--proxy",
+        metavar="URL",
+        help="HTTP-прокси, через который идут все соединения: http://узел:порт или "
+        "http://логин:пароль@узел:порт. Прокси увидит адреса и имена проверяемых сайтов; "
+        "DNS-запросы идут мимо него. Переменные HTTPS_PROXY и HTTP_PROXY не используются.",
+    ),
+]
 VerboseOpt = Annotated[
     bool,
     typer.Option(
@@ -375,6 +386,18 @@ def dkim_selectors(given: list[str]) -> list[str]:
         if name not in out:
             out.append(name)
     return out
+
+
+def _use_proxy(url: str | None) -> None:
+    """--proxy for this run, said up front; without it, a proxy in the environment is
+    said not to be used (net.proxy_note)."""
+    try:
+        upstream = set_proxy(url)
+    except ValueError as exc:
+        raise _fail(f"--proxy: {exc}") from None
+    note = proxy_warning(upstream) if upstream else proxy_note()
+    if note:
+        errors_console.print(f"[#e6b450]{esc(note)}[/]")
 
 
 def _trace(on: bool) -> None:
@@ -714,10 +737,12 @@ def scan(
             rich_help_panel="Отчёты",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить сайт: иностранные сервисы, 152-ФЗ и блокировки РКН."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         host = normalize_domain(target)
@@ -981,10 +1006,12 @@ def batch(
             "списка вместе с распространёнными.",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить список сайтов: сводная таблица, CSV и отчёт по каждому сайту."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     try:
         selectors = dkim_selectors(dkim_selector or [])
@@ -1328,8 +1355,10 @@ def watch(
             help="Куда присылать: ID чата или @канал.",
         ),
     ] = None,
+    proxy: ProxyOpt = None,
 ) -> None:
     """Следить за сайтами: проверять снова и сообщать, что изменилось с прошлого раза."""
+    _use_proxy(proxy)
     import time
 
     from suveren.watch import (
@@ -1422,10 +1451,12 @@ def research(
         typer.Option("--summary-only", help="Не проверять, только пересобрать сводку из raw/."),
     ] = False,
     timeout: Annotated[float, typer.Option("--timeout", help="Таймаут, секунды.")] = 10.0,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Исследование: проверить много сайтов и получить только сводку — доли по находкам."""
     _trace(verbose)
+    _use_proxy(proxy)
     from suveren.research import read_sites, run_research
     from suveren.research import write_summary as research_summary
 
@@ -1558,10 +1589,12 @@ def company(
     brand_name: BrandName = None,
     brand_logo: BrandLogo = None,
     brand_url: BrandUrl = None,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить компанию: ЕГРЮЛ, санкционные списки, реестр операторов ПДн."""
     _trace(verbose)
+    _use_proxy(proxy)
     brand = _brand(brand_name, brand_logo, brand_url)
     console.print(header(__version__, target, "проверка компании"))
     console.print()
@@ -1741,10 +1774,12 @@ def doctor(
             help="Запуск не из России: если ЕГРЮЛ или реестр РКН не отвечают, это не ошибка.",
         ),
     ] = False,
+    proxy: ProxyOpt = None,
     verbose: VerboseOpt = False,
 ) -> None:
     """Проверить, что все источники данных доступны и отвечают как ожидается."""
     _trace(verbose)
+    _use_proxy(proxy)
     with _spinner("[grey50]Проверяю источники данных…[/]"):
         probes = asyncio.run(run_doctor(timeout, abroad=abroad))
     table = Table(box=None, show_header=False, padding=(0, 1))
