@@ -556,8 +556,8 @@ def test_dangling_ns_delegations():
 
 
 def test_name_servers_nobody_can_register_are_not_dangling():
-    # 2026-11-21: "ivc.net.ru → 81.19.128.2 (домен 128.2 свободен)" and "corp.t1.ru →
-    # t1-ns2.inno.local (домен inno.local свободен)" were reported as failures.
+    # 2026-11-21, two popular sites: a name server written as an address ("домен 128.2
+    # свободен") and one in an internal .local zone were reported as failures.
     from suveren.subdomains import find_dangling_ns
 
     resolver = FakeResolver(
