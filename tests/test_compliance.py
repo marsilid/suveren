@@ -145,6 +145,42 @@ def test_operator_register_states():
         assert where.startswith("Реестр операторов ПДн Роскомнадзора (pd.rkn.gov.ru), запрос от ")
 
 
+def test_storage_abroad_needs_more_than_the_geolocation_database():
+    # 1000-site run, 2026-11-21: "Yandex Cloud (сеть: Россия, сервер: Израиль)" was a FAIL.
+    from suveren.models import Category, Dependency
+
+    form = '<form action="/send"><input type="tel" name="phone"><button>Отправить</button></form>'
+    title = "Хранение данных в России"
+
+    def hosting(service, country, located):
+        return Dependency(Category.HOSTING, service, country, "198.51.100.7", located=located)
+
+    [disputed] = [c for c in run(form, [hosting("Yandex Cloud", "RU", "IL")]) if c.title == title]
+    assert disputed.status is Status.WARN
+    assert "Источники расходятся" in disputed.details and "Израиль" in disputed.details
+    assert "Уточните у хостинга" in disputed.details
+    # Both sources abroad: still the finding it was.
+    [sure] = [c for c in run(form, [hosting("Hetzner", "DE", "DE")]) if c.title == title]
+    assert sure.status is Status.FAIL and sure.details.startswith("Сайт размещён за рубежом")
+    # One server sure abroad among disputed ones: the sure one decides.
+    both = [hosting("Yandex Cloud", "RU", "IL"), hosting("Hetzner", "DE", "DE")]
+    [mixed] = [c for c in run(form, both) if c.title == title]
+    assert mixed.status is Status.FAIL
+    assert "Hetzner (Германия)" in mixed.details and "Израиль" not in mixed.details
+
+
+def test_operator_name_spaces_from_the_register_are_collapsed():
+    # The register keeps names as typed (nevosoft.ru, 2026-11-21): two spaces in the report.
+    op = RknOperator("78-1", 'ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ  "НЕВОСОФТ"', "7802346246",
+                     "Приказ", None, None)  # fmt: skip
+    [check] = [
+        c
+        for c in run("x", inns=["7802346246"], operator=op)
+        if c.title == "Реестр операторов персональных данных"
+    ]
+    assert 'ОТВЕТСТВЕННОСТЬЮ "НЕВОСОФТ" (ИНН 7802346246)' in check.details
+
+
 def test_an_inn_from_the_sites_own_ad_says_where_it_came_from():
     from suveren.compliance import _operator_check
 

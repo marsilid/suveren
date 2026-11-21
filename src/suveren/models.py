@@ -275,6 +275,19 @@ class Dependency:
         return f"сеть: {self.country_ru}, сервер: {self.located_ru}"
 
     @property
+    def place_disputed(self) -> bool:
+        """A Russian network that the geolocation database places abroad. The free
+        database errs on cloud addresses, which move between regions: "Yandex Cloud,
+        сервер: Израиль" and "VK Cloud, сервер: Нидерланды" came out of a 1000-site run
+        (2026-11-21). One weak source is not enough to say the data is stored abroad."""
+        return bool(
+            self.located
+            and self.country
+            and self.country.upper() == "RU"
+            and self.located.upper() != "RU"
+        )
+
+    @property
     def stored_abroad(self) -> bool | None:
         """Is the server outside Russia: by its physical place when known, else by the
         network owner (152-ФЗ, ст. 18 ч. 5 is about where the data is)."""

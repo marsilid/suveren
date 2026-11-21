@@ -709,6 +709,9 @@ def _storage_checks(data: ComplianceInput, seen: _Seen) -> list[Check]:
     )
     if any(d.stored_abroad for d in hosting):
         where = ", ".join(_place(d) for d in hosting if d.stored_abroad)
+        # Only the geolocation database says "abroad" while the network is Russian: the
+        # sources disagree, and the gravest finding of the section needs more than that.
+        disputed = all(d.place_disputed for d in hosting if d.stored_abroad)
         # FAIL needs the data to land on that server: a form posting to the site itself.
         # A form sent elsewhere (a Russian CRM, a form service) keeps its base there.
         here = [f for f in forms if _posts_to_site(f.action, data.final_url)]
@@ -726,12 +729,25 @@ def _storage_checks(data: ComplianceInput, seen: _Seen) -> list[Check]:
             )
         else:
             about = ""
+        if disputed:
+            head = (
+                f"Источники расходятся: {where}. Сеть принадлежит российской компании, а "
+                "база расположения серверов (DB-IP) ставит сервер за рубежом; на облачных "
+                "адресах такие базы ошибаются. Уточните у хостинга, в какой стране стоит "
+                "сервер."
+            )
+            about = about.replace("база с персональными данными находится за рубежом", (
+                "и сервер действительно за рубежом, база с персональными данными там же"
+            ))  # fmt: skip
+        else:
+            sure = ", ".join(_place(d) for d in hosting if d.stored_abroad and not d.place_disputed)
+            head = f"Сайт размещён за рубежом: {sure}."
         checks.append(
             Check(
                 GROUP_152,
                 "Хранение данных в России",
-                Status.FAIL if here else Status.WARN,
-                f"Сайт размещён за рубежом: {where}." + about + by_owner,
+                Status.FAIL if here and not disputed else Status.WARN,
+                head + about + by_owner,
                 "Перенесите сайт и базу данных к российскому провайдеру: при сборе данных "
                 "граждан РФ записывать и хранить их в базах за рубежом нельзя (152-ФЗ, ст. 18 "
                 "ч. 5 в ред. от 01.07.2025). Исключения — случаи ст. 6 ч. 1 п. 2, 3, 4, 8: "
@@ -1040,11 +1056,13 @@ def _operator_check(data: ComplianceInput) -> Check:
         )
     op = data.operator
     since = op.registered.strftime("%d.%m.%Y") if op.registered else "?"
+    # The register keeps names as typed: "ОТВЕТСТВЕННОСТЬЮ  "НЕВОСОФТ"" had two spaces.
+    name = " ".join(op.name.split())
     return Check(
         GROUP_152,
         title,
         Status.OK,
-        f"{op.name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{from_ad}",
+        f"{name} (ИНН {inn}) в реестре: № {op.reg_number} от {since}.{from_ad}",
         link=op.url,
         evidence=[source(asked(RKN_SOURCE))],
     )
