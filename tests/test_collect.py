@@ -143,3 +143,36 @@ def test_ip_owner_lookup_retries_a_lost_dns_answer():
 
     info = asyncio.run(Collector(Flaky(), None, 5.0).net_info("213.59.253.7"))  # type: ignore[arg-type]
     assert info.asn == 12389 and info.as_name
+
+
+def test_ip_owner_lookup_outlasts_a_few_failures_then_gives_up(monkeypatch):
+    # 2026-11-21: Team Cymru failed 1 lookup in 8 through Yandex DoT, and one retry was
+    # not enough: kamaz.ru, pik.ru and zarina.ru lost their networks' owners.
+    from suveren import collect
+    from suveren.collect import Collector
+    from suveren.dnsutil import DnsLookupError
+
+    pauses: list[float] = []
+
+    async def no_wait(seconds):
+        pauses.append(seconds)
+
+    monkeypatch.setattr(collect.asyncio, "sleep", no_wait)
+
+    class FailsThree:
+        def __init__(self, failures):
+            self.left = failures
+
+        async def resolve(self, name, rtype):
+            if self.left:
+                self.left -= 1
+                raise DnsLookupError("SERVFAIL")
+            if name.split(".")[-4] == "origin":
+                return ["12389 | 213.59.252.0/22 | RU | ripencc | 2001-03-01"]
+            return ["12389 | RU | ripencc | 1999-06-29 | ROSTELECOM-AS PJSC Rostelecom, RU"]
+
+    info = asyncio.run(Collector(FailsThree(3), None, 5.0).net_info("213.59.253.7"))  # type: ignore[arg-type]
+    assert info.asn == 12389 and info.as_name and pauses == [0.5, 1.0, 2.0]
+    pauses.clear()
+    lost = asyncio.run(Collector(FailsThree(9), None, 5.0).net_info("213.59.253.8"))  # type: ignore[arg-type]
+    assert not lost.asn and len(pauses) == collect.CYMRU_TRIES - 1
