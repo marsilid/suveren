@@ -112,6 +112,58 @@ def test_a_wall_or_a_failure_leaves_it_unchecked():
     assert fine.problem is None
 
 
+class _Page:
+    async def wait_for_timeout(self, ms):
+        pass
+
+    async def close(self):
+        pass
+
+
+class _Context:
+    async def new_page(self):
+        return _Page()
+
+    async def close(self):
+        pass
+
+
+@pytest.mark.parametrize(
+    ("hits_after", "loads", "fails"),
+    [
+        ([True, False], 3, False),  # saved slowly: the second look is clean (ihc.ru)
+        ([True, True], 3, True),  # counters come back every time: refusal ignored
+        ([False], 2, False),  # clean at once: no second look
+    ],
+)
+def test_counters_after_a_refusal_are_looked_at_twice(monkeypatch, hits_after, loads, fails):
+    # 2026-11-21, 1000 sites at 6 at a time: ihc.ru got "refusal ignored", then kept the
+    # refusal when opened again; the banner had saved it through the site after 1.5 s.
+    session = render.BrowserSession(timeout=5)
+    opened = []
+
+    async def new_context():
+        return _Context()
+
+    async def load(page, url, into, settle_ms):
+        n = len(opened)
+        opened.append(url)
+        if n == 0 or hits_after[n - 1]:
+            into.append(Request("https://mc.yandex.ru/watch/1?page-url=x", "fetch", 900))
+        return 200, "<html></html>"
+
+    async def press(page):
+        return "Отклонить"
+
+    monkeypatch.setattr(session, "_new_context", new_context)
+    monkeypatch.setattr(session, "_consent_load", load)
+    monkeypatch.setattr(session, "_press_reject", press)
+    probe = asyncio.run(session.consent("https://a.ru/"))
+    assert len(probe.loads) == loads
+    check = consent_check(probe, "a.ru")
+    assert (check.status is Status.FAIL) is fails, check.details
+
+
 # --- in a real browser ------------------------------------------------------------------
 
 BANNER = """<!doctype html><html><head><meta charset="utf-8"></head><body>

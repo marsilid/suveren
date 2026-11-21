@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 import httpcore
 
 from suveren import trace
-from suveren.consent import REJECT_RE, ConsentProbe
+from suveren.consent import REJECT_RE, ConsentProbe, counter_hits
 from suveren.consent import Request as ConsentRequest
 from suveren.egress import EgressProxy
 from suveren.errors import ModuleError
@@ -45,6 +45,7 @@ EXTRA_SETTLE_MS = 4000
 SCROLL_SETTLE_MS = 2500
 CONSENT_SETTLE_MS = 2000
 CONSENT_SAVE_MS = 1500
+CONSENT_RECHECK_MS = 5000  # before a second look when counters fired after the refusal
 CONSENT_BUTTON_TRIES, CONSENT_BUTTON_PAUSE_MS = 12, 500  # up to 6 s for the banner
 # The first visible button, link or role=button whose short text matches the pattern; it
 # is marked for the click. Plain buttons only: a checkbox or a form is never touched.
@@ -607,6 +608,19 @@ class BrowserSession:
                 page = await context.new_page()
                 load = await self._consent_load(page, url, probe.after, settle_ms)
                 probe.loads.append(load)
+                # Some banners save the refusal through the site's own server, and 1.5 s
+                # was too short under load: ihc.ru got "refusal ignored" in a 1000-site run
+                # and kept it fine when opened again (2026-11-21). Hits after the refusal
+                # count only if the page, opened once more after a longer wait, sends them
+                # again.
+                if counter_hits(probe.after, urlsplit(url).hostname or ""):
+                    await page.wait_for_timeout(CONSENT_RECHECK_MS)
+                    with contextlib.suppress(Exception):
+                        await page.close()
+                    page = await context.new_page()
+                    again: list[ConsentRequest] = []
+                    probe.loads.append(await self._consent_load(page, url, again, settle_ms))
+                    probe.after = again
         except ModuleError as exc:
             probe.problem = str(exc)
         finally:
