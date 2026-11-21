@@ -167,7 +167,7 @@ def test_ip_owner_lookup_outlasts_a_few_failures_then_gives_up(monkeypatch):
             if self.left:
                 self.left -= 1
                 raise DnsLookupError("SERVFAIL")
-            if name.endswith("origin.asn.cymru.com"):
+            if name.split(".")[-4] == "origin":
                 return ["12389 | 213.59.252.0/22 | RU | ripencc | 2001-03-01"]
             return ["12389 | RU | ripencc | 1999-06-29 | ROSTELECOM-AS PJSC Rostelecom, RU"]
 
