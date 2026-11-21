@@ -31,6 +31,10 @@ def test_right_russian_is_not_flagged():
         "Оценка не выше B. Общая оценка C, независимость A-.",
         "Permissions-Policy: camera=(), microphone=(), geolocation=().",
         "Многоточие... тоже бывает.",
+        # Site data from the 1000-site run: field names, a cookie attribute, a path.
+        "Поля: filter[sex][] (checkbox), phone[] (tel).",
+        "Нужно Secure (обязателен при SameSite=None).",
+        "Скрипт https://tube.example.com/js/lib/../..//js/lib/x.js подгружен.",
     ):
         assert rules(text, own=True) == [], text
 
