@@ -47,6 +47,8 @@ NO_RDAP_ZONES = frozenset({"ru", "su", "xn--p1ai"})
 MAX_HTML_CHARS = 2_000_000
 MAX_HOSTS = 6
 MAX_IPS_PER_HOST = 4
+# Team Cymru lookups: tries and the first pause, doubled each time (0.5, 1, 2 s).
+CYMRU_TRIES, CYMRU_PAUSE = 4, 0.5
 
 
 @dataclass(slots=True)
@@ -361,24 +363,28 @@ class Collector:
         # Team Cymru: reversed octets under origin., reversed nibbles under origin6.
         arpa = addr.reverse_pointer.rsplit(".", 2)[0]
         zone = "origin" if addr.version == 4 else "origin6"
-        origin = await self._txt_twice(f"{arpa}.{zone}.asn.cymru.com")
+        origin = await self._txt_retried(f"{arpa}.{zone}.asn.cymru.com")
         if origin:
             info.asn, info.country = parse_cymru_origin(origin[0])
         if info.asn:
-            names = await self._txt_twice(f"AS{info.asn}.asn.cymru.com")
+            names = await self._txt_retried(f"AS{info.asn}.asn.cymru.com")
             if names:
                 as_country, info.as_name = parse_cymru_asname(names[0])
                 info.country = as_country or info.country
         return info
 
-    async def _txt_twice(self, name: str) -> list[str]:
-        """One retry: a lost answer at night left gosuslugi.ru with no owner for its IPs."""
-        for attempt in range(2):
+    async def _txt_retried(self, name: str) -> list[str]:
+        """Team Cymru's servers fail a query now and then (SERVFAIL through Yandex DoT on
+        1 in 8 lookups, 2026-11-21): kamaz.ru, pik.ru and zarina.ru lost the owners of
+        their networks in a pre-release run. A failed lookup is retried after a growing
+        pause; a lost answer at night once left gosuslugi.ru with no owner either."""
+        for attempt in range(CYMRU_TRIES):
             try:
                 return await self.resolver.resolve(name, "TXT")
             except DnsLookupError:
-                if attempt:
+                if attempt + 1 == CYMRU_TRIES:
                     return []
+                await asyncio.sleep(CYMRU_PAUSE * 2**attempt)
         return []
 
     async def _host_infos(self, host: str) -> list[HostInfo]:
