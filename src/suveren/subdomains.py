@@ -27,7 +27,7 @@ from suveren.cloud import CloudRanges, load_ranges
 from suveren.collect import NO_RDAP_ZONES, RDAP_URL, whois_query
 from suveren.dnsutil import DnsLookupError, DnsResolver
 from suveren.errors import TIMEOUTS, ModuleError, describe
-from suveren.psl import registrable
+from suveren.psl import registrable, sold_tld
 from suveren.takeover_signatures import SOURCE_URL, Signature, database_source, find_signature
 from suveren.utils import plural, visible_text
 
@@ -481,6 +481,9 @@ async def find_dangling_ns(
     found = []
     for name, servers in zip(names, delegations, strict=True):
         for ns in servers:
+            if not sold_tld(ns):
+                # Nobody can buy inno.local; an address (81.19.128.2) has no such zone either.
+                continue
             domain = sold_domain(ns)
             if domain == own or "." not in domain:
                 continue

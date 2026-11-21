@@ -688,6 +688,16 @@ def test_dkim_worst_key_decides_and_every_key_is_listed():
     assert "новым селектором" in check.recommendation
 
 
+def test_short_dkim_key_is_not_said_to_fall_in_hours_unless_it_does():
+    # 2026-11-21: three domains had 768-bit keys and the report said they "fall in hours";
+    # that is true of 512 bits, while 768 bits took about 2000 core-years in 2009.
+    tiny = dkim_strength_check(_dkim({"mail": [f"v=DKIM1; p={dkim_key(512)}"]}))
+    short = dkim_strength_check(_dkim({"mail": [f"v=DKIM1; p={dkim_key(768)}"]}))
+    assert tiny.status is short.status is Status.FAIL
+    assert "за часы" in tiny.details
+    assert "за часы" not in short.details and "в 2009 году" in short.details
+
+
 def test_dkim_key_for_sha1_only_is_invalid():
     record = f"v=DKIM1; h = sha1 ; k=RSA; p={dkim_key(2048)}"
     check = dkim_strength_check(_dkim({"mail": [record]}))

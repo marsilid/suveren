@@ -2048,6 +2048,20 @@ CASES: list[Case] = [
         subdomains=["dev"],
         dns={("dev.lab-ns-fine.ru", "NS"): ["ns1.selectel.org."]},
     ),
+    Case(
+        "lab-ns-internal",
+        "поддомены делегированы на внутренний DNS (.local) и на IP-адрес вместо имени: "
+        "такие имена никто не может зарегистрировать, захватывать нечего",
+        {"SUV-SUB-004": "ok"},
+        html=page(FORM_OK),
+        files=site_files(),
+        subdomains=["corp", "ivc"],
+        dns={
+            ("corp.lab-ns-internal.ru", "NS"): ["ns2.inno.local."],
+            ("ivc.lab-ns-internal.ru", "NS"): ["81.19.128.2."],
+        },
+        missing=frozenset({"inno.local", "128.2"}),
+    ),
     # --- own site mode: exposed service files (OWASP WSTG-CONF-04, -05) ------------
     Case(
         "lab-own-git",
