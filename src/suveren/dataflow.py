@@ -60,9 +60,11 @@ def flow_check(rows: list[dict[str, Any]]) -> Check:
     foreign = [r for r in rows if r["foreign"]]
     listed = "; ".join(f"{r['name']} — {', '.join(r['services'])}" for r in rows)
     one = services % 10 == 1 and services % 100 != 11
+    # A name may end in a dot of its own: "Miran Ltd.." stood in a report.
+    end = "" if listed.endswith(".") else "."
     text = (
         f"Открыв сайт, браузер посетителя передаёт его IP-адрес, а часто и cookies "
-        f"{services} {'стороннему сервису' if one else 'сторонним сервисам'}: {listed}. "
+        f"{services} {'стороннему сервису' if one else 'сторонним сервисам'}: {listed}{end} "
         "Страна — юрисдикция владельца сервиса, а для неизвестных базе — страна сети, "
         "где стоит сервер."
     )

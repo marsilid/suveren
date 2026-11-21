@@ -37,6 +37,17 @@ def test_check_names_what_the_site_did_not_choose():
     assert graph_check(build({}, "site.ru")).status is Status.OK
 
 
+def test_unknown_loader_and_one_link_read_right():
+    # 1000-site run, 2026-11-21: "trisigma.io — через ;" and "цепочка — 1 звена".
+    from suveren.scriptgraph import Graph
+
+    # A third party with no known loader: not loaded by the site, by nobody we saw.
+    g = Graph(nodes={SITE: "сайт", "t.io": "trisigma.io"}, depth={"t.io": 1})
+    details = graph_check(g).details
+    assert "trisigma.io — через скрипт, который не удалось определить" in details
+    assert "1 звено." in details and "через ;" not in details
+
+
 def test_svg_is_self_contained_and_escaped():
     g = build({**INITIATORS, "https://x.io/<b>.js": GTM}, "site.ru")
     out = svg(g)

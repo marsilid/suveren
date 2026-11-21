@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 from suveren.checks import Check, Status
 from suveren.cutoff import known_service
-from suveren.utils import registrable_domain
+from suveren.utils import plural, registrable_domain
 
 TITLE = "Цепочки сторонних скриптов"
 GROUP_WEB = "Безопасность сайта"
@@ -107,16 +107,21 @@ def graph_check(g: Graph) -> Check:
     longest = max((d for d in g.depth.values() if d is not None), default=1)
 
     def via(n: str) -> str:
-        return ", ".join(g.nodes[x] if x != SITE else "сайт" for x in g.loaders(n))
+        # The loader is not always known: "trisigma.io — через ;" stood in a report.
+        return (
+            ", ".join(g.nodes[x] if x != SITE else "сайт" for x in g.loaders(n))
+            or "скрипт, который не удалось определить"
+        )
 
     shown = "; ".join(f"{g.nodes[n]} — через {via(n)}" for n in indirect[:SHOWN])
     more = f" и ещё {len(indirect) - SHOWN}" if len(indirect) > SHOWN else ""
+    links = plural(longest, "звено", "звена", "звеньев")
     return Check(
         GROUP_WEB,
         TITLE,
         Status.WARN,
         f"Сайт выполняет код {total} сторонних компаний; {len(indirect)} из них подключил не "
-        f"сайт, а чужие скрипты: {shown}{more}. Самая длинная цепочка — {longest} звена. "
+        f"сайт, а чужие скрипты: {shown}{more}. Самая длинная цепочка — {longest} {links}. "
         "Этот код меняется без вашего ведома, и он видит всё, что вводят посетители.",
         "Уберите из тег-менеджера и виджетов то, чем не пользуетесь, и ограничьте источники "
         "скриптов в CSP: тогда новый код без вашего ведома не запустится.",
