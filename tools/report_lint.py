@@ -35,10 +35,19 @@ class Slip:
 # "1 поддоменов": a number ending in 1 (not 11) takes the singular, never "-ов/-ев/-ей".
 _ONE = re.compile(r"(?<![\d.,])(\d+)\s+([а-яё]+(?:ов|ев|ей))\b", re.IGNORECASE)
 _RULES = (
-    ("ellipsis-dot", re.compile(r"…\.|(?<!\.)\.\.(?!\.)")),
+    # "../assets" in a script's address is a path, not a typo.
+    ("ellipsis-dot", re.compile(r"…\.|(?<![./])\.\.(?![./])")),
     # A grade letter is a capital: "не выше b" came from a filter that lowered the line.
     ("lowercase-grade", re.compile(r"\b(?:оценк[аиеу]|выше|ниже)\s+[a-f]\b(?!-)")),
-    ("leftover", re.compile(r"\bNone\b|\{\{|\}\}|\{[a-z_]+\}|\bnan\b|\[\]|\bTrue\b|\bFalse\b")),
+    # "phone[]" and "filter[sex][]" are form field names from the site, and "SameSite=None"
+    # is a cookie attribute: not an empty list or a None of ours.
+    (
+        "leftover",
+        re.compile(
+            r"(?<!SameSite=)\bNone\b|\{\{|\}\}|\{[a-z_]+\}|\bnan\b|(?<![\w\]-])\[\]"
+            r"|\bTrue\b|\bFalse\b"
+        ),
+    ),
     # "camera=()" is the syntax of Permissions-Policy, not an empty aside.
     ("empty-brackets", re.compile(r"(?<!=)\(\s*\)")),
     ("doubled-word", re.compile(r"\b([а-яё]{2,})\s+\1\b", re.IGNORECASE)),

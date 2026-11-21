@@ -1085,10 +1085,15 @@ CASES: list[Case] = [
     ),
     # Owner of the network vs. where the server stands (152-ФЗ, ст. 18 ч. 5 is about the
     # place of the database, not the owner's flag).
+    # Only the geolocation database says "abroad" here. It is right for a Russian host's
+    # own servers in Germany, and wrong on cloud addresses moved between regions ("Yandex
+    # Cloud, сервер: Израиль" in the 1000-site run, 2026-11-21): one free database is not
+    # enough for the gravest finding of 152-ФЗ, so the sources' disagreement is a warning.
     Case(
         "lab-hosting-ru-network-abroad",
-        "сеть российского хостинга, но сервер с формой заявки стоит в Германии",
-        {"SUV-PD-007": "fail"},
+        "сеть российского хостинга, но база расположения ставит сервер с формой в Германию: "
+        "источники расходятся",
+        {"SUV-PD-007": "warn"},
         html=page(FORM_OK),
         located="DE",
         files=site_files(),

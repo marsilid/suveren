@@ -30,6 +30,13 @@ def test_flow_groups_by_country_foreign_first():
     assert "Ещё в стране «Нидерланды»" in check.recommendation
 
 
+def test_a_name_ending_in_a_dot_gets_no_second_one():
+    # 1000-site run, 2026-11-21: "Россия — Miran Ltd.. Страна — юрисдикция…".
+    rows = flow(hosts(HostInfo("x.miran.ru", "Miran Ltd.", "RU")))
+    details = flow_check(rows).details
+    assert "Miran Ltd. Страна" in details and "Ltd.." not in details
+
+
 def test_flow_inside_russia_only_or_nothing_is_ok():
     russian = flow(hosts(HostInfo("mc.yandex.ru", "Яндекс Метрика", "RU")))
     assert flow_check(russian).status is Status.OK
