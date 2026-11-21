@@ -555,6 +555,28 @@ def test_dangling_ns_delegations():
     assert dangling_ns_check(SubdomainScan("example.ru", [], "x", [], [])).status is Status.OK
 
 
+def test_name_servers_nobody_can_register_are_not_dangling():
+    # 2026-11-21: "ivc.net.ru → 81.19.128.2 (домен 128.2 свободен)" and "corp.t1.ru →
+    # t1-ns2.inno.local (домен inno.local свободен)" were reported as failures.
+    from suveren.subdomains import find_dangling_ns
+
+    resolver = FakeResolver(
+        {
+            ("ivc.example.ru", "NS"): ["81.19.128.2."],
+            ("corp.example.ru", "NS"): ["t1-ns2.inno.local.", "ns.corp.lan."],
+            ("v6.example.ru", "NS"): ["2001:db8::53"],
+        },
+        missing={"128.2", "inno.local", "corp.lan"},
+    )
+
+    async def go():
+        async with client(lambda request: httpx.Response(404)) as c:
+            names = ["ivc.example.ru", "corp.example.ru", "v6.example.ru"]
+            return await find_dangling_ns(resolver, c, names, "example.ru")
+
+    assert run(go()) == []
+
+
 def test_ns_lookup_failure_is_no_finding():
     from suveren.dnsutil import DnsLookupError
     from suveren.subdomains import find_dangling_ns

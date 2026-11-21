@@ -90,6 +90,14 @@ def public_suffix(domain: str, private: bool = True) -> str:
     return ".".join(best)
 
 
+def sold_tld(domain: str) -> bool:
+    """Whether a registry sells names in the top-level domain of ``domain``. Internal zones
+    (``.local``, ``.lan``, ``.corp``) are not on the list: nobody can register a name there."""
+    tld = _ascii(domain.lower().rstrip(".").rsplit(".", 1)[-1])
+    plain, wild, _ = rules(private=False)
+    return tld in plain or tld in wild
+
+
 def registrable(domain: str, private: bool = True) -> str:
     """The suffix plus one label: 'example.co.uk' from 'www.shop.example.co.uk'. A name
     that is itself a public suffix is returned as it is. Without ``private``: the domain

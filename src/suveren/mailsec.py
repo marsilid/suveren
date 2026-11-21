@@ -1058,10 +1058,17 @@ def dkim_strength_check(m: MailFacts) -> Check:
     if weak or sha1:
         why = []
         if weak:
+            # 512 bits: hours on rented servers (factoring as a service, 2015); 768 bits:
+            # done publicly in 2009 with about 2000 core-years, not hours.
+            cracked = (
+                "такой ключ раскладывается на множители за часы на арендованных серверах"
+                if min(k.bits or 0 for k in weak) <= 512
+                else "ключ такой длины публично раскладывали на множители ещё в 2009 году"
+            )
             why.append(
                 "RSA-ключ короче 1024 бит: получатели обязаны считать такие подписи "
-                "недействительными, а сам ключ раскладывается на множители за часы, после "
-                "чего письма от вашего имени можно подписывать"
+                f"недействительными, а {cracked}; тот, кто разложит ключ, сможет подписывать "
+                "письма от вашего имени"
             )
         if sha1:
             why.append(
